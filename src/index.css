@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/**
+ * Theme System
+ * CSS variables for light/dark mode support
+ * Automatically switched via ThemeContext.jsx
+ */
+
+:root {
+  /* Light theme (default) */
+  --color-bg-primary: #E8E8E8;
+  --color-bg-secondary: #DCDCDC;
+  --color-bg-tertiary: #D0D0D0;
+  --color-border: #C0C0C0;
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #4B5563;
+  --color-text-tertiary: #6B7280;
+  --color-hover: #C8C8C8;
+  --color-accent: #3B82F6;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme */
+html.dark {
+  --color-bg-primary: #0F0F11;
+  --color-bg-secondary: #18181B;
+  --color-bg-tertiary: #27272A;
+  --color-border: #27272A;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #A1A1A1;
+  --color-text-tertiary: #808080;
+  --color-hover: #1F1F23;
+  --color-accent: #3B82F6;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  #root {
+    height: 100%;
+    width: 100%;
+  }
+}
