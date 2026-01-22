@@ -117,6 +117,20 @@ const CRMModule = () => {
     }
   };
 
+  // Load forms data for Forms tab
+  const [formsList, setFormsList] = useState([]);
+  
+  useEffect(() => {
+    if (activeTab === 'Forms') {
+      loadFormsList();
+    }
+  }, [activeTab]);
+  
+  const loadFormsList = async () => {
+    const { data } = await mockSupabase.from('forms').select();
+    setFormsList(data || []);
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
