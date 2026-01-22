@@ -15,6 +15,7 @@ import SettingsModule from './modules/Settings';
 import TermsPage from './pages/Terms';
 import PrivacyPage from './pages/Privacy';
 import AcceptableUsePage from './pages/AcceptableUse';
+import PublicForm from './pages/PublicForm';
 import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
