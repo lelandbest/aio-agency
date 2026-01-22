@@ -913,24 +913,30 @@ const CRMModule = () => {
     );
   };
 
-  // FORMS TAB
+  // FORMS TAB - Load from database, not mock data
   const renderFormsTab = () => {
-    const forms = [
-      { id: 1, title: 'Contact Form', responses: 45, last_active: '2 hours ago', status: 'Active' },
-      { id: 2, title: 'Demo Request', responses: 67, last_active: '1 day ago', status: 'Active' },
-      { id: 3, title: 'Newsletter Signup', responses: 234, last_active: '3 hours ago', status: 'Active' }
-    ];
+    const [formsList, setFormsList] = useState([]);
+    
+    useEffect(() => {
+      const loadForms = async () => {
+        const { data } = await mockSupabase.from('forms').select();
+        setFormsList(data || []);
+      };
+      loadForms();
+    }, []);
 
     return (
       <div className="flex-1 p-6 overflow-auto bg-[#0F0F11]">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {forms.map(form => (
+          {formsList.map(form => (
             <div key={form.id} className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition">
-              <h3 className="text-white font-bold mb-2">{form.title}</h3>
+              <h3 className="text-white font-bold mb-2">{form.name}</h3>
               <div className="text-sm text-gray-400 space-y-1">
-                <p>Responses: {form.responses}</p>
-                <p>Last Active: {form.last_active}</p>
-                <p className="text-green-400">Status: {form.status}</p>
+                <p>Responses: {form.responses_count || 0}</p>
+                <p>Last Active: {form.last_response_at ? new Date(form.last_response_at).toLocaleDateString() : 'Never'}</p>
+                <p className={form.is_active ? 'text-green-400' : 'text-gray-500'}>
+                  Status: {form.is_active ? 'Active' : 'Inactive'}
+                </p>
               </div>
             </div>
           ))}
