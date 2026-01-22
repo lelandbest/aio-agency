@@ -869,29 +869,34 @@ class MockSupabaseClient {
       ];
     }
 
-    // Sample CMS Data - Contact Form Submissions
-    if (!this.db.cms_contact_form_submissions) {
-      this.db.cms_contact_form_submissions = [
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-CMS-001', name: 'Alice Johnson', email: 'alice@example.com', phone: '+1 (555) 123-0001', message: 'Interested in your enterprise solution', submitted_at: '2026-01-12T10:00:00Z' },
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-CMS-002', name: 'Bob Smith', email: 'bob@example.com', phone: '+1 (555) 123-0002', message: 'Need pricing information', submitted_at: '2026-01-11T14:30:00Z' },
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-CMS-003', name: 'Carol White', email: 'carol@example.com', phone: '+1 (555) 123-0003', message: 'Question about integrations', submitted_at: '2026-01-10T09:15:00Z' }
+    // Sample CMS Data - Contact Form (cms_contact_form)
+    if (!this.db.cms_contact_form) {
+      const contactIds = this.db.crm_contacts?.map(c => c.id) || [];
+      const submissions = this.db.form_submissions || [];
+      this.db.cms_contact_form = [
+        { id: generateUUID(), contact_id: contactIds[0], form_submission_id: submissions[0]?.id, full_name: 'Jenna Best', email: 'jennalarinbest@gmail.com', phone: '+1 (555) 123-4567', message: 'Interested in your services', submitted_at: '2026-01-12T10:00:00Z' },
+        { id: generateUUID(), contact_id: contactIds[1], form_submission_id: submissions[1]?.id, full_name: 'Daniel Salinas', email: 'hvac.danielsalinas@gmail.com', phone: '+1 (555) 987-6543', message: 'Need pricing info', submitted_at: '2026-01-11T14:30:00Z' },
+        { id: generateUUID(), contact_id: contactIds[2], form_submission_id: submissions[2]?.id, full_name: 'Jordan Gilbert', email: 'jordan@webdesignnovainc.com', phone: '+1 (555) 456-7890', message: 'Partnership opportunity', submitted_at: '2026-01-10T09:15:00Z' }
       ];
     }
 
-    // Sample CMS Data - Newsletter Signups
-    if (!this.db.cms_newsletter_signups) {
-      this.db.cms_newsletter_signups = [
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-NEWS-001', email: 'subscriber1@example.com', source: 'Website Footer', subscribed_at: '2026-01-12T08:00:00Z' },
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-NEWS-002', email: 'subscriber2@example.com', source: 'Blog Post', subscribed_at: '2026-01-11T12:00:00Z' },
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-NEWS-003', email: 'subscriber3@example.com', source: 'Landing Page', subscribed_at: '2026-01-10T16:00:00Z' }
+    // Sample CMS Data - Demo Request (cms_demo_request)
+    if (!this.db.cms_demo_request) {
+      const contactIds = this.db.crm_contacts?.map(c => c.id) || [];
+      const submissions = this.db.form_submissions || [];
+      this.db.cms_demo_request = [
+        { id: generateUUID(), contact_id: contactIds[3], form_submission_id: submissions[3]?.id, full_name: 'Sarah Chen', email: 'sarah.chen@finserve.com', company: 'FinServe Inc', company_size: '201-1000', inquiry: 'Looking for enterprise solution', submitted_at: '2026-01-11T15:30:00Z' },
+        { id: generateUUID(), contact_id: contactIds[4], form_submission_id: submissions[4]?.id, full_name: 'Michael Rodriguez', email: 'mrodriguez@healthplus.care', company: 'HealthPlus Clinic', company_size: '51-200', inquiry: 'Healthcare compliance features', submitted_at: '2026-01-10T11:00:00Z' }
       ];
     }
 
-    // Sample CMS Data - Demo Requests
-    if (!this.db.cms_demo_requests) {
-      this.db.cms_demo_requests = [
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-DEMO-001', name: 'David Green', email: 'david@company.com', company: 'GreenTech Inc', role: 'CTO', preferred_date: '2026-01-15', created_at: '2026-01-12T11:00:00Z' },
-        { id: generateUUID(), contact_id: 'CNT-' + Date.now() + '-DEMO-002', name: 'Emma Brown', email: 'emma@startup.io', company: 'StartupXYZ', role: 'CEO', preferred_date: '2026-01-16', created_at: '2026-01-11T15:30:00Z' }
+    // Sample CMS Data - Newsletter Signup (cms_newsletter_signup)
+    if (!this.db.cms_newsletter_signup) {
+      const contactIds = this.db.crm_contacts?.map(c => c.id) || [];
+      const submissions = this.db.form_submissions || [];
+      this.db.cms_newsletter_signup = [
+        { id: generateUUID(), contact_id: contactIds[5], form_submission_id: submissions[5]?.id, email: 'emily.watson@edulearn.com', interests: 'Technology', submitted_at: '2026-01-12T16:00:00Z' },
+        { id: generateUUID(), contact_id: contactIds[6], form_submission_id: submissions[6]?.id, email: 'alex.kim@retailplus.co', interests: 'Sales', submitted_at: '2026-01-12T08:00:00Z' }
       ];
     }
   }
