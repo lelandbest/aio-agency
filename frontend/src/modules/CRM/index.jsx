@@ -1287,10 +1287,10 @@ const CRMModule = () => {
               Cancel
             </button>
             <button 
-              onClick={handleSubmit}
+              type="submit"
               className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium"
             >
-              Create Contact
+              {createModalTab === 'Contact' ? 'Create Contact' : 'Create User'}
             </button>
           </div>
         </div>
