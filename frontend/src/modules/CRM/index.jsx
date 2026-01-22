@@ -742,17 +742,16 @@ const CRMModule = () => {
 
   // CMS TAB
   const renderCMSTab = () => {
-    const [cmsTables, setCmsTables] = useState([]);
-    const [selectedTable, setSelectedTable] = useState(null);
-    const [tableData, setTableData] = useState([]);
-
+    // Load CMS tables on mount
     useEffect(() => {
       const loadCMSTables = async () => {
         const { data } = await mockSupabase.from('cms_tables').select();
         setCmsTables(data || []);
       };
-      loadCMSTables();
-    }, []);
+      if (activeTab === 'CMS') {
+        loadCMSTables();
+      }
+    }, [activeTab]);
 
     const loadTableData = async (table) => {
       setSelectedTable(table);
