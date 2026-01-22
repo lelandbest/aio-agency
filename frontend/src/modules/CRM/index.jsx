@@ -458,10 +458,10 @@ const CRMModule = () => {
               Remove Tag
             </button>
             <button onClick={() => handleBulkAction('add_automation')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
-              Add To Automation
+              Add Flow
             </button>
             <button onClick={() => handleBulkAction('remove_flow')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
-              Remove From Flow
+              Remove Flow
             </button>
             <button onClick={() => handleBulkAction('export')} className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white">
               <Download size={12} className="inline mr-1" /> Export
@@ -482,10 +482,10 @@ const CRMModule = () => {
               Send API
             </button>
             <button onClick={() => handleBulkAction('assign_ai')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
-              Assign to AI Employee
+              Assign AI
             </button>
             <button onClick={() => handleBulkAction('set_department')} className="px-3 py-1.5 rounded text-xs font-medium bg-yellow-600 hover:bg-yellow-700 text-black">
-              Set Department
+              Set Dept
             </button>
           </div>
 
