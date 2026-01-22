@@ -103,7 +103,7 @@ export const processFormSubmission = async (formId, formData) => {
     }
 
     // 5. Store in form_submissions master table
-    const submissionId = `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const submissionId = generateSubmissionId();
     
     await mockSupabase.from('form_submissions').insert([{
       id: submissionId,
@@ -118,7 +118,7 @@ export const processFormSubmission = async (formId, formData) => {
     // 6. Store in CMS table (cms_{form_slug})
     const cmsTableName = `cms_${form.slug}`;
     await mockSupabase.from(cmsTableName).insert([{
-      id: `cms-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: generateCmsId(),
       contact_id: contactId,
       form_submission_id: submissionId,
       ...formData,
@@ -128,7 +128,7 @@ export const processFormSubmission = async (formId, formData) => {
     // 7. Create activity record
     if (contactId) {
       await mockSupabase.from('contact_activities').insert([{
-        id: `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        id: generateActivityId(),
         contact_id: contactId,
         activity_type: 'form',
         title: `Submitted ${form.name}`,
