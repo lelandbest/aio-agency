@@ -50,7 +50,9 @@ const CRMModule = () => {
     extra_details: { operator: 'is', value: '', active: false },
     pipeline: { operator: 'is', value: '', active: false },
     pipeline_column: { operator: 'is', value: '', active: false },
-    name: { operator: 'is', value: '', active: false }
+    name: { operator: 'is', value: '', active: false },
+    form_submitted: { operator: 'has', value: '', active: false },
+    form_submission_date: { operator: 'is', value: '', active: false }
   });
 
   // Filter Options
