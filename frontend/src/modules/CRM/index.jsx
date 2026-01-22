@@ -82,6 +82,38 @@ const CRMModule = () => {
     loadData();
   }, []);
 
+  // Load contact activities when a contact is selected
+  useEffect(() => {
+    if (selectedContact) {
+      loadActivitiesAndForms();
+    }
+  }, [selectedContact]);
+
+  const loadActivitiesAndForms = async () => {
+    if (!selectedContact) return;
+    
+    try {
+      // Load activities
+      const { data: activitiesData } = await mockSupabase
+        .from('contact_activities')
+        .select()
+        .eq('contact_id', selectedContact.id)
+        .order('created_at', { ascending: false });
+      
+      setActivities(activitiesData || []);
+
+      // Load form submissions
+      const { data: submissionsData } = await mockSupabase
+        .from('form_submissions')
+        .select()
+        .eq('contact_id', selectedContact.id);
+      
+      setFormsSubmitted(submissionsData || []);
+    } catch (error) {
+      console.error('Error loading activities:', error);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
