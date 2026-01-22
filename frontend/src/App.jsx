@@ -534,9 +534,18 @@ const App = () => {
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [db, setDb] = useState(null);
-  const [currentPage, setCurrentPage] = useState('app'); // 'app', 'terms', 'privacy', 'acceptable-use'
+  const [currentPage, setCurrentPage] = useState('app'); // 'app', 'terms', 'privacy', 'acceptable-use', 'form'
+  const [formSlug, setFormSlug] = useState(null);
 
   useEffect(() => {
+    // Check if URL is a public form link
+    const path = window.location.pathname;
+    if (path.startsWith('/form/')) {
+      const slug = path.replace('/form/', '');
+      setFormSlug(slug);
+      setCurrentPage('form');
+    }
+    
     // Simulate checking for existing session
     setTimeout(() => {
       setLoading(false);
