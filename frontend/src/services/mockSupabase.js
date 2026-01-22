@@ -209,7 +209,7 @@ class MockSupabaseClient {
       this.db.crm_contacts = [
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + Date.now() + '-001',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Jenna',
           last_name: 'Best',
