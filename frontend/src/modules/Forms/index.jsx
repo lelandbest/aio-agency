@@ -88,7 +88,29 @@ const FormBuilderModule = () => {
 
   useEffect(() => {
     fetchForms();
+    fetchCmsTables();
   }, []);
+  
+  const fetchCmsTables = async () => {
+    const { data } = await mockSupabase.from('cms_tables').select();
+    if (data) setCmsTables(data);
+  };
+  
+  const loadCmsTableData = async (table) => {
+    setSelectedCmsTable(table);
+    setCmsDataLoading(true);
+    try {
+      const data = await getCMSTableData(table.slug);
+      setCmsTableData(data);
+    } catch (error) {
+      console.error('Error loading CMS data:', error);
+    }
+    setCmsDataLoading(false);
+  };
+  
+  const handleExportCMS = async (table) => {
+    await exportCMSToCSV(table.slug, table.name);
+  };
 
   const fetchForms = async () => {
     setLoading(true);
