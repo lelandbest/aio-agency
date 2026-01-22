@@ -123,7 +123,7 @@ class MockSupabaseClient {
       this.db.companies = [
         {
           id: generateUUID(),
-          contact_id: 'COMP-001',
+          contact_id: generateCompanyId(),
           name: 'TechCorp Solutions',
           domain: 'techcorp.com',
           industry: 'Technology',
