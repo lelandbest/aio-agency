@@ -886,15 +886,38 @@ const CRMModule = () => {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <div className="p-6 border-b flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900">Create Contact</h2>
-            <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
+          {/* Modal Header with Tabs */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setCreateModalTab('Contact')}
+              className={`flex-1 px-6 py-3 font-medium text-sm border-b-2 ${
+                createModalTab === 'Contact'
+                  ? 'text-gray-900 border-gray-900'
+                  : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              Contact
+            </button>
+            <button
+              onClick={() => setCreateModalTab('Create User')}
+              className={`flex-1 px-6 py-3 font-medium text-sm border-b-2 ${
+                createModalTab === 'Create User'
+                  ? 'text-gray-900 border-gray-900'
+                  : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              Create User
+            </button>
+            <button onClick={() => setShowCreateModal(false)} className="px-4 text-gray-400 hover:text-gray-600">
               <X size={20} />
             </button>
           </div>
           
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            {createModalTab === 'Contact' ? (
+              // CONTACT FORM
+              <>
+                <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-2">First Name *</label>
                 <input 
