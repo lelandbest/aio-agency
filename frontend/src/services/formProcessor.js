@@ -66,11 +66,8 @@ export const processFormSubmission = async (formId, formData) => {
     } else {
       // 4b. Create new contact
       if (form.settings.create_contact) {
-        const timestamp = Date.now();
-        const random = Math.floor(Math.random() * 1000);
-        
         const newContact = {
-          contact_id: `CNT-${timestamp}-${random}`,
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           source: `Form: ${form.name}`,
           status: 'lead',
