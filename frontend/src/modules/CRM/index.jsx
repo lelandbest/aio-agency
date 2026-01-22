@@ -665,184 +665,268 @@ const CRMModule = () => {
         });
 
     return (
-      <div className="flex-1 flex flex-col bg-[#0F0F11] p-6 overflow-hidden">
+      <div className="flex-1 flex bg-[#0F0F11] overflow-hidden">
         <button 
           onClick={() => setSelectedContact(null)}
-          className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white"
+          className="absolute top-4 left-4 z-10 flex items-center gap-2 text-gray-400 hover:text-white bg-[#18181B] px-3 py-2 rounded-lg"
         >
           <ChevronLeft size={16} /> Back to Contacts
         </button>
         
-        {/* 3-COLUMN LAYOUT */}
-        <div className="flex-1 grid grid-cols-12 gap-4 overflow-hidden">
-          {/* LEFT: Contact Info (3 cols) */}
-          <div className="col-span-3 bg-[#18181B] border border-[#27272A] rounded-lg p-4 overflow-auto">
-            <div className="mb-4 pb-4 border-b border-[#27272A]">
-              <h2 className="text-xl font-bold text-white mb-1">
-                {selectedContact.first_name} {selectedContact.last_name}
-              </h2>
-              <p className="text-sm text-gray-400">{selectedContact.title || 'Contact'}</p>
+        {/* LEFT PANEL: Detailed Contact Info */}
+        <div className="w-80 flex flex-col gap-4 overflow-y-auto p-4 mt-12">
+          {/* Detail Card */}
+          <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 space-y-3">
+            <div>
+              <h2 className="text-lg font-bold text-white">{selectedContact.first_name} {selectedContact.last_name}</h2>
+              <button className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
             </div>
-            
-            <div className="space-y-4 text-sm">
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Email</label>
-                <p className="text-white">{selectedContact.email}</p>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Phone</label>
-                <p className="text-white">{selectedContact.phone || '--'}</p>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Company</label>
-                <p className="text-white">{selectedContact.company || '--'}</p>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Lead Score</label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-[#27272A] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-purple-600 rounded-full" 
-                      style={{ width: `${selectedContact.lead_score}%` }}
-                    />
-                  </div>
-                  <span className="text-white font-bold">{selectedContact.lead_score}</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Pipeline</label>
-                <p className="text-white">{selectedContact.pipeline_stage || '--'}</p>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Owner</label>
-                <p className="text-white">{selectedContact.owner || '--'}</p>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Tags</label>
-                <div className="flex flex-wrap gap-1">
-                  {selectedContact.tags?.map((tag, idx) => (
-                    <span key={idx} className="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs">
-                      {tag}
-                    </span>
-                  )) || <span className="text-gray-500">No tags</span>}
-                </div>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Opt-ins</label>
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={selectedContact.opt_in_email} readOnly className="w-3 h-3" />
-                    <span className="text-gray-300">Email</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={selectedContact.opt_in_sms} readOnly className="w-3 h-3" />
-                    <span className="text-gray-300">SMS</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={selectedContact.opt_in_calls} readOnly className="w-3 h-3" />
-                    <span className="text-gray-300">Calls</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          {/* CENTER: Activity Timeline (6 cols) */}
-          <div className="col-span-6 bg-[#18181B] border border-[#27272A] rounded-lg flex flex-col overflow-hidden">
-            {/* Activity Tabs */}
-            <div className="flex gap-2 p-3 border-b border-[#27272A] overflow-x-auto">
-              {['Activity', 'Notes', 'Forms'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActivityTab(tab)}
-                  className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
-                    activityTab === tab 
-                      ? 'bg-purple-600 text-white' 
-                      : 'bg-[#27272A] text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {tab}
+            {/* Key Fields */}
+            {['quality', 'engagement', 'owner', 'company', 'dob', 'department', 'title', 'ai_employee'].map(field => (
+              <div key={field}>
+                <label className="text-xs text-gray-400 font-bold uppercase">{field.replace('_', ' ')}</label>
+                <p className="text-gray-300">{selectedContact[field] || '--'}</p>
+              </div>
+            ))}
+
+            {/* Quick Action Buttons */}
+            <div className="flex gap-2 py-3 border-t border-[#27272A]">
+              {[
+                { icon: Clipboard, label: 'Note' },
+                { icon: Mail, label: 'Email' },
+                { icon: MessageCircle, label: 'SMS' },
+                { icon: Calendar, label: 'Meet' },
+                { icon: FileInput, label: 'Form' }
+              ].map((action, idx) => (
+                <button key={idx} className="flex-1 flex flex-col items-center gap-1 p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs">
+                  <action.icon size={16} />
+                  <span className="text-xs">{action.label}</span>
                 </button>
               ))}
             </div>
 
-            {/* Timeline */}
-            <div className="flex-1 overflow-auto p-4 space-y-3">
-              {filteredActivities.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No activities yet</p>
-                </div>
-              ) : (
-                filteredActivities.map(activity => (
-                  <div key={activity.id} className="flex gap-3 p-3 bg-[#27272A]/30 rounded-lg hover:bg-[#27272A]/50 transition">
-                    <div className="text-2xl">{getActivityIcon(activity.activity_type)}</div>
-                    <div className="flex-1">
-                      <h4 className="text-white font-medium text-sm">{activity.title}</h4>
-                      <p className="text-gray-400 text-xs mt-1">{activity.description}</p>
-                      {activity.metadata && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          {Object.entries(activity.metadata).slice(0, 3).map(([key, value]) => (
-                            <span key={key} className="mr-3">
-                              <strong>{key}:</strong> {typeof value === 'object' ? JSON.stringify(value).slice(0, 30) : value}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-gray-500 text-xs mt-2">
-                        {new Date(activity.created_at).toLocaleString()}
-                      </p>
+            {/* Contact Info */}
+            <div className="space-y-2 text-sm border-t border-[#27272A] pt-3">
+              <div>
+                <label className="text-xs text-gray-400">Email</label>
+                <p className="text-purple-400 flex items-center gap-1">
+                  <Mail size={14} /> {selectedContact.email}
+                </p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">Phone</label>
+                <p className="text-gray-300">{selectedContact.phone || '--'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">Website</label>
+                <p className="text-gray-300">{selectedContact.website || '--'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">Address</label>
+                <p className="text-gray-300">
+                  {selectedContact.address ? 
+                    (typeof selectedContact.address === 'object' ? 
+                      `${selectedContact.address.street || ''}, ${selectedContact.address.city || ''}, ${selectedContact.address.state || ''} ${selectedContact.address.zip || ''}` 
+                      : selectedContact.address) 
+                    : '--'}
+                </p>
+              </div>
+            </div>
+
+            {/* Additional Details Dropdown */}
+            <button 
+              onClick={() => setShowAdditionalDetails(!showAdditionalDetails)}
+              className="w-full flex justify-between items-center p-3 bg-[#0A0A0A] rounded text-gray-300 hover:text-white text-sm"
+            >
+              <span>Additional Details</span>
+              <ChevronDown size={16} className={showAdditionalDetails ? 'rotate-180' : ''} />
+            </button>
+
+            {showAdditionalDetails && (
+              <div className="bg-[#0A0A0A] rounded p-3 space-y-2 text-sm">
+                {[
+                  { label: 'External Reference ID', value: selectedContact.external_reference_id },
+                  { label: 'Validation Status', value: selectedContact.validation_status },
+                  { label: 'Click Id', value: selectedContact.click_id },
+                  { label: 'Source Code', value: selectedContact.source_code },
+                  { label: 'Sub Id 1', value: selectedContact.sub_id_1 },
+                  { label: 'Sub Id 2', value: selectedContact.sub_id_2 },
+                  { label: 'Sub Id 3', value: selectedContact.sub_id_3 },
+                  { label: 'Sub Id 4', value: selectedContact.sub_id_4 },
+                  { label: 'Sub Id 5', value: selectedContact.sub_id_5 }
+                ].map(field => (
+                  <div key={field.label}>
+                    <p className="text-xs text-gray-400 uppercase">{field.label}</p>
+                    <p className="text-gray-300">{field.value || '--'}</p>
+                  </div>
+                ))}
+
+                {/* Opt-In Toggles */}
+                <div className="space-y-2 border-t border-[#27272A] pt-3">
+                  {[
+                    { label: 'Opt-In Emails', field: 'opt_in_email' },
+                    { label: 'Opt-In SMS', field: 'opt_in_sms' },
+                    { label: 'Opt-In Calls', field: 'opt_in_calls' },
+                    { label: 'Opt-In Automations', field: 'opt_in_automations' }
+                  ].map(toggle => (
+                    <div key={toggle.label} className="flex justify-between items-center">
+                      <span className="text-xs">{toggle.label}</span>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedContact[toggle.field] || false}
+                        readOnly
+                        className="w-4 h-4" 
+                      />
                     </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-[#27272A] pt-3">
+                  <p className="text-xs text-gray-400 uppercase">Created Date</p>
+                  <p className="text-gray-300">{selectedContact.created_at ? new Date(selectedContact.created_at).toLocaleDateString() : '--'}</p>
+                </div>
+                
+                <div>
+                  <p className="text-xs text-gray-400 uppercase">Updated Date</p>
+                  <p className="text-gray-300">{selectedContact.updated_at ? new Date(selectedContact.updated_at).toLocaleDateString() : '--'}</p>
+                </div>
+                
+                <div>
+                  <p className="text-xs text-gray-400 uppercase">Last Contacted</p>
+                  <p className="text-gray-300">{selectedContact.last_contacted_at ? new Date(selectedContact.last_contacted_at).toLocaleDateString() : '--'}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Account Buttons */}
+            <div className="space-y-2">
+              <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
+                User Account Details
+              </button>
+              <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
+                Create User Login
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* CENTER: Activity Timeline */}
+        <div className="flex-1 bg-[#18181B] border-x border-[#27272A] flex flex-col overflow-hidden mt-12">
+          {/* Activity Tabs */}
+          <div className="flex gap-2 p-3 border-b border-[#27272A] overflow-x-auto">
+            {['Activity', 'Notes', 'Forms', 'Automation Emails', 'Automation SMS', 'Call Logs', 'Automation Activity'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActivityTab(tab)}
+                className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
+                  activityTab === tab 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-[#27272A] text-gray-400 hover:text-white'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Timeline */}
+          <div className="flex-1 overflow-auto p-4 space-y-3">
+            {filteredActivities.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No activities yet</p>
+              </div>
+            ) : (
+              filteredActivities.map(activity => (
+                <div key={activity.id} className="flex gap-3 p-3 bg-[#27272A]/30 rounded-lg hover:bg-[#27272A]/50 transition">
+                  <div className="text-2xl">{getActivityIcon(activity.activity_type)}</div>
+                  <div className="flex-1">
+                    <h4 className="text-white font-medium text-sm">{activity.title}</h4>
+                    <p className="text-gray-400 text-xs mt-1">{activity.description}</p>
+                    {activity.metadata && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        {Object.entries(activity.metadata).slice(0, 3).map(([key, value]) => (
+                          <span key={key} className="mr-3">
+                            <strong>{key}:</strong> {typeof value === 'object' ? JSON.stringify(value).slice(0, 30) : value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-gray-500 text-xs mt-2">
+                      {new Date(activity.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT: Related Items */}
+        <div className="w-80 bg-[#18181B] border-l border-[#27272A] overflow-y-auto p-4 space-y-4 mt-12">
+          {/* Forms Submitted */}
+          <div className="bg-[#0A0A0A] rounded p-3">
+            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+              <span>Forms Submitted ({formsSubmitted.length})</span>
+              <ChevronDown size={14} />
+            </h3>
+            <div className="space-y-2">
+              {formsSubmitted.length === 0 ? (
+                <p className="text-xs text-gray-500">No form submissions</p>
+              ) : (
+                formsSubmitted.map(submission => (
+                  <div key={submission.id} className="p-2 bg-[#18181B] rounded text-xs">
+                    <p className="text-white font-medium">✓ Form Submission</p>
+                    <p className="text-gray-400 text-[10px] mt-1">
+                      {new Date(submission.submitted_at).toLocaleDateString()}
+                    </p>
                   </div>
                 ))
               )}
             </div>
           </div>
 
-          {/* RIGHT: Related Items (3 cols) */}
-          <div className="col-span-3 bg-[#18181B] border border-[#27272A] rounded-lg p-4 overflow-auto space-y-4">
-            {/* Forms Submitted */}
-            <div>
-              <h3 className="text-sm font-bold text-white mb-2">Forms Submitted ({formsSubmitted.length})</h3>
-              <div className="space-y-2">
-                {formsSubmitted.length === 0 ? (
-                  <p className="text-xs text-gray-500">No form submissions</p>
-                ) : (
-                  formsSubmitted.map(submission => (
-                    <div key={submission.id} className="p-2 bg-[#27272A]/30 rounded text-xs">
-                      <p className="text-white font-medium">✓ Form Submission</p>
-                      <p className="text-gray-400 text-[10px] mt-1">
-                        {new Date(submission.submitted_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          {/* Automations */}
+          <div className="bg-[#0A0A0A] rounded p-3">
+            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+              <span>Automations</span>
+              <ChevronDown size={14} />
+            </h3>
+            <p className="text-xs text-gray-500">No active automations</p>
+          </div>
 
-            {/* Automations */}
-            <div>
-              <h3 className="text-sm font-bold text-white mb-2">Automations</h3>
-              <p className="text-xs text-gray-500">No active automations</p>
-            </div>
+          {/* Booking */}
+          <div className="bg-[#0A0A0A] rounded p-3">
+            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+              <span>Booking</span>
+              <ChevronDown size={14} />
+            </h3>
+            <p className="text-xs text-gray-500">No bookings</p>
+          </div>
 
-            {/* Pipelines */}
-            <div>
-              <h3 className="text-sm font-bold text-white mb-2">Pipelines</h3>
-              <div className="p-2 bg-purple-900/20 rounded text-xs">
-                <p className="text-purple-400 font-medium">{selectedContact.pipeline_stage || 'New'}</p>
-              </div>
+          {/* Pipelines */}
+          <div className="bg-[#0A0A0A] rounded p-3">
+            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+              <span>Pipelines</span>
+              <ChevronDown size={14} />
+            </h3>
+            <div className="p-2 bg-purple-900/20 rounded text-xs">
+              <p className="text-purple-400 font-medium">{selectedContact.pipeline_stage || 'New'}</p>
             </div>
+          </div>
 
-            {/* Booking */}
-            <div>
-              <h3 className="text-sm font-bold text-white mb-2">Booking</h3>
-              <p className="text-xs text-gray-500">No bookings</p>
-            </div>
-
-            {/* Orders */}
-            <div>
-              <h3 className="text-sm font-bold text-white mb-2">Orders</h3>
-              <p className="text-xs text-gray-500">No orders</p>
+          {/* Billing */}
+          <div className="bg-[#0A0A0A] rounded p-3">
+            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+              <span>Billing</span>
+              <ChevronDown size={14} />
+            </h3>
+            <div className="space-y-1 text-xs">
+              <p className="text-gray-400">Credit Cards (0)</p>
+              <p className="text-gray-400">Orders (0)</p>
+              <p className="text-gray-400">Purchases (0)</p>
+              <p className="text-gray-400">Transactions (0)</p>
+              <p className="text-gray-400">Invoices (0)</p>
             </div>
           </div>
         </div>
