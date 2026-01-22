@@ -67,7 +67,9 @@ const CRMModule = () => {
     extra_details: ['Verified', 'Unverified', 'Complete', 'Incomplete'],
     pipeline: ['New', 'Qualified', 'Discovery', 'Closed Won', 'Closed Lost', 'Negotiating'],
     pipeline_column: ['Planning', 'Active', 'Completed', 'On Hold'],
-    name: ['A-M', 'N-Z']
+    name: ['A-M', 'N-Z'],
+    form_submitted: ['Contact Form', 'Demo Request', 'Newsletter Signup', 'Any Form'],
+    form_submission_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year']
   };
 
   // Load data from database
