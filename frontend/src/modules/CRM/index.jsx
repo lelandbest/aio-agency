@@ -1012,31 +1012,25 @@ const CRMModule = () => {
     );
   };
 
-  // FORMS TAB - Load from database, not mock data
+  // FORMS TAB - Render same as Forms Module
   const renderFormsTab = () => {
-    const [formsList, setFormsList] = useState([]);
-    
-    useEffect(() => {
-      const loadForms = async () => {
-        const { data } = await mockSupabase.from('forms').select();
-        setFormsList(data || []);
-      };
-      loadForms();
-    }, []);
-
     return (
       <div className="flex-1 p-6 overflow-auto bg-[#0F0F11]">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {formsList.map(form => (
-            <div key={form.id} className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition">
-              <h3 className="text-white font-bold mb-2">{form.name}</h3>
-              <div className="text-sm text-gray-400 space-y-1">
-                <p>Responses: {form.responses_count || 0}</p>
-                <p>Last Active: {form.last_response_at ? new Date(form.last_response_at).toLocaleDateString() : 'Never'}</p>
-                <p className={form.is_active ? 'text-green-400' : 'text-gray-500'}>
-                  Status: {form.is_active ? 'Active' : 'Inactive'}
-                </p>
+            <div key={form.id} className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition cursor-pointer">
+              <div className="flex justify-between items-start mb-3">
+                <div className="w-10 h-10 bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-400">
+                  <FileInput size={20} />
+                </div>
+                <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${
+                  form.is_active ? 'bg-green-900/20 text-green-400' : 'bg-gray-800 text-gray-400'
+                }`}>
+                  {form.is_active ? 'Active' : 'Inactive'}
+                </span>
               </div>
+              <h3 className="text-white font-bold mb-1">{form.name}</h3>
+              <p className="text-gray-500 text-xs">{form.responses_count || 0} responses</p>
             </div>
           ))}
         </div>
