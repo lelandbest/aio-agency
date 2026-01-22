@@ -19,8 +19,14 @@ const CRMModule = () => {
   const [sortField, setSortField] = useState('first_name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalTab, setCreateModalTab] = useState('Contact');
   const [selectedContact, setSelectedContact] = useState(null);
   const [showFilters, setShowFilters] = useState(true);
+  
+  // CMS Tab states (must be at top level, not inside render function)
+  const [cmsTables, setCmsTables] = useState([]);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [tableData, setTableData] = useState([]);
   
   // Filter states
   const [filters, setFilters] = useState({
