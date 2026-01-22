@@ -722,16 +722,37 @@ const CRMModule = () => {
         <div className="w-80 flex flex-col gap-4 overflow-y-auto p-4 mt-12">
           {/* Detail Card */}
           <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 space-y-3">
-            <div>
-              <h2 className="text-lg font-bold text-white">{selectedContact.first_name} {selectedContact.last_name}</h2>
-              <button className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-lg font-bold text-white">{currentContact.first_name} {currentContact.last_name}</h2>
+                <button className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
+              </div>
+              {!isEditingContact ? (
+                <button onClick={handleEditContact} className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1">
+                  <Edit size={12} /> Edit
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={handleSaveContact} className="text-green-400 hover:text-green-300 text-xs">Save</button>
+                  <button onClick={handleCancelEdit} className="text-gray-400 hover:text-gray-300 text-xs">Cancel</button>
+                </div>
+              )}
             </div>
 
-            {/* Key Fields */}
+            {/* Editable Key Fields */}
             {['quality', 'engagement', 'owner', 'company', 'dob', 'department', 'title', 'ai_employee'].map(field => (
               <div key={field}>
                 <label className="text-xs text-gray-400 font-bold uppercase">{field.replace('_', ' ')}</label>
-                <p className="text-gray-300">{selectedContact[field] || '--'}</p>
+                {isEditingContact ? (
+                  <input
+                    type="text"
+                    value={currentContact[field] || ''}
+                    onChange={(e) => handleFieldChange(field, e.target.value)}
+                    className="w-full px-2 py-1 bg-[#0A0A0A] border border-[#27272A] rounded text-gray-300 text-sm"
+                  />
+                ) : (
+                  <p className="text-gray-300">{currentContact[field] || '--'}</p>
+                )}
               </div>
             ))}
 
