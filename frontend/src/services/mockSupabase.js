@@ -243,7 +243,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 1) + '-002',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Daniel',
           last_name: 'Salinas',
@@ -277,7 +277,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 2) + '-003',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Jordan',
           last_name: 'Gilbert',
@@ -311,7 +311,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 3) + '-004',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Sarah',
           last_name: 'Chen',
@@ -345,7 +345,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 4) + '-005',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Michael',
           last_name: 'Rodriguez',
@@ -379,7 +379,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 5) + '-006',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Emily',
           last_name: 'Watson',
@@ -413,7 +413,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 6) + '-007',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'David',
           last_name: 'Thompson',
@@ -447,7 +447,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 7) + '-008',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Lisa',
           last_name: 'Martinez',
@@ -481,7 +481,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 8) + '-009',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Kevin',
           last_name: 'Lee',
@@ -515,7 +515,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 9) + '-010',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Amanda',
           last_name: 'Foster',
@@ -549,7 +549,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 10) + '-011',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Robert',
           last_name: 'Kim',
@@ -583,7 +583,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 11) + '-012',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Jessica',
           last_name: 'Brown',
@@ -617,7 +617,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 12) + '-013',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Christopher',
           last_name: 'Davis',
@@ -651,7 +651,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 13) + '-014',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Nicole',
           last_name: 'Anderson',
@@ -685,7 +685,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'CNT-' + (Date.now() + 14) + '-015',
+          contact_id: generateContactId(),
           organization_id: 'org-1',
           first_name: 'Brandon',
           last_name: 'White',
