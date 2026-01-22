@@ -174,6 +174,30 @@ frontend:
       - working: true
         agent: "main"
         comment: "Added CMS Data view to Forms module. Features: CMS tables grid showing record counts, table data viewer with search functionality, CSV export capability. Preserves existing form builder functionality."
+  
+  - task: "Contact Detail View Enhancement (3-Column Layout)"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/modules/CRM/index.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Enhanced renderContactDetailView with 3-column layout: LEFT (Contact Info with opt-ins, tags, lead score), CENTER (Activity Timeline with tabs for Activity/Notes/Forms showing form submissions with icons), RIGHT (Related Items: Forms Submitted count, Automations, Pipelines, Booking, Orders). Loads activities and form submissions from database."
+  
+  - task: "CRM Form Filters Enhancement"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/modules/CRM/index.jsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added form-specific filters to filterOptions: 'form_submitted' (Contact Form, Demo Request, Newsletter Signup, Any Form) and 'form_submission_date' (Last 7/30/90 days, This year). Filters are available in the CRM contacts sidebar."
 
 metadata:
   created_by: "main_agent"
