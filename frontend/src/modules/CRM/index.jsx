@@ -1044,6 +1044,238 @@ const CRMModule = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
               />
             </div>
+            </>
+          ) : (
+            // CREATE USER FORM (Multi-tenant)
+            <>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Which Site Will This User Login On?</label>
+                <select
+                  value={userFormData.site}
+                  onChange={(e) => setUserFormData({...userFormData, site: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option>Current Site</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Username *</label>
+                <input 
+                  type="text"
+                  required
+                  value={userFormData.username}
+                  onChange={(e) => setUserFormData({...userFormData, username: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">First Name *</label>
+                  <input 
+                    type="text"
+                    required
+                    value={userFormData.firstName}
+                    onChange={(e) => setUserFormData({...userFormData, firstName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Last Name *</label>
+                  <input 
+                    type="text"
+                    required
+                    value={userFormData.lastName}
+                    onChange={(e) => setUserFormData({...userFormData, lastName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Email *</label>
+                  <input 
+                    type="email"
+                    required
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({...userFormData, email: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">DOB</label>
+                  <input 
+                    type="date"
+                    value={userFormData.dob}
+                    onChange={(e) => setUserFormData({...userFormData, dob: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Password *</label>
+                <input 
+                  type="password"
+                  required
+                  value={userFormData.password}
+                  onChange={(e) => setUserFormData({...userFormData, password: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Confirm Password *</label>
+                <input 
+                  type="password"
+                  required
+                  value={userFormData.confirmPassword}
+                  onChange={(e) => setUserFormData({...userFormData, confirmPassword: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-900">
+                <p className="font-bold mb-1">ℹ️ What is a New System? [Systems]</p>
+                <p>(also known as [Sub-Accounts]) are isolated Systems that don't share any data. If you want to create an account for a Client or Customer and you don't want them to see any of your contacts or other data you would select "Create New System".</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Which System Can This User Access?</label>
+                <select
+                  value={userFormData.system}
+                  onChange={(e) => setUserFormData({...userFormData, system: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option>Create New System</option>
+                  <option>Current System</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="radio" 
+                    id="complimentary" 
+                    name="billing"
+                    checked={userFormData.billing === 'complimentary'}
+                    onChange={() => setUserFormData({...userFormData, billing: 'complimentary'})}
+                    className="w-4 h-4" 
+                  />
+                  <label htmlFor="complimentary" className="text-sm font-medium">Complimentary</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="radio" 
+                    id="setup" 
+                    name="billing"
+                    checked={userFormData.billing === 'setup'}
+                    onChange={() => setUserFormData({...userFormData, billing: 'setup'})}
+                    className="w-4 h-4" 
+                  />
+                  <label htmlFor="setup" className="text-sm font-medium">Setup Billing For New User</label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Package</label>
+                <select
+                  value={userFormData.package}
+                  onChange={(e) => setUserFormData({...userFormData, package: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option value="">Select Package</option>
+                  <option>Starter</option>
+                  <option>Professional</option>
+                  <option>Enterprise</option>
+                </select>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-xs text-yellow-900">
+                <p>⚠️ User will not be billed for this package as no credit card has been added to this user. If you wish to bill this user for this package please select the option "Setup Billing For New User" above</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Address</label>
+                <input 
+                  type="text"
+                  value={userFormData.street}
+                  onChange={(e) => setUserFormData({...userFormData, street: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Apartment, suite, etc. (optional)</label>
+                <input 
+                  type="text"
+                  value={userFormData.apartment}
+                  onChange={(e) => setUserFormData({...userFormData, apartment: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">City</label>
+                <input 
+                  type="text"
+                  value={userFormData.city}
+                  onChange={(e) => setUserFormData({...userFormData, city: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Country/Region</label>
+                  <select
+                    value={userFormData.country}
+                    onChange={(e) => setUserFormData({...userFormData, country: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500"
+                  >
+                    <option>United States</option>
+                    <option>Canada</option>
+                    <option>Mexico</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">State</label>
+                  <input 
+                    type="text"
+                    value={userFormData.state}
+                    onChange={(e) => setUserFormData({...userFormData, state: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">ZIP code</label>
+                  <input 
+                    type="text"
+                    value={userFormData.zip}
+                    onChange={(e) => setUserFormData({...userFormData, zip: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Phone</label>
+                <div className="flex gap-2">
+                  <select className="px-3 py-2 border border-gray-300 rounded text-sm">
+                    <option>🇺🇸 +1</option>
+                  </select>
+                  <input 
+                    type="tel"
+                    value={userFormData.phone}
+                    onChange={(e) => setUserFormData({...userFormData, phone: e.target.value})}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
           </form>
 
           <div className="border-t p-6 flex justify-end gap-3 bg-gray-50">
