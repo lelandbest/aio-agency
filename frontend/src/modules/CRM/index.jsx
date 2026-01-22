@@ -669,6 +669,7 @@ const CRMModule = () => {
         case 'note': return '✅';
         case 'meeting': return '🤝';
         case 'automation': return '🤖';
+        case 'flow': return '🤖';
         default: return '📌';
       }
     };
@@ -678,8 +679,35 @@ const CRMModule = () => {
       : activities.filter(a => {
           if (activityTab === 'Forms') return a.activity_type === 'form';
           if (activityTab === 'Notes') return a.activity_type === 'note';
+          if (activityTab === 'Flow Emails') return a.activity_type === 'email' || a.activity_type === 'automation';
+          if (activityTab === 'Flow SMS') return a.activity_type === 'sms';
           return false;
         });
+
+    const handleEditContact = () => {
+      setEditedContact({...selectedContact});
+      setIsEditingContact(true);
+    };
+
+    const handleSaveContact = async () => {
+      await mockSupabase.from('crm_contacts').update(editedContact).eq('id', selectedContact.id);
+      setSelectedContact(editedContact);
+      setIsEditingContact(false);
+      // Refresh contacts list
+      const { data } = await mockSupabase.from('crm_contacts').select();
+      setContacts(data || []);
+    };
+
+    const handleCancelEdit = () => {
+      setEditedContact(null);
+      setIsEditingContact(false);
+    };
+
+    const handleFieldChange = (field, value) => {
+      setEditedContact(prev => ({...prev, [field]: value}));
+    };
+
+    const currentContact = isEditingContact ? editedContact : selectedContact;
 
     return (
       <div className="flex-1 flex bg-[#0F0F11] overflow-hidden">
