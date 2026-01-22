@@ -917,7 +917,7 @@ const CRMModule = () => {
         <div className="flex-1 bg-[#18181B] border-x border-[#27272A] flex flex-col overflow-hidden mt-12">
           {/* Activity Tabs */}
           <div className="flex gap-2 p-3 border-b border-[#27272A] overflow-x-auto">
-            {['Activity', 'Notes', 'Forms', 'Automation Emails', 'Automation SMS', 'Call Logs', 'Automation Activity'].map(tab => (
+            {['Activity', 'Notes', 'Forms', 'Flow Emails', 'Flow SMS', 'Call Logs', 'Flow Activity'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActivityTab(tab)}
