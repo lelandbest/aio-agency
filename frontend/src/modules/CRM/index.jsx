@@ -1,119 +1,1028 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { mockSupabase } from '../../services/mockSupabase';
 import { 
-  Users, Plus, Mail, Phone, Globe, Trash2, Search, ChevronDown, Tag, 
-  Activity, MessageSquare, FileText, Zap, CheckCircle,
-  Send, MessageCircle, Calendar, FileInput, AlertCircle, X,
-  ChevronLeft, ChevronRight, Edit, Eye, Download, MoreHorizontal, Clipboard
+  Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
+  Trash2, X, Download, MessageCircle, Calendar, Zap,
+  AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft,
+  Edit, Clipboard, FileInput, User, Building2
 } from 'lucide-react';
 
 const CRMModule = () => {
-  const [contacts, setContacts] = useState([
-    { 
-      id: 1, name: "Jenna Best", email: "jennalarinbest@gmail.com", phone: "+1 (555) 123-4567", 
-      company: "--", title: "--", lead_score: "--", tags: [], owner: "AIO Flow™", 
-      last_contacted_at: "2026-01-10T15:08:00Z", pipeline_stage: "New", source: "--",
-      quality: "--", engagement: "--", dob: "--", department: "--", job_title: "--",
-      ai_employee: "--", address: "--", website: "--",
-      created_at: "2026-01-10T15:08:00Z", updated_at: "2026-01-10T15:08:00Z"
-    },
-    { 
-      id: 2, name: "Daniel Salinas", email: "hvac.danielsalinas@gmail.com", phone: "--",
-      company: "--", title: "--", lead_score: "--", tags: ["LEAD"], owner: "--",
-      last_contacted_at: "2025-07-01T08:03:00Z", pipeline_stage: "Lead", source: "--",
-      quality: "--", engagement: "--", dob: "--", department: "--", job_title: "--",
-      ai_employee: "--", address: "--", website: "--",
-      created_at: "2025-07-01T08:03:00Z", updated_at: "2025-06-26T08:28:00Z"
-    },
-    { 
-      id: 3, name: "Jordan Gilbert", email: "jordan@webdesignnovainc.com", phone: "--",
-      company: "--", title: "--", lead_score: "--", tags: [], owner: "--",
-      last_contacted_at: "2025-06-26T08:28:00Z", pipeline_stage: "New", source: "--",
-      quality: "--", engagement: "--", dob: "--", department: "--", job_title: "--",
-      ai_employee: "--", address: "--", website: "--",
-      created_at: "2025-06-26T08:28:00Z", updated_at: "2025-06-26T08:28:00Z"
-    },
-    { 
-      id: 4, name: "Logo Toks", email: "--", phone: "--",
-      company: "--", title: "--", lead_score: "--", tags: [], owner: "--",
-      last_contacted_at: "2025-12-10T16:14:00Z", pipeline_stage: "New", source: "--",
-      quality: "--", engagement: "--", dob: "--", department: "--", job_title: "--",
-      ai_employee: "--", address: "--", website: "--",
-      created_at: "2025-12-10T16:14:00Z", updated_at: "2025-12-10T16:14:00Z"
-    },
-  ]);
-
+  // State Management
+  const [activeTab, setActiveTab] = useState('Contacts');
+  const [contacts, setContacts] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [activeTab, setActiveTab] = useState('Activity');
-  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
-  const [checkedContacts, setCheckedContacts] = useState(new Set());
+  const [selectedContacts, setSelectedContacts] = useState(new Set());
+  const [sortField, setSortField] = useState('first_name');
+  const [sortDirection, setSortDirection] = useState('asc');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createModalTab, setCreateModalTab] = useState('Contact');
+  const [selectedContact, setSelectedContact] = useState(null);
+  const [showFilters, setShowFilters] = useState(true);
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    department: { operator: 'is', value: '', active: false },
+    owner: { operator: 'is', value: '', active: false },
+    tags: { operator: 'has', value: '', active: false },
+    system_tags: { operator: 'has', value: '', active: false },
+    automation: { operator: 'is', value: '', active: false },
+    input: { operator: 'is', value: '', active: false },
+    created_date: { operator: 'is', value: '', active: false },
+    updated_date: { operator: 'is', value: '', active: false },
+    last_contacted: { operator: 'is', value: '', active: false },
+    sms_email_activity: { operator: 'is', value: '', active: false },
+    lead_score: { operator: 'is', value: '', active: false },
+    address: { operator: 'is', value: '', active: false },
+    extra_details: { operator: 'is', value: '', active: false },
+    pipeline: { operator: 'is', value: '', active: false },
+    pipeline_column: { operator: 'is', value: '', active: false },
+    name: { operator: 'is', value: '', active: false }
+  });
 
-  const tabs = ['Activity', 'Notes', 'Forms', 'Automation Emails', 'Automation SMS', 'Call Logs'];
+  // Filter Options
+  const filterOperators = ['is', 'is not', 'is in', 'is not in', 'is defined', 'is not defined', 'has', 'has not'];
   
   const filterOptions = {
-    'Department': ['Sales', 'Marketing', 'Support', 'Engineering'],
-    'Owners': ['AIO Flow™', 'System', 'Adam B.'],
-    'Tags': ['VIP', 'Nurture', 'LEAD', 'Customer'],
-    'System Tags': ['Automated', 'Manual', 'Imported'],
-    'Automation': ['Active', 'Paused', 'Inactive'],
-    'Input': ['Email', 'Phone', 'Form'],
-    'Created Date': ['Last 7 days', 'Last 30 days', 'Last 90 days'],
-    'Updated Date': ['Last 7 days', 'Last 30 days', 'Last 90 days'],
-    'Last Contacted': ['Today', 'This week', 'This month'],
-    'SMS/Email Activity': ['Active', 'Inactive'],
-    'Lead Score': ['90+', '70-89', '50-69', 'Below 50'],
-    'Address': ['US', 'International'],
-    'Extra Details': ['Verified', 'Unverified'],
-    'Pipeline': ['New', 'Qualified', 'Negotiating', 'Closed Won'],
-    'Pipeline Column': ['Planning', 'Active', 'Completed'],
-    'Name': ['A-M', 'N-Z']
+    department: ['Sales', 'Marketing', 'Support', 'Engineering', 'Operations', 'Product', 'Design', 'Analytics', 'Consulting', 'Creative', 'Administration'],
+    owner: ['AIO Flow™', 'Adam B.', 'System', 'User 1', 'User 2', 'User 3'],
+    tags: ['VIP', 'Hot Lead', 'Customer', 'Nurture', 'Partner', 'Prospect', 'Inactive', 'Trial', 'Enterprise', 'SMB'],
+    system_tags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
+    automation: ['Active', 'Paused', 'Inactive', 'Completed'],
+    input: ['Email', 'Phone', 'Form', 'API', 'Manual'],
+    created_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
+    updated_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
+    last_contacted: ['Today', 'This week', 'This month', 'Last 30 days', 'Last 90 days'],
+    sms_email_activity: ['Active', 'Inactive', 'High Engagement', 'Low Engagement'],
+    lead_score: ['90-100', '70-89', '50-69', '30-49', 'Below 30'],
+    address: ['US', 'International', 'CA', 'TX', 'NY', 'FL'],
+    extra_details: ['Verified', 'Unverified', 'Complete', 'Incomplete'],
+    pipeline: ['New', 'Qualified', 'Discovery', 'Closed Won', 'Closed Lost', 'Negotiating'],
+    pipeline_column: ['Planning', 'Active', 'Completed', 'On Hold'],
+    name: ['A-M', 'N-Z']
   };
 
-  const filteredContacts = useMemo(() => {
-    return contacts.filter(contact =>
-      contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [contacts, searchTerm]);
+  // Load data from database
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const toggleContactCheck = (id) => {
-    const newChecked = new Set(checkedContacts);
-    if (newChecked.has(id)) {
-      newChecked.delete(id);
-    } else {
-      newChecked.add(id);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const { data: contactsData } = await mockSupabase.from('crm_contacts').select();
+      const { data: companiesData } = await mockSupabase.from('companies').select();
+      const { data: tagsData } = await mockSupabase.from('tags').select();
+      
+      setContacts(contactsData || []);
+      setCompanies(companiesData || []);
+      setTags(tagsData || []);
+    } catch (error) {
+      console.error('Error loading data:', error);
     }
-    setCheckedContacts(newChecked);
+    setLoading(false);
   };
 
-  const activityTimeline = [
-    { type: 'email', title: 'Nurses Day 2025 Emails', date: 'Jan 10, 2026 3:08 pm', icon: Mail },
-    { type: 'form', title: 'Contact created from form "BLS Contact Form 2026"', date: 'Jan 10, 2026 3:08 pm', icon: FileText }
-  ];
+  // Filter and sort contacts
+  const filteredAndSortedContacts = useMemo(() => {
+    let filtered = contacts.filter(contact => !contact.deleted_at);
+    
+    // Apply search
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(contact => 
+        `${contact.first_name} ${contact.last_name}`.toLowerCase().includes(search) ||
+        contact.email?.toLowerCase().includes(search) ||
+        contact.company?.toLowerCase().includes(search) ||
+        contact.phone?.includes(search)
+      );
+    }
+    
+    // Apply active filters
+    Object.entries(filters).forEach(([key, filter]) => {
+      if (!filter.active || !filter.value) return;
+      
+      switch (key) {
+        case 'department':
+          filtered = filtered.filter(c => {
+            if (filter.operator === 'is') return c.department === filter.value;
+            if (filter.operator === 'is not') return c.department !== filter.value;
+            if (filter.operator === 'is defined') return !!c.department;
+            if (filter.operator === 'is not defined') return !c.department;
+            return true;
+          });
+          break;
+        case 'owner':
+          filtered = filtered.filter(c => {
+            if (filter.operator === 'is') return c.owner === filter.value;
+            if (filter.operator === 'is not') return c.owner !== filter.value;
+            if (filter.operator === 'is defined') return !!c.owner;
+            if (filter.operator === 'is not defined') return !c.owner;
+            return true;
+          });
+          break;
+        case 'tags':
+          filtered = filtered.filter(c => {
+            if (filter.operator === 'has') return c.tags?.includes(filter.value);
+            if (filter.operator === 'has not') return !c.tags?.includes(filter.value);
+            return true;
+          });
+          break;
+        case 'lead_score':
+          filtered = filtered.filter(c => {
+            const score = c.lead_score || 0;
+            if (filter.value === '90-100') return score >= 90 && score <= 100;
+            if (filter.value === '70-89') return score >= 70 && score < 90;
+            if (filter.value === '50-69') return score >= 50 && score < 70;
+            if (filter.value === '30-49') return score >= 30 && score < 50;
+            if (filter.value === 'Below 30') return score < 30;
+            return true;
+          });
+          break;
+        case 'pipeline':
+          filtered = filtered.filter(c => {
+            if (filter.operator === 'is') return c.pipeline_stage === filter.value;
+            if (filter.operator === 'is not') return c.pipeline_stage !== filter.value;
+            return true;
+          });
+          break;
+      }
+    });
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal, bVal;
+      
+      if (sortField === 'name') {
+        aVal = `${a.first_name} ${a.last_name}`.toLowerCase();
+        bVal = `${b.first_name} ${b.last_name}`.toLowerCase();
+      } else if (sortField === 'first_name') {
+        aVal = `${a.first_name} ${a.last_name}`.toLowerCase();
+        bVal = `${b.first_name} ${b.last_name}`.toLowerCase();
+      } else {
+        aVal = a[sortField];
+        bVal = b[sortField];
+      }
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      
+      return sortDirection === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1);
+    });
+    
+    return filtered;
+  }, [contacts, searchTerm, filters, sortField, sortDirection]);
 
-  const rightPanelSections = [
-    { title: 'Related Track', items: [], icon: ChevronDown },
-    { title: 'Automations(1)', items: ['Nurses Day 2025 Emails'], icon: ChevronDown, expanded: true },
-    { title: 'Booking', items: [], icon: ChevronDown },
-    { title: 'Pipelines (0)', items: [], icon: ChevronDown },
-    { title: 'Billing', items: [], icon: ChevronDown, expanded: true },
-    { title: 'Credit Cards (0)', items: [], icon: ChevronDown },
-    { title: 'Orders(0)', items: [], icon: ChevronDown },
-    { title: 'Purchases(0)', items: [], icon: ChevronDown },
-    { title: 'Transactions (0)', items: [], icon: ChevronDown, expanded: true },
-    { title: 'Invoices (0)', items: [], icon: ChevronDown }
-  ];
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedContacts.size === filteredAndSortedContacts.length) {
+      setSelectedContacts(new Set());
+    } else {
+      setSelectedContacts(new Set(filteredAndSortedContacts.map(c => c.id)));
+    }
+  };
 
+  const toggleSelectContact = (id) => {
+    const newSelected = new Set(selectedContacts);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedContacts(newSelected);
+  };
+
+  // Sorting handler
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Bulk actions
+  const handleBulkAction = async (action) => {
+    if (selectedContacts.size === 0) {
+      alert('Please select contacts first');
+      return;
+    }
+
+    const selectedIds = Array.from(selectedContacts);
+
+    switch (action) {
+      case 'delete':
+        if (confirm(`Delete ${selectedIds.length} contact(s)?`)) {
+          for (const id of selectedIds) {
+            await mockSupabase.from('crm_contacts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+          }
+          await loadData();
+          setSelectedContacts(new Set());
+          alert('Contacts deleted successfully');
+        }
+        break;
+      
+      case 'add_tag':
+        const tagToAdd = prompt('Enter tag name:');
+        if (tagToAdd) {
+          for (const id of selectedIds) {
+            const contact = contacts.find(c => c.id === id);
+            const updatedTags = [...(contact.tags || []), tagToAdd];
+            await mockSupabase.from('crm_contacts').update({ tags: updatedTags }).eq('id', id);
+          }
+          await loadData();
+          alert('Tag added to selected contacts');
+        }
+        break;
+      
+      case 'remove_tag':
+        const tagToRemove = prompt('Enter tag name to remove:');
+        if (tagToRemove) {
+          for (const id of selectedIds) {
+            const contact = contacts.find(c => c.id === id);
+            const updatedTags = (contact.tags || []).filter(t => t !== tagToRemove);
+            await mockSupabase.from('crm_contacts').update({ tags: updatedTags }).eq('id', id);
+          }
+          await loadData();
+          alert('Tag removed from selected contacts');
+        }
+        break;
+      
+      case 'set_owner':
+        const newOwner = prompt('Enter owner name:');
+        if (newOwner) {
+          for (const id of selectedIds) {
+            await mockSupabase.from('crm_contacts').update({ owner: newOwner }).eq('id', id);
+          }
+          await loadData();
+          alert('Owner updated for selected contacts');
+        }
+        break;
+      
+      case 'export':
+        // Export selected contacts as CSV
+        const csvData = filteredAndSortedContacts
+          .filter(c => selectedIds.includes(c.id))
+          .map(c => `${c.first_name},${c.last_name},${c.email},${c.phone},${c.company},${c.lead_score}`)
+          .join('\n');
+        const blob = new Blob([`First Name,Last Name,Email,Phone,Company,Score\n${csvData}`], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'contacts.csv';
+        a.click();
+        break;
+      
+      default:
+        alert(`${action} - Coming soon!`);
+    }
+  };
+
+  // Create contact handler
+  const handleCreateContact = async (formData) => {
+    try {
+      const newContact = {
+        contact_id: `CNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        organization_id: 'org-1',
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company,
+        title: formData.title || '',
+        department: formData.department || '',
+        website: formData.website || '',
+        address: {
+          street: formData.street || '',
+          apartment: formData.apartment || '',
+          city: formData.city || '',
+          state: formData.state || '',
+          zip: formData.zip || '',
+          country: formData.country || 'United States'
+        },
+        dob: formData.dob || null,
+        owner_id: 'user-1',
+        owner: 'AIO Flow™',
+        source: 'Manual Entry',
+        status: 'contact',
+        lead_score: 50,
+        quality: 'warm',
+        engagement: 'medium',
+        tags: [],
+        custom_fields: {},
+        opt_in_email: true,
+        opt_in_sms: true,
+        opt_in_calls: true,
+        opt_in_automations: true,
+        last_contacted_at: null,
+        pipeline_stage: 'New',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted_at: null
+      };
+
+      await mockSupabase.from('crm_contacts').insert([newContact]);
+      await loadData();
+      setShowCreateModal(false);
+      alert('Contact created successfully!');
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      alert('Error creating contact');
+    }
+  };
+
+  // Filter update handler
+  const updateFilter = (filterKey, field, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterKey]: {
+        ...prev[filterKey],
+        [field]: value,
+        active: field === 'value' ? true : prev[filterKey].active
+      }
+    }));
+  };
+
+  const clearFilter = (filterKey) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterKey]: { operator: 'is', value: '', active: false }
+    }));
+  };
+
+  // Render sort icon
+  const renderSortIcon = (field) => {
+    if (sortField !== field) return <ArrowUpDown size={14} className="text-gray-500" />;
+    return sortDirection === 'asc' ? 
+      <ArrowUp size={14} className="text-purple-500" /> : 
+      <ArrowDown size={14} className="text-purple-500" />;
+  };
+
+  // Render tabs based on activeTab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'Contacts':
+        return renderContactsTab();
+      case 'Companies':
+        return renderCompaniesTab();
+      case 'Forms':
+        return renderFormsTab();
+      case 'CMS':
+        return renderCMSTab();
+      default:
+        return renderContactsTab();
+    }
+  };
+
+  // CONTACTS TAB
+  const renderContactsTab = () => {
+    if (selectedContact) {
+      return renderContactDetailView();
+    }
+
+    return (
+      <div className="flex-1 flex overflow-hidden">
+        {/* LEFT: Contact Table */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Search Bar */}
+          <div className="p-4 border-b border-[#27272A] bg-[#050505]">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-3 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search contacts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-[#18181B] border border-[#27272A] rounded-lg px-4 py-2 pl-10 text-white focus:outline-none focus:border-purple-500 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Bulk Actions */}
+          <div className="px-4 py-3 bg-[#050505] border-b border-[#27272A] flex gap-2 flex-wrap">
+            <button onClick={() => handleBulkAction('add_tag')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
+              Add Tag
+            </button>
+            <button onClick={() => handleBulkAction('remove_tag')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
+              Remove Tag
+            </button>
+            <button onClick={() => handleBulkAction('add_automation')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
+              Add To Automation
+            </button>
+            <button onClick={() => handleBulkAction('remove_flow')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
+              Remove From Flow
+            </button>
+            <button onClick={() => handleBulkAction('export')} className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white">
+              <Download size={12} className="inline mr-1" /> Export
+            </button>
+            <button onClick={() => handleBulkAction('set_owner')} className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white">
+              Set Owner
+            </button>
+            <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={12} className="inline mr-1" /> Delete
+            </button>
+            <button onClick={() => handleBulkAction('send_email')} className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white">
+              <Mail size={12} className="inline mr-1" /> Send Email
+            </button>
+            <button onClick={() => handleBulkAction('send_sms')} className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white">
+              <MessageCircle size={12} className="inline mr-1" /> Send SMS
+            </button>
+            <button onClick={() => handleBulkAction('send_api')} className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700 hover:bg-gray-600 text-white">
+              Send API
+            </button>
+            <button onClick={() => handleBulkAction('assign_ai')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
+              Assign to AI Employee
+            </button>
+            <button onClick={() => handleBulkAction('set_department')} className="px-3 py-1.5 rounded text-xs font-medium bg-yellow-600 hover:bg-yellow-700 text-black">
+              Set Department
+            </button>
+          </div>
+
+          {/* Selection Info */}
+          <div className="px-4 py-2 bg-[#18181B] text-sm text-gray-400">
+            {selectedContacts.size} of {filteredAndSortedContacts.length} contacts selected
+          </div>
+
+          {/* Contact Table */}
+          <div className="flex-1 overflow-auto bg-[#18181B]">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-gray-400">Loading contacts...</div>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-[#0A0A0A] border-b border-[#27272A]">
+                  <tr>
+                    <th className="px-4 py-3 text-left w-12">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedContacts.size === filteredAndSortedContacts.length && filteredAndSortedContacts.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4" 
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase cursor-pointer hover:text-white" onClick={() => handleSort('first_name')}>
+                      <div className="flex items-center gap-2">
+                        NAME {renderSortIcon('first_name')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase cursor-pointer hover:text-white" onClick={() => handleSort('company')}>
+                      <div className="flex items-center gap-2">
+                        COMPANY {renderSortIcon('company')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase cursor-pointer hover:text-white" onClick={() => handleSort('lead_score')}>
+                      <div className="flex items-center gap-2">
+                        SCORE {renderSortIcon('lead_score')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">
+                      TAGS
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase cursor-pointer hover:text-white" onClick={() => handleSort('created_at')}>
+                      <div className="flex items-center gap-2">
+                        CREATED AT {renderSortIcon('created_at')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase cursor-pointer hover:text-white" onClick={() => handleSort('updated_at')}>
+                      <div className="flex items-center gap-2">
+                        UPDATED AT {renderSortIcon('updated_at')}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAndSortedContacts.map(contact => (
+                    <tr 
+                      key={contact.id} 
+                      className="border-b border-[#27272A] hover:bg-[#27272A]/20 transition cursor-pointer"
+                    >
+                      <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedContacts.has(contact.id)}
+                          onChange={() => {}}
+                          className="w-4 h-4"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-purple-400 font-medium hover:text-purple-300" onClick={() => setSelectedContact(contact)}>
+                        {contact.first_name} {contact.last_name}
+                      </td>
+                      <td className="px-4 py-3 text-gray-400">{contact.company || '--'}</td>
+                      <td className="px-4 py-3 text-gray-400">{contact.lead_score || '--'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {contact.tags?.map((tag, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">
+                        {new Date(contact.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">
+                        {new Date(contact.updated_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT: Filters */}
+        {showFilters && (
+          <div className="w-80 border-l border-[#27272A] bg-[#18181B] flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-[#27272A] flex justify-between items-center">
+              <h3 className="text-sm font-bold text-white">Filters</h3>
+              <button onClick={() => setShowFilters(false)} className="text-gray-400 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {Object.entries(filterOptions).map(([filterKey, options]) => (
+                <div key={filterKey} className="border-b border-[#27272A] pb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-gray-300 uppercase">
+                      {filterKey.replace('_', ' ')}
+                    </label>
+                    {filters[filterKey].active && (
+                      <button onClick={() => clearFilter(filterKey)} className="text-xs text-red-400 hover:text-red-300">
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Operator Selector */}
+                  <select
+                    value={filters[filterKey].operator}
+                    onChange={(e) => updateFilter(filterKey, 'operator', e.target.value)}
+                    className="w-full mb-2 px-3 py-2 bg-[#0A0A0A] border border-[#27272A] rounded text-sm text-white focus:outline-none focus:border-purple-500"
+                  >
+                    {filterOperators.map(op => (
+                      <option key={op} value={op}>{op}</option>
+                    ))}
+                  </select>
+                  
+                  {/* Value Selector */}
+                  {!['is defined', 'is not defined'].includes(filters[filterKey].operator) && (
+                    <select
+                      value={filters[filterKey].value}
+                      onChange={(e) => updateFilter(filterKey, 'value', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#0A0A0A] border border-[#27272A] rounded text-sm text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="">Select...</option>
+                      {options.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // CONTACT DETAIL VIEW (Placeholder for Phase 4)
+  const renderContactDetailView = () => {
+    return (
+      <div className="flex-1 flex flex-col bg-[#0F0F11] p-6">
+        <button 
+          onClick={() => setSelectedContact(null)}
+          className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white"
+        >
+          <ChevronLeft size={16} /> Back to Contacts
+        </button>
+        
+        <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-6">
+          <h2 className="text-2xl font-bold text-white mb-4">
+            {selectedContact.first_name} {selectedContact.last_name}
+          </h2>
+          
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <label className="text-gray-400 text-xs uppercase font-bold">Email</label>
+              <p className="text-white">{selectedContact.email}</p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs uppercase font-bold">Phone</label>
+              <p className="text-white">{selectedContact.phone || '--'}</p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs uppercase font-bold">Company</label>
+              <p className="text-white">{selectedContact.company || '--'}</p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs uppercase font-bold">Title</label>
+              <p className="text-white">{selectedContact.title || '--'}</p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs uppercase font-bold">Lead Score</label>
+              <p className="text-white">{selectedContact.lead_score || '--'}</p>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs uppercase font-bold">Pipeline Stage</label>
+              <p className="text-white">{selectedContact.pipeline_stage || '--'}</p>
+            </div>
+          </div>
+          
+          <div className="mt-6 p-4 bg-purple-600/10 border border-purple-600/30 rounded text-purple-400 text-sm">
+            <strong>Phase 4:</strong> Full contact detail view with activity timeline, notes, and related items will be implemented next.
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // COMPANIES TAB
+  const renderCompaniesTab = () => {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-[#27272A] bg-[#050505]">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-3 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search companies..."
+              className="w-full bg-[#18181B] border border-[#27272A] rounded-lg px-4 py-2 pl-10 text-white focus:outline-none focus:border-purple-500 text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto bg-[#18181B]">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[#0A0A0A] border-b border-[#27272A]">
+              <tr>
+                <th className="px-4 py-3 text-left w-12">
+                  <input type="checkbox" className="w-4 h-4" />
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">NAME</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">INDUSTRY</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">SCORE</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">TAGS</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">CREATED AT</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">UPDATED AT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {companies.map(company => (
+                <tr key={company.id} className="border-b border-[#27272A] hover:bg-[#27272A]/20 transition">
+                  <td className="px-4 py-3">
+                    <input type="checkbox" className="w-4 h-4" />
+                  </td>
+                  <td className="px-4 py-3 text-purple-400 font-medium">{company.name}</td>
+                  <td className="px-4 py-3 text-gray-400">{company.industry || '--'}</td>
+                  <td className="px-4 py-3 text-gray-400">{company.lead_score || '--'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 flex-wrap">
+                      {company.tags?.map((tag, idx) => (
+                        <span key={idx} className="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">
+                    {new Date(company.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">
+                    {new Date(company.updated_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  // FORMS TAB
+  const renderFormsTab = () => {
+    const forms = [
+      { id: 1, title: 'Contact Form', responses: 45, last_active: '2 hours ago', status: 'Active' },
+      { id: 2, title: 'Demo Request', responses: 67, last_active: '1 day ago', status: 'Active' },
+      { id: 3, title: 'Newsletter Signup', responses: 234, last_active: '3 hours ago', status: 'Active' }
+    ];
+
+    return (
+      <div className="flex-1 p-6 overflow-auto bg-[#0F0F11]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {forms.map(form => (
+            <div key={form.id} className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition">
+              <h3 className="text-white font-bold mb-2">{form.title}</h3>
+              <div className="text-sm text-gray-400 space-y-1">
+                <p>Responses: {form.responses}</p>
+                <p>Last Active: {form.last_active}</p>
+                <p className="text-green-400">Status: {form.status}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // CMS TAB
+  const renderCMSTab = () => {
+    const [cmsTables, setCmsTables] = useState([]);
+    const [selectedTable, setSelectedTable] = useState(null);
+    const [tableData, setTableData] = useState([]);
+
+    useEffect(() => {
+      const loadCMSTables = async () => {
+        const { data } = await mockSupabase.from('cms_tables').select();
+        setCmsTables(data || []);
+      };
+      loadCMSTables();
+    }, []);
+
+    const loadTableData = async (table) => {
+      setSelectedTable(table);
+      const { data } = await mockSupabase.from(`cms_${table.slug}`).select();
+      setTableData(data || []);
+    };
+
+    if (selectedTable) {
+      return (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-[#27272A] bg-[#050505] flex items-center gap-4">
+            <button onClick={() => setSelectedTable(null)} className="text-gray-400 hover:text-white">
+              <ChevronLeft size={20} />
+            </button>
+            <h2 className="text-white font-bold">{selectedTable.name}</h2>
+            <span className="text-gray-400 text-sm">({tableData.length} records)</span>
+          </div>
+          
+          <div className="flex-1 overflow-auto bg-[#18181B] p-4">
+            <div className="bg-[#0A0A0A] border border-[#27272A] rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-[#18181B] border-b border-[#27272A]">
+                  <tr>
+                    {tableData[0] && Object.keys(tableData[0]).map(key => (
+                      <th key={key} className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase">
+                        {key.replace('_', ' ')}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.map((row, idx) => (
+                    <tr key={idx} className="border-b border-[#27272A] hover:bg-[#18181B]">
+                      {Object.values(row).map((val, i) => (
+                        <td key={i} className="px-4 py-3 text-gray-300">
+                          {typeof val === 'object' ? JSON.stringify(val) : val}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 p-6 overflow-auto bg-[#0F0F11]">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">CMS Tables</h2>
+          <p className="text-gray-400 text-sm">{cmsTables.length} tables</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cmsTables.map(table => (
+            <div 
+              key={table.id} 
+              onClick={() => loadTableData(table)}
+              className="bg-[#18181B] border border-[#27272A] rounded-lg p-6 hover:border-purple-500 transition cursor-pointer"
+            >
+              <h3 className="text-white font-bold text-lg mb-2">{table.name}</h3>
+              <p className="text-gray-400 text-sm mb-4">{table.description}</p>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-purple-400">{table.record_count} records</span>
+                <span className="text-gray-500">Open →</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // CREATE CONTACT MODAL
+  const CreateContactModal = () => {
+    const [formData, setFormData] = useState({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      company: '',
+      title: '',
+      department: '',
+      street: '',
+      apartment: '',
+      city: '',
+      state: '',
+      zip: '',
+      country: 'United States',
+      dob: '',
+      website: ''
+    });
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      handleCreateContact(formData);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="p-6 border-b flex justify-between items-center">
+            <h2 className="text-xl font-bold text-gray-900">Create Contact</h2>
+            <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">First Name *</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Last Name *</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-2">Email *</label>
+              <input 
+                type="email" 
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Phone</label>
+                <input 
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Company</label>
+                <input 
+                  type="text"
+                  value={formData.company}
+                  onChange={(e) => setFormData({...formData, company: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Title</label>
+                <input 
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Department</label>
+                <select
+                  value={formData.department}
+                  onChange={(e) => setFormData({...formData, department: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option value="">Select...</option>
+                  {filterOptions.department.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-2">Street Address</label>
+              <input 
+                type="text"
+                value={formData.street}
+                onChange={(e) => setFormData({...formData, street: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">City</label>
+                <input 
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData({...formData, city: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">State</label>
+                <input 
+                  type="text"
+                  value={formData.state}
+                  onChange={(e) => setFormData({...formData, state: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">ZIP</label>
+                <input 
+                  type="text"
+                  value={formData.zip}
+                  onChange={(e) => setFormData({...formData, zip: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-2">Date of Birth</label>
+              <input 
+                type="date"
+                value={formData.dob}
+                onChange={(e) => setFormData({...formData, dob: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" 
+              />
+            </div>
+          </form>
+
+          <div className="border-t p-6 flex justify-end gap-3 bg-gray-50">
+            <button 
+              type="button"
+              onClick={() => setShowCreateModal(false)} 
+              className="px-6 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSubmit}
+              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium"
+            >
+              Create Contact
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // MAIN RENDER
   return (
     <div className="h-full bg-[#0F0F11] rounded-xl border border-[#27272A] flex flex-col overflow-hidden">
-      {/* Top Menu Bar */}
+      {/* Tab Navigation (removed Setup) */}
       <div className="p-4 border-b border-[#27272A] bg-[#050505]">
         <div className="flex gap-6 text-sm font-medium">
-          {['Setup', 'Contacts', 'Companies', 'Forms', 'CMS'].map(tab => (
-            <button key={tab} className={`pb-2 border-b-2 ${tab === 'Contacts' ? 'text-white border-purple-500' : 'text-gray-400 border-transparent hover:text-white'}`}>
+          {['Contacts', 'Companies', 'Forms', 'CMS'].map(tab => (
+            <button 
+              key={tab} 
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 border-b-2 transition ${
+                tab === activeTab 
+                  ? 'text-white border-purple-500' 
+                  : 'text-gray-400 border-transparent hover:text-white'
+              }`}
+            >
               {tab}
             </button>
           ))}
@@ -130,540 +1039,20 @@ const CRMModule = () => {
           <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm font-medium">
             Import
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2">
-            <Plus size={16} /> Create Contact/User
+          <button 
+            onClick={() => setShowCreateModal(true)} 
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
+          >
+            <Plus size={16} /> Create Contact
           </button>
         </div>
       </div>
 
-      {/* Bulk Action Buttons */}
-      <div className="px-6 py-3 bg-[#050505] border-b border-[#27272A] flex gap-2 flex-wrap">
-        {['Add Tag', 'Remove Tag', 'Add To Automation', 'Remove From Flow', 'Export', 'Set Owner', 'Delete', 'Send Email', 'Send Sms', 'Send API', 'Assign to AI Employee', 'Set Department'].map((action, idx) => (
-          <button key={idx} className={`px-3 py-1 rounded text-xs font-medium ${
-            ['Add Tag', 'Add To Automation', 'Export', 'Assign to AI Employee'].includes(action)
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-              : ['Remove Tag', 'Remove From Flow', 'Delete'].includes(action)
-              ? 'bg-red-500 hover:bg-red-600 text-white'
-              : action === 'Set Department'
-              ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
-              : 'bg-gray-700 hover:bg-gray-600 text-white'
-          }`}>
-            {action}
-          </button>
-        ))}
-      </div>
+      {/* Tab Content */}
+      {renderTabContent()}
 
-      <div className="flex-1 overflow-hidden flex gap-4 p-4">
-        {/* Left - Search & Filters */}
-        <div className="w-80 flex flex-col gap-4 overflow-y-auto">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-3 text-gray-600" />
-            <input
-              type="text"
-              placeholder="Search"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-[#18181B] border border-[#27272A] rounded-lg px-4 py-2 pl-10 text-white focus:outline-none focus:border-purple-500 text-sm"
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-bold text-white">Filters</h3>
-            {Object.entries(filterOptions).map(([filterName]) => (
-              <div key={filterName} className="border-b border-[#27272A] pb-2">
-                <button className="w-full flex justify-between items-center text-sm text-gray-300 hover:text-white py-1">
-                  <span>{filterName}</span>
-                  <ChevronDown size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Center - Contact List & Detail */}
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-          {/* Contact List */}
-          <div className="flex flex-col overflow-hidden flex-1">
-            <div className="flex justify-between items-center px-4 py-2 bg-[#18181B] rounded-lg mb-3 text-sm text-gray-400">
-              <span>{checkedContacts.size} of {filteredContacts.length} Contacts are Selected</span>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto bg-[#18181B] border border-[#27272A] rounded-lg">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-[#0A0A0A] border-b border-[#27272A]">
-                  <tr>
-                    <th className="px-4 py-3 text-left">
-                      <input type="checkbox" className="w-4 h-4" />
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Score</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Company</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Tags</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Created At</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Updated At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredContacts.map(contact => (
-                    <tr 
-                      key={contact.id} 
-                      className="border-b border-[#27272A] hover:bg-[#27272A]/20 transition cursor-pointer"
-                      onClick={() => setSelectedContact(contact)}
-                    >
-                      <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleContactCheck(contact.id); }}>
-                        <input 
-                          type="checkbox" 
-                          checked={checkedContacts.has(contact.id)}
-                          onChange={() => {}}
-                          className="w-4 h-4"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-purple-400 font-medium">{contact.name}</td>
-                      <td className="px-4 py-3 text-gray-400">{contact.lead_score}</td>
-                      <td className="px-4 py-3 text-gray-400">{contact.company}</td>
-                      <td className="px-4 py-3 text-gray-400">{contact.tags?.join(', ') || '-'}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{new Date(contact.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{new Date(contact.updated_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Right - Detail Panel (when contact selected) */}
-        {selectedContact && (
-          <div className="w-80 flex flex-col gap-4 overflow-y-auto">
-            {/* Detail Card */}
-            <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 space-y-3">
-              <div>
-                <h2 className="text-lg font-bold text-white">{selectedContact.name}</h2>
-                <button className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
-              </div>
-
-              {['quality', 'engagement', 'owner', 'company', 'dob', 'department', 'job_title', 'ai_employee'].map(field => (
-                <div key={field}>
-                  <label className="text-xs text-gray-400 font-bold uppercase">{field.replace('_', ' ')}</label>
-                  <p className="text-gray-300">{selectedContact[field] || '--'}</p>
-                </div>
-              ))}
-
-              {/* Quick Action Buttons */}
-              <div className="flex gap-2 py-3 border-t border-[#27272A]">
-                {[
-                  { icon: Clipboard, label: 'Note' },
-                  { icon: Mail, label: 'Email' },
-                  { icon: MessageCircle, label: 'SMS' },
-                  { icon: Calendar, label: 'Meet' },
-                  { icon: FileInput, label: 'Form' }
-                ].map((action, idx) => (
-                  <button key={idx} className="flex-1 flex flex-col items-center gap-1 p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs">
-                    <action.icon size={16} />
-                    <span className="text-xs">{action.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Contact Info */}
-              <div className="space-y-2 text-sm border-t border-[#27272A] pt-3">
-                <div>
-                  <label className="text-xs text-gray-400">Email</label>
-                  <p className="text-purple-400 flex items-center gap-1">
-                    <Mail size={14} /> {selectedContact.email}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400">Phone</label>
-                  <p className="text-gray-300">{selectedContact.phone || '--'}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400">Website</label>
-                  <p className="text-gray-300">{selectedContact.website || '--'}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400">Address</label>
-                  <p className="text-gray-300">{selectedContact.address || '--'}</p>
-                </div>
-              </div>
-
-              {/* Additional Details */}
-              <button 
-                onClick={() => setShowAdditionalDetails(!showAdditionalDetails)}
-                className="w-full flex justify-between items-center p-3 bg-[#0A0A0A] rounded text-gray-300 hover:text-white text-sm"
-              >
-                <span>Additional Details</span>
-                <ChevronDown size={16} className={showAdditionalDetails ? 'rotate-180' : ''} />
-              </button>
-
-              {showAdditionalDetails && (
-                <div className="bg-[#0A0A0A] rounded p-3 space-y-2 text-sm">
-                  {[
-                    'External Reference ID',
-                    'Validation Status (Set in Automation)',
-                    'Click Id',
-                    'Source Code',
-                    'Sub Id 1',
-                    'Sub Id 2',
-                    'Sub Id 3',
-                    'Sub Id 4',
-                    'Sub Id 5'
-                  ].map(field => (
-                    <div key={field}>
-                      <p className="text-xs text-gray-400 uppercase">{field}</p>
-                      <p className="text-gray-300">--</p>
-                    </div>
-                  ))}
-
-                  {/* Toggle Options */}
-                  <div className="space-y-2 border-t border-[#27272A] pt-3">
-                    {['Opt-In Emails', 'Opt-In SMS', 'Opt-In Calls', 'Opt-In Automations'].map(toggle => (
-                      <div key={toggle} className="flex justify-between items-center">
-                        <span className="text-xs">{toggle}</span>
-                        <input type="checkbox" defaultChecked className="w-4 h-4" />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="border-t border-[#27272A] pt-3">
-                    <p className="text-xs text-gray-400 uppercase">Created Date</p>
-                    <p className="text-gray-300">{new Date(selectedContact.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Account Buttons */}
-              <div className="space-y-2">
-                <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
-                  User Account Details
-                </button>
-                <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
-                  Create User Login
-                </button>
-              </div>
-            </div>
-
-            {/* Activity Tabs & Timeline */}
-            <div className="bg-[#18181B] border border-[#27272A] rounded-lg overflow-hidden flex-1">
-              <div className="flex gap-2 p-3 border-b border-[#27272A] overflow-x-auto text-xs">
-                {tabs.map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-3 py-1 whitespace-nowrap rounded ${
-                      activeTab === tab
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-
-              {/* Activity Timeline */}
-              <div className="p-3 space-y-3 overflow-y-auto">
-                {activeTab === 'Activity' && activityTimeline.map((item, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                      <item.icon size={14} className="text-white" />
-                    </div>
-                    <div>
-                      <p className="text-white font-medium text-xs">{item.title}</p>
-                      <p className="text-gray-400 text-xs">{item.date}</p>
-                    </div>
-                  </div>
-                ))}
-                {activeTab !== 'Activity' && (
-                  <div className="text-center py-6 text-gray-500 text-xs">
-                    <p>No {activeTab} available</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Related Track */}
-            <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-3">
-              <h3 className="font-bold text-white mb-2 text-sm flex justify-between">
-                <span>Related Track</span>
-                <ChevronDown size={14} />
-              </h3>
-
-              {rightPanelSections.slice(0, 3).map((section, idx) => (
-                <div key={idx} className="mb-2 bg-[#0A0A0A] rounded p-2 text-xs">
-                  <button className="w-full flex justify-between items-center text-gray-300">
-                    <span className="font-medium">{section.title}</span>
-                    <section.icon size={12} />
-                  </button>
-                  {section.items.length > 0 && (
-                    <ul className="mt-1 space-y-1 text-xs text-gray-400">
-                      {section.items.map((item, i) => (
-                        <li key={i} className="flex items-center gap-1">
-                          <CheckCircle size={12} className="text-green-500" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Create Contact/User Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Modal Header with Tabs */}
-            <div className="flex border-b">
-              <button
-                onClick={() => setCreateModalTab('Contact')}
-                className={`flex-1 px-6 py-3 font-medium text-sm border-b-2 ${
-                  createModalTab === 'Contact'
-                    ? 'text-gray-900 border-gray-900'
-                    : 'text-gray-500 border-transparent hover:text-gray-700'
-                }`}
-              >
-                Contact
-              </button>
-              <button
-                onClick={() => setCreateModalTab('Create User')}
-                className={`flex-1 px-6 py-3 font-medium text-sm border-b-2 ${
-                  createModalTab === 'Create User'
-                    ? 'text-gray-900 border-gray-900'
-                    : 'text-gray-500 border-transparent hover:text-gray-700'
-                }`}
-              >
-                Create User
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {createModalTab === 'Contact' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">First name</label>
-                      <input type="text" placeholder="First name" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">Last name</label>
-                      <input type="text" placeholder="Last name" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Email</label>
-                    <input type="email" placeholder="Email" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Company (optional)</label>
-                    <input type="text" placeholder="Company (optional)" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Address</label>
-                    <input type="text" placeholder="Address" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Apartment, suite, etc. (optional)</label>
-                    <input type="text" placeholder="Apartment, suite, etc. (optional)" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">City</label>
-                    <input type="text" placeholder="City" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">Country/Region</label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                        <option>United States</option>
-                        <option>Canada</option>
-                        <option>Mexico</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">State</label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                        <option>State</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">ZIP code</label>
-                      <input type="text" placeholder="ZIP code" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Phone</label>
-                    <div className="flex gap-2">
-                      <select className="px-3 py-2 border border-gray-300 rounded text-sm">
-                        <option>🇺🇸 +1</option>
-                      </select>
-                      <input type="tel" placeholder="+1" className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">DOB</label>
-                    <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-                </div>
-              )}
-
-              {createModalTab === 'Create User' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Which Site Will This User Login On?</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                      <option>Current Site</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Username</label>
-                    <input type="text" placeholder="Username" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">First Name</label>
-                      <input type="text" placeholder="First Name" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">Last Name</label>
-                      <input type="text" placeholder="Last Name" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">Email</label>
-                      <input type="email" placeholder="Email" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">DOB</label>
-                      <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Password</label>
-                    <div className="relative">
-                      <input type="password" placeholder="••••••••" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                      <Eye size={16} className="absolute right-3 top-2.5 text-gray-400 cursor-pointer" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Confirm Password *</label>
-                    <div className="relative">
-                      <input type="password" placeholder="••••••••" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                      <Eye size={16} className="absolute right-3 top-2.5 text-gray-400 cursor-pointer" />
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-900">
-                    <p className="font-bold mb-1">ℹ What is a New System? [Systems]</p>
-                    <p>(also known as [Sub-Accounts]) are isolated Systems that don't share any data. If you want to create an account for a Client or Customer and you don't want them to see any of your contacts or other data you would select "Create New System".</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Which System Can This User Access?</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                      <option>Create New System</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input type="radio" id="complimentary" name="billing" defaultChecked className="w-4 h-4" />
-                      <label htmlFor="complimentary" className="text-sm font-medium">Complimentary</label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input type="radio" id="setup" name="billing" className="w-4 h-4" />
-                      <label htmlFor="setup" className="text-sm font-medium">Setup Billing For New User</label>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Package</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                      <option>Package</option>
-                    </select>
-                  </div>
-
-                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-xs text-yellow-900">
-                    <p>⚠ User will not be billed for this package as no credit card has been added to this user. If you wish to bill this user for this package please select the option "Setup Billing For New User" above</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Address</label>
-                    <input type="text" placeholder="Address" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Apartment, suite, etc. (optional)</label>
-                    <input type="text" placeholder="Apartment, suite, etc. (optional)" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">City</label>
-                    <input type="text" placeholder="City" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">Country/Region</label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                        <option>United States</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">State</label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500">
-                        <option>State</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-2">ZIP code</label>
-                      <input type="text" placeholder="ZIP code" className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Phone</label>
-                    <div className="flex gap-2">
-                      <select className="px-3 py-2 border border-gray-300 rounded text-sm">
-                        <option>🇺🇸 +1</option>
-                      </select>
-                      <input type="tel" placeholder="+1" className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500" />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t p-6 flex justify-end gap-3 bg-gray-50">
-              <button onClick={() => setShowCreateModal(false)} className="px-6 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50">
-                Cancel
-              </button>
-              <button className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium">
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Create Contact Modal */}
+      {showCreateModal && <CreateContactModal />}
     </div>
   );
 };
