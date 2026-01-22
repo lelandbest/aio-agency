@@ -641,33 +641,6 @@ const CRMModule = () => {
 
   // CONTACT DETAIL VIEW (Placeholder for Phase 4)
   const renderContactDetailView = () => {
-    const [activities, setActivities] = useState([]);
-    const [activityTab, setActivityTab] = useState('Activity');
-    const [formsSubmitted, setFormsSubmitted] = useState([]);
-
-    useEffect(() => {
-      loadActivitiesAndForms();
-    }, [selectedContact.id]);
-
-    const loadActivitiesAndForms = async () => {
-      // Load activities
-      const { data: activitiesData } = await mockSupabase
-        .from('contact_activities')
-        .select()
-        .eq('contact_id', selectedContact.id)
-        .order('created_at', { ascending: false });
-      
-      setActivities(activitiesData || []);
-
-      // Load form submissions
-      const { data: submissionsData } = await mockSupabase
-        .from('form_submissions')
-        .select()
-        .eq('contact_id', selectedContact.id);
-      
-      setFormsSubmitted(submissionsData || []);
-    };
-
     const getActivityIcon = (type) => {
       switch(type) {
         case 'form': return '📋';
