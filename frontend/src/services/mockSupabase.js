@@ -155,7 +155,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'COMP-003',
+          contact_id: generateCompanyId(),
           name: 'FinServe Inc',
           domain: 'finserve.com',
           industry: 'Finance',
@@ -171,7 +171,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'COMP-004',
+          contact_id: generateCompanyId(),
           name: 'HealthPlus Clinic',
           domain: 'healthplus.care',
           industry: 'Healthcare',
@@ -187,7 +187,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'COMP-005',
+          contact_id: generateCompanyId(),
           name: 'EduLearn Platform',
           domain: 'edulearn.com',
           industry: 'Education',
