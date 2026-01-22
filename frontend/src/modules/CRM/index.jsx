@@ -776,27 +776,63 @@ const CRMModule = () => {
             <div className="space-y-2 text-sm border-t border-[#27272A] pt-3">
               <div>
                 <label className="text-xs text-gray-400">Email</label>
-                <p className="text-purple-400 flex items-center gap-1">
-                  <Mail size={14} /> {selectedContact.email}
-                </p>
+                {isEditingContact ? (
+                  <input
+                    type="email"
+                    value={currentContact.email || ''}
+                    onChange={(e) => handleFieldChange('email', e.target.value)}
+                    className="w-full px-2 py-1 bg-[#0A0A0A] border border-[#27272A] rounded text-purple-400 text-sm"
+                  />
+                ) : (
+                  <p className="text-purple-400 flex items-center gap-1">
+                    <Mail size={14} /> {currentContact.email}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-400">Phone</label>
-                <p className="text-gray-300">{selectedContact.phone || '--'}</p>
+                {isEditingContact ? (
+                  <input
+                    type="tel"
+                    value={currentContact.phone || ''}
+                    onChange={(e) => handleFieldChange('phone', e.target.value)}
+                    className="w-full px-2 py-1 bg-[#0A0A0A] border border-[#27272A] rounded text-gray-300 text-sm"
+                  />
+                ) : (
+                  <p className="text-gray-300">{currentContact.phone || '--'}</p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-400">Website</label>
-                <p className="text-gray-300">{selectedContact.website || '--'}</p>
+                {isEditingContact ? (
+                  <input
+                    type="url"
+                    value={currentContact.website || ''}
+                    onChange={(e) => handleFieldChange('website', e.target.value)}
+                    className="w-full px-2 py-1 bg-[#0A0A0A] border border-[#27272A] rounded text-gray-300 text-sm"
+                  />
+                ) : (
+                  <p className="text-gray-300">{currentContact.website || '--'}</p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-400">Address</label>
-                <p className="text-gray-300">
-                  {selectedContact.address ? 
-                    (typeof selectedContact.address === 'object' ? 
-                      `${selectedContact.address.street || ''}, ${selectedContact.address.city || ''}, ${selectedContact.address.state || ''} ${selectedContact.address.zip || ''}` 
-                      : selectedContact.address) 
-                    : '--'}
-                </p>
+                {isEditingContact ? (
+                  <textarea
+                    value={typeof currentContact.address === 'object' ? JSON.stringify(currentContact.address) : (currentContact.address || '')}
+                    onChange={(e) => handleFieldChange('address', e.target.value)}
+                    className="w-full px-2 py-1 bg-[#0A0A0A] border border-[#27272A] rounded text-gray-300 text-sm"
+                    rows="2"
+                  />
+                ) : (
+                  <p className="text-gray-300">
+                    {currentContact.address ? 
+                      (typeof currentContact.address === 'object' ? 
+                        `${currentContact.address.street || ''}, ${currentContact.address.city || ''}, ${currentContact.address.state || ''} ${currentContact.address.zip || ''}` 
+                        : currentContact.address) 
+                      : '--'}
+                  </p>
+                )}
               </div>
             </div>
 
