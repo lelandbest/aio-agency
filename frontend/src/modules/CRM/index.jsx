@@ -870,7 +870,7 @@ const CRMModule = () => {
                     { label: 'Opt-In Emails', field: 'opt_in_email' },
                     { label: 'Opt-In SMS', field: 'opt_in_sms' },
                     { label: 'Opt-In Calls', field: 'opt_in_calls' },
-                    { label: 'Opt-In Automations', field: 'opt_in_automations' }
+                    { label: 'Opt-In Flows', field: 'opt_in_automations' }
                   ].map(toggle => (
                     <div key={toggle.label} className="flex justify-between items-center">
                       <span className="text-xs">{toggle.label}</span>
