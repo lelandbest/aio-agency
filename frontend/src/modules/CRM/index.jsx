@@ -988,13 +988,13 @@ const CRMModule = () => {
             </div>
           </div>
 
-          {/* Automations */}
+          {/* Flows */}
           <div className="bg-[#0A0A0A] rounded p-3">
             <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
-              <span>Automations</span>
+              <span>Flows</span>
               <ChevronDown size={14} />
             </h3>
-            <p className="text-xs text-gray-500">No active automations</p>
+            <p className="text-xs text-gray-500">No active flows</p>
           </div>
 
           {/* Booking */}
