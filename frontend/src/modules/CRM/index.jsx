@@ -27,6 +27,7 @@ const CRMModule = () => {
   const [activities, setActivities] = useState([]);
   const [activityTab, setActivityTab] = useState('Activity');
   const [formsSubmitted, setFormsSubmitted] = useState([]);
+  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
   
   // CMS Tab states (must be at top level, not inside render function)
   const [cmsTables, setCmsTables] = useState([]);
