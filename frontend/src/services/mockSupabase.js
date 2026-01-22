@@ -760,12 +760,112 @@ class MockSupabaseClient {
       ];
     }
 
+    // FORMS TABLE
+    if (!this.db.forms) {
+      const form1Id = generateUUID();
+      const form2Id = generateUUID();
+      const form3Id = generateUUID();
+      
+      this.db.forms = [
+        {
+          id: form1Id,
+          name: 'Contact Form',
+          slug: 'contact_form',
+          description: 'Get in touch with us for any questions or inquiries',
+          schema: [
+            { id: 'f1', name: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe', map_to_contact: 'first_name', is_identifier: false },
+            { id: 'f2', name: 'email', label: 'Email Address', type: 'email', required: true, placeholder: 'john@example.com', map_to_contact: 'email', is_identifier: true },
+            { id: 'f3', name: 'phone', label: 'Phone Number', type: 'phone', required: false, placeholder: '+1 (555) 000-0000', map_to_contact: 'phone', is_identifier: false },
+            { id: 'f4', name: 'message', label: 'Message', type: 'textarea', required: true, placeholder: 'How can we help you?', map_to_contact: null, is_identifier: false }
+          ],
+          settings: {
+            create_contact: true,
+            update_contact: true,
+            webhook_url: '',
+            notification_email: 'contact@aioagency.com',
+            redirect_url: '',
+            thank_you_message: 'Thank you for contacting us! We\'ll get back to you within 24 hours.'
+          },
+          is_active: true,
+          responses_count: 28,
+          last_response_at: '2026-01-12T10:00:00Z',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2026-01-12T10:00:00Z'
+        },
+        {
+          id: form2Id,
+          name: 'Demo Request',
+          slug: 'demo_request',
+          description: 'Request a personalized demo of our platform',
+          schema: [
+            { id: 'd1', name: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Jane Smith', map_to_contact: 'first_name', is_identifier: false },
+            { id: 'd2', name: 'email', label: 'Work Email', type: 'email', required: true, placeholder: 'jane@company.com', map_to_contact: 'email', is_identifier: true },
+            { id: 'd3', name: 'company', label: 'Company Name', type: 'text', required: true, placeholder: 'Acme Corp', map_to_contact: 'company', is_identifier: false },
+            { id: 'd4', name: 'company_size', label: 'Company Size', type: 'select', required: true, options: ['1-10', '11-50', '51-200', '201-1000', '1000+'], map_to_contact: null, is_identifier: false },
+            { id: 'd5', name: 'inquiry', label: 'What are you interested in?', type: 'textarea', required: true, placeholder: 'Tell us about your needs', map_to_contact: null, is_identifier: false }
+          ],
+          settings: {
+            create_contact: true,
+            update_contact: true,
+            webhook_url: 'https://hooks.slack.com/demo-requests',
+            notification_email: 'sales@aioagency.com',
+            redirect_url: '/thank-you',
+            thank_you_message: 'Thanks for your interest! Our team will reach out within 1 business day to schedule your demo.'
+          },
+          is_active: true,
+          responses_count: 15,
+          last_response_at: '2026-01-11T15:30:00Z',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2026-01-11T15:30:00Z'
+        },
+        {
+          id: form3Id,
+          name: 'Newsletter Signup',
+          slug: 'newsletter_signup',
+          description: 'Subscribe to our weekly newsletter',
+          schema: [
+            { id: 'n1', name: 'email', label: 'Email Address', type: 'email', required: true, placeholder: 'you@example.com', map_to_contact: 'email', is_identifier: true },
+            { id: 'n2', name: 'interests', label: 'Topics of Interest', type: 'select', required: false, options: ['Marketing', 'Sales', 'Technology', 'Business'], map_to_contact: null, is_identifier: false }
+          ],
+          settings: {
+            create_contact: true,
+            update_contact: false,
+            webhook_url: '',
+            notification_email: '',
+            redirect_url: '',
+            thank_you_message: 'You\'re subscribed! Check your inbox for a confirmation email.'
+          },
+          is_active: true,
+          responses_count: 89,
+          last_response_at: '2026-01-12T16:00:00Z',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2026-01-12T16:00:00Z'
+        }
+      ];
+    }
+
+    // FORM SUBMISSIONS TABLE
+    if (!this.db.form_submissions) {
+      const contactIds = this.db.crm_contacts?.map(c => c.id) || [];
+      const forms = this.db.forms || [];
+      
+      this.db.form_submissions = [
+        { id: generateUUID(), form_id: forms[0]?.id, contact_id: contactIds[0], submission_data: { full_name: 'Jenna Best', email: 'jennalarinbest@gmail.com', phone: '+1 (555) 123-4567', message: 'Interested in your services' }, created_contact: false, submitted_at: '2026-01-12T10:00:00Z' },
+        { id: generateUUID(), form_id: forms[0]?.id, contact_id: contactIds[1], submission_data: { full_name: 'Daniel Salinas', email: 'hvac.danielsalinas@gmail.com', phone: '+1 (555) 987-6543', message: 'Need pricing info' }, created_contact: false, submitted_at: '2026-01-11T14:30:00Z' },
+        { id: generateUUID(), form_id: forms[0]?.id, contact_id: contactIds[2], submission_data: { full_name: 'Jordan Gilbert', email: 'jordan@webdesignnovainc.com', phone: '+1 (555) 456-7890', message: 'Partnership opportunity' }, created_contact: false, submitted_at: '2026-01-10T09:15:00Z' },
+        { id: generateUUID(), form_id: forms[1]?.id, contact_id: contactIds[3], submission_data: { full_name: 'Sarah Chen', email: 'sarah.chen@finserve.com', company: 'FinServe Inc', company_size: '201-1000', inquiry: 'Looking for enterprise solution' }, created_contact: false, submitted_at: '2026-01-11T15:30:00Z' },
+        { id: generateUUID(), form_id: forms[1]?.id, contact_id: contactIds[4], submission_data: { full_name: 'Michael Rodriguez', email: 'mrodriguez@healthplus.care', company: 'HealthPlus Clinic', company_size: '51-200', inquiry: 'Healthcare compliance features' }, created_contact: false, submitted_at: '2026-01-10T11:00:00Z' },
+        { id: generateUUID(), form_id: forms[2]?.id, contact_id: contactIds[5], submission_data: { email: 'emily.watson@edulearn.com', interests: 'Technology' }, created_contact: false, submitted_at: '2026-01-12T16:00:00Z' },
+        { id: generateUUID(), form_id: forms[2]?.id, contact_id: contactIds[6], submission_data: { email: 'alex.kim@retailplus.co', interests: 'Sales' }, created_contact: false, submitted_at: '2026-01-12T08:00:00Z' }
+      ];
+    }
+
     // CMS TABLES (Form Data Storage)
     if (!this.db.cms_tables) {
       this.db.cms_tables = [
-        { id: generateUUID(), name: 'Contact Form Submissions', slug: 'contact_form_submissions', description: 'Data from main contact form', record_count: 45, created_at: '2025-01-01T00:00:00Z' },
-        { id: generateUUID(), name: 'Newsletter Signups', slug: 'newsletter_signups', description: 'Email subscribers from website', record_count: 234, created_at: '2025-01-01T00:00:00Z' },
-        { id: generateUUID(), name: 'Demo Requests', slug: 'demo_requests', description: 'Product demo request form data', record_count: 67, created_at: '2025-01-01T00:00:00Z' }
+        { id: generateUUID(), name: 'Contact Form', slug: 'contact_form', description: 'Contact form submissions', record_count: 28, form_id: this.db.forms?.[0]?.id, last_submission: '2026-01-12T10:00:00Z', created_at: '2025-01-01T00:00:00Z' },
+        { id: generateUUID(), name: 'Demo Request', slug: 'demo_request', description: 'Demo request submissions', record_count: 15, form_id: this.db.forms?.[1]?.id, last_submission: '2026-01-11T15:30:00Z', created_at: '2025-01-01T00:00:00Z' },
+        { id: generateUUID(), name: 'Newsletter Signup', slug: 'newsletter_signup', description: 'Newsletter subscriptions', record_count: 89, form_id: this.db.forms?.[2]?.id, last_submission: '2026-01-12T16:00:00Z', created_at: '2025-01-01T00:00:00Z' }
       ];
     }
 
