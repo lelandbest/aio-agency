@@ -85,6 +85,9 @@ class MockSupabaseClient {
         { id: '5', user_id: '1', day_of_week: 5, start_time: '09:00', end_time: '17:00', is_available: true }
       ];
     }
+    
+    // Add CRM tables
+    this.initializeCRMTables();
   }
 
   // ============ AUTH METHODS ============
