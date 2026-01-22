@@ -23,6 +23,13 @@ const FormBuilderModule = () => {
   const [loading, setLoading] = useState(true);
   const [draggedField, setDraggedField] = useState(null);
   const [activeTab, setActiveTab] = useState('display');
+  
+  // CMS Data Tab State
+  const [cmsTables, setCmsTables] = useState([]);
+  const [selectedCmsTable, setSelectedCmsTable] = useState(null);
+  const [cmsTableData, setCmsTableData] = useState([]);
+  const [cmsSearchQuery, setCmsSearchQuery] = useState('');
+  const [cmsDataLoading, setCmsDataLoading] = useState(false);
 
   const FORM_TOOLS = [
     {
