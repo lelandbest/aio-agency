@@ -139,7 +139,7 @@ class MockSupabaseClient {
         },
         {
           id: generateUUID(),
-          contact_id: 'COMP-002',
+          contact_id: generateCompanyId(),
           name: 'GrowthMark Agency',
           domain: 'growthmark.io',
           industry: 'Marketing',
