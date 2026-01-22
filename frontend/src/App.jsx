@@ -570,6 +570,11 @@ const App = () => {
     );
   }
 
+  // Handle public form pages (no auth required)
+  if (currentPage === 'form' && formSlug) {
+    return <PublicForm formSlug={formSlug} />;
+  }
+
   if (!session) {
     return <AuthScreen onLogin={handleLogin} />;
   }
