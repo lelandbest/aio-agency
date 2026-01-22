@@ -846,10 +846,41 @@ const CRMModule = () => {
       dob: '',
       website: ''
     });
+    
+    const [userFormData, setUserFormData] = useState({
+      site: 'Current Site',
+      username: '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      dob: '',
+      password: '',
+      confirmPassword: '',
+      system: 'Create New System',
+      billing: 'complimentary',
+      package: '',
+      street: '',
+      apartment: '',
+      city: '',
+      state: '',
+      zip: '',
+      country: 'United States',
+      phone: ''
+    });
 
     const handleSubmit = (e) => {
       e.preventDefault();
-      handleCreateContact(formData);
+      if (createModalTab === 'Contact') {
+        handleCreateContact(formData);
+      } else {
+        handleCreateUser(userFormData);
+      }
+    };
+    
+    const handleCreateUser = async (data) => {
+      // Placeholder for user creation
+      alert('Create User functionality - Coming soon!\nThis will create a multi-tenant user account with system access.');
+      setShowCreateModal(false);
     };
 
     return (
