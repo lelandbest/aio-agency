@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+    allowedHosts: [
+      'repo-transition.preview.emergentagent.com',
+      'code-inspector-181.preview.emergentagent.com'
+    ],
     hmr: {
       protocol: 'wss',
       host: 'code-inspector-181.preview.emergentagent.com',
