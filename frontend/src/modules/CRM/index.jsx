@@ -602,8 +602,56 @@ const CRMModule = () => {
 
   // CONTACT DETAIL VIEW (Placeholder for Phase 4)
   const renderContactDetailView = () => {
+    const [activities, setActivities] = useState([]);
+    const [activityTab, setActivityTab] = useState('Activity');
+    const [formsSubmitted, setFormsSubmitted] = useState([]);
+
+    useEffect(() => {
+      loadActivitiesAndForms();
+    }, [selectedContact.id]);
+
+    const loadActivitiesAndForms = async () => {
+      // Load activities
+      const { data: activitiesData } = await mockSupabase
+        .from('contact_activities')
+        .select()
+        .eq('contact_id', selectedContact.id)
+        .order('created_at', { ascending: false });
+      
+      setActivities(activitiesData || []);
+
+      // Load form submissions
+      const { data: submissionsData } = await mockSupabase
+        .from('form_submissions')
+        .select()
+        .eq('contact_id', selectedContact.id);
+      
+      setFormsSubmitted(submissionsData || []);
+    };
+
+    const getActivityIcon = (type) => {
+      switch(type) {
+        case 'form': return '📋';
+        case 'email': return '📧';
+        case 'call': return '📞';
+        case 'sms': return '💬';
+        case 'note': return '✅';
+        case 'meeting': return '🤝';
+        case 'automation': return '🤖';
+        default: return '📌';
+      }
+    };
+
+    const filteredActivities = activityTab === 'Activity' 
+      ? activities 
+      : activities.filter(a => {
+          if (activityTab === 'Forms') return a.activity_type === 'form';
+          if (activityTab === 'Notes') return a.activity_type === 'note';
+          return false;
+        });
+
     return (
-      <div className="flex-1 flex flex-col bg-[#0F0F11] p-6">
+      <div className="flex-1 flex flex-col bg-[#0F0F11] p-6 overflow-hidden">
         <button 
           onClick={() => setSelectedContact(null)}
           className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white"
@@ -611,40 +659,177 @@ const CRMModule = () => {
           <ChevronLeft size={16} /> Back to Contacts
         </button>
         
-        <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-6">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            {selectedContact.first_name} {selectedContact.last_name}
-          </h2>
-          
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <label className="text-gray-400 text-xs uppercase font-bold">Email</label>
-              <p className="text-white">{selectedContact.email}</p>
+        {/* 3-COLUMN LAYOUT */}
+        <div className="flex-1 grid grid-cols-12 gap-4 overflow-hidden">
+          {/* LEFT: Contact Info (3 cols) */}
+          <div className="col-span-3 bg-[#18181B] border border-[#27272A] rounded-lg p-4 overflow-auto">
+            <div className="mb-4 pb-4 border-b border-[#27272A]">
+              <h2 className="text-xl font-bold text-white mb-1">
+                {selectedContact.first_name} {selectedContact.last_name}
+              </h2>
+              <p className="text-sm text-gray-400">{selectedContact.title || 'Contact'}</p>
             </div>
-            <div>
-              <label className="text-gray-400 text-xs uppercase font-bold">Phone</label>
-              <p className="text-white">{selectedContact.phone || '--'}</p>
-            </div>
-            <div>
-              <label className="text-gray-400 text-xs uppercase font-bold">Company</label>
-              <p className="text-white">{selectedContact.company || '--'}</p>
-            </div>
-            <div>
-              <label className="text-gray-400 text-xs uppercase font-bold">Title</label>
-              <p className="text-white">{selectedContact.title || '--'}</p>
-            </div>
-            <div>
-              <label className="text-gray-400 text-xs uppercase font-bold">Lead Score</label>
-              <p className="text-white">{selectedContact.lead_score || '--'}</p>
-            </div>
-            <div>
-              <label className="text-gray-400 text-xs uppercase font-bold">Pipeline Stage</label>
-              <p className="text-white">{selectedContact.pipeline_stage || '--'}</p>
+            
+            <div className="space-y-4 text-sm">
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Email</label>
+                <p className="text-white">{selectedContact.email}</p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Phone</label>
+                <p className="text-white">{selectedContact.phone || '--'}</p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Company</label>
+                <p className="text-white">{selectedContact.company || '--'}</p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Lead Score</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-[#27272A] rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-purple-600 rounded-full" 
+                      style={{ width: `${selectedContact.lead_score}%` }}
+                    />
+                  </div>
+                  <span className="text-white font-bold">{selectedContact.lead_score}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Pipeline</label>
+                <p className="text-white">{selectedContact.pipeline_stage || '--'}</p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Owner</label>
+                <p className="text-white">{selectedContact.owner || '--'}</p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Tags</label>
+                <div className="flex flex-wrap gap-1">
+                  {selectedContact.tags?.map((tag, idx) => (
+                    <span key={idx} className="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs">
+                      {tag}
+                    </span>
+                  )) || <span className="text-gray-500">No tags</span>}
+                </div>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs uppercase font-bold block mb-1">Opt-ins</label>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={selectedContact.opt_in_email} readOnly className="w-3 h-3" />
+                    <span className="text-gray-300">Email</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={selectedContact.opt_in_sms} readOnly className="w-3 h-3" />
+                    <span className="text-gray-300">SMS</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={selectedContact.opt_in_calls} readOnly className="w-3 h-3" />
+                    <span className="text-gray-300">Calls</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div className="mt-6 p-4 bg-purple-600/10 border border-purple-600/30 rounded text-purple-400 text-sm">
-            <strong>Phase 4:</strong> Full contact detail view with activity timeline, notes, and related items will be implemented next.
+
+          {/* CENTER: Activity Timeline (6 cols) */}
+          <div className="col-span-6 bg-[#18181B] border border-[#27272A] rounded-lg flex flex-col overflow-hidden">
+            {/* Activity Tabs */}
+            <div className="flex gap-2 p-3 border-b border-[#27272A] overflow-x-auto">
+              {['Activity', 'Notes', 'Forms'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActivityTab(tab)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
+                    activityTab === tab 
+                      ? 'bg-purple-600 text-white' 
+                      : 'bg-[#27272A] text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Timeline */}
+            <div className="flex-1 overflow-auto p-4 space-y-3">
+              {filteredActivities.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">No activities yet</p>
+                </div>
+              ) : (
+                filteredActivities.map(activity => (
+                  <div key={activity.id} className="flex gap-3 p-3 bg-[#27272A]/30 rounded-lg hover:bg-[#27272A]/50 transition">
+                    <div className="text-2xl">{getActivityIcon(activity.activity_type)}</div>
+                    <div className="flex-1">
+                      <h4 className="text-white font-medium text-sm">{activity.title}</h4>
+                      <p className="text-gray-400 text-xs mt-1">{activity.description}</p>
+                      {activity.metadata && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          {Object.entries(activity.metadata).slice(0, 3).map(([key, value]) => (
+                            <span key={key} className="mr-3">
+                              <strong>{key}:</strong> {typeof value === 'object' ? JSON.stringify(value).slice(0, 30) : value}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-gray-500 text-xs mt-2">
+                        {new Date(activity.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: Related Items (3 cols) */}
+          <div className="col-span-3 bg-[#18181B] border border-[#27272A] rounded-lg p-4 overflow-auto space-y-4">
+            {/* Forms Submitted */}
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">Forms Submitted ({formsSubmitted.length})</h3>
+              <div className="space-y-2">
+                {formsSubmitted.length === 0 ? (
+                  <p className="text-xs text-gray-500">No form submissions</p>
+                ) : (
+                  formsSubmitted.map(submission => (
+                    <div key={submission.id} className="p-2 bg-[#27272A]/30 rounded text-xs">
+                      <p className="text-white font-medium">✓ Form Submission</p>
+                      <p className="text-gray-400 text-[10px] mt-1">
+                        {new Date(submission.submitted_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Automations */}
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">Automations</h3>
+              <p className="text-xs text-gray-500">No active automations</p>
+            </div>
+
+            {/* Pipelines */}
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">Pipelines</h3>
+              <div className="p-2 bg-purple-900/20 rounded text-xs">
+                <p className="text-purple-400 font-medium">{selectedContact.pipeline_stage || 'New'}</p>
+              </div>
+            </div>
+
+            {/* Booking */}
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">Booking</h3>
+              <p className="text-xs text-gray-500">No bookings</p>
+            </div>
+
+            {/* Orders */}
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">Orders</h3>
+              <p className="text-xs text-gray-500">No orders</p>
+            </div>
           </div>
         </div>
       </div>
