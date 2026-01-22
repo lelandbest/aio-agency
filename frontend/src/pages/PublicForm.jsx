@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { mockSupabase } from '../services/mockSupabase';
 import { processFormSubmission } from '../services/formProcessor';
 
-const PublicForm = () => {
-  const { formSlug } = useParams();
-  const navigate = useNavigate();
+const PublicForm = ({ formSlug }) => {
   const [form, setForm] = useState(null);
   const [formData, setFormData] = useState({});
   const [submitted, setSubmitted] = useState(false);
