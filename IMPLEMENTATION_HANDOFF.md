@@ -975,7 +975,7 @@ text-gray-500    // Tertiary
 
 **Project:** aio-agency CRM  
 **Tech Stack:** React 19 + Vite + Tailwind CSS + Mock Supabase  
-**Preview URL:** https://code-inspector-181.preview.emergentagent.com  
+**Preview URL:** https://repo-transition.preview.emergentagent.com  
 
 **Key Decisions Made:**
 1. CMS Data tab in Forms module (not separate, not in CRM)
