@@ -42,7 +42,7 @@ const CRMModule = () => {
     owner: { operator: 'is', value: '', active: false },
     tags: { operator: 'has', value: '', active: false },
     system_tags: { operator: 'has', value: '', active: false },
-    automation: { operator: 'is', value: '', active: false },
+    flow: { operator: 'is', value: '', active: false },
     input: { operator: 'is', value: '', active: false },
     created_date: { operator: 'is', value: '', active: false },
     updated_date: { operator: 'is', value: '', active: false },
