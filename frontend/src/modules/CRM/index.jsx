@@ -474,7 +474,7 @@ const CRMModule = () => {
             <button onClick={() => handleBulkAction('remove_tag')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
               Remove Tag
             </button>
-            <button onClick={() => handleBulkAction('add_automation')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
+            <button onClick={() => handleBulkAction('add_flow')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
               Add Flow
             </button>
             <button onClick={() => handleBulkAction('remove_flow')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
