@@ -668,8 +668,8 @@ const CRMModule = () => {
         case 'sms': return '💬';
         case 'note': return '✅';
         case 'meeting': return '🤝';
+        case 'flow':
         case 'automation': return '🤖';
-        case 'flow': return '🤖';
         default: return '📌';
       }
     };
@@ -679,7 +679,7 @@ const CRMModule = () => {
       : activities.filter(a => {
           if (activityTab === 'Forms') return a.activity_type === 'form';
           if (activityTab === 'Notes') return a.activity_type === 'note';
-          if (activityTab === 'Flow Emails') return a.activity_type === 'email' || a.activity_type === 'automation';
+          if (activityTab === 'Flow Emails') return a.activity_type === 'email' || a.activity_type === 'automation' || a.activity_type === 'flow';
           if (activityTab === 'Flow SMS') return a.activity_type === 'sms';
           return false;
         });
