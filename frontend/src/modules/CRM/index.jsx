@@ -381,7 +381,7 @@ const CRMModule = () => {
         opt_in_email: true,
         opt_in_sms: true,
         opt_in_calls: true,
-        opt_in_automations: true,
+        opt_in_flows: true,
         last_contacted_at: null,
         pipeline_stage: 'New',
         created_at: new Date().toISOString(),
