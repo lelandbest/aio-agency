@@ -66,7 +66,7 @@ const CRMModule = () => {
     owner: ['AIO Flow™', 'Adam B.', 'System', 'User 1', 'User 2', 'User 3'],
     tags: ['VIP', 'Hot Lead', 'Customer', 'Nurture', 'Partner', 'Prospect', 'Inactive', 'Trial', 'Enterprise', 'SMB'],
     system_tags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
-    automation: ['Active', 'Paused', 'Inactive', 'Completed'],
+    flow: ['Active', 'Paused', 'Inactive', 'Completed'],
     input: ['Email', 'Phone', 'Form', 'API', 'Manual'],
     created_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
     updated_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
