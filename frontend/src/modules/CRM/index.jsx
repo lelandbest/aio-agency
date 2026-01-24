@@ -1038,6 +1038,37 @@ const CRMModule = () => {
     );
   };
 
+  // CMS TAB - Link to Forms CMS data
+  const renderCMSTab = () => {
+    return (
+      <div className="flex-1 p-6 overflow-auto bg-[#0F0F11]">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-white mb-2">CMS Data Tables</h2>
+          <p className="text-gray-400 text-sm">View and manage form submission data stored in CMS tables</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cmsTables.map(table => (
+            <div key={table.id} className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition">
+              <div className="flex justify-between items-start mb-3">
+                <div className="w-10 h-10 bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-400">
+                  <FileText size={20} />
+                </div>
+                <span className="px-2 py-1 rounded text-[10px] bg-blue-900/20 text-blue-400 uppercase font-bold">
+                  {table.record_count} Records
+                </span>
+              </div>
+              <h3 className="text-white font-bold mb-1">{table.name}</h3>
+              <p className="text-gray-500 text-xs mb-3">{table.description}</p>
+              <button className="w-full bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-sm font-medium">
+                View Data
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // COMPANIES TAB
   const renderCompaniesTab = () => {
     return (
