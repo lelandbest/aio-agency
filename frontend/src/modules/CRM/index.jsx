@@ -1101,13 +1101,39 @@ const CRMModule = () => {
     );
   };
 
-  // FORMS TAB - Render same as Forms Module
+  // FORMS TAB - Render same as Forms Module with clickable forms
   const renderFormsTab = () => {
+    if (viewingFormBuilder && selectedFormForBuilder) {
+      return (
+        <div className="flex-1 flex flex-col bg-[#0F0F11]">
+          <div className="p-4 border-b border-[#27272A] bg-[#050505]">
+            <button 
+              onClick={() => { setViewingFormBuilder(false); setSelectedFormForBuilder(null); }}
+              className="text-gray-400 hover:text-white flex items-center gap-2"
+            >
+              <ChevronLeft size={16} /> Back to Forms
+            </button>
+          </div>
+          <div className="flex-1 p-6 text-white">
+            <h2 className="text-xl font-bold mb-4">Form Builder: {selectedFormForBuilder.name}</h2>
+            <p className="text-gray-400">Form builder interface would go here</p>
+            <div className="mt-4 p-4 bg-[#18181B] border border-[#27272A] rounded">
+              <pre className="text-xs">{JSON.stringify(selectedFormForBuilder, null, 2)}</pre>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 p-6 overflow-auto bg-[#0F0F11]">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {formsList.map(form => (
-            <div key={form.id} className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition cursor-pointer">
+            <div 
+              key={form.id} 
+              onClick={() => { setSelectedFormForBuilder(form); setViewingFormBuilder(true); }}
+              className="bg-[#18181B] border border-[#27272A] rounded-lg p-4 hover:border-purple-500 transition cursor-pointer"
+            >
               <div className="flex justify-between items-start mb-3">
                 <div className="w-10 h-10 bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-400">
                   <FileInput size={20} />
