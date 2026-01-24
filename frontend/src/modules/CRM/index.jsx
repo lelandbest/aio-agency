@@ -121,6 +121,8 @@ const CRMModule = () => {
 
   // Load forms data for Forms tab
   const [formsList, setFormsList] = useState([]);
+  const [viewingFormBuilder, setViewingFormBuilder] = useState(false);
+  const [selectedFormForBuilder, setSelectedFormForBuilder] = useState(null);
   
   useEffect(() => {
     if (activeTab === 'Forms') {
