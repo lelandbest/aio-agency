@@ -128,11 +128,19 @@ const CRMModule = () => {
     if (activeTab === 'Forms') {
       loadFormsList();
     }
+    if (activeTab === 'CMS') {
+      loadCMSTables();
+    }
   }, [activeTab]);
   
   const loadFormsList = async () => {
     const { data } = await mockSupabase.from('forms').select();
     setFormsList(data || []);
+  };
+
+  const loadCMSTables = async () => {
+    const { data } = await mockSupabase.from('cms_tables').select();
+    setCmsTables(data || []);
   };
 
   const loadData = async () => {
