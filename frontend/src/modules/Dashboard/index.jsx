@@ -4,9 +4,11 @@ import {
   BarChart3, LineChart as LineChartIcon, Activity, Clock, Mail, Play, 
   Square, Settings, Edit2, Save, Grid3x3, Trash2
 } from 'lucide-react';
+import ModuleHeader from '../../components/ModuleHeader';
+import AIAssistButton from '../../components/AIAssistButton';
 
 // ============ SIMPLE CHART COMPONENTS ============
-const BarChart = ({ title, data, color = '#a855f7' }) => {
+const BarChart = ({ title, data, color = 'var(--color-primary)' }) => {
   const maxValue = Math.max(...data.map(d => d.value));
   return (
     <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
@@ -31,7 +33,7 @@ const BarChart = ({ title, data, color = '#a855f7' }) => {
   );
 };
 
-const LineChart = ({ title, data, color = '#06b6d4' }) => {
+const LineChart = ({ title, data, color = 'var(--color-accent)' }) => {
   const maxValue = Math.max(...data.map(d => d.value));
   const minValue = Math.min(...data.map(d => d.value));
   const range = maxValue - minValue || 1;
@@ -104,7 +106,7 @@ const ActivityTimeline = ({ activities }) => {
           <div key={i} className="flex gap-3">
             <div className="flex flex-col items-center">
               <div className={`w-2 h-2 rounded-full ${activity.color}`} />
-              {i < activities.length - 1 && <div className="w-0.5 h-6 bg-[#27272A] my-1" />}
+              {i < activities.length - 1 && <div className="w-0.5 h-6 bg-[var(--color-hover)] my-1" />}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white">{activity.title}</p>
@@ -147,7 +149,7 @@ const QuickActions = ({ onAction, onCustomize, customActions }) => {
       })}
       <button
         onClick={onCustomize}
-        className="flex items-center justify-center w-[25px] h-[25px] rounded bg-[#27272A] hover:bg-[#333] text-gray-400 hover:text-gray-200 transition"
+        className="flex items-center justify-center w-[25px] h-[25px] rounded bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-gray-400 hover:text-gray-200 transition"
         title="Customize quick actions"
       >
         <Settings size={12} />
@@ -170,7 +172,7 @@ const CustomActionsPanel = ({ customActions, onAdd, onRemove }) => {
   };
 
   return (
-    <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-4">
+    <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4">
       <h3 className="text-sm font-bold text-gray-400 mb-4">Custom Quick Actions</h3>
       <div className="space-y-2 mb-4">
         <input
@@ -178,14 +180,14 @@ const CustomActionsPanel = ({ customActions, onAdd, onRemove }) => {
           value={actionName}
           onChange={(e) => setActionName(e.target.value)}
           placeholder="Action name"
-          className="w-full bg-[#0F0F11] border border-[#27272A] rounded px-3 py-2 text-sm text-white focus:border-purple-500"
+          className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white focus:border-purple-500"
         />
         <input
           type="text"
           value={actionDescription}
           onChange={(e) => setActionDescription(e.target.value)}
           placeholder="Description (optional)"
-          className="w-full bg-[#0F0F11] border border-[#27272A] rounded px-3 py-2 text-sm text-white focus:border-purple-500"
+          className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-white focus:border-purple-500"
         />
         <button
           onClick={handleAdd}
@@ -196,7 +198,7 @@ const CustomActionsPanel = ({ customActions, onAdd, onRemove }) => {
       </div>
       <div className="space-y-2">
         {customActions?.map(action => (
-          <div key={action.id} className="bg-[#0F0F11] p-2 rounded flex justify-between items-center">
+          <div key={action.id} className="bg-[var(--color-bg-secondary)] p-2 rounded flex justify-between items-center">
             <div>
               <p className="text-sm text-white">{action.name}</p>
               {action.description && <p className="text-xs text-gray-500">{action.description}</p>}
@@ -282,74 +284,62 @@ const DashboardModule = () => {
   };
 
   return (
-    <div className="h-full bg-[#0F0F11] rounded-xl border border-[#27272A] flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="border-b border-[#27272A] bg-[#050505] p-4 flex justify-between items-center gap-4">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Activity size={24} className="text-purple-500" />
-          Dashboard
-        </h1>
-        
-        {/* Quick Actions Bar - Center */}
-        <div className="flex-1 flex justify-center">
-          {visibleComponents.quickActions && (
-            <QuickActions 
-              onAction={handleQuickAction}
-              onCustomize={() => setShowCustomizePanel(!showCustomizePanel)}
-              customActions={customActions}
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+      <ModuleHeader
+        title="Dashboard"
+        titleIcon={Activity}
+        actions={[
+          {
+            label: 'Export',
+            icon: BarChart3,
+            onClick: () => console.log('Export report'),
+            variant: 'secondary'
+          },
+          {
+            label: isEditMode ? 'Save' : 'Edit',
+            icon: isEditMode ? Save : Edit2,
+            onClick: () => setIsEditMode(!isEditMode),
+            variant: isEditMode ? 'primary' : 'secondary'
+          }
+        ]}
+        showActions={true}
+        aiAssistSlot={(
+          <div className="flex items-center gap-3">
+            <AIAssistButton
+              onAssist={() => console.log('AI Assist: Dashboard')}
+              tooltip="AI Assist"
+              iconType="crosshair"
             />
-          )}
-        </div>
-
-        {/* Export Report and Edit Button - Right */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => console.log('Export report')}
-            className="px-3 py-1 rounded text-sm font-medium flex items-center gap-1 bg-[#27272A] hover:bg-[#333] text-gray-300 transition"
-            title="Export Report"
-          >
-            <BarChart3 size={16} /> Export
-          </button>
-          {isEditMode && (
-            <select 
-              onChange={(e) => e.target.value && toggleComponent(e.target.value)}
-              className="bg-[#18181B] border border-[#27272A] text-white text-sm px-3 py-1 rounded focus:border-purple-500"
-            >
-              <option value="">+ Add Component</option>
-              <option value="stats">Stats Cards</option>
-              <option value="charts">Charts</option>
-              <option value="timeline">Activity Timeline</option>
-              <option value="quickActions">Quick Actions</option>
-              <option value="customActions">Custom Actions</option>
-            </select>
-          )}
-          <button
-            onClick={() => setIsEditMode(!isEditMode)}
-            className={`px-3 py-1 rounded text-sm font-medium flex items-center gap-1 ${
-              isEditMode 
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-[#27272A] hover:bg-[#333] text-gray-300'
-            }`}
-          >
-            {isEditMode ? (
-              <>
-                <Save size={16} /> Save
-              </>
-            ) : (
-              <>
-                <Edit2 size={16} /> Edit
-              </>
+            {visibleComponents.quickActions && (
+              <QuickActions 
+                onAction={handleQuickAction}
+                onCustomize={() => setShowCustomizePanel(!showCustomizePanel)}
+                customActions={customActions}
+              />
             )}
-          </button>
-        </div>
-      </div>
+            {isEditMode && (
+              <select 
+                onChange={(e) => e.target.value && toggleComponent(e.target.value)}
+                className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-white text-sm px-3 py-1 rounded focus:border-purple-500"
+              >
+                <option value="">+ Add Component</option>
+                <option value="stats">Stats Cards</option>
+                <option value="charts">Charts</option>
+                <option value="timeline">Activity Timeline</option>
+                <option value="quickActions">Quick Actions</option>
+                <option value="customActions">Custom Actions</option>
+              </select>
+            )}
+          </div>
+        )}
+      />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="space-y-6">
           {/* Customize Panel */}
           {showCustomizePanel && visibleComponents.quickActions && (
-            <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-4">
+            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-bold text-gray-400">Customize Quick Actions</h3>
                 <button
@@ -399,7 +389,7 @@ const DashboardModule = () => {
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <LineChart title="Activity Trend" data={chartData.activities} />
-                <BarChart title="Weekly Conversions" data={chartData.conversions} color="#f97316" />
+                <BarChart title="Weekly Conversions" data={chartData.conversions} color="var(--color-warning)" />
               </div>
             </div>
           )}

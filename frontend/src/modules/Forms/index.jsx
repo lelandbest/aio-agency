@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { mockSupabase } from '../../services/mockSupabase';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import FolderTable from '../../components/FolderTable';
 import {
   FileText, Plus, ArrowRight, User, Box, Briefcase, Mail, Phone,
   Type, AlignLeft, CheckSquare, Hash, Lock, AtSign, ChevronDown, Radio,
@@ -8,28 +11,31 @@ import {
   UploadCloud, ShoppingCart, Image, MapPin, PenTool, ListChecks,
   Code, Columns, Layers, Table, GripVertical, Trash2, ExternalLink, Save,
   Bot, Settings, Bold, Italic, Underline, AlignCenter, AlignRight, GitMerge,
-  Database, Download, Search, Filter
+  Database, Download, Search, Filter, Edit2, Folder, FolderOpen, ChevronRight,
+  Eye
 } from 'lucide-react';
+import CMSView from '../../components/CMS/CMSView';
+import FormEntryModal from '../../components/Modals/FormEntryModal';
+import AIAssistButton from '../../components/AIAssistButton';
 
 /**
  * FormBuilderModule
- * Comprehensive form builder with drag-and-drop field management
+ * Comprehensive form builder with folder organization and drag-and-drop field management
  */
 const FormBuilderModule = () => {
   const [view, setView] = useState('list');
   const [forms, setForms] = useState([]);
+  const [folders, setFolders] = useState([]);
   const [currentForm, setCurrentForm] = useState(null);
   const [selectedField, setSelectedField] = useState(null);
   const [loading, setLoading] = useState(true);
   const [draggedField, setDraggedField] = useState(null);
   const [activeTab, setActiveTab] = useState('display');
-  
+  const [selectedForms, setSelectedForms] = useState([]);
+
   // CMS Data Tab State
-  const [cmsTables, setCmsTables] = useState([]);
-  const [selectedCmsTable, setSelectedCmsTable] = useState(null);
-  const [cmsTableData, setCmsTableData] = useState([]);
-  const [cmsSearchQuery, setCmsSearchQuery] = useState('');
-  const [cmsDataLoading, setCmsDataLoading] = useState(false);
+  const [showFormEntry, setShowFormEntry] = useState(false);
+  const [entryForm, setEntryForm] = useState(null);
 
   const FORM_TOOLS = [
     {
@@ -88,14 +94,20 @@ const FormBuilderModule = () => {
 
   useEffect(() => {
     fetchForms();
+    fetchFolders();
     fetchCmsTables();
   }, []);
-  
+
+  const fetchFolders = async () => {
+    const { data } = await mockSupabase.from('form_folders').select();
+    if (data) setFolders(data);
+  };
+
   const fetchCmsTables = async () => {
     const { data } = await mockSupabase.from('cms_tables').select();
     if (data) setCmsTables(data);
   };
-  
+
   const loadCmsTableData = async (table) => {
     setSelectedCmsTable(table);
     setCmsDataLoading(true);
@@ -107,7 +119,7 @@ const FormBuilderModule = () => {
     }
     setCmsDataLoading(false);
   };
-  
+
   const handleExportCMS = async (table) => {
     await exportCMSToCSV(table.slug, table.name);
   };
@@ -121,10 +133,17 @@ const FormBuilderModule = () => {
 
   const createNewForm = async () => {
     const newForm = {
-      title: "New Untitled Form",
+      name: "New Untitled Form",
+      folder_id: folders[0]?.id || null,
       status: "Draft",
-      responses: 0,
+      is_active: false,
+      responses_count: 0,
       last_active: "Just now",
+      last_modified_by: "AIO Flow™",
+      last_modified_at: new Date().toISOString(),
+      creator: "AIO Flow™",
+      triggers: null,
+      automation: null,
       schema: []
     };
     const { data } = await mockSupabase.from('forms').insert([newForm]);
@@ -132,6 +151,58 @@ const FormBuilderModule = () => {
       setForms(prev => [...prev, ...data]);
       setCurrentForm(data[0]);
       setView('editor');
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = prompt("Enter folder name:", "New Folder");
+    if (name) {
+      const newFolder = {
+        name: name,
+        user_id: 1, // Mock user ID
+        created_at: new Date().toISOString(),
+        expanded: true
+      };
+      const { data } = await mockSupabase.from('form_folders').insert([newFolder]);
+      if (data) {
+        setFolders(prev => [...prev, ...data]);
+      }
+    }
+  };
+
+  const handleRenameFolder = async (folderId, newName) => {
+    // Mock rename functionality
+    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
+  };
+
+  const handleOpenFormEntry = (form) => {
+    setEntryForm(form);
+    setShowFormEntry(true);
+  };
+
+  const handleOpenPublicLink = (form) => {
+    // In a real app this opens the public URL
+    window.open(`/forms/public/${form.id}`, '_blank');
+  };
+
+  const toggleFolder = (folderId) => {
+    setFolders(prev => prev.map(f =>
+      f.id === folderId ? { ...f, expanded: !f.expanded } : f
+    ));
+  };
+
+  const toggleFormSelection = (formId) => {
+    setSelectedForms(prev =>
+      prev.includes(formId)
+        ? prev.filter(id => id !== formId)
+        : [...prev, formId]
+    );
+  };
+
+  const deleteForm = async (formId) => {
+    if (confirm('Are you sure you want to delete this form?')) {
+      await mockSupabase.from('forms').delete().eq('id', formId);
+      fetchForms();
     }
   };
 
@@ -153,9 +224,15 @@ const FormBuilderModule = () => {
       hidden: false,
       hideLabel: false,
       showWordCounter: false,
-      content: tool.type === 'content' ? '<b>Welcome to my Form</b>' : ''
+      content: tool.type === 'content' ? '<b>Welcome to my Form</b>' : '',
+      // Validation fields
+      minLength: '',
+      maxLength: '',
+      pattern: '',
+      customValidation: '',
+      errorMessage: ''
     };
-    
+
     const updatedForm = {
       ...currentForm,
       schema: [...(currentForm.schema || []), newField]
@@ -190,7 +267,11 @@ const FormBuilderModule = () => {
 
   const handleSaveForm = async () => {
     if (!currentForm) return;
-    await mockSupabase.from('forms').update({ schema: currentForm.schema, title: currentForm.title }).eq('id', currentForm.id);
+    await mockSupabase.from('forms').update({
+      schema: currentForm.schema,
+      name: currentForm.name,
+      last_modified_at: new Date().toISOString()
+    }).eq('id', currentForm.id);
     fetchForms();
   };
 
@@ -203,12 +284,12 @@ const FormBuilderModule = () => {
   const handleDragOver = (e, index) => {
     e.preventDefault();
     if (draggedField === null || draggedField === index || !currentForm) return;
-    
+
     const newSchema = [...currentForm.schema];
     const item = newSchema[draggedField];
     newSchema.splice(draggedField, 1);
     newSchema.splice(index, 0, item);
-    
+
     setCurrentForm({ ...currentForm, schema: newSchema });
     setDraggedField(index);
   };
@@ -219,241 +300,154 @@ const FormBuilderModule = () => {
   };
 
   if (view === 'list') {
+    const tableColumns = [
+      {
+        header: "Form Name",
+        key: "name",
+        render: (form) => (
+          <span className="text-sm text-[var(--color-text-primary)] font-medium">
+            {form.name}
+          </span>
+        )
+      },
+      { header: "Triggers", key: "triggers" },
+      {
+        header: "Automation",
+        key: "automation",
+        render: (form) => (
+          <div className={`w-10 h-5 rounded-full relative transition-colors ${form.automation
+            ? 'bg-[var(--color-primary)]'
+            : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)]'
+            }`}>
+            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${form.automation ? 'left-5.5' : 'left-0.5'
+              }`} />
+          </div>
+        )
+      },
+      {
+        header: "Status",
+        key: "status",
+        render: (form) => (
+          <span className={`px-2 py-1 rounded text-xs font-medium ${form.is_active
+            ? 'bg-green-500/20 text-green-400'
+            : 'bg-gray-500/20 text-[var(--color-text-tertiary)]'
+            }`}>
+            {form.status}
+          </span>
+        )
+      },
+      { header: "Last Modified By", key: "last_modified_by" },
+      {
+        header: "Last Modified At",
+        key: "last_modified_at",
+        render: (form) => new Date(form.last_modified_at).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+        })
+      },
+      { header: "Creator", key: "creator" },
+      {
+        header: "Action",
+        key: "actions",
+        render: (form) => (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleOpenPublicLink(form)}
+              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
+              title="Open Public Link"
+            >
+              <ExternalLink size={16} />
+            </button>
+            <button
+              onClick={() => handleOpenFormEntry(form)}
+              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+              title="Fill Form (Data Entry)"
+            >
+              <FileText size={16} />
+            </button>
+            <button
+              onClick={() => {
+                setCurrentForm(form);
+                setView('editor');
+              }}
+              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+              title="Edit"
+            >
+              <Edit2 size={16} />
+            </button>
+            <button
+              onClick={() => deleteForm(form.id)}
+              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-red-400"
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )
+      }
+    ];
+
+    const actions = (
+      <button
+        onClick={() => setView('cms')}
+        className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
+      >
+        <Database size={16} /> CMS Data
+      </button>
+    );
+
     return (
-      <div className="h-full bg-[#0F0F11] rounded-xl border border-[#27272A] flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-[#27272A] bg-[#050505] flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <FileText size={20} className="text-purple-500" />
-              Forms
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setView('list')}
-                className="px-4 py-2 bg-purple-600 text-white rounded text-sm font-medium"
-              >
-                Forms
-              </button>
-              <button
-                onClick={() => setView('cms')}
-                className="px-4 py-2 bg-[#27272A] hover:bg-[#3f3f46] text-white rounded text-sm font-medium flex items-center gap-2"
-              >
-                <Database size={16} /> CMS Data
-              </button>
-            </div>
-          </div>
-          <button
-            onClick={createNewForm}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
-          >
-            <Plus size={16} /> New Form
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {forms.map(form => (
-              <div
-                key={form.id}
-                onClick={() => {
-                  setCurrentForm(form);
-                  setView('editor');
-                }}
-                className="bg-[#18181B] border border-[#27272A] hover:border-purple-500/50 p-6 rounded-xl cursor-pointer group transition-all"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-400">
-                    <FileText size={20} />
-                  </div>
-                  <span
-                    className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${
-                      form.is_active ? 'bg-green-900/20 text-green-400' : 'bg-gray-800 text-gray-400'
-                    }`}
-                  >
-                    {form.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <h3 className="text-white font-bold mb-1 truncate">{form.name}</h3>
-                <p className="text-gray-500 text-xs">{form.responses_count || 0} responses</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <>
+        <FolderTable
+          title="CUSTOM FORMS"
+          description="Design professional looking Forms to collect leads, contact information, registrations, payments, and more."
+          folders={folders}
+          items={forms}
+          columns={tableColumns}
+          onFolderToggle={toggleFolder}
+          onFolderCreate={handleCreateFolder}
+          onFolderRename={handleRenameFolder}
+          onItemSelect={() => { }} // Disable row selection action if not needed
+          selectedItems={selectedForms}
+          onCreateItem={createNewForm}
+          createItemLabel="Create Form"
+          actions={actions}
+        />
+        {
+          showFormEntry && entryForm && (
+            <FormEntryModal
+              form={entryForm}
+              onClose={() => setShowFormEntry(false)}
+              onSuccess={() => {
+                // Optional: refresh CMS data if visible
+                // alert('Form submitted successfully!');
+              }}
+            />
+          )
+        }
+      </>
     );
   }
 
   // CMS Data View
   if (view === 'cms') {
-    const filteredCmsData = cmsTableData.filter(row => {
-      if (!cmsSearchQuery) return true;
-      return Object.values(row).some(val => 
-        String(val).toLowerCase().includes(cmsSearchQuery.toLowerCase())
-      );
-    });
-
-    return (
-      <div className="h-full bg-[#0F0F11] rounded-xl border border-[#27272A] flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-[#27272A] bg-[#050505] flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Database size={20} className="text-purple-500" />
-              CMS Data
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setView('list');
-                  setSelectedCmsTable(null);
-                }}
-                className="px-4 py-2 bg-[#27272A] hover:bg-[#3f3f46] text-white rounded text-sm font-medium"
-              >
-                Forms
-              </button>
-              <button
-                onClick={() => setView('cms')}
-                className="px-4 py-2 bg-purple-600 text-white rounded text-sm font-medium flex items-center gap-2"
-              >
-                <Database size={16} /> CMS Data
-              </button>
-            </div>
-          </div>
-          {selectedCmsTable && (
-            <button
-              onClick={() => {
-                setSelectedCmsTable(null);
-                setCmsSearchQuery('');
-              }}
-              className="text-gray-400 hover:text-white text-sm"
-            >
-              ← Back to Tables
-            </button>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-auto p-6">
-          {!selectedCmsTable ? (
-            // CMS Tables Grid
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {cmsTables.map(table => (
-                <div
-                  key={table.id}
-                  className="bg-[#18181B] border border-[#27272A] hover:border-purple-500/50 p-6 rounded-xl transition-all"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="w-10 h-10 bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-400">
-                      <Table size={20} />
-                    </div>
-                    <span className="px-2 py-1 rounded text-[10px] bg-blue-900/20 text-blue-400 uppercase font-bold">
-                      {table.record_count} Records
-                    </span>
-                  </div>
-                  <h3 className="text-white font-bold mb-2">{table.name}</h3>
-                  <p className="text-gray-500 text-xs mb-4">{table.description}</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => loadCmsTableData(table)}
-                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-sm font-medium"
-                    >
-                      View Data
-                    </button>
-                    <button
-                      onClick={() => handleExportCMS(table)}
-                      className="bg-[#27272A] hover:bg-[#3f3f46] text-white px-3 py-2 rounded text-sm"
-                      title="Export CSV"
-                    >
-                      <Download size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            // CMS Table Data Viewer
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white">{selectedCmsTable.name}</h3>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                    <input
-                      type="text"
-                      placeholder="Search..."
-                      value={cmsSearchQuery}
-                      onChange={(e) => setCmsSearchQuery(e.target.value)}
-                      className="pl-10 pr-4 py-2 bg-[#18181B] border border-[#27272A] rounded text-white text-sm focus:border-purple-500 focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    onClick={() => handleExportCMS(selectedCmsTable)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
-                  >
-                    <Download size={16} /> Export CSV
-                  </button>
-                </div>
-              </div>
-
-              {cmsDataLoading ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-400">Loading data...</p>
-                </div>
-              ) : filteredCmsData.length === 0 ? (
-                <div className="text-center py-12">
-                  <Database size={48} className="mx-auto text-gray-600 mb-4" />
-                  <p className="text-gray-400">No submissions yet</p>
-                </div>
-              ) : (
-                <div className="bg-[#18181B] border border-[#27272A] rounded-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-[#27272A]">
-                        <tr>
-                          {Object.keys(filteredCmsData[0]).map(key => (
-                            <th key={key} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                              {key}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#27272A]">
-                        {filteredCmsData.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-[#27272A]/50">
-                            {Object.entries(row).map(([key, value]) => (
-                              <td key={key} className="px-4 py-3 text-sm text-gray-300">
-                                {key === 'submitted_at' || key === 'created_at' ? 
-                                  new Date(value).toLocaleString() : 
-                                  typeof value === 'object' ? JSON.stringify(value) : value
-                                }
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return <CMSView onBack={() => setView('list')} />;
   }
 
+  // Editor View
   return (
-    <div className="h-full flex bg-[#0F0F11] rounded-xl border border-[#27272A] overflow-hidden">
-      {/* Left Sidebar */}
-      <div className="w-64 border-r border-[#27272A] bg-[#050505] flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-[#27272A] flex items-center gap-2 sticky top-0 bg-[#050505] z-10">
-          <button onClick={() => setView('list')} className="text-gray-500 hover:text-white">
+    <div className="h-full flex bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] overflow-hidden">
+      {/* Left Sidebar - Field Tools */}
+      <div className="w-64 border-r border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto">
+        <div className="p-4 border-b border-[var(--color-border)] flex items-center gap-2 sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
+          <button onClick={() => setView('list')} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
             <ArrowRight size={16} className="rotate-180" />
           </button>
-          <span className="text-sm font-bold text-white">Back</span>
+          <span className="text-sm font-bold text-[var(--color-text-primary)]">Back to List</span>
         </div>
         <div className="p-2 space-y-6">
           {FORM_TOOLS.map((category, idx) => (
             <div key={idx} className="px-2">
-              <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 px-2">
+              <h3 className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 px-2">
                 {category.category}
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -461,7 +455,7 @@ const FormBuilderModule = () => {
                   <button
                     key={tIdx}
                     onClick={() => handleAddField(tool)}
-                    className="flex flex-col items-center justify-center gap-2 p-3 bg-[#18181B] border border-[#27272A] hover:border-purple-500 rounded-lg text-xs text-gray-400 hover:text-white transition group h-20"
+                    className="flex flex-col items-center justify-center gap-2 p-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded-lg text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition group h-20"
                   >
                     <tool.icon size={20} className="group-hover:scale-110 transition-transform" />
                     <span className="text-center leading-tight">{tool.label}</span>
@@ -474,20 +468,33 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 flex flex-col bg-[#0F0F11]">
-        <div className="h-14 border-b border-[#27272A] flex items-center justify-between px-6 bg-[#050505]">
-          <input
-            value={currentForm?.title || ''}
-            onChange={(e) => setCurrentForm({ ...currentForm, title: e.target.value })}
-            className="bg-transparent text-white font-bold focus:outline-none focus:border-b border-purple-500"
-          />
+      <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)]">
+        {/* Editor Header */}
+        <div className="h-16 border-b border-[var(--color-border)] flex items-center justify-between px-6 bg-[var(--color-bg-tertiary)]">
+          <div className="flex-1 flex items-center gap-2">
+            <span className="text-xs text-[var(--color-text-secondary)] uppercase font-bold">Form Name:</span>
+            <div className="relative group">
+              <input
+                value={currentForm?.name || ''}
+                onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
+                className="bg-transparent text-[var(--color-text-primary)] text-lg font-bold focus:outline-none focus:border-b-2 border-[var(--color-primary)] pb-1 w-64 md:w-96 transition-all focus:bg-[var(--color-bg-primary)]/50 px-2 rounded-t"
+                placeholder="Enter form name..."
+              />
+              <Edit2 size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none group-hover:text-[var(--color-primary)] transition-colors" />
+            </div>
+          </div>
           <div className="flex gap-2">
-            <button className="text-gray-500 hover:text-white p-2">
+            <AIAssistButton
+              onAssist={() => console.log('AI Assist: Forms')}
+              tooltip="AI Assist"
+              iconType="crosshair"
+            />
+            <button className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-2">
               <ExternalLink size={16} />
             </button>
             <button
               onClick={handleSaveForm}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2"
+              className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2"
             >
               <Save size={14} /> Save
             </button>
@@ -496,7 +503,7 @@ const FormBuilderModule = () => {
         <div className="flex-1 overflow-y-auto p-8 relative">
           <div className="max-w-3xl mx-auto space-y-4 pb-20">
             {currentForm?.schema?.length === 0 && (
-              <div className="text-center text-gray-600 py-20 border-2 border-dashed border-[#27272A] rounded-xl flex flex-col items-center justify-center">
+              <div className="text-center text-[var(--color-text-tertiary)] py-20 border-2 border-dashed border-[var(--color-border)] rounded-xl flex flex-col items-center justify-center">
                 <Box size={48} className="mb-4 opacity-20" />
                 <p>Welcome to my Form</p>
                 <p className="text-xs mt-2">Add fields from the left menu to start building!</p>
@@ -510,31 +517,30 @@ const FormBuilderModule = () => {
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={handleDragEnd}
                 onClick={() => setSelectedField(field)}
-                className={`bg-[#18181B] border rounded-lg p-4 cursor-pointer transition relative group ${
-                  selectedField?.id === field.id ? 'border-purple-500 ring-1 ring-purple-500/20' : 'border-[#27272A] hover:border-gray-600'
-                }`}
+                className={`bg-[var(--color-bg-primary)] border rounded-lg p-4 cursor-pointer transition relative group ${selectedField?.id === field.id ? 'border-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/20' : 'border-[var(--color-border)] hover:border-gray-600'
+                  }`}
               >
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600 cursor-grab opacity-0 group-hover:opacity-100 z-10">
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] cursor-grab opacity-0 group-hover:opacity-100 z-10">
                   <GripVertical size={16} />
                 </div>
                 <div className="pl-6 pointer-events-none">
                   {!field.hideLabel && field.type !== 'content' && (
-                    <label className={`block text-sm font-medium text-gray-300 mb-1`}>
+                    <label className={`block text-sm font-medium text-[var(--color-text-secondary)] mb-1`}>
                       {field.label} {field.required && <span className="text-red-500">*</span>}
                     </label>
                   )}
                   <div className="flex items-center gap-2">
                     {['text', 'email', 'tel', 'url', 'password', 'number', 'currency'].includes(field.type) ? (
-                      <input disabled type={field.type} placeholder={field.placeholder} className="flex-1 w-full bg-[#0F0F11] border border-[#27272A] rounded px-3 py-2 text-sm text-gray-500" />
+                      <input disabled type={field.type} placeholder={field.placeholder} className="flex-1 w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-tertiary)]" />
                     ) : field.type === 'textarea' ? (
-                      <textarea disabled placeholder={field.placeholder} className="flex-1 w-full bg-[#0F0F11] border border-[#27272A] rounded px-3 py-2 text-sm text-gray-500 h-24" />
+                      <textarea disabled placeholder={field.placeholder} className="flex-1 w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-tertiary)] h-24" />
                     ) : field.type === 'select' ? (
-                      <select disabled className="flex-1 w-full bg-[#0F0F11] border border-[#27272A] rounded px-3 py-2 text-sm text-gray-500">
+                      <select disabled className="flex-1 w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-tertiary)]">
                         <option>Select an option...</option>
                         {field.options?.map(opt => <option key={opt}>{opt}</option>)}
                       </select>
                     ) : (
-                      <div className="p-3 border border-[#27272A] rounded bg-[#0F0F11] text-gray-500 text-sm italic w-full text-center">
+                      <div className="p-3 border border-[var(--color-border)] rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)] text-sm italic w-full text-center">
                         {field.type} preview
                       </div>
                     )}
@@ -545,7 +551,7 @@ const FormBuilderModule = () => {
                     e.stopPropagation();
                     deleteField(field.id);
                   }}
-                  className="absolute right-2 top-2 p-1.5 text-gray-600 hover:text-red-500 rounded hover:bg-[#27272A] opacity-0 group-hover:opacity-100 transition z-10"
+                  className="absolute right-2 top-2 p-1.5 text-[var(--color-text-tertiary)] hover:text-red-500 rounded hover:bg-[var(--color-hover)] opacity-0 group-hover:opacity-100 transition z-10"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -555,20 +561,19 @@ const FormBuilderModule = () => {
         </div>
       </div>
 
-      {/* Right Sidebar */}
-      <div className="w-80 border-l border-[#27272A] bg-[#050505] flex flex-col">
+      {/* Right Sidebar - Field Configuration */}
+      <div className="w-80 border-l border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col">
         {selectedField ? (
           <>
-            <div className="border-b border-[#27272A] flex bg-[#0A0A0A]">
+            <div className="border-b border-[var(--color-border)] flex bg-[var(--color-bg-primary)]">
               {['Display', 'Data', 'Validation'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab.toLowerCase())}
-                  className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-wider transition ${
-                    activeTab === tab.toLowerCase()
-                      ? 'text-purple-500 border-b-2 border-purple-500 bg-[#18181B]'
-                      : 'text-gray-500 hover:text-gray-300'
-                  }`}
+                  className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-wider transition ${activeTab === tab.toLowerCase()
+                    ? 'text-[var(--color-primary)] border-b-2 border-[var(--color-primary)] bg-[var(--color-bg-primary)]'
+                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                    }`}
                 >
                   {tab}
                 </button>
@@ -578,25 +583,101 @@ const FormBuilderModule = () => {
               {activeTab === 'display' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Label</label>
-                    <input value={selectedField.label} onChange={(e) => updateFieldProperty(selectedField.id, 'label', e.target.value)} className="w-full bg-[#18181B] border border-[#27272A] rounded px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none" />
+                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Label</label>
+                    <input value={selectedField.label} onChange={(e) => updateFieldProperty(selectedField.id, 'label', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Placeholder</label>
+                    <input value={selectedField.placeholder || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'placeholder', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <input type="checkbox" checked={selectedField.required} onChange={(e) => updateFieldProperty(selectedField.id, 'required', e.target.checked)} className="w-4 h-4 rounded bg-[#18181B] border-gray-600 text-purple-600" />
-                    <label className="text-sm text-gray-300">Required</label>
+                    <input type="checkbox" checked={selectedField.required} onChange={(e) => updateFieldProperty(selectedField.id, 'required', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
+                    <label className="text-sm text-[var(--color-text-secondary)]">Required</label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" checked={selectedField.hideLabel || false} onChange={(e) => updateFieldProperty(selectedField.id, 'hideLabel', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
+                    <label className="text-sm text-[var(--color-text-secondary)]">Hide Label</label>
                   </div>
                 </div>
               )}
               {activeTab === 'data' && (
-                <div className="text-center py-6 text-sm text-gray-500">Data binding coming soon</div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Default Value</label>
+                    <input
+                      value={selectedField.defaultValue || ''}
+                      onChange={(e) => updateFieldProperty(selectedField.id, 'defaultValue', e.target.value)}
+                      className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                      placeholder="Enter default value"
+                    />
+                  </div>
+                  {(selectedField.type === 'select' || selectedField.type === 'radio') && (
+                    <div>
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Options (comma-separated)</label>
+                      <input
+                        value={selectedField.options?.join(', ') || ''}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'options', e.target.value)}
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                        placeholder="Option 1, Option 2, Option 3"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
               {activeTab === 'validation' && (
-                <div className="text-center py-6 text-sm text-gray-500">Validation rules coming soon</div>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" checked={selectedField.required} onChange={(e) => updateFieldProperty(selectedField.id, 'required', e.target.checked)} className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]" />
+                    <label className="text-sm text-[var(--color-text-secondary)]">Required Field</label>
+                  </div>
+                  {['text', 'textarea', 'email'].includes(selectedField.type) && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Min Length</label>
+                        <input
+                          type="number"
+                          value={selectedField.minLength || ''}
+                          onChange={(e) => updateFieldProperty(selectedField.id, 'minLength', e.target.value)}
+                          className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                          placeholder="Minimum characters"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Max Length</label>
+                        <input
+                          type="number"
+                          value={selectedField.maxLength || ''}
+                          onChange={(e) => updateFieldProperty(selectedField.id, 'maxLength', e.target.value)}
+                          className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                          placeholder="Maximum characters"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Pattern (Regex)</label>
+                        <input
+                          value={selectedField.pattern || ''}
+                          onChange={(e) => updateFieldProperty(selectedField.id, 'pattern', e.target.value)}
+                          className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none font-mono"
+                          placeholder="^[A-Za-z]+$"
+                        />
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Error Message</label>
+                    <textarea
+                      value={selectedField.errorMessage || ''}
+                      onChange={(e) => updateFieldProperty(selectedField.id, 'errorMessage', e.target.value)}
+                      className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none h-20"
+                      placeholder="Custom error message"
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8 text-center">
+          <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-tertiary)] p-8 text-center">
             <Settings size={48} className="mb-4 opacity-20" />
             <p className="text-sm">Select a field to configure</p>
           </div>
@@ -604,6 +685,10 @@ const FormBuilderModule = () => {
       </div>
     </div>
   );
+};
+
+FormBuilderModule.propTypes = {
+  // No props currently, but ready for future additions
 };
 
 export default FormBuilderModule;

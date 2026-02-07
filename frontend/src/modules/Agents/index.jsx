@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow } from 'lucide-react';
 import { mockSupabase } from '../../services/mockSupabase';
+import ModuleHeader from '../../components/ModuleHeader';
+import flowDraftRepository from '../Flows/utils/flowDraftRepository';
+import { SPECIALIST_REGISTRY } from './data/agentRegistry';
 
 // 8. AIO AGENTS MODULE
 const AIOAgentsModule = () => {
@@ -26,33 +29,45 @@ const AIOAgentsModule = () => {
     setChatInput('');
   };
 
+  const updateAgentRegistryKey = (agentId, registryKey) => {
+    setAgents((prev) =>
+      prev.map((agent) =>
+        agent.id === agentId ? { ...agent, registryKey, name: registryKey } : agent
+      )
+    );
+    if (activeAgent?.id === agentId) {
+      setActiveAgent((prev) => ({ ...prev, registryKey, name: registryKey }));
+    }
+  };
+
+  const openDraftInFlowBuilder = (agent) => {
+    const draft = flowDraftRepository.createDraftFromAgent(agent, `Draft from ${agent.name}`);
+    flowDraftRepository.setActiveDraft(draft.id);
+    window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'flows', flowId: null } }));
+  };
+
   return (
-    <div className="h-full flex flex-col bg-[#050505] text-white font-sans selection:bg-purple-900/50">
-      {/* Top Command Bar */}
-      <div className="h-16 border-b border-[#27272A] bg-[#0A0A0A] flex items-center justify-between px-6 shrink-0">
-        <div className="flex items-center gap-3">
-           <div className="w-10 h-10 bg-purple-900/20 border border-purple-500/30 rounded flex items-center justify-center">
-              <Bot size={20} className="text-purple-400" />
-           </div>
-           <div>
-              <h2 className="text-lg font-bold tracking-tight uppercase">AIO Command Center</h2>
-              <div className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest">
-                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Systems Online
-              </div>
-           </div>
-        </div>
-        <div className="flex gap-3">
-           <button 
-             onClick={() => setView('barracks')}
-             className={`px-4 py-2 rounded text-xs font-bold uppercase tracking-wider border transition ${view === 'barracks' ? 'bg-purple-600 border-purple-500 text-white' : 'border-[#27272A] text-gray-500 hover:text-white hover:border-gray-500'}`}
-           >
-             Barracks
-           </button>
-           <button className="px-4 py-2 rounded text-xs font-bold uppercase tracking-wider border border-dashed border-[#27272A] text-gray-500 hover:text-green-400 hover:border-green-900 flex items-center gap-2">
-             <Plus size={14} /> Recruit Agent
-           </button>
-        </div>
-      </div>
+    <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50">
+      <ModuleHeader
+        title="AIO Command Center"
+        titleIcon={Bot}
+        statusBadge={{ label: 'Systems Online', color: 'success' }}
+        actions={[
+          {
+            label: 'Barracks',
+            icon: Target,
+            onClick: () => setView('barracks'),
+            variant: view === 'barracks' ? 'primary' : 'secondary'
+          },
+          {
+            label: 'Recruit Agent',
+            icon: Plus,
+            onClick: () => {},
+            variant: 'secondary'
+          }
+        ]}
+        showActions={true}
+      />
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden">
@@ -65,11 +80,20 @@ const AIOAgentsModule = () => {
                   <div 
                     key={agent.id} 
                     onClick={() => { setActiveAgent(agent); setView('command'); setMessages([]); }}
-                    className="group bg-[#0F0F11] border border-[#27272A] hover:border-purple-500/50 rounded-xl p-1 relative cursor-pointer transition-all hover:shadow-[0_0_20px_rgba(147,51,234,0.1)]"
+                    className="group bg-[var(--color-bg-secondary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-xl p-1 relative cursor-pointer transition-all hover:shadow-[0_0_20px_rgba(147,51,234,0.1)]"
                   >
                      {/* "Holographic" Header */}
-                     <div className="bg-[#18181B] rounded-t-lg p-4 border-b border-[#27272A] group-hover:bg-[#202023] transition-colors">
-                        <div className="flex justify-between items-start mb-2">
+                     <div className="bg-[var(--color-bg-primary)] rounded-t-lg p-4 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
+                        <div className="flex items-start justify-between mb-3">
+                           <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex items-center justify-center text-xs font-bold text-[var(--color-text-primary)]">
+                                 {agent.name?.slice(0, 2)}
+                              </div>
+                              <div>
+                                 <h3 className="text-lg font-bold text-white leading-tight">{agent.name}</h3>
+                                 <p className="text-xs text-gray-500 font-mono">{agent.model}</p>
+                              </div>
+                           </div>
                            <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
                               agent.rank === 'General' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 
                               agent.rank === 'SpecOps' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
@@ -77,10 +101,8 @@ const AIOAgentsModule = () => {
                            }`}>
                               {agent.rank}
                            </div>
-                           <div className={`w-2 h-2 rounded-full ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-gray-600'}`}></div>
+                           <div className={`w-2 h-2 rounded-full ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-[var(--color-text-tertiary)]'}`}></div>
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-1">{agent.name}</h3>
-                        <p className="text-xs text-gray-500 font-mono">{agent.model}</p>
                      </div>
                      
                      {/* Body */}
@@ -98,10 +120,21 @@ const AIOAgentsModule = () => {
                      </div>
 
                      {/* Footer Actions */}
-                     <div className="p-3 border-t border-[#27272A] flex justify-between items-center bg-[#0A0A0A]/50 rounded-b-lg">
+                     <div className="p-3 border-t border-[var(--color-border)] flex justify-between items-center bg-[var(--color-bg-primary)]/50 rounded-b-lg">
                         <span className="text-[10px] text-gray-600 uppercase tracking-wider font-bold">ID: AGT-{agent.id}00X</span>
-                        <div className="text-purple-400 text-xs font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                           Command <ArrowRight size={12} />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDraftInFlowBuilder(agent);
+                            }}
+                            className="text-[10px] px-2 py-1 rounded bg-[var(--color-primary)] text-white hover:opacity-90"
+                          >
+                            Draft Flow
+                          </button>
+                          <div className="text-purple-400 text-xs font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                             Command <ArrowRight size={12} />
+                          </div>
                         </div>
                      </div>
                   </div>
@@ -114,12 +147,24 @@ const AIOAgentsModule = () => {
         {view === 'command' && activeAgent && (
           <div className="flex-1 flex">
              {/* Left: Intel / Config */}
-             <div className="w-80 border-r border-[#27272A] bg-[#0F0F11] flex flex-col">
-                <div className="p-6 border-b border-[#27272A]">
+             <div className="w-80 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col">
+                <div className="p-6 border-b border-[var(--color-border)]">
                    <h3 className="text-2xl font-bold text-white">{activeAgent.name}</h3>
                    <div className="flex items-center gap-2 mt-2">
                       <span className="px-2 py-0.5 bg-purple-900/30 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded">{activeAgent.rank}</span>
                       <span className="text-xs text-gray-500 font-mono">{activeAgent.model}</span>
+                   </div>
+                   <div className="mt-3">
+                      <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Remap AI Agent</label>
+                      <select
+                        value={activeAgent.registryKey || activeAgent.name}
+                        onChange={(e) => updateAgentRegistryKey(activeAgent.id, e.target.value)}
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)]"
+                      >
+                        {Object.keys(SPECIALIST_REGISTRY).map((key) => (
+                          <option key={key} value={key}>{key}</option>
+                        ))}
+                      </select>
                    </div>
                 </div>
                 
@@ -129,7 +174,7 @@ const AIOAgentsModule = () => {
                       <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                          <Terminal size={14} /> Prime Directive
                       </h4>
-                      <div className="bg-[#18181B] border border-[#27272A] rounded-lg p-3 text-xs text-gray-300 font-mono leading-relaxed">
+                      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-gray-300 font-mono leading-relaxed">
                          You are a {activeAgent.rank} level agent specialized in {activeAgent.specialization}. 
                          Your objective is to execute workflows with precision.
                       </div>
@@ -145,7 +190,7 @@ const AIOAgentsModule = () => {
                             {activeAgent.subordinates.map(subId => {
                                const sub = agents.find(a => a.id === subId);
                                return (
-                                  <div key={subId} className="flex items-center gap-3 bg-[#18181B] border border-[#27272A] p-2 rounded-lg">
+                                  <div key={subId} className="flex items-center gap-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-2 rounded-lg">
                                      <div className="w-6 h-6 rounded bg-blue-900/20 flex items-center justify-center text-[10px] font-bold text-blue-400">{sub?.name?.charAt(0)}</div>
                                      <span className="text-sm text-gray-300">{sub?.name}</span>
                                   </div>
@@ -153,9 +198,9 @@ const AIOAgentsModule = () => {
                             })}
                          </div>
                       ) : (
-                         <div className="text-xs text-gray-600 italic p-2 border border-dashed border-[#27272A] rounded">No subordinates assigned.</div>
+                         <div className="text-xs text-gray-600 italic p-2 border border-dashed border-[var(--color-border)] rounded">No subordinates assigned.</div>
                       )}
-                      <button className="mt-2 w-full py-1.5 border border-[#27272A] hover:border-purple-500 text-[10px] text-gray-400 hover:text-white uppercase font-bold tracking-wider rounded transition">
+                      <button className="mt-2 w-full py-1.5 border border-[var(--color-border)] hover:border-purple-500 text-[10px] text-gray-400 hover:text-white uppercase font-bold tracking-wider rounded transition">
                          + Assign Unit
                       </button>
                    </div>
@@ -166,16 +211,48 @@ const AIOAgentsModule = () => {
                          <Cpu size={14} /> Equipped Tools
                       </h4>
                       <div className="flex flex-wrap gap-2">
-                         <span className="px-2 py-1 bg-[#18181B] border border-[#27272A] rounded text-[10px] text-gray-400">Web Browser</span>
-                         <span className="px-2 py-1 bg-[#18181B] border border-[#27272A] rounded text-[10px] text-gray-400">Code Interpreter</span>
-                         <span className="px-2 py-1 bg-[#18181B] border border-[#27272A] rounded text-[10px] text-gray-400">CRM Write Access</span>
+                         {(SPECIALIST_REGISTRY[activeAgent?.registryKey || activeAgent?.name]?.tools || []).slice(0, 6).map((tool) => (
+                           <span
+                             key={tool}
+                             className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400"
+                           >
+                             {tool}
+                           </span>
+                         ))}
+                         {(SPECIALIST_REGISTRY[activeAgent?.registryKey || activeAgent?.name]?.tools || []).length === 0 && (
+                           <>
+                             <span className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400">Web Browser</span>
+                             <span className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400">Code Interpreter</span>
+                             <span className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400">CRM Write Access</span>
+                           </>
+                         )}
                       </div>
                    </div>
                 </div>
              </div>
 
              {/* Center: Mission Control (Chat) */}
-             <div className="flex-1 flex flex-col bg-[#050505] relative">
+             <div className="flex-1 flex flex-col bg-[var(--color-bg-tertiary)] relative">
+                <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-widest">Agent Actions</p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">Draft, compile, or run workflows</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openDraftInFlowBuilder(activeAgent)}
+                      className="px-3 py-2 rounded text-xs font-semibold bg-[var(--color-primary)] text-white hover:opacity-90"
+                    >
+                      Compile Draft
+                    </button>
+                    <button
+                      onClick={() => openDraftInFlowBuilder(activeAgent)}
+                      className="px-3 py-2 rounded text-xs font-semibold bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-hover)]"
+                    >
+                      Run in Builder
+                    </button>
+                  </div>
+                </div>
                 {/* Chat Feed */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                    {messages.length === 0 && (
@@ -196,7 +273,7 @@ const AIOAgentsModule = () => {
                             <div className={`p-4 rounded-xl text-sm leading-relaxed ${
                                msg.role === 'user' 
                                ? 'bg-purple-900/20 border border-purple-500/30 text-purple-100 rounded-tr-none' 
-                               : 'bg-[#18181B] border border-[#27272A] text-gray-300 rounded-tl-none'
+                               : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none'
                             }`}>
                                {msg.content}
                             </div>
@@ -206,7 +283,7 @@ const AIOAgentsModule = () => {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 border-t border-[#27272A] bg-[#0A0A0A]">
+                <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]">
                    <div className="relative">
                       <input 
                         value={chatInput}
@@ -214,7 +291,7 @@ const AIOAgentsModule = () => {
                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                         type="text" 
                         placeholder="Transmit orders..." 
-                        className="w-full bg-[#18181B] border border-[#27272A] rounded-lg pl-4 pr-12 py-4 text-sm text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono"
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg pl-4 pr-12 py-4 text-sm text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono"
                       />
                       <button 
                         onClick={handleSendMessage}

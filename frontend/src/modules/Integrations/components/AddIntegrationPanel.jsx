@@ -189,7 +189,7 @@ export const AddIntegrationPanel = ({
           {selectedProvider && provider && (
             <div className="flex flex-col">
               {/* Provider Info */}
-              <div className="flex items-center gap-3 px-4 py-4 rounded-lg mb-6 bg-[var(--color-bg-secondary)] relative border-l-4" style={{ borderColor: colors.primary || '#3B82F6' }}>
+              <div className="flex items-center gap-3 px-4 py-4 rounded-lg mb-6 bg-[var(--color-bg-secondary)] relative border-l-4" style={{ borderColor: colors.primary || 'var(--color-primary)' }}>
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)]">
                   {provider.logo ? (
                     <img src={provider.logo} alt={provider.name} className="w-full h-full object-contain p-1" />
@@ -243,7 +243,7 @@ export const AddIntegrationPanel = ({
                         className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] ${
                           errors[field.name] 
                             ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
-                            : 'border-[var(--color-border)] focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)]'
+                            : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
                         }`}
                         defaultValue={field.default}
                       />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus } from 'lucide-react';
+import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers } from 'lucide-react';
 import { mockSupabase } from '../../services/mockSupabase';
+import { useTheme } from '../../lib/ThemeContext';
+import ModuleHeader from '../../components/ModuleHeader';
 
 // ============ GLOBAL VARIABLES MANAGER ============
 const GlobalVarsManager = () => {
@@ -24,21 +26,21 @@ const GlobalVarsManager = () => {
     setError('');
     let finalKey = newKey.trim();
     if (!finalKey || !newValue) {
-       setError("Key and Value are required.");
-       return;
+      setError("Key and Value are required.");
+      return;
     }
     const isValidSystemKey = /^[A-Z0-9_]+$/.test(finalKey);
     const isTemplateKey = finalKey.startsWith('{{') && finalKey.endsWith('}}');
-    
+
     if (!isValidSystemKey && !isTemplateKey) {
       finalKey = `{{${finalKey}}}`;
     }
-    
+
     const { error } = await mockSupabase.from('global_variables').insert([{
-      key: finalKey, 
-      value: newValue, 
-      description: newDesc, 
-      is_secret: isSecret, 
+      key: finalKey,
+      value: newValue,
+      description: newDesc,
+      is_secret: isSecret,
       is_system: isValidSystemKey
     }]);
     if (error) setError(error.message);
@@ -50,22 +52,22 @@ const GlobalVarsManager = () => {
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Key size={20} className="text-purple-500" /> Global Variables</h2>
+        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Key size={20} className="text-[var(--color-primary)]" /> Global Variables</h2>
         <p className="text-sm text-[var(--color-text-secondary)]">Manage {'{{userVariables}}'} and system keys.</p>
       </div>
       <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-[var(--color-bg-primary)]">
         <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg border border-[var(--color-border)] space-y-4">
           <div className="grid grid-cols-12 gap-4">
-             <div className="col-span-3"><input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="Key (e.g. userEmail)" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-purple-500 focus:outline-none" /></div>
-             <div className="col-span-4"><input value={newValue} onChange={e => setNewValue(e.target.value)} type={isSecret ? "password" : "text"} placeholder="Value" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-purple-500 focus:outline-none" /></div>
-             <div className="col-span-3"><input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-purple-500 focus:outline-none" /></div>
-             <div className="col-span-2 flex gap-2"><button onClick={() => setIsSecret(!isSecret)} className={`p-2 rounded ${isSecret ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`}><Lock size={16}/></button><button onClick={addVar} className="flex-1 bg-purple-600 hover:bg-purple-700 text-[var(--color-text-primary)] text-sm font-medium py-2 rounded">Add</button></div>
+            <div className="col-span-3"><input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="Key (e.g. userEmail)" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
+            <div className="col-span-4"><input value={newValue} onChange={e => setNewValue(e.target.value)} type={isSecret ? "password" : "text"} placeholder="Value" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
+            <div className="col-span-3"><input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
+            <div className="col-span-2 flex gap-2"><button onClick={() => setIsSecret(!isSecret)} className={`p-2 rounded ${isSecret ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`}><Lock size={16} /></button><button onClick={addVar} className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] text-sm font-medium py-2 rounded">Add</button></div>
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
         <div className="space-y-2">
-           <div className="grid grid-cols-12 px-4 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider"><div className="col-span-3">Key</div><div className="col-span-4">Value</div><div className="col-span-4">Description</div><div className="col-span-1 text-right">Action</div></div>
-           <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]">{vars.map(v => (<div key={v.id} className="grid grid-cols-12 px-4 py-3 items-center text-sm"><div className="col-span-3 font-mono text-purple-300">{v.key}</div><div className="col-span-4 text-[var(--color-text-primary)] truncate font-mono">{v.is_secret ? '••••••••' : v.value}</div><div className="col-span-4 text-[var(--color-text-secondary)] text-xs">{v.description || '-'}</div><div className="col-span-1 text-right"><button onClick={() => deleteVar(v.id)} className="text-[var(--color-text-secondary)] hover:text-red-500"><Trash2 size={14} /></button></div></div>))}</div>
+          <div className="grid grid-cols-12 px-4 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider"><div className="col-span-3">Key</div><div className="col-span-4">Value</div><div className="col-span-4">Description</div><div className="col-span-1 text-right">Action</div></div>
+          <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]">{vars.map(v => (<div key={v.id} className="grid grid-cols-12 px-4 py-3 items-center text-sm"><div className="col-span-3 font-mono text-[var(--color-primary)]/70">{v.key}</div><div className="col-span-4 text-[var(--color-text-primary)] truncate font-mono">{v.is_secret ? '••••••••' : v.value}</div><div className="col-span-4 text-[var(--color-text-secondary)] text-xs">{v.description || '-'}</div><div className="col-span-1 text-right"><button onClick={() => deleteVar(v.id)} className="text-[var(--color-text-secondary)] hover:text-red-500"><Trash2 size={14} /></button></div></div>))}</div>
         </div>
       </div>
     </div>
@@ -77,16 +79,22 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   const [activeTab, setActiveTab] = useState('branding');
   const [expandedCategory, setExpandedCategory] = useState('Main');
   const [menuItems, setMenuItems] = useState(menuStructure || []);
-  
+  const { theme, setTheme } = useTheme();
+
   // Branding State
   const [brandingData, setBrandingData] = useState({
-    menuBackgroundColor: '#2a2a2e',
-    menuTextColor: '#ffffff',
+    menuBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--color-bg-primary').trim() || 'var(--color-bg-primary)',
+    menuTextColor: getComputedStyle(document.documentElement).getPropertyValue('--color-text-primary').trim() || 'var(--color-text-primary)',
     layout: 'sidebar-left',
-    theme: 'dark',
+    theme: theme,
     companyLogo: '',
     companyName: 'AIO Agency'
   });
+
+  // Sync with global theme
+  useEffect(() => {
+    setBrandingData(prev => ({ ...prev, theme: theme }));
+  }, [theme]);
 
   // Custom Menu Items State
   const [customMenuItems, setCustomMenuItems] = useState([
@@ -115,8 +123,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
     title: '',
     link: '',
     icon: 'Box',
-    iconColor: '#9ca3af',
-    backgroundColor: '#18181B',
+    iconColor: 'var(--color-text-tertiary)',
+    backgroundColor: 'var(--color-bg-secondary)',
     enableIframe: false
   });
 
@@ -187,10 +195,19 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
 
   const updateBrandingColor = (colorType, value) => {
     setBrandingData({ ...brandingData, [colorType]: value });
+
+    // Apply to CSS variables immediately
+    if (colorType === 'menuBackgroundColor') {
+      document.documentElement.style.setProperty('--color-sidebar-bg', value);
+    } else if (colorType === 'menuTextColor') {
+      document.documentElement.style.setProperty('--color-sidebar-text', value);
+    }
   };
 
-  const updateBrandingTheme = (theme) => {
-    setBrandingData({ ...brandingData, theme });
+  const updateBrandingTheme = (newTheme) => {
+    setBrandingData({ ...brandingData, theme: newTheme });
+    // Update global theme
+    setTheme(newTheme);
   };
 
   const updateBrandingLayout = (layout) => {
@@ -205,8 +222,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
         title: item.label,
         link: item.url || '',
         icon: item.icon || 'Box',
-        iconColor: item.iconColor || '#9ca3af',
-        backgroundColor: item.backgroundColor || '#18181B',
+        iconColor: item.iconColor || 'var(--color-text-tertiary)',
+        backgroundColor: item.backgroundColor || 'var(--color-bg-secondary)',
         enableIframe: item.type === 'iframe'
       });
     } else {
@@ -214,8 +231,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
         title: '',
         link: '',
         icon: 'Box',
-        iconColor: '#9ca3af',
-        backgroundColor: '#18181B',
+        iconColor: 'var(--color-text-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         enableIframe: false
       });
     }
@@ -230,8 +247,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
       title: '',
       link: '',
       icon: 'Box',
-      iconColor: '#9ca3af',
-      backgroundColor: '#18181B',
+      iconColor: 'var(--color-text-tertiary)',
+      backgroundColor: 'var(--color-bg-secondary)',
       enableIframe: false
     });
     setShowIconPicker(false);
@@ -240,7 +257,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
 
   const saveMenuItemChanges = () => {
     const updated = JSON.parse(JSON.stringify(menuItems));
-    
+
     if (showMenuModal.editIdx !== null && showMenuModal.catIdx !== null) {
       // Update existing item
       updated[showMenuModal.catIdx].items[showMenuModal.editIdx] = {
@@ -268,7 +285,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
         updated[0].items.push(newItem);
       }
     }
-    
+
     setMenuItems(updated);
     onMenuUpdate?.(updated);
     closeMenuModal();
@@ -308,27 +325,29 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <div className="flex overflow-x-auto">
           {[
-            { id: 'branding', label: 'Branding', icon: '🎨' },
-            { id: 'advanced', label: 'Advanced', icon: '⚙️' },
-            { id: 'mobile', label: 'Mobile App', icon: '📱' },
-            { id: 'ui', label: 'UI', icon: '🎯' },
-            { id: 'styles', label: 'Styles', icon: '✏️' },
-            { id: 'package', label: 'Package', icon: '📦' },
-            { id: 'emails', label: 'System Emails', icon: '✉️' },
-            { id: 'blueprints', label: 'Blueprints', icon: '📋' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-xs font-medium border-b-2 transition whitespace-nowrap ${
-                activeTab === tab.id
+            { id: 'branding', label: 'Branding', icon: Palette },
+            { id: 'advanced', label: 'Advanced', icon: Cog },
+            { id: 'mobile', label: 'Mobile App', icon: Smartphone },
+            { id: 'ui', label: 'UI', icon: Layers },
+            { id: 'styles', label: 'Styles', icon: PenTool },
+            { id: 'package', label: 'Package', icon: Package },
+            { id: 'emails', label: 'System Emails', icon: Inbox },
+            { id: 'blueprints', label: 'Blueprints', icon: FileCode }
+          ].map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 text-xs font-medium border-b-2 transition whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id
                   ? 'text-[var(--color-text-primary)] border-blue-500'
                   : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
-              }`}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+                  }`}
+              >
+                <Icon size={14} /> {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -342,23 +361,21 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
               <div className="flex gap-3">
                 <button
                   onClick={() => updateBrandingTheme('light')}
-                  className={`px-4 py-2 rounded text-sm font-medium transition ${
-                    brandingData.theme === 'light'
-                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                      : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  }`}
+                  className={`px-4 py-2 rounded text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'light'
+                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                    : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                    }`}
                 >
-                  ☀️ Light
+                  <Palette size={16} /> Light
                 </button>
                 <button
                   onClick={() => updateBrandingTheme('dark')}
-                  className={`px-4 py-2 rounded text-sm font-medium transition ${
-                    brandingData.theme === 'dark'
-                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                      : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  }`}
+                  className={`px-4 py-2 rounded text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'dark'
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                    : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                    }`}
                 >
-                  🌙 Dark
+                  <Palette size={16} /> Dark
                 </button>
               </div>
             </div>
@@ -420,22 +437,20 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => updateBrandingLayout('sidebar-left')}
-                  className={`p-3 rounded text-xs font-medium transition border text-left ${
-                    brandingData.layout === 'sidebar-left'
-                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                      : 'bg-[var(--color-bg-primary)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  }`}
+                  className={`p-3 rounded text-xs font-medium transition border text-left ${brandingData.layout === 'sidebar-left'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                    : 'bg-[var(--color-bg-primary)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                    }`}
                 >
                   <div className="font-bold mb-1">📍 Sidebar Left</div>
                   <div className="text-xs text-[var(--color-text-secondary)]">Classic layout</div>
                 </button>
                 <button
                   onClick={() => updateBrandingLayout('sidebar-right')}
-                  className={`p-3 rounded text-xs font-medium transition border text-left ${
-                    brandingData.layout === 'sidebar-right'
-                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                      : 'bg-[var(--color-bg-primary)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  }`}
+                  className={`p-3 rounded text-xs font-medium transition border text-left ${brandingData.layout === 'sidebar-right'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                    : 'bg-[var(--color-bg-primary)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                    }`}
                 >
                   <div className="font-bold mb-1">📍 Sidebar Right</div>
                   <div className="text-xs text-[var(--color-text-secondary)]">Mirrored layout</div>
@@ -662,14 +677,14 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                   <p className="text-xs text-[var(--color-text-secondary)] mt-1">Show on left navigation menu</p>
                 </div>
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => {
                       setModalFormData({
                         title: '',
                         link: '',
                         icon: 'Link',
-                        iconColor: '#9ca3af',
-                        backgroundColor: '#18181B',
+                        iconColor: 'var(--color-text-tertiary)',
+                        backgroundColor: 'var(--color-bg-secondary)',
                         enableIframe: true
                       });
                       setShowMenuModal({ open: true, editIdx: null, catIdx: null });
@@ -679,7 +694,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                   >
                     🔗 Add iframe Link
                   </button>
-                  <button 
+                  <button
                     onClick={() => setShowMenuModal({ open: true, editIdx: null, catIdx: null })}
                     className="text-2xl hover:scale-110 transition"
                     title="Add new menu item"
@@ -693,8 +708,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
               <div className="divide-y divide-[var(--color-border)] p-4 space-y-4">
                 {menuItems.map((category, catIdx) =>
                   category.items.map((item, itemIdx) => (
-                    <div 
-                      key={`${catIdx}-${itemIdx}`} 
+                    <div
+                      key={`${catIdx}-${itemIdx}`}
                       className="p-3 hover:bg-[var(--color-bg-primary)] transition rounded flex items-center gap-4 group cursor-move"
                       draggable
                       onDragStart={(e) => {
@@ -703,9 +718,9 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                       }}
                     >
                       {/* Icon Circle */}
-                      <div 
+                      <div
                         className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-2xl"
-                        style={{ backgroundColor: item.backgroundColor || '#27272A', color: item.iconColor || '#9ca3af' }}
+                        style={{ backgroundColor: item.backgroundColor || 'var(--color-border)', color: item.iconColor || 'var(--color-text-tertiary)' }}
                       >
                         {item.icon === 'Bot' ? '🤖' : item.icon === 'LayoutDashboard' ? '📊' : item.icon === 'Settings' ? '⚙️' : item.icon === 'Link' ? '🔗' : item.icon === 'Activity' ? '📈' : item.icon === 'Zap' ? '⚡' : item.icon === 'Workflow' ? '🔄' : item.icon === 'CalendarIcon' ? '📅' : item.icon === 'MessageSquare' ? '💬' : item.icon === 'PenTool' ? '🎨' : item.icon === 'GitMerge' ? '🔀' : item.icon === 'FileText' ? '📋' : '📌'}
                       </div>
@@ -722,41 +737,41 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                       {/* Action Buttons */}
                       <div className="flex gap-1 flex-shrink-0">
                         {/* Furthest Left: Show in PDA */}
-                        <button 
+                        <button
                           className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded transition text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                           title="Show in PDA"
                         >
                           ☐
                         </button>
-                        
+
                         {/* Left: Show/Hide */}
-                        <button 
+                        <button
                           onClick={() => toggleItemVisibility(catIdx, itemIdx)}
                           className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded transition text-[var(--color-text-secondary)] hover:text-blue-400"
                           title={item.visible ? 'Hide item' : 'Show item'}
                         >
                           {item.visible ? '👁️' : '🚫'}
                         </button>
-                        
+
                         {/* Center: Reset Icon */}
-                        <button 
+                        <button
                           className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded transition text-[var(--color-text-secondary)] hover:text-red-400"
                           title="Reset icon to default"
                         >
                           🚫
                         </button>
-                        
+
                         {/* Left-Center: Edit */}
-                        <button 
+                        <button
                           onClick={() => setShowMenuModal({ open: true, editIdx: itemIdx, catIdx: catIdx })}
                           className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded transition text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                           title="Edit menu item"
                         >
                           ✏️
                         </button>
-                        
+
                         {/* Furthest Right: Copy Link */}
-                        <button 
+                        <button
                           className="p-2 hover:bg-[var(--color-bg-tertiary)] rounded transition text-[var(--color-text-secondary)] hover:text-blue-400"
                           title="Copy link"
                         >
@@ -784,11 +799,11 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
       {showMenuModal.open && (
         <>
           {/* Modal Overlay */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40"
             onClick={closeMenuModal}
           />
-          
+
           {/* Modal Panel */}
           <div className="fixed right-0 top-0 bottom-0 w-96 bg-[var(--color-bg-primary)] border-l border-[var(--color-border)] shadow-xl z-50 flex flex-col overflow-hidden">
             {/* Modal Header */}
@@ -810,7 +825,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                   >
                     {modalFormData.icon === 'Bot' ? '🤖' : modalFormData.icon === 'LayoutDashboard' ? '📊' : modalFormData.icon === 'Settings' ? '⚙️' : '📦'}
                   </button>
-                  
+
                   {/* Icon Picker Dropdown */}
                   {showIconPicker && (
                     <div className="absolute top-20 left-0 right-0 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-3 z-50 w-80 max-h-64 flex flex-col">
@@ -829,11 +844,10 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                               setModalFormData({ ...modalFormData, icon });
                               setShowIconPicker(false);
                             }}
-                            className={`p-2 rounded text-center text-xs font-medium transition ${
-                              modalFormData.icon === icon
-                                ? 'bg-blue-600/30 border border-blue-500 text-blue-400'
-                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-gray-500'
-                            }`}
+                            className={`p-2 rounded text-center text-xs font-medium transition ${modalFormData.icon === icon
+                              ? 'bg-blue-600/30 border border-blue-500 text-blue-400'
+                              : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-gray-500'
+                              }`}
                             title={icon}
                           >
                             {icon.substring(0, 3)}
@@ -923,7 +937,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
             <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-6 flex gap-3 justify-end">
               <button
                 onClick={closeMenuModal}
-                className="px-4 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[#3f3f47] transition"
+                className="px-4 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition"
               >
                 Cancel
               </button>
@@ -947,112 +961,112 @@ const PersonalSettings = () => {
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><User size={20} className="text-purple-500" /> Personal Profile</h2>
+        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><User size={20} className="text-[var(--color-primary)]" /> Personal Profile</h2>
         <p className="text-sm text-[var(--color-text-secondary)]">Manage your account information and preferences.</p>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
-        
+
         {/* Profile Card */}
         <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 flex flex-col md:flex-row gap-8">
-           <div className="flex flex-col items-center gap-4">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-4xl font-bold text-[var(--color-text-primary)] border-4 border-[var(--color-border)] shadow-lg">
-                 A
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-blue-600 flex items-center justify-center text-4xl font-bold text-[var(--color-text-primary)] border-4 border-[var(--color-border)] shadow-lg">
+              A
+            </div>
+            <button className="text-xs text-[var(--color-accent)] hover:text-[var(--color-text-primary)] underline">Change Avatar</button>
+          </div>
+
+          <div className="flex-1 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">First Name</label>
+                <input type="text" defaultValue="Aaron" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
-              <button className="text-xs text-purple-400 hover:text-[var(--color-text-primary)] underline">Change Avatar</button>
-           </div>
-           
-           <div className="flex-1 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">First Name</label>
-                    <input type="text" defaultValue="Aaron" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-purple-500" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Last Name</label>
-                    <input type="text" defaultValue="Riggs" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-purple-500" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Email</label>
-                    <div className="relative">
-                       <Mail size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                       <input type="email" defaultValue="aaron@aioflow.com" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-purple-500" />
-                       <span className="absolute right-3 top-2.5 text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-1.5 rounded">Verified</span>
-                    </div>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Phone</label>
-                    <div className="relative">
-                       <Smartphone size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                       <input type="tel" defaultValue="+1 (555) 123-4567" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-purple-500" />
-                    </div>
-                 </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Last Name</label>
+                <input type="text" defaultValue="Riggs" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
-           </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+                  <input type="email" defaultValue="aaron@aioflow.com" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                  <span className="absolute right-3 top-2.5 text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-1.5 rounded">Verified</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Phone</label>
+                <div className="relative">
+                  <Smartphone size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+                  <input type="tel" defaultValue="+1 (555) 123-4567" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-           {/* Security Settings */}
-           <div className="space-y-4">
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Shield size={16} className="text-blue-500"/> Security</h3>
-              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-                 <div className="flex justify-between items-center">
-                    <div>
-                       <div className="text-sm font-medium text-[var(--color-text-primary)]">Password</div>
-                       <div className="text-xs text-[var(--color-text-secondary)]">Last changed 3 months ago</div>
-                    </div>
-                    <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-white hover:text-black text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
-                 </div>
-                 <div className="w-full h-px bg-[var(--color-bg-tertiary)]"></div>
-                 <div className="flex justify-between items-center">
-                    <div>
-                       <div className="text-sm font-medium text-[var(--color-text-primary)]">Two-Factor Auth</div>
-                       <div className="text-xs text-[var(--color-text-secondary)]">Secure your account with 2FA</div>
-                    </div>
-                    <div className="w-10 h-5 bg-[var(--color-bg-tertiary)] rounded-full relative cursor-pointer"><div className="w-3 h-3 bg-gray-500 rounded-full absolute left-1 top-1"></div></div>
-                 </div>
+          {/* Security Settings */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Shield size={16} className="text-blue-500" /> Security</h3>
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-medium text-[var(--color-text-primary)]">Password</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">Last changed 3 months ago</div>
+                </div>
+                <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-white hover:text-black text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
               </div>
-           </div>
+              <div className="w-full h-px bg-[var(--color-bg-tertiary)]"></div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-medium text-[var(--color-text-primary)]">Two-Factor Auth</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">Secure your account with 2FA</div>
+                </div>
+                <div className="w-10 h-5 bg-[var(--color-bg-tertiary)] rounded-full relative cursor-pointer"><div className="w-3 h-3 bg-gray-500 rounded-full absolute left-1 top-1"></div></div>
+              </div>
+            </div>
+          </div>
 
-           {/* Preferences */}
-           <div className="space-y-4">
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Globe size={16} className="text-green-500"/> Preferences</h3>
-              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-                 <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Language</label>
-                    <select className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-purple-500">
-                       <option>English (US)</option>
-                       <option>Spanish</option>
-                       <option>French</option>
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Timezone</label>
-                    <div className="relative">
-                       <Clock size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                       <select className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-purple-500">
-                          <option>(GMT-05:00) Eastern Time</option>
-                          <option>(GMT-08:00) Pacific Time</option>
-                          <option>(GMT+00:00) UTC</option>
-                       </select>
-                    </div>
-                 </div>
+          {/* Preferences */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Globe size={16} className="text-green-500" /> Preferences</h3>
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Language</label>
+                <select className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <option>English (US)</option>
+                  <option>Spanish</option>
+                  <option>French</option>
+                </select>
               </div>
-           </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Timezone</label>
+                <div className="relative">
+                  <Clock size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+                  <select className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                    <option>(GMT-05:00) Eastern Time</option>
+                    <option>(GMT-08:00) Pacific Time</option>
+                    <option>(GMT+00:00) UTC</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Email Signature */}
         <div className="space-y-4">
-           <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><PenTool size={16} className="text-orange-500"/> Email Signature</h3>
-           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4">
-              <textarea 
-                className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4 text-sm text-[var(--color-text-primary)] min-h-[120px] focus:outline-none focus:border-purple-500 font-mono"
-                defaultValue={`Best regards,\n\nAaron Riggs\nOwner | AIO Flow\n(555) 123-4567 | aaron@aioflow.com`}
-              />
-              <div className="flex justify-end mt-4">
-                 <button className="bg-purple-600 hover:bg-purple-700 text-[var(--color-text-primary)] px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Save size={16}/> Save Changes</button>
-              </div>
-           </div>
+          <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><PenTool size={16} className="text-orange-500" /> Email Signature</h3>
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4">
+            <textarea
+              className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4 text-sm text-[var(--color-text-primary)] min-h-[120px] focus:outline-none focus:border-[var(--color-primary)] font-mono"
+              defaultValue={`Best regards,\n\nAaron Riggs\nOwner | AIO Flow\n(555) 123-4567 | aaron@aioflow.com`}
+            />
+            <div className="flex justify-end mt-4">
+              <button className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Save size={16} /> Save Changes</button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -1125,9 +1139,9 @@ const BillingSettings = () => {
               <div className="text-right">Invoice</div>
             </div>
             <div className="divide-y divide-[var(--color-border)]">
-              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Jan 10, 2026</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-purple-400 hover:text-[var(--color-text-primary)] text-right">Download</button></div>
-              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Dec 10, 2025</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-purple-400 hover:text-[var(--color-text-primary)] text-right">Download</button></div>
-              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Nov 10, 2025</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-purple-400 hover:text-[var(--color-text-primary)] text-right">Download</button></div>
+              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Jan 10, 2026</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-[var(--color-accent)] hover:text-[var(--color-text-primary)] text-right">Download</button></div>
+              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Dec 10, 2025</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-[var(--color-accent)] hover:text-[var(--color-text-primary)] text-right">Download</button></div>
+              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Nov 10, 2025</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-[var(--color-accent)] hover:text-[var(--color-text-primary)] text-right">Download</button></div>
             </div>
           </div>
         </div>
@@ -1157,7 +1171,7 @@ const SecuritySettings = () => {
                 <div className="text-sm font-medium text-[var(--color-text-primary)]">Change Password</div>
                 <div className="text-xs text-[var(--color-text-secondary)]">Last changed {passwordLastChanged}</div>
               </div>
-              <button className="text-xs bg-purple-600 hover:bg-purple-700 text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
+              <button className="text-xs bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
             </div>
           </div>
         </div>
@@ -1171,10 +1185,10 @@ const SecuritySettings = () => {
                 <div className="text-[var(--color-text-primary)] font-medium">Enable 2FA</div>
                 <div className="text-xs text-[var(--color-text-secondary)]">Add an extra layer of security to your account</div>
               </div>
-              <div className={`w-12 h-6 rounded-full transition cursor-pointer ${twoFactorEnabled ? 'bg-purple-600' : 'bg-[var(--color-bg-tertiary)]'}`} onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}></div>
+              <div className={`w-12 h-6 rounded-full transition cursor-pointer ${twoFactorEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-bg-tertiary)]'}`} onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}></div>
             </div>
             {twoFactorEnabled && (
-              <div className="p-3 bg-[var(--color-bg-primary)] border border-purple-500/30 rounded text-sm text-[var(--color-text-primary)]">
+              <div className="p-3 bg-[var(--color-bg-primary)] border border-[var(--color-primary)]/30 rounded text-sm text-[var(--color-text-primary)]">
                 Authenticator App: Synced ✓
               </div>
             )}
@@ -1239,7 +1253,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   ];
 
   const renderContent = () => {
-    switch(activeTab) {
+    switch (activeTab) {
       case 'personal': return <PersonalSettings />;
       case 'billing': return <BillingSettings />;
       case 'security': return <SecuritySettings />;
@@ -1251,6 +1265,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-bg-primary)]">
+      <ModuleHeader title="Settings" titleIcon={Settings} showActions={false} />
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <div className="flex overflow-x-auto">
           {tabs.map(tab => {
@@ -1259,11 +1274,10 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 flex items-center gap-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'text-[var(--color-text-primary)] border-purple-500'
-                    : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
-                }`}
+                className={`px-4 py-3 flex items-center gap-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${activeTab === tab.id
+                  ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]'
+                  : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
+                  }`}
               >
                 <Icon size={16} />
                 {tab.label}

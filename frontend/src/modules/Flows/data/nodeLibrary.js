@@ -1,0 +1,312 @@
+/**
+ * Phase 1 Curated Node Library
+ * Organized by category with token-driven rendering
+ * AI Agent nodes loaded from registry (data-driven, not hardcoded)
+ */
+
+import React from 'react';
+import {
+  Mail,
+  MessageSquare,
+  Clock,
+  GitBranch,
+  Filter,
+  Settings,
+  SlidersHorizontal,
+  Workflow,
+  Globe,
+  Webhook,
+  Send,
+  Play,
+  Database,
+  PlugZap,
+  FileText,
+  Bot,
+  Building2,
+  Headphones,
+  CheckSquare,
+  Pen,
+  Plus,
+  User,
+} from 'lucide-react';
+import { toolNodeTemplates } from './toolTemplates';
+
+/**
+ * Icon Registry
+ * Serializable icon names mapped to lucide components
+ */
+export const iconRegistry = {
+  'Mail': Mail,
+  'MessageSquare': MessageSquare,
+  'Clock': Clock,
+  'GitBranch': GitBranch,
+  'Filter': Filter,
+  'Settings': Settings,
+  'SlidersHorizontal': SlidersHorizontal,
+  'Workflow': Workflow,
+  'Globe': Globe,
+  'Webhook': Webhook,
+  'Send': Send,
+  'Play': Play,
+  'Database': Database,
+  'PlugZap': PlugZap,
+  'FileText': FileText,
+  'Bot': Bot,
+  'Building2': Building2,
+  'Headphones': Headphones,
+  'CheckSquare': CheckSquare,
+  'Pen': Pen,
+  'Plus': Plus,
+  'User': User,
+};
+
+export const getIconComponent = (iconName) => {
+  return iconRegistry[iconName] || null;
+};
+
+/**
+ * Core Node Types
+ * Triggers: entry points for flows
+ */
+export const triggerNodes = [
+  {
+    id: 'manual-trigger',
+    type: 'trigger',
+    label: 'Manual Trigger',
+    description: 'Start flow manually',
+    iconName: 'Play',
+    nodeColor: 'trigger',
+  },
+  {
+    id: 'scheduled-trigger',
+    type: 'trigger',
+    label: 'Scheduled Time',
+    description: 'Start at specific time',
+    iconName: 'Clock',
+    nodeColor: 'trigger',
+  },
+  {
+    id: 'form-submitted-trigger',
+    type: 'trigger',
+    label: 'Form Submitted',
+    description: 'Start on form submission',
+    iconName: 'FileText',
+    nodeColor: 'trigger',
+  },
+  {
+    id: 'contact-created-trigger',
+    type: 'trigger',
+    label: 'Contact Created',
+    description: 'Start when a contact is created',
+    iconName: 'User',
+    nodeColor: 'trigger',
+  },
+  {
+    id: 'deal-updated-trigger',
+    type: 'trigger',
+    label: 'Deal Updated',
+    description: 'Start when a deal changes',
+    iconName: 'Workflow',
+    nodeColor: 'trigger',
+  },
+];
+
+/**
+ * Logic/Condition Nodes
+ * Control flow with branching and delays
+ */
+export const logicNodes = [
+  {
+    id: 'if-then',
+    type: 'logic',
+    label: 'If/Then Condition',
+    description: 'Branch based on conditions',
+    iconName: 'GitBranch',
+    nodeColor: 'logic',
+  },
+  {
+    id: 'time-delay',
+    type: 'logic',
+    label: 'Wait/Delay',
+    description: 'Pause flow for duration',
+    iconName: 'Clock',
+    nodeColor: 'logic',
+  },
+  {
+    id: 'filter',
+    type: 'logic',
+    label: 'Filter',
+    description: 'Filter data by criteria',
+    iconName: 'Filter',
+    nodeColor: 'logic',
+  },
+  {
+    id: 'switch',
+    type: 'logic',
+    label: 'Switch',
+    description: 'Route by matching rules',
+    iconName: 'SlidersHorizontal',
+    nodeColor: 'logic',
+  },
+];
+
+/**
+ * Webhook/API Nodes
+ * External integrations and HTTP requests
+ */
+export const webhookNodes = [
+  {
+    id: 'http-request',
+    type: 'webhook',
+    label: 'HTTP Request',
+    description: 'Make API call',
+    iconName: 'Globe',
+    nodeColor: 'webhook',
+  },
+  {
+    id: 'webhook',
+    type: 'webhook',
+    label: 'Webhook',
+    description: 'Receive webhook data',
+    iconName: 'Webhook',
+    nodeColor: 'webhook',
+  },
+];
+
+/**
+ * Messaging Nodes
+ * Communication actions
+ */
+export const messagingNodes = [
+  {
+    id: 'send-email',
+    type: 'action',
+    label: 'Send Email',
+    description: 'Send email to contacts',
+    iconName: 'Mail',
+    nodeColor: 'action',
+  },
+  {
+    id: 'send-sms',
+    type: 'action',
+    label: 'Send SMS',
+    description: 'Send SMS message',
+    iconName: 'MessageSquare',
+    nodeColor: 'action',
+  },
+];
+
+/**
+ * Utilities/Data Nodes
+ * Data manipulation and storage
+ */
+export const utilityNodes = [
+  {
+    id: 'store-data',
+    type: 'action',
+    label: 'Store Data',
+    description: 'Save data to storage',
+    iconName: 'Database',
+    nodeColor: 'action',
+  },
+  {
+    id: 'set-variable',
+    type: 'action',
+    label: 'Set Variable',
+    description: 'Write or update variable',
+    iconName: 'Settings',
+    nodeColor: 'action',
+  },
+];
+
+/**
+ * Socket Nodes (Third-party Platform Bridges)
+ * Distinct from core nodes
+ */
+export const socketNodes = [
+  {
+    id: 'n8n-socket',
+    type: 'socket',
+    label: 'n8n Socket',
+    description: 'Execute n8n workflow',
+    iconName: 'PlugZap',
+    nodeColor: 'socket',
+    isSocket: true,
+  },
+  {
+    id: 'aio-boost-socket',
+    type: 'socket',
+    label: 'AIO Boost™ Socket',
+    description: 'Execute AIO Boost™ workflow',
+    iconName: 'PlugZap',
+    nodeColor: 'socket',
+    isSocket: true,
+  },
+  {
+    id: 'latenode-socket',
+    type: 'socket',
+    label: 'Latenode Socket',
+    description: 'Execute Latenode workflow',
+    iconName: 'PlugZap',
+    nodeColor: 'socket',
+    isSocket: true,
+  },
+];
+
+/**
+ * Complete Node Library
+ * Organized by category
+ */
+export const nodeLibrary = {
+  Triggers: triggerNodes,
+  'Logic/Condition': logicNodes,
+  'Webhook/API': webhookNodes,
+  Messaging: messagingNodes,
+  'Utilities/Data': utilityNodes,
+  'AI Agents': toolNodeTemplates.map((tool) => ({
+    ...tool,
+    id: `tool-${tool.id}`,
+    type: 'action',
+  })),
+  Sockets: socketNodes,
+};
+
+/**
+ * Flatten library for search/filter
+ */
+export const getAllNodes = () => {
+  return Object.values(nodeLibrary).flat();
+};
+
+/**
+ * Node factory
+ * Creates node instances with unique IDs
+ */
+export const createNode = (nodeTemplate, position) => {
+  const timestamp = Date.now();
+  const nodeId = `${nodeTemplate.id}-${timestamp}`;
+  const typeLabelMap = {
+    trigger: 'Trigger',
+    action: 'Action',
+    logic: 'Logic',
+    webhook: 'Webhook',
+    socket: 'Socket',
+  };
+
+  return {
+    id: nodeId,
+    type: nodeTemplate.type,
+    position,
+    sourcePosition: 'right',
+    targetPosition: 'left',
+    data: {
+      label: nodeTemplate.label,
+      description: nodeTemplate.description,
+      typeLabel: typeLabelMap[nodeTemplate.type] || 'Node',
+      nodeColor: nodeTemplate.nodeColor || 'action',
+      iconName: nodeTemplate.iconName || 'Play',
+      isSocket: nodeTemplate.isSocket || false,
+      config: {},
+    },
+  };
+};

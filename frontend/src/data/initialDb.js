@@ -1,12 +1,12 @@
-import { 
-  LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon, 
-  MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe, 
-  Phone, Settings, ChevronDown, ChevronRight, Search, Plus, Video, 
-  CreditCard, Zap, Shield, Tag, Layout, EyeOff, Activity, Crosshair, 
-  CheckSquare, Save, ExternalLink, Box, Edit2, X, List, Grid, 
+import {
+  LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
+  MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
+  Phone, Settings, ChevronDown, ChevronRight, Search, Plus, Video,
+  CreditCard, Zap, Shield, Tag, Layout, EyeOff, Activity, Crosshair,
+  CheckSquare, Save, ExternalLink, Box, Edit2, X, List, Grid,
   UserPlus, Mail, MessageCircle, Trash2, MoreHorizontal, LogOut, Key, Lock,
   Briefcase, FileInput, Columns, Filter, ArrowRight, Link, Webhook, Power,
-  Download, Package, Clock, Copy, Calendar, Server, Chrome, 
+  Download, Package, Clock, Copy, Calendar, Server, Chrome,
   PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
   User, Bell, Smartphone, MapPin, Receipt, CreditCard as CardIcon, Cpu, Target, ShieldCheck, Terminal, MessageSquareCode, Layers,
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays,
@@ -37,33 +37,59 @@ export const initialDb = {
     { id: 2, name: "Daniel Salinas", email: "daniel.salinas@hvac.com", phone: "+1 (555) 987-6543", company: "Salinas HVAC", title: "Manager", lead_score: 42, tags: ["Nurture"], owner: "Adam B.", last_contacted_at: "2026-01-06T14:30:00Z", pipeline_stage: "Discovery", source: "LinkedIn" },
   ],
   aio_agents: [
-    { id: 1, name: "Lead Scout", rank: "SpecOps", role: "Researcher", status: "Deployed", model: "GPT-4o", subordinates: [], specialization: "Data Mining" },
-    { id: 2, name: "Content Sniper", rank: "Marksman", role: "Writer", status: "Idle", model: "Claude 3.5 Sonnet", subordinates: [], specialization: "Copywriting" },
-    { id: 3, name: "Ops Commander", rank: "General", role: "Manager", status: "Active", model: "GPT-4o", subordinates: [1, 2], specialization: "Workflow Orchestration" }
+    { id: 1, name: "ALPHA", registryKey: "ALPHA", rank: "Commander", role: "HQ", status: "Active", model: "GPT-4o", subordinates: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], specialization: "Commander-in-Chief" },
+    { id: 2, name: "BRAVO", registryKey: "BRAVO", rank: "AI Agent", role: "Strategy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Business Strategy" },
+    { id: 3, name: "CHARLIE", registryKey: "CHARLIE", rank: "AI Agent", role: "Support", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Customer Support" },
+    { id: 4, name: "DELTA", registryKey: "DELTA", rank: "AI Agent", role: "Coordination", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Visual/Project Coordination" },
+    { id: 5, name: "ECHO", registryKey: "ECHO", rank: "AI Agent", role: "Comms", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Email/Comms/Socials" },
+    { id: 6, name: "FORGE", registryKey: "FORGE", rank: "AI Agent", role: "Copy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Content/Copywriting" },
+    { id: 7, name: "APEX", registryKey: "APEX", rank: "AI Agent", role: "Engineering", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Coder/IT/Logistics/Site Dev" },
+    { id: 8, name: "ARCHER", registryKey: "ARCHER", rank: "AI Agent", role: "Analytics", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Analytics/Financial" },
+    { id: 9, name: "RANGER", registryKey: "RANGER", rank: "AI Agent", role: "SEO", status: "Active", model: "GPT-4o", subordinates: [], specialization: "SEO/Content Optimization" },
+    { id: 10, name: "SCOUT", registryKey: "SCOUT", rank: "AI Agent", role: "Recruitment", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Hiring/Recruitment" },
+    { id: 11, name: "STRIKER", registryKey: "STRIKER", rank: "AI Agent", role: "Sales", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Sales/Negotiation" },
+    { id: 12, name: "VECTOR", registryKey: "VECTOR", rank: "AI Agent", role: "Design", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Graphics/Design" }
   ],
   companies: [
     { id: 1, name: "All IT Solution", industry: "IT Services", size: "50-100", website: "allitsolutions.com", owner: "System" },
     { id: 2, name: "Salinas HVAC", industry: "Construction", size: "10-50", website: "salinashvac.com", owner: "Adam B." }
   ],
+  form_folders: [
+    { id: 1, name: 'My Forms', user_id: 1, created_at: '2024-01-01', expanded: true }
+  ],
   forms: [
-    { 
-      id: 1, 
-      title: "Client Onboarding", 
-      responses: 12, 
-      last_active: "2 days ago", 
+    {
+      id: 1,
+      name: "Website Forms",
+      folder_id: 1,
+      responses_count: 12,
+      last_active: "2 days ago",
+      last_modified_by: "AIO Flow™",
+      last_modified_at: "2024-09-12T12:36:00Z",
+      creator: "AIO Flow™",
+      triggers: null,
+      automation: null,
       status: "Active",
+      is_active: true,
       schema: [
         { id: "f1", type: "text", label: "Full Name", placeholder: "John Doe", required: true },
         { id: "f2", type: "email", label: "Email Address", placeholder: "john@example.com", required: true },
         { id: "f3", type: "select", label: "Service Type", options: ["Consulting", "Development", "Design"], required: false }
       ]
     },
-    { 
-      id: 2, 
-      title: "Guest Release Form", 
-      responses: 45, 
-      last_active: "5 hours ago", 
+    {
+      id: 2,
+      name: "Chatbot Forms",
+      folder_id: 1,
+      responses_count: 45,
+      last_active: "5 hours ago",
+      last_modified_by: "AIO Flow™",
+      last_modified_at: "2024-09-11T04:30:00Z",
+      creator: "AIO Flow™",
+      triggers: null,
+      automation: null,
       status: "Active",
+      is_active: true,
       schema: [
         { id: "f1", type: "text", label: "Guest Name", placeholder: "", required: true },
         { id: "f2", type: "date", label: "Recording Date", required: true },
@@ -128,40 +154,25 @@ export const INITIAL_MENU_STRUCTURE = [
   {
     category: "Automations",
     items: [
-      { 
-        id: "platforms", 
-        label: "Platforms", 
-        icon: "Zap", 
-        type: "group",
-        visible: true,
-        iconColor: "#9ca3af",
-        children: [
-          { id: "aio-boost", label: "AIO Boost", type: "external", url: "https://aio.boost.space" },
-          { id: "latenode", label: "Latenode", type: "external", url: "https://app.latenode.com" },
-          { id: "make", label: "Make.com", type: "external", url: "https://www.make.com" },
-          { id: "n8n", label: "n8n", type: "external", url: "https://n8n1.aioflows.com" },
-          { id: "n8n-cloud", label: "n8n Cloud", type: "external", url: "https://n8n.io" }
-        ]
-      },
       { id: "integrations", label: "Integrations", icon: "Link", type: "internal", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
     category: "Admin",
     items: [
-      { 
-        id: "settings", 
-        label: "Settings", 
-        icon: "Settings", 
+      {
+        id: "settings",
+        label: "Settings",
+        icon: "Settings",
         type: "group",
         visible: true,
         iconColor: "#9ca3af",
         children: [
-          { id: "set-personal", label: "Personal" },
-          { id: "set-billing", label: "Billing" },
-          { id: "set-whitelabel", label: "White Label" },
-          { id: "set-security", label: "Security" },
-          { id: "set-vars", label: "Global Variables" }
+          { id: "set-personal", label: "Personal", type: "internal" },
+          { id: "set-billing", label: "Billing", type: "internal" },
+          { id: "set-security", label: "Security", type: "internal" },
+          { id: "set-whitelabel", label: "White Label", type: "internal" },
+          { id: "set-vars", label: "Variables", type: "internal" }
         ]
       }
     ]

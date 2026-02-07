@@ -4,6 +4,9 @@ import IntegrationTabs from '../components/IntegrationTabs';
 import AddIntegrationPanel from '../components/AddIntegrationPanel';
 import { getAllCategories, getProviderConfig, INTEGRATION_CATEGORIES } from '../utils/integrationConfigs';
 import { mockSupabase } from '../../../lib/mockSupabase';
+import { Plus } from 'lucide-react';
+import ModuleHeader from '../../../components/ModuleHeader';
+import AIAssistButton from '../../../components/AIAssistButton';
 
 /**
  * ActiveIntegrations Page
@@ -154,29 +157,33 @@ export const ActiveIntegrations = () => {
   const currentCategory = categories.find((cat) => cat.id === activeCategory);
 
   return (
-    <div className="flex flex-col h-full gap-6 p-6 bg-[var(--color-bg-primary)]">
-      {/* Page Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="m-0 text-3xl font-bold text-[var(--color-text-primary)]">Integrations</h1>
-          <p className="m-0 mt-2 text-sm text-[var(--color-text-secondary)]">
-            Manage all your connected integrations and API services
-          </p>
-        </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white border-none rounded font-semibold cursor-pointer hover:bg-purple-600 transition-all"
-          onClick={() => setPanelOpen(true)}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          Add Integration
-        </button>
-      </div>
+    <div className="flex flex-col h-full bg-[var(--color-bg-primary)]">
+      <ModuleHeader
+        title="Integrations"
+        actions={[
+          {
+            label: 'Add Integration',
+            icon: Plus,
+            onClick: () => setPanelOpen(true),
+            variant: 'primary'
+          }
+        ]}
+        showActions={true}
+        aiAssistSlot={(
+          <AIAssistButton
+            onAssist={() => console.log('AI Assist: Integrations')}
+            tooltip="AI Assist"
+            iconType="crosshair"
+          />
+        )}
+      />
+      <div className="flex-1 flex flex-col gap-6 p-6">
+        <p className="m-0 text-sm text-[var(--color-text-secondary)]">
+          Manage all your connected integrations and API services
+        </p>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-4">
         <div className="p-4 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)]">
           <div className="text-xs text-[var(--color-text-secondary)] font-medium">Total Integrations</div>
           <div className="text-2xl font-bold text-[var(--color-text-primary)] mt-2">{integrations.length}</div>
@@ -276,6 +283,7 @@ export const ActiveIntegrations = () => {
         onCategoryChange={setActiveCategory}
         categories={categories}
       />
+      </div>
     </div>
   );
 };

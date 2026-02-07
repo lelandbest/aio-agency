@@ -7,45 +7,255 @@
  */
 
 :root {
-  /* Light theme (default) */
-  --color-bg-primary: #E8E8E8;
-  --color-bg-secondary: #DCDCDC;
-  --color-bg-tertiary: #D0D0D0;
-  --color-border: #C0C0C0;
-  --color-text-primary: #1F2937;
-  --color-text-secondary: #4B5563;
+  /* =========================================
+     EXECUTIVE BLUE PALETTE (Light Mode)
+     ========================================= */
+
+  /* Backgrounds */
+  --color-bg-primary: #ECEFF3;
+  /* Main content area */
+  --color-bg-secondary: #E3E7ED;
+  /* Sidebars, cards */
+  --color-bg-tertiary: #D7DCE5;
+  /* Hovers, inputs */
+
+  /* Borders */
+  --color-border: #C7CEDA;
+  /* Subtle borders */
+
+  /* Text */
+  --color-text-primary: #0B1220;
+  --color-text-on-primary: #FFFFFF;
+  /* Slate-900: High contrast headings */
+  --color-text-secondary: #2D3748;
+  /* Slate-600: Body text */
   --color-text-tertiary: #6B7280;
-  --color-hover: #C8C8C8;
+  /* Slate-400: Placeholders, metadata */
+
+  /* Brand / Interactive */
+  --color-primary: #111827;
+  /* Executive Blue (Slate-900) - Buttons, Active States */
+  --color-primary-hover: #1F2937;
+  /* Slightly lighter for hover */
   --color-accent: #3B82F6;
+  /* Royal Blue - Links, Focus rings */
+  --color-text-on-primary: #FFFFFF;
+  /* Always White for contrast on dark primary */
+
+  /* Semantic Actions */
+  --color-success: #10B981;
+  /* Emerald-500 - Success, Send buttons */
+  --color-success-hover: #059669;
+  /* Emerald-600 */
+  --color-danger: #EF4444;
+  /* Red-500 - Delete, Destructive */
+  --color-warning: #F59E0B;
+  /* Amber-500 */
+
+  /* Flow Builder Node Types (Domain-specific, not UI semantics) */
+  --node-trigger: #10B981;
+  /* Emerald-500 - Start/Entry points */
+  --node-action: #3B82F6;
+  /* Blue-500 - Actionable steps */
+  --node-logic: #F59E0B;
+  /* Amber-500 - Branching/conditions */
+  --node-webhook: #8B5CF6;
+  /* Purple-500 - External integrations */
+  --node-socket: #EC4899;
+  /* Pink-500 - Third-party platform bridges */
+
+  /* Component Specific */
+  --color-hover: #DDE2EA;
+  /* Generic hover background */
+
+  /* Sidebar customization (can be overridden by White Label settings) */
+  --color-sidebar-bg: var(--color-bg-secondary);
+  --color-sidebar-text: var(--color-text-primary);
+
+  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+  /* Flow Builder Grid */
+  --color-grid: rgba(17, 24, 39, 0.18);
+  --color-grid-strong: rgba(17, 24, 39, 0.3);
+
+  /* =========================================
+     NEON ACCENTS (aiobots.us palette)
+     ========================================= */
+  --color-neon-magenta: #FF006E;
+  --color-neon-magenta-glow: rgba(255, 0, 110, 0.3);
+  --color-neon-cyan: #00F5FF;
+  --color-neon-cyan-glow: rgba(0, 245, 255, 0.3);
+  --color-neon-purple: #9D4EDD;
+  --color-neon-purple-glow: rgba(157, 78, 221, 0.3);
+
+  /* Glowing shadows for premium feel */
+  --shadow-glow-magenta: 0 0 20px 0 rgba(255, 0, 110, 0.4);
+  --shadow-glow-cyan: 0 0 20px 0 rgba(0, 245, 255, 0.4);
+  --shadow-glow-purple: 0 0 20px 0 rgba(157, 78, 221, 0.4);
+}
+
+/* ReactFlow controls readability */
+.react-flow__controls.flow-controls {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
+.react-flow__controls.flow-controls .react-flow__controls-button {
+  width: 34px;
+  height: 34px;
+  background: var(--color-bg-primary);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.react-flow__controls.flow-controls .react-flow__controls-button svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+
+.react-flow__controls.flow-controls .react-flow__controls-button:hover {
+  background: var(--color-hover);
+  color: var(--color-text-primary);
 }
 
 /* Dark theme */
 html.dark {
-  --color-bg-primary: #0F0F11;
-  --color-bg-secondary: #18181B;
-  --color-bg-tertiary: #27272A;
-  --color-border: #27272A;
-  --color-text-primary: #FFFFFF;
-  --color-text-secondary: #A1A1A1;
-  --color-text-tertiary: #808080;
-  --color-hover: #1F1F23;
+  /* =========================================
+     EXECUTIVE BLUE PALETTE (Dark Mode)
+     ========================================= */
+
+  /* Backgrounds */
+  --color-bg-primary: #0A0E14;
+  /* Slate-900: Main background */
+  --color-bg-secondary: #121826;
+  /* Slate-800: Secondary/Cards */
+  --color-bg-tertiary: #1A2232;
+  /* Slate-700: Inputs/Hovers */
+
+  /* Borders */
+  --color-border: #1F2A3A;
+  /* Slate-700 */
+
+  /* Text */
+  --color-text-primary: #E5E7EB;
+  /* Slate-50 */
+  --color-text-secondary: #B6C2D1;
+  /* Slate-300 */
+  --color-text-tertiary: #7B8794;
+  /* Slate-400 */
+
+  /* Brand / Interactive */
+  /* For dark mode, primary interactives might need pop or stay consistent */
+  --color-primary: #60A5FA;
+  /* Blue-500: Brighter blue for dark mode visibility OR keep it slate? 
+                                        Let's stick to the "Executive Blue" feel but maybe slightly lighter 
+                                        so it's visible against the dark bg. */
+  --color-primary-hover: #93C5FD;
+
   --color-accent: #3B82F6;
+
+  /* Semantic Actions */
+  --color-success: #10B981;
+  --color-success-hover: #34D399;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+
+  /* Flow Builder Node Types (Domain-specific, not UI semantics) */
+  --node-trigger: #34D399;
+  /* Emerald-400 - Start/Entry points (lighter for dark mode) */
+  --node-action: #60A5FA;
+  /* Blue-400 - Actionable steps */
+  --node-logic: #FBBF24;
+  /* Amber-400 - Branching/conditions */
+  --node-webhook: #A78BFA;
+  /* Purple-400 - External integrations */
+  --node-socket: #F472B6;
+  /* Pink-400 - Third-party platform bridges */
+
+  /* Component Specific */
+  --color-hover: #1C2535;
+
+  /* Sidebar customization */
+  --color-sidebar-bg: var(--color-bg-secondary);
+  --color-sidebar-text: var(--color-text-primary);
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+
+  /* Flow Builder Grid */
+  --color-grid: rgba(148, 163, 184, 0.28);
+  --color-grid-strong: rgba(148, 163, 184, 0.45);
+
+  /* =========================================
+     NEON ACCENTS (aiobots.us palette)
+     ========================================= */
+  --color-neon-magenta: #FF006E;
+  --color-neon-magenta-glow: rgba(255, 0, 110, 0.4);
+  --color-neon-cyan: #00F5FF;
+  --color-neon-cyan-glow: rgba(0, 245, 255, 0.4);
+  --color-neon-purple: #9D4EDD;
+  --color-neon-purple-glow: rgba(157, 78, 221, 0.4);
+
+  /* Glowing shadows for premium feel (enhanced in dark mode) */
+  --shadow-glow-magenta: 0 0 20px 0 rgba(255, 0, 110, 0.5);
+  --shadow-glow-cyan: 0 0 20px 0 rgba(0, 245, 255, 0.5);
+  --shadow-glow-purple: 0 0 20px 0 rgba(157, 78, 221, 0.5);
 }
 
 @layer base {
+
+  /* Utility Classes */
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition-colors font-medium;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors font-medium;
+  }
+
+  /* TAG STYLES - Global Definition */
+  .tag-base {
+    @apply px-2.5 py-1 rounded-full text-xs font-semibold text-white inline-flex items-center gap-1.5 shadow-sm;
+  }
+
+  .tag-system {
+    @apply bg-slate-600;
+    /* Executive/System - Neutral Dark */
+  }
+
+  .tag-user {
+    @apply bg-indigo-600;
+    /* User Actions - Vibrant Blue/Indigo */
+  }
+
+  .tag-custom {
+    @apply bg-emerald-600;
+    /* Custom/Success - Green */
+  }
+
+  .tag-alert {
+    @apply bg-rose-600;
+    /* Alerts/Important */
+  }
+
+  .tag-warning {
+    @apply bg-amber-600;
+    /* Warnings */
+  }
+
   * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
   }
 
-  html, body {
+  html,
+  body {
     height: 100%;
     width: 100%;
     background-color: var(--color-bg-primary);
@@ -60,4 +270,65 @@ html.dark {
     height: 100%;
     width: 100%;
   }
+}
+
+:root {
+  --note-default-color: #111827;
+  --shadow-note: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+
+.flow-toolbar-btn {
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.flow-toolbar-btn:hover {
+  background: var(--color-hover);
+}
+
+.flow-toolbar-btn--primary {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-color: transparent;
+}
+
+.flow-toolbar-btn--purple {
+  background: var(--color-neon-purple);
+  color: #fff;
+  border-color: transparent;
+}
+
+.flow-toolbar-btn--success {
+  background: var(--color-success);
+  color: #fff;
+  border-color: transparent;
+}
+
+.flow-toolbar-btn--ghost {
+  background: var(--color-bg-tertiary);
+}
+
+.flow-toolbar-btn--danger {
+  background: var(--color-danger);
+  color: #fff;
+  border-color: transparent;
+}
+
+.flow-toolbar-btn--neutral {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.flow-toolbar-btn--neutral-light {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
 }

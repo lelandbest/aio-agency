@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aio.agency/schemas/flow-spec.schema.json",
+  "title": "AIO Flow Spec",
+  "type": "object",
+  "required": ["version", "metadata", "nodes", "edges"],
+  "properties": {
+    "version": { "type": "integer" },
+    "metadata": {
+      "type": "object",
+      "required": ["id", "name", "status", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["Draft", "Active"] },
+        "createdBy": { "type": ["string", "null"] },
+        "updatedBy": { "type": ["string", "null"] },
+        "tenantId": { "type": ["string", "null"] },
+        "brand": { "type": ["string", "null"] },
+        "themePreset": { "type": ["string", "null"] },
+        "themeOverrides": { "type": ["object", "null"] },
+        "featureFlags": { "type": ["object", "null"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "position", "data"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string" },
+          "position": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            },
+            "additionalProperties": false
+          },
+          "data": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "target"],
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "sourceHandle": { "type": ["string", "null"] },
+          "targetHandle": { "type": ["string", "null"] },
+          "data": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}
