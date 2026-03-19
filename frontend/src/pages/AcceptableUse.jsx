@@ -10,7 +10,7 @@ export default function AcceptableUsePage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mb-4">1. Overview</h2>
             <p>
-              This Acceptable Use Policy ("Policy") applies to all users of AIO Agency ("Service"). By accessing and using the Service, 
+              This Acceptable Use Policy ("Policy") applies to all users of AIO CRM ("Service"). By accessing and using the Service, 
               you agree to comply with this Policy. Violation of this Policy may result in suspension or termination of your account.
             </p>
           </section>
@@ -37,7 +37,7 @@ export default function AcceptableUsePage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mb-4">3. User Responsibilities</h2>
             <p>
-              As a user of AIO Agency, you are responsible for:
+              As a user of AIO CRM, you are responsible for:
             </p>
             <ul className="list-disc list-inside space-y-2">
               <li>Maintaining the confidentiality of your account credentials</li>
@@ -65,7 +65,7 @@ export default function AcceptableUsePage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mb-4">5. Enforcement</h2>
             <p>
-              AIO Agency reserves the right to:
+              AIO CRM reserves the right to:
             </p>
             <ul className="list-disc list-inside space-y-2">
               <li>Monitor and investigate violations of this Policy</li>
@@ -79,7 +79,7 @@ export default function AcceptableUsePage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mb-4">6. Modifications to This Policy</h2>
             <p>
-              AIO Agency may modify this Policy at any time. Continued use of the Service following any changes constitutes your 
+              AIO CRM may modify this Policy at any time. Continued use of the Service following any changes constitutes your 
               acceptance of the modified Policy.
             </p>
           </section>

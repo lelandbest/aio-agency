@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { mockSupabase } from '../../services/mockSupabase';
+import { getCmsTablesApi } from '../../services/backendApi';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import { Database, Table, Search, Download } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await mockSupabase.from('cms_tables').select();
+        const data = await getCmsTablesApi();
         setCmsTables(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error('Error loading cms_tables:', e);

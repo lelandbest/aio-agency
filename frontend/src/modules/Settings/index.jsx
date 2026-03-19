@@ -3,6 +3,8 @@ import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenT
 import { mockSupabase } from '../../services/mockSupabase';
 import { useTheme } from '../../lib/ThemeContext';
 import ModuleHeader from '../../components/ModuleHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import { addWorkspaceMemberApi, createWorkspaceApi, getWorkspaceMembershipsApi, removeWorkspaceMemberApi, updateWorkspaceApi, updateWorkspaceMemberApi } from '../../services/backendApi';
 
 // ============ GLOBAL VARIABLES MANAGER ============
 const GlobalVarsManager = () => {
@@ -88,7 +90,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
     layout: 'sidebar-left',
     theme: theme,
     companyLogo: '',
-    companyName: 'AIO Agency'
+    companyName: 'AIO CRM'
   });
 
   // Sync with global theme
@@ -1236,6 +1238,288 @@ const SecuritySettings = () => {
   );
 };
 
+const WorkspaceSettings = () => {
+  const { tenant, tenants = [], switchTenant, refreshSession, user } = useAuth();
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(tenant?.id || '');
+  const [memberships, setMemberships] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState(tenant?.name || '');
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState('staff');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setSelectedWorkspaceId(tenant?.id || '');
+    setWorkspaceName(tenant?.name || '');
+  }, [tenant?.id, tenant?.name]);
+
+  useEffect(() => {
+    const loadMemberships = async () => {
+      if (!selectedWorkspaceId) {
+        setMemberships([]);
+        return;
+      }
+      setLoadingMembers(true);
+      setError('');
+      try {
+        const rows = await getWorkspaceMembershipsApi(selectedWorkspaceId);
+        setMemberships(rows);
+      } catch (loadError) {
+        setError(loadError.message || 'Unable to load workspace members.');
+      } finally {
+        setLoadingMembers(false);
+      }
+    };
+
+    loadMemberships();
+  }, [selectedWorkspaceId]);
+
+  const selectedWorkspace = tenants.find(item => item.id === selectedWorkspaceId) || tenant;
+  const currentMembership = memberships.find(item => item.user_email === user?.email);
+  const canManageWorkspace = ['owner', 'admin'].includes(currentMembership?.role || tenant?.role);
+
+  const handleWorkspaceSelect = async (workspaceId) => {
+    setSelectedWorkspaceId(workspaceId);
+    if (workspaceId && workspaceId !== tenant?.id && switchTenant) {
+      await switchTenant(workspaceId);
+    }
+  };
+
+  const handleRenameWorkspace = async () => {
+    if (!selectedWorkspaceId) return;
+    setError('');
+    setStatusMessage('');
+    try {
+      await updateWorkspaceApi(selectedWorkspaceId, { name: workspaceName.trim() });
+      await refreshSession?.();
+      setStatusMessage('Workspace updated.');
+    } catch (renameError) {
+      setError(renameError.message || 'Unable to update workspace.');
+    }
+  };
+
+  const handleCreateWorkspace = async () => {
+    if (!newWorkspaceName.trim()) return;
+    setError('');
+    setStatusMessage('');
+    try {
+      await createWorkspaceApi({ name: newWorkspaceName.trim() });
+      const session = await refreshSession?.();
+      const nextWorkspaceId = session?.tenant?.id;
+      setNewWorkspaceName('');
+      if (nextWorkspaceId) {
+        setSelectedWorkspaceId(nextWorkspaceId);
+      }
+      setStatusMessage('Workspace created and selected.');
+    } catch (createError) {
+      setError(createError.message || 'Unable to create workspace.');
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!selectedWorkspaceId || !newMemberEmail.trim()) return;
+    setError('');
+    setStatusMessage('');
+    try {
+      const response = await addWorkspaceMemberApi(selectedWorkspaceId, {
+        email: newMemberEmail.trim(),
+        role: newMemberRole
+      });
+      setMemberships(response.memberships || []);
+      setNewMemberEmail('');
+      setNewMemberRole('staff');
+      setStatusMessage('Workspace member saved.');
+    } catch (memberError) {
+      setError(memberError.message || 'Unable to add workspace member.');
+    }
+  };
+
+  const handleRoleChange = async (membershipId, role) => {
+    if (!selectedWorkspaceId) return;
+    setError('');
+    try {
+      const response = await updateWorkspaceMemberApi(selectedWorkspaceId, membershipId, { role });
+      setMemberships(response.memberships || []);
+      setStatusMessage('Member role updated.');
+    } catch (memberError) {
+      setError(memberError.message || 'Unable to update member role.');
+    }
+  };
+
+  const handleRemoveMember = async (membershipId) => {
+    if (!selectedWorkspaceId) return;
+    setError('');
+    try {
+      const response = await removeWorkspaceMemberApi(selectedWorkspaceId, membershipId);
+      setMemberships(response.memberships || []);
+      setStatusMessage('Member removed.');
+      await refreshSession?.();
+    } catch (memberError) {
+      setError(memberError.message || 'Unable to remove member.');
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6 bg-[var(--color-bg-primary)]">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-6">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Control</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">Manage the workspace shown in the top-right switcher and keep ownership clean as Phase 9 hardens.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Current Workspace</label>
+                <select
+                  value={selectedWorkspaceId}
+                  onChange={(event) => handleWorkspaceSelect(event.target.value)}
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  {(tenants || []).map(workspace => (
+                    <option key={workspace.id} value={workspace.id}>
+                      {workspace.name} ({workspace.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Your Role</label>
+                <div className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-primary)]">
+                  {selectedWorkspace?.role || 'viewer'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+              <input
+                value={workspaceName}
+                onChange={(event) => setWorkspaceName(event.target.value)}
+                placeholder="Workspace name"
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              />
+              <button
+                onClick={handleRenameWorkspace}
+                disabled={!canManageWorkspace}
+                className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition"
+              >
+                Save Name
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Create Workspace</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">Spin up a new workspace and move into it immediately. This is the first real admin surface for multi-tenant operation.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+              <input
+                value={newWorkspaceName}
+                onChange={(event) => setNewWorkspaceName(event.target.value)}
+                placeholder="New workspace name"
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              />
+              <button
+                onClick={handleCreateWorkspace}
+                className="px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition"
+              >
+                Create Workspace
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">Phase 9</div>
+            <div className="text-sm text-[var(--color-text-primary)]">Workspace switching in the shell now reflects real session membership, not placeholders.</div>
+            <div className="text-xs text-[var(--color-text-secondary)]">Current workspace: {tenant?.name || 'Unassigned'}</div>
+            <div className="text-xs text-[var(--color-text-secondary)]">Accessible workspaces: {(tenants || []).length}</div>
+          </div>
+          {(statusMessage || error) && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+              {error || statusMessage}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Members</h3>
+            <p className="text-sm text-[var(--color-text-secondary)]">Add existing app users by email and keep roles explicit while RBAC is being hardened.</p>
+          </div>
+          {loadingMembers && <div className="text-xs text-[var(--color-text-secondary)]">Loading...</div>}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-3">
+          <input
+            value={newMemberEmail}
+            onChange={(event) => setNewMemberEmail(event.target.value)}
+            placeholder="existing.user@example.com"
+            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+          />
+          <select
+            value={newMemberRole}
+            onChange={(event) => setNewMemberRole(event.target.value)}
+            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+          >
+            <option value="admin">admin</option>
+            <option value="staff">staff</option>
+            <option value="viewer">viewer</option>
+          </select>
+          <button
+            onClick={handleAddMember}
+            disabled={!canManageWorkspace}
+            className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition"
+          >
+            Add Member
+          </button>
+        </div>
+
+        <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+          {memberships.map(member => (
+            <div key={member.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_180px_auto] gap-3 items-center px-4 py-4 bg-[var(--color-bg-secondary)]">
+              <div>
+                <div className="text-sm font-semibold text-[var(--color-text-primary)]">{member.user_name}</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">{member.user_email}</div>
+              </div>
+              <div className="text-xs text-[var(--color-text-secondary)]">{member.provider}</div>
+              <select
+                value={member.role}
+                disabled={!canManageWorkspace}
+                onChange={(event) => handleRoleChange(member.id, event.target.value)}
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+              >
+                <option value="owner">owner</option>
+                <option value="admin">admin</option>
+                <option value="staff">staff</option>
+                <option value="viewer">viewer</option>
+              </select>
+              <button
+                onClick={() => handleRemoveMember(member.id)}
+                disabled={!canManageWorkspace || member.user_email === user?.email}
+                className="px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {memberships.length === 0 && !loadingMembers && (
+            <div className="px-4 py-6 text-sm text-[var(--color-text-secondary)]">No members found for this workspace yet.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ============ MAIN SETTINGS MODULE ============
 const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const [activeTab, setActiveTab] = useState(activeSettingsTab || 'personal');
@@ -1248,6 +1532,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
     { id: 'personal', label: 'Personal', icon: User },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'security', label: 'Security', icon: Shield },
+    { id: 'workspace', label: 'Workspace', icon: Layers },
     { id: 'whitelabel', label: 'White Label', icon: Globe },
     { id: 'variables', label: 'Variables', icon: Key }
   ];
@@ -1257,6 +1542,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
       case 'personal': return <PersonalSettings />;
       case 'billing': return <BillingSettings />;
       case 'security': return <SecuritySettings />;
+      case 'workspace': return <WorkspaceSettings />;
       case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} />;
       case 'variables': return <GlobalVarsManager />;
       default: return <PersonalSettings />;
@@ -1265,7 +1551,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-bg-primary)]">
-      <ModuleHeader title="Settings" titleIcon={Settings} showActions={false} />
+      <ModuleHeader title="Settings" titleIcon={Settings} showTitle={false} showActions={false} />
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <div className="flex overflow-x-auto">
           {tabs.map(tab => {
@@ -1293,6 +1579,6 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   );
 };
 
-export { GlobalVarsManager, WhiteLabelSettings, PersonalSettings, BillingSettings, SecuritySettings };
+export { GlobalVarsManager, WhiteLabelSettings, PersonalSettings, BillingSettings, SecuritySettings, WorkspaceSettings };
 export default SettingsModule;
 

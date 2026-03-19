@@ -1,9 +1,128 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Clock, MapPin, Trash2, Edit, Eye, Copy, ExternalLink } from 'lucide-react';
-import { mockSupabase } from '../../services/mockSupabase';
+import {
+  createBookingTypeApi,
+  createCalendarEventApi,
+  createCalendarSourceApi,
+  deleteBookingTypeApi,
+  deleteCalendarEventApi,
+  getCalendarSourceAuthorizeUrl,
+  getBookingTypesApi,
+  getCalendarsApi,
+  getCalendarEventsApi,
+  getCalendarProvidersApi,
+  getCalendarSourcesApi,
+  importCalendarSourceApi,
+  pushCalendarEventApi,
+  reconcileCalendarEventApi,
+  syncCalendarSourceApi,
+  testCalendarSourceApi,
+  updateBookingTypeApi,
+  updateCalendarEventApi,
+  updateCalendarSourceApi
+} from '../../services/backendApi';
 import { generateZoomLink, generateGoogleMeetLink } from '../../services/videoCallService';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { openOAuthPopup } from '../../utils/oauthPopup';
+
+const COMMS_CALENDAR = {
+  id: 'calendar-comms',
+  user_id: 'system',
+  name: 'Comms',
+  color: '#f59e0b',
+  is_default: false,
+  is_visible: true,
+  is_backend: true
+};
+
+const normalizeBackendEvent = (event) => ({
+  ...event,
+  calendar_id: event.calendar_id || COMMS_CALENDAR.id,
+  location_type: event.location_type || 'other',
+  all_day: Boolean(event.all_day),
+  is_backend_artifact: Boolean(event.thread_id || event.source === 'comms' || event.source === 'external-import'),
+  source_label: event.source === 'comms' ? 'Comms' : event.source === 'external-import' ? 'Imported' : 'Backend'
+});
+
+const getStatusTone = (status) => ({
+  scheduled: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/20',
+  confirmed: 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20',
+  cancelled: 'bg-red-900/10 text-red-400 border-red-900/20',
+  completed: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border)]',
+  no_show: 'bg-orange-900/10 text-orange-400 border-orange-900/20'
+}[status] || 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border-[var(--color-border)]');
+
+const DEFAULT_CALENDAR_PROVIDERS = [
+  { id: 'local-stub', label: 'Local Stub', fields: [] },
+  {
+    id: 'google-calendar-oauth',
+    label: 'Google Calendar',
+    fields: [
+      { key: 'email', label: 'Google Account' },
+      { key: 'client_id', label: 'Client ID' },
+      { key: 'client_secret', label: 'Client Secret' },
+      { key: 'refresh_token', label: 'Refresh Token' },
+      { key: 'calendar_id', label: 'Calendar ID' }
+    ]
+  },
+  {
+    id: 'microsoft365-calendar',
+    label: 'Microsoft 365 Calendar',
+    fields: [
+      { key: 'tenant_id', label: 'Tenant ID' },
+      { key: 'client_id', label: 'Client ID' },
+      { key: 'client_secret', label: 'Client Secret' },
+      { key: 'user_id', label: 'User ID' },
+      { key: 'calendar_id', label: 'Calendar ID' }
+    ]
+  },
+  {
+    id: 'ics-url',
+    label: 'ICS Feed',
+    fields: [
+      { key: 'feed_url', label: 'ICS Feed URL' },
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password' }
+    ]
+  }
+];
+
+const createCalendarSourceDraft = () => ({
+  name: '',
+  provider: 'local-stub',
+  sync_direction: 'two-way',
+  config: {
+    authority_mode: 'local-first',
+    import_policy: 'review'
+  }
+});
+
+const sourceRuleLabels = {
+  'local-first': 'Local First',
+  mirror: 'Mirror',
+  'external-first': 'External First',
+  review: 'Review',
+  'auto-merge': 'Auto Merge',
+  hold: 'Hold'
+};
+
+const syncTone = (status) => ({
+  synced: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  local: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  imported: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
+  conflict: 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+}[status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]');
+
+const conflictTone = (state) => ({
+  review: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+  resolved: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  mirrored: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  clear: 'border-[var(--color-border)] text-[var(--color-text-secondary)]'
+}[state] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]');
+
+const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'microsoft365-calendar'].includes(providerId);
+const openCalendarAdmin = () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'integrations', integrationCategory: 'calendar' } }));
 
 const CalendarModule = () => {
   const [activeTab, setActiveTab] = useState('calendar');
@@ -21,15 +140,56 @@ const CalendarModule = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'card' for events/bookers
   const [showIntegrationLink, setShowIntegrationLink] = useState(false);
+  const [calendarSources, setCalendarSources] = useState([]);
+  const [calendarProviders, setCalendarProviders] = useState(DEFAULT_CALENDAR_PROVIDERS);
+  const [selectedCalendarSourceId, setSelectedCalendarSourceId] = useState(null);
+  const [showSourceComposer, setShowSourceComposer] = useState(false);
+  const [sourceDraft, setSourceDraft] = useState(() => createCalendarSourceDraft());
+  const [sourceForm, setSourceForm] = useState(() => createCalendarSourceDraft());
+  const [calendarNotice, setCalendarNotice] = useState(null);
+  const [showCalendarOps, setShowCalendarOps] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: cals } = await mockSupabase.from('calendars').select();
-    const { data: evts } = await mockSupabase.from('events').select();
-    const { data: bookers } = await mockSupabase.from('booking_types').select();
-    if (cals) setCalendars(cals);
-    if (evts) setEvents(evts);
-    if (bookers) setBookingTypes(bookers);
+    let sources = [];
+    let providers = DEFAULT_CALENDAR_PROVIDERS;
+    let backendEvents = [];
+    let backendCalendars = [];
+    let backendBookers = [];
+    try {
+      backendCalendars = await getCalendarsApi();
+    } catch {
+      backendCalendars = [];
+    }
+    try {
+      backendEvents = (await getCalendarEventsApi()).map(normalizeBackendEvent);
+    } catch {
+      backendEvents = [];
+    }
+    try {
+      backendBookers = await getBookingTypesApi();
+    } catch {
+      backendBookers = [];
+    }
+    try {
+      sources = await getCalendarSourcesApi();
+    } catch {
+      sources = [];
+    }
+    try {
+      providers = await getCalendarProvidersApi();
+    } catch {
+      providers = DEFAULT_CALENDAR_PROVIDERS;
+    }
+    const mergedCalendars = [...(backendCalendars || [])];
+    if (backendEvents.length > 0 && !mergedCalendars.some((calendar) => calendar.id === COMMS_CALENDAR.id)) {
+      mergedCalendars.push(COMMS_CALENDAR);
+    }
+    setCalendars(mergedCalendars);
+    setEvents(backendEvents.length ? backendEvents : []);
+    setBookingTypes(Array.isArray(backendBookers) ? backendBookers : []);
+    setCalendarSources(sources || []);
+    setCalendarProviders(providers?.length ? providers : DEFAULT_CALENDAR_PROVIDERS);
     setLoading(false);
   };
 
@@ -37,6 +197,16 @@ const CalendarModule = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!calendarSources.length) {
+      setSelectedCalendarSourceId(null);
+      return;
+    }
+    if (!calendarSources.some((source) => source.id === selectedCalendarSourceId)) {
+      setSelectedCalendarSourceId(calendarSources[0].id);
+    }
+  }, [calendarSources, selectedCalendarSourceId]);
 
   const toggleCalendar = (calId) => {
     setCalendars(calendars.map(cal =>
@@ -107,15 +277,13 @@ const CalendarModule = () => {
 
   const handleSaveEvent = async (eventData) => {
     if (selectedEvent) {
-      // Update
-      await mockSupabase.from('events').update(eventData).eq('id', selectedEvent.id);
+      await updateCalendarEventApi(selectedEvent.id, eventData);
     } else {
-      // Create
-      await mockSupabase.from('events').insert({
+      await createCalendarEventApi({
         ...eventData,
-        id: Date.now().toString(),
         calendar_id: calendars.find(c => c.is_default)?.id || calendars[0]?.id,
-        status: 'scheduled'
+        status: 'scheduled',
+        source: 'calendar-local'
       });
     }
     fetchData();
@@ -123,19 +291,22 @@ const CalendarModule = () => {
   };
 
   const handleDeleteEvent = async (eventId) => {
-    await mockSupabase.from('events').delete().eq('id', eventId);
+    const eventToDelete = events.find((evt) => evt.id === eventId) || selectedEvent;
+    if (eventToDelete?.thread_id) {
+      setShowEventModal(false);
+      return;
+    }
+    await deleteCalendarEventApi(eventId);
     fetchData();
     setShowEventModal(false);
   };
 
   const handleSaveBooker = async (bookerData) => {
     if (selectedBooker) {
-      await mockSupabase.from('booking_types').update(bookerData).eq('id', selectedBooker.id);
+      await updateBookingTypeApi(selectedBooker.id, bookerData);
     } else {
-      await mockSupabase.from('booking_types').insert({
+      await createBookingTypeApi({
         ...bookerData,
-        id: Date.now().toString(),
-        user_id: '1',
         slug: bookerData.name.toLowerCase().replace(/\s+/g, '-'),
         is_active: true
       });
@@ -145,25 +316,148 @@ const CalendarModule = () => {
   };
 
   const handleDeleteBooker = async (bookerId) => {
-    await mockSupabase.from('booking_types').delete().eq('id', bookerId);
+    await deleteBookingTypeApi(bookerId);
     fetchData();
     setShowBookerModal(false);
   };
 
   const handleGuestBooking = async (bookingData) => {
-    await mockSupabase.from('events').insert({
+    await createCalendarEventApi({
       ...bookingData,
-      id: Date.now().toString(),
       calendar_id: calendars.find(c => c.name === 'AIO Booking')?.id || calendars[0]?.id,
-      status: 'scheduled'
+      status: 'scheduled',
+      source: 'booking'
     });
     fetchData();
     setShowBookingPage(false);
   };
 
   const handleStatusChange = async (eventId, newStatus) => {
-    await mockSupabase.from('events').update({ status: newStatus }).eq('id', eventId);
+    await updateCalendarEventApi(eventId, { status: newStatus });
     fetchData();
+  };
+
+  const selectedCalendarSource = calendarSources.find((source) => source.id === selectedCalendarSourceId) || calendarSources[0] || null;
+  const selectedCalendarProvider = calendarProviders.find((provider) => provider.id === sourceDraft.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
+  const selectedCalendarSourceProvider = calendarProviders.find((provider) => provider.id === sourceForm.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
+  const calendarCanvasPrimary = activeTab === 'calendar';
+
+  useEffect(() => {
+    if (!selectedCalendarSource) {
+      setSourceForm(createCalendarSourceDraft());
+      return;
+    }
+    setSourceForm({
+      name: selectedCalendarSource.name || '',
+      provider: selectedCalendarSource.provider || 'local-stub',
+      sync_direction: selectedCalendarSource.sync_direction || 'two-way',
+      config: {
+        authority_mode: selectedCalendarSource.authority_mode || selectedCalendarSource.config?.authority_mode || 'local-first',
+        import_policy: selectedCalendarSource.import_policy || selectedCalendarSource.config?.import_policy || 'review',
+        ...(selectedCalendarSource.config || {})
+      }
+    });
+  }, [selectedCalendarSource]);
+
+  const handleSaveCalendarSource = async () => {
+    if (!selectedCalendarSource?.id) return;
+    try {
+      await updateCalendarSourceApi(selectedCalendarSource.id, sourceForm);
+      setCalendarNotice({ tone: 'success', message: 'Calendar source saved.' });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handleTestCalendarSource = async () => {
+    if (!selectedCalendarSource?.id) return;
+    try {
+      await updateCalendarSourceApi(selectedCalendarSource.id, sourceForm);
+      const response = await testCalendarSourceApi(selectedCalendarSource.id);
+      setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Calendar source tested.' });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handleSyncCalendarSource = async () => {
+    if (!selectedCalendarSource?.id) return;
+    try {
+      const response = await syncCalendarSourceApi(selectedCalendarSource.id);
+      setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Calendar source synced.' });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handleImportCalendarSource = async () => {
+    if (!selectedCalendarSource?.id) return;
+    try {
+      const response = await importCalendarSourceApi(selectedCalendarSource.id);
+      const importedCount = response?.result?.imported_count || 0;
+      const conflictedCount = response?.result?.conflicted_count || 0;
+      setCalendarNotice({
+        tone: conflictedCount ? 'error' : 'success',
+        message: conflictedCount
+          ? `${importedCount} events imported. ${conflictedCount} need reconciliation.`
+          : response?.result?.message || 'Calendar feed imported.'
+      });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handleCreateCalendarSource = async () => {
+    if (!sourceDraft.name.trim()) return;
+    try {
+      const source = await createCalendarSourceApi(sourceDraft);
+      setCalendarNotice({ tone: 'success', message: 'Calendar source created.' });
+      setShowSourceComposer(false);
+      setSourceDraft(createCalendarSourceDraft());
+      setSelectedCalendarSourceId(source?.data?.id || source?.id || null);
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handleAuthorizeCalendarSource = async () => {
+    if (!selectedCalendarSource?.id || !isCalendarOauthProvider(sourceForm.provider)) return;
+    try {
+      await updateCalendarSourceApi(selectedCalendarSource.id, sourceForm);
+      const result = await openOAuthPopup(getCalendarSourceAuthorizeUrl(selectedCalendarSource.id), 'calendar');
+      setCalendarNotice({
+        tone: 'success',
+        message: `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarSourceProvider.label}.`
+      });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handlePushEvent = async (eventId) => {
+    try {
+      const response = await pushCalendarEventApi(eventId, selectedCalendarSource?.id || null);
+      setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Event pushed to calendar source.' });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
+  };
+
+  const handleReconcileEvent = async (eventId, strategy) => {
+    try {
+      const response = await reconcileCalendarEventApi(eventId, strategy);
+      setCalendarNotice({ tone: 'success', message: response?.result?.message || 'Calendar event reconciled.' });
+      fetchData();
+    } catch (error) {
+      setCalendarNotice({ tone: 'error', message: error.message });
+    }
   };
 
   const renderCalendarView = () => {
@@ -623,15 +917,8 @@ const CalendarModule = () => {
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map(evt => {
               const cal = calendars.find(c => c.id === evt.calendar_id);
-              const statusColors = {
-                scheduled: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/20',
-                confirmed: 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20',
-                cancelled: 'bg-red-900/10 text-red-400 border-red-900/20',
-                completed: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border)]',
-                no_show: 'bg-orange-900/10 text-orange-400 border-orange-900/20'
-              };
               return (
-                <div key={evt.id} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl p-5 hover:border-purple-500/50 transition">
+                <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-xl p-5 transition ${evt.is_backend_artifact ? 'border-emerald-500/30 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]' : 'border-[var(--color-border)] hover:border-purple-500/50'}`}>
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-[var(--color-text-primary)] mb-1">{evt.title}</h3>
@@ -647,7 +934,7 @@ const CalendarModule = () => {
                     <select
                       value={evt.status}
                       onChange={(e) => handleStatusChange(evt.id, e.target.value)}
-                      className={`px-2 py-1 rounded text-xs bg-[var(--color-bg-secondary)] border ${statusColors[evt.status]}`}
+                      className={`px-2 py-1 rounded text-xs bg-[var(--color-bg-secondary)] border ${getStatusTone(evt.status)}`}
                     >
                       <option value="scheduled">Scheduled</option>
                       <option value="confirmed">Confirmed</option>
@@ -685,12 +972,61 @@ const CalendarModule = () => {
                       Join Meeting
                     </a>
                   )}
+                  {evt.is_backend_artifact && evt.sync_note ? (
+                    <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+                      {evt.sync_note}
+                    </div>
+                  ) : null}
 
                   <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
-                    <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
-                      {cal?.name}
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
+                        {cal?.name}
+                      </span>
+                      {evt.is_backend_artifact ? (
+                        <span className="px-2 py-1 rounded text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                          {evt.source_label || 'Comms'}
+                        </span>
+                      ) : null}
+                      {evt.is_backend_artifact ? (
+                        <span className={`px-2 py-1 rounded text-xs border ${syncTone(evt.sync_status)}`}>
+                          {evt.sync_status || 'pending'}
+                        </span>
+                      ) : null}
+                      {evt.is_backend_artifact ? (
+                        <span className={`px-2 py-1 rounded text-xs border ${conflictTone(evt.conflict_state)}`}>
+                          {evt.conflict_state || 'clear'}
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="flex gap-2">
+                      {evt.is_backend_artifact ? (
+                        <button
+                          onClick={() => handlePushEvent(evt.id)}
+                          className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-emerald-300"
+                          title="Push to source"
+                        >
+                          <ExternalLink size={16} />
+                        </button>
+                      ) : null}
+                      {evt.is_backend_artifact && evt.conflict_state === 'review' ? (
+                        <>
+                          <button
+                            onClick={() => handleReconcileEvent(evt.id, 'keep_local')}
+                            className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-sky-300"
+                            title="Keep local schedule"
+                          >
+                            <Copy size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleReconcileEvent(evt.id, 'accept_import')}
+                            className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-amber-300"
+                            title="Accept imported schedule"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </>
+                      ) : null}
                       <button
                         onClick={() => handleEditEvent(evt)}
                         className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-white"
@@ -736,17 +1072,15 @@ const CalendarModule = () => {
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {events.map(evt => {
                     const cal = calendars.find(c => c.id === evt.calendar_id);
-                    const statusColors = {
-                      scheduled: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]',
-                      confirmed: 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
-                      cancelled: 'bg-red-900/10 text-red-400',
-                      completed: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]',
-                      no_show: 'bg-orange-900/10 text-orange-400'
-                    };
                     return (
-                      <tr key={evt.id} className="hover:bg-[var(--color-hover)]/20">
-                        <td className="p-4 text-[var(--color-text-primary)] font-medium">{evt.title}</td>
-                        <td className="p-4 text-gray-400">{evt.guest_name || evt.guest_email || '-'}</td>
+                      <tr key={evt.id} className={`hover:bg-[var(--color-hover)]/20 ${evt.is_backend_artifact ? 'bg-emerald-500/[0.04]' : ''}`}>
+                        <td className="p-4 text-[var(--color-text-primary)] font-medium">
+                          <div>{evt.title}</div>
+                          {evt.is_backend_artifact ? (
+                            <div className="mt-1 text-[11px] text-emerald-300 uppercase tracking-[0.2em]">{evt.source_label || 'Comms'} managed</div>
+                          ) : null}
+                        </td>
+                        <td className="p-4 text-gray-400">{evt.guest_name || evt.guest_email || (evt.contact_id ? 'Linked CRM contact' : '-')}</td>
                         <td className="p-4 text-gray-400">
                           {new Date(evt.start_time).toLocaleString('en-US', {
                             month: 'short',
@@ -756,25 +1090,67 @@ const CalendarModule = () => {
                           })}
                         </td>
                         <td className="p-4">
-                          <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
-                            {cal?.name}
-                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
+                              {cal?.name}
+                            </span>
+                            {evt.thread_id ? (
+                              <span className="px-2 py-1 rounded text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+                                Thread linked
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="p-4">
-                          <select
-                            value={evt.status}
-                            onChange={(e) => handleStatusChange(evt.id, e.target.value)}
-                            className={`px-2 py-1 rounded text-xs bg-[var(--color-bg-secondary)] border border-[var(--color-border)] ${statusColors[evt.status]}`}
-                          >
-                            <option value="scheduled">Scheduled</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="no_show">No Show</option>
-                          </select>
+                          <div className="flex flex-col items-start gap-2">
+                            <select
+                              value={evt.status}
+                              onChange={(e) => handleStatusChange(evt.id, e.target.value)}
+                              className={`px-2 py-1 rounded text-xs bg-[var(--color-bg-secondary)] border border-[var(--color-border)] ${getStatusTone(evt.status)}`}
+                            >
+                              <option value="scheduled">Scheduled</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="completed">Completed</option>
+                              <option value="cancelled">Cancelled</option>
+                              <option value="no_show">No Show</option>
+                            </select>
+                            {evt.is_backend_artifact ? (
+                              <div className="flex flex-wrap gap-2">
+                                <span className={`px-2 py-1 rounded text-[11px] uppercase tracking-[0.2em] border ${syncTone(evt.sync_status)}`}>{evt.sync_status || 'pending'}</span>
+                                <span className={`px-2 py-1 rounded text-[11px] uppercase tracking-[0.2em] border ${conflictTone(evt.conflict_state)}`}>{evt.conflict_state || 'clear'}</span>
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {evt.is_backend_artifact ? (
+                              <button
+                                onClick={() => handlePushEvent(evt.id)}
+                                className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-emerald-300"
+                                title="Push to source"
+                              >
+                                <ExternalLink size={16} />
+                              </button>
+                            ) : null}
+                            {evt.is_backend_artifact && evt.conflict_state === 'review' ? (
+                              <>
+                                <button
+                                  onClick={() => handleReconcileEvent(evt.id, 'keep_local')}
+                                  className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-sky-300"
+                                  title="Keep local schedule"
+                                >
+                                  <Copy size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleReconcileEvent(evt.id, 'accept_import')}
+                                  className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-amber-300"
+                                  title="Accept imported schedule"
+                                >
+                                  <Eye size={16} />
+                                </button>
+                              </>
+                            ) : null}
                             <button
                               onClick={() => handleEditEvent(evt)}
                               className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-white"
@@ -784,6 +1160,7 @@ const CalendarModule = () => {
                             </button>
                             <button
                               onClick={() => handleDeleteEvent(evt.id)}
+                              disabled={evt.is_backend_artifact}
                               className="p-1 hover:bg-[var(--color-hover)] rounded text-gray-400 hover:text-red-400"
                               title="Delete"
                             >
@@ -815,6 +1192,7 @@ const CalendarModule = () => {
       <ModuleHeader
         title="Calendar"
         titleIcon={CalendarIcon}
+        showTitle={false}
         statusBadge={{
           label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
           color: 'info'
@@ -848,14 +1226,14 @@ const CalendarModule = () => {
               </div>
             )}
             <button
-              onClick={() => setShowIntegrationLink(true)}
+              onClick={openCalendarAdmin}
               className="px-3 py-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded text-xs font-medium flex items-center gap-1"
-              title="Connect Google Calendar"
+              title="Manage Calendar Sources"
             >
               <svg className="w-4 h-4 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" />
               </svg>
-              Sync Google
+              Manage Sources
             </button>
             <button
               onClick={handleCreateEvent}
@@ -880,6 +1258,178 @@ const CalendarModule = () => {
         </div>
       </div>
 
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3 space-y-3">
+        {calendarCanvasPrimary ? (
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Active Source</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource?.name || 'No source selected'}</div>
+                </div>
+                <select
+                  value={selectedCalendarSourceId || ''}
+                  onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
+                  className="min-w-[220px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                >
+                  {calendarSources.map((source) => (
+                    <option key={source.id} value={source.id}>{source.name}</option>
+                  ))}
+                </select>
+                {selectedCalendarSource ? (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
+                    <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Events {selectedCalendarSource.event_counts?.total || 0}</span>
+                    <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.event_counts?.conflicts || 0}</span>
+                  </div>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync</button>
+                <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Import</button>
+                <button onClick={() => setShowCalendarOps((current) => !current)} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                  {showCalendarOps ? 'Hide Source Details' : 'Show Source Details'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {calendarSources.map((source) => (
+                <button
+                  key={source.id}
+                  onClick={() => setSelectedCalendarSourceId(source.id)}
+                  className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
+                    selectedCalendarSourceId === source.id
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)]'
+                      : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                  }`}
+                >
+                  <div className="font-medium">{source.name}</div>
+                  <div className="text-[11px] uppercase tracking-[0.2em] opacity-80">{source.provider}</div>
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test Source</button>
+              <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync Source</button>
+              <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Import Feed</button>
+              <button onClick={openCalendarAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Manage Sources</button>
+            </div>
+          </div>
+        )}
+        {selectedCalendarSource && (!calendarCanvasPrimary || showCalendarOps) ? (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-[var(--color-text-primary)] font-medium">{selectedCalendarSource.name}</span>
+              <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
+              <span className="text-[var(--color-text-secondary)]">Events {selectedCalendarSource.event_counts?.total || 0}</span>
+              <span className="text-[var(--color-text-secondary)]">Synced {selectedCalendarSource.event_counts?.synced || 0}</span>
+              <span className="text-[var(--color-text-secondary)]">Imported {selectedCalendarSource.event_counts?.imported || 0}</span>
+              <span className="text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.event_counts?.conflicts || 0}</span>
+              <span className="text-[var(--color-text-secondary)]">Pending {selectedCalendarSource.event_counts?.pending || 0}</span>
+            </div>
+            <div className="mt-2 text-sm text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.detail || 'Calendar source ready.'}</div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)]">Authority {sourceRuleLabels[selectedCalendarSource.authority_mode] || selectedCalendarSource.authority_mode}</span>
+              <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)]">Import {sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</span>
+            </div>
+          </div>
+        ) : null}
+        {selectedCalendarSource && (!calendarCanvasPrimary || showCalendarOps) ? (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[var(--color-text-primary)] font-semibold">Source Admin</div>
+              <div className="flex items-center gap-2">
+                <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
+                <button onClick={openCalendarAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
+                <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSource.provider}</div>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Policy</div>
+                <div className="mt-2 text-sm text-[var(--color-text-primary)]">{sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+              Calendar credentials, OAuth connection, source creation, and authority settings now live in <span className="font-medium text-[var(--color-text-primary)]">Admin &gt; Integrations</span>. Calendar keeps operational sync and import controls only.
+            </div>
+          </div>
+        ) : null}
+        {showSourceComposer && (!calendarCanvasPrimary || showCalendarOps) ? (
+          <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-4 space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <label className="space-y-1">
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Source Name</div>
+                <input value={sourceDraft.name} onChange={(e) => setSourceDraft((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+              </label>
+              <label className="space-y-1">
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
+                <select value={sourceDraft.provider} onChange={(e) => setSourceDraft((current) => ({ ...current, provider: e.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  {calendarProviders.map((provider) => (
+                    <option key={provider.id} value={provider.id}>{provider.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
+              <label className="space-y-1">
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Authority Mode</div>
+                <select value={sourceDraft.config?.authority_mode || 'local-first'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: e.target.value } }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <option value="local-first">Local First</option>
+                  <option value="mirror">Mirror External</option>
+                  <option value="external-first">External First</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Import Policy</div>
+                <select value={sourceDraft.config?.import_policy || 'review'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), import_policy: e.target.value } }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <option value="review">Review Before Adopt</option>
+                  <option value="auto-merge">Auto Merge</option>
+                  <option value="hold">Hold Imported Only</option>
+                </select>
+              </label>
+            </div>
+            {selectedCalendarProvider.fields?.length ? (
+              <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                {selectedCalendarProvider.fields.map((field) => (
+                  <label key={field.key} className="space-y-1">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                    <input
+                      value={sourceDraft.config?.[field.key] || ''}
+                      onChange={(e) => setSourceDraft((current) => ({
+                        ...current,
+                        config: {
+                          ...(current.config || {}),
+                          [field.key]: e.target.value
+                        }
+                      }))}
+                      className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Local stub sources are immediately usable for local-first calendar export.</div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setShowSourceComposer(false); setSourceDraft(createCalendarSourceDraft()); }} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Cancel</button>
+              <button onClick={handleCreateCalendarSource} disabled={!sourceDraft.name.trim()} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium">Create Source</button>
+            </div>
+          </div>
+        ) : null}
+        {calendarNotice ? (
+          <div className={`rounded-xl border px-3 py-3 text-sm ${calendarNotice.tone === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+            {calendarNotice.message}
+          </div>
+        ) : null}
+      </div>
+
       {/* Content */}
       <div className="flex-1 overflow-auto relative">
         {loading ? (
@@ -896,6 +1446,8 @@ const CalendarModule = () => {
         <EventModal
           event={selectedEvent}
           calendars={calendars}
+          managedByBackend={Boolean(selectedEvent?.thread_id || selectedEvent?.source === 'comms')}
+          allowDelete={!selectedEvent?.thread_id}
           onSave={handleSaveEvent}
           onDelete={handleDeleteEvent}
           onClose={() => setShowEventModal(false)}
@@ -934,7 +1486,7 @@ const CalendarModule = () => {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-[var(--color-text-secondary)] text-sm">
-                Connect your Google Calendar to sync events between AIO Agency and Google Calendar.
+                Connect your Google Calendar to sync events between AIO CRM and Google Calendar.
               </p>
               <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
                 <div className="flex items-center gap-3 mb-3">
@@ -1456,7 +2008,7 @@ const MiniCalendar = ({ selectedDate, onSelect, onClose, position = 'left' }) =>
 };
 
 // Event Modal Component
-const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
+const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = false, managedByBackend = false, allowDelete = true }) => {
   const [formData, setFormData] = useState({
     title: event?.title || '',
     description: event?.description || '',
@@ -1496,6 +2048,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) return;
     onSave({
       ...formData,
       start_time: new Date(formData.start_time).toISOString(),
@@ -1551,19 +2104,25 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
-          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{event ? 'Edit Event' : 'Create Event'}</h3>
+          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{readOnly ? 'Event Signal' : event ? 'Edit Event' : 'Create Event'}</h3>
           <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
+          {managedByBackend ? (
+            <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-200">
+              This meeting is managed as a backend Comms object. Changes here will update the linked thread and CRM activity trail.
+            </div>
+          ) : null}
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">Event Title *</label>
             <input
               type="text"
               required
               value={formData.title}
+              disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
               placeholder="Enter event title"
@@ -1574,6 +2133,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
             <label className="block text-sm font-medium text-gray-400 mb-2">Description</label>
             <textarea
               value={formData.description}
+              disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
               rows="3"
@@ -1589,6 +2149,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
               </label>
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() => {
                   setShowStartPicker(!showStartPicker);
                   setShowEndPicker(false);
@@ -1613,6 +2174,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
               </label>
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() => {
                   setShowEndPicker(!showEndPicker);
                   setShowStartPicker(false);
@@ -1636,6 +2198,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
             <label className="block text-sm font-medium text-gray-400 mb-2">Timezone</label>
             <select
               value={formData.timezone}
+              disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none"
             >
@@ -1650,6 +2213,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
               type="checkbox"
               id="all-day"
               checked={formData.all_day}
+              disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, all_day: e.target.checked })}
               className="rounded bg-[var(--color-bg-secondary)] border-gray-600"
             />
@@ -1660,6 +2224,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
             <label className="block text-sm font-medium text-gray-400 mb-2">Meeting Location</label>
             <select
               value={formData.location_type}
+              disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, location_type: e.target.value, meeting_url: '' })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
             >
@@ -1677,6 +2242,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
                 <input
                   type="url"
                   value={formData.meeting_url}
+                  disabled={readOnly}
                   onChange={(e) => setFormData({ ...formData, meeting_url: e.target.value })}
                   className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-white focus:border-purple-500 focus:outline-none text-sm"
                   placeholder="Meeting link will be generated"
@@ -1685,7 +2251,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
                 <button
                   type="button"
                   onClick={() => generateMeetingLink(formData.location_type)}
-                  disabled={generatingLink}
+                  disabled={generatingLink || readOnly}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-sm font-medium whitespace-nowrap"
                 >
                   {generatingLink ? '...' : 'Generate'}
@@ -1706,6 +2272,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
               <input
                 type="tel"
                 value={formData.location}
+                disabled={readOnly}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                 placeholder="Enter phone number"
@@ -1722,6 +2289,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
               <input
                 type="text"
                 value={formData.location}
+                disabled={readOnly}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                 placeholder="Enter address, link, or details"
@@ -1748,7 +2316,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
 
         <div className="p-4 border-t border-[var(--color-border)] flex justify-between">
           <div>
-            {event && (
+            {event && !readOnly && allowDelete && (
               <button
                 type="button"
                 onClick={() => onDelete(event.id)}
@@ -1765,14 +2333,16 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose }) => {
               onClick={onClose}
               className="px-4 py-2 bg-[var(--color-hover)] hover:bg-[var(--color-bg-tertiary)] text-white rounded text-sm font-medium"
             >
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </button>
-            <button
-              onClick={handleSubmit}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium"
-            >
-              {event ? 'Update' : 'Create'}
-            </button>
+            {!readOnly ? (
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium"
+              >
+                {event ? 'Update' : 'Create'}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

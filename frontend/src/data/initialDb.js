@@ -24,6 +24,8 @@ export const ICON_LIBRARY = {
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays
 };
 
+const TM = '\u2122';
+
 // --- 1. MOCK DATABASE (STATEFUL) ---
 export const initialDb = {
   global_variables: [
@@ -116,50 +118,51 @@ export const INITIAL_MENU_STRUCTURE = [
   {
     category: "Main",
     items: [
-      { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard", type: "internal", visible: true, iconColor: "#9ca3af" }
+      { id: "aio-agents", label: "AIO Agents\u2122", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "dashboard", label: "AIO Dashboard", icon: "LayoutDashboard", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-systems", label: "AIO Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full AIO system stack and launch each workspace inside the embedded app frame." }
     ]
   },
   {
     category: "Systems",
     items: [
-      { id: "aio-agents", label: "AIO Agents™", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-bots", label: "AIO Bots™", icon: "Bot", type: "iframe", url: "https://aiobots.us", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-flows", label: "AIO Flows™", icon: "Workflow", type: "iframe", url: "https://work.aioflows.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-hide", label: "AIO H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-livebots", label: "AIO LiveBots™", icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-sniper", label: "AIO Sniper™", icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" }
+      { id: "aio-bots", label: `AIO Bots${TM}`, icon: "Bot", type: "iframe", url: "https://go.aiobots.us", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-flows", label: `AIO Flows${TM}`, icon: "Workflow", type: "iframe", url: "https://work.aioflows.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-livebots", label: `AIO LiveBots${TM}`, icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-sniper", label: `AIO Sniper${TM}`, icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
     category: "Operations",
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "chat", label: "Chat", icon: "MessageSquare", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "chat", label: "Comms", icon: "MessageSquare", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "pipelines", label: "Pipelines", icon: "GitMerge", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "orders", label: "Orders", icon: "ShoppingCart", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "forms", label: "Forms", icon: "FileText", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "flows", label: "Flows", icon: "Zap", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "forms", label: "Forms", icon: "FileText", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "orders", label: "Orders", icon: "ShoppingCart", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "pipelines", label: "Pipelines", icon: "GitMerge", type: "internal", visible: true, iconColor: "#9ca3af" },
     ]
   },
   {
     category: "Growth",
     items: [
-      { id: "marketplace", label: "MarketPlace", icon: "Globe", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "postly-ai", label: "Postly AI", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" },
+      { id: "marketplace", label: "MarketPlace", icon: "Globe", type: "internal", visible: false, iconColor: "#9ca3af" },
+      { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-market", label: "AIO Market", icon: "Globe", type: "iframe", url: "https://aiomarket.us", visible: false, iconColor: "#9ca3af" },
       { id: "sms-voip", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
     category: "Automations",
-    items: [
-      { id: "integrations", label: "Integrations", icon: "Link", type: "internal", visible: true, iconColor: "#9ca3af" }
-    ]
+    items: []
   },
   {
     category: "Admin",
     items: [
+      { id: "integrations", label: "Integrations", icon: "Link", type: "internal", visible: true, iconColor: "#9ca3af" },
       {
         id: "settings",
         label: "Settings",
@@ -168,9 +171,10 @@ export const INITIAL_MENU_STRUCTURE = [
         visible: true,
         iconColor: "#9ca3af",
         children: [
-          { id: "set-personal", label: "Personal", type: "internal" },
           { id: "set-billing", label: "Billing", type: "internal" },
+          { id: "set-personal", label: "Personal", type: "internal" },
           { id: "set-security", label: "Security", type: "internal" },
+          { id: "set-workspace", label: "Workspace", type: "internal" },
           { id: "set-whitelabel", label: "White Label", type: "internal" },
           { id: "set-vars", label: "Variables", type: "internal" }
         ]
@@ -197,3 +201,4 @@ export const INITIAL_PIPELINE = {
 };
 
 // Already exported as named exports above - no need to re-export
+

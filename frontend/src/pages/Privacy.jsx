@@ -10,7 +10,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mb-4">1. Introduction</h2>
             <p>
-              AIO Agency ("we" or "us" or "our") operates the AIO Agency website. This page informs you of our policies regarding 
+              AIO CRM ("we" or "us" or "our") operates the AIO CRM website. This page informs you of our policies regarding 
               the collection, use, and disclosure of personal data when you use our Service and the choices you have associated with that data.
             </p>
           </section>
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mb-4">3. Use of Data</h2>
             <p>
-              AIO Agency uses the collected data for various purposes:
+              AIO CRM uses the collected data for various purposes:
             </p>
             <ul className="list-disc list-inside space-y-2">
               <li>To provide and maintain our Service</li>

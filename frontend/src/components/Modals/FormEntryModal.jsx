@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, Save } from 'lucide-react';
-import { mockSupabase } from '../../services/mockSupabase';
+import { processFormSubmission } from '../../services/formProcessor';
 
 const FormEntryModal = ({ form, onClose, onSuccess }) => {
     const [formData, setFormData] = useState({});
@@ -12,21 +12,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
         setSubmitting(true);
 
         try {
-            // Mock submission to cms_tables based on form name/slug
-            // In a real app, this would use the form's table_id or similar
-            const formSlug = form.name.toLowerCase().replace(/\s+/g, '_');
-
-            const payload = {
-                ...formData,
-                submitted_at: new Date().toISOString(),
-                form_id: form.id
-            };
-
-            await mockSupabase.from('cms_tables').insert(payload); // Mocking the insert to a dynamic table
-
-            // Also strictly add to the main submissions table if it exists
-            // For now, we simulate success
-
+            await processFormSubmission(form.id, formData);
             if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
@@ -51,7 +37,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                 return (
                     <textarea
                         required={field.required}
-                        onChange={(e) => handleChange(field.label, e.target.value)}
+                        onChange={(e) => handleChange(field.name || field.label, e.target.value)}
                         className={commonClasses}
                         placeholder={field.placeholder}
                         rows={4}
@@ -61,7 +47,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                 return (
                     <select
                         required={field.required}
-                        onChange={(e) => handleChange(field.label, e.target.value)}
+                        onChange={(e) => handleChange(field.name || field.label, e.target.value)}
                         className={commonClasses}
                     >
                         <option value="">Select...</option>
@@ -77,7 +63,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                                     type="radio"
                                     name={field.id}
                                     value={opt}
-                                    onChange={(e) => handleChange(field.label, e.target.value)}
+                                    onChange={(e) => handleChange(field.name || field.label, e.target.value)}
                                     className="text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
                                 />
                                 <span className="text-[var(--color-text-primary)] text-sm">{opt}</span>
@@ -90,7 +76,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input
                             type="checkbox"
-                            onChange={(e) => handleChange(field.label, e.target.checked)}
+                            onChange={(e) => handleChange(field.name || field.label, e.target.checked)}
                             className="text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
                         />
                         <span className="text-[var(--color-text-primary)] text-sm">{field.label}</span>
@@ -103,7 +89,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                     <input
                         type={field.type}
                         required={field.required}
-                        onChange={(e) => handleChange(field.label, e.target.value)}
+                        onChange={(e) => handleChange(field.name || field.label, e.target.value)}
                         className={commonClasses}
                         placeholder={field.placeholder}
                     />

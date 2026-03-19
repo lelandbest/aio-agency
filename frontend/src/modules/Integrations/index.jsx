@@ -5,8 +5,8 @@ import ActiveIntegrations from './pages/ActiveIntegrations';
  * Integrations Module
  * Main entry point for the Integrations module
  */
-export const Integrations = () => {
-  return <ActiveIntegrations />;
+export const Integrations = ({ initialCategory }) => {
+  return <ActiveIntegrations initialCategory={initialCategory} />;
 };
 
 export default Integrations;

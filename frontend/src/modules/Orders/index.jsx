@@ -25,6 +25,7 @@ const OrdersModule = () => {
       <ModuleHeader
         title="Orders"
         titleIcon={ShoppingCart}
+        showTitle={false}
         statusBadge={{
           label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
           color: 'info'

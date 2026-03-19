@@ -4,6 +4,7 @@ import { useTheme } from '../lib/ThemeContext';
 import {
     Menu, X, ChevronRight, ExternalLink, HelpCircle
 } from 'lucide-react';
+import { normalizeDisplayText } from '../utils/text';
 
 /**
  * Sidebar Component
@@ -12,6 +13,10 @@ import {
 const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMobileOpen, menuStructure, iconMap }) => {
     const [expandedGroup, setExpandedGroup] = useState(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market'];
+    const sortByLabel = (items = []) => [...items].sort((a, b) =>
+        normalizeDisplayText(a.label || '').localeCompare(normalizeDisplayText(b.label || ''))
+    );
 
     return (
         <>
@@ -35,10 +40,10 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                     <div className={`flex items-center gap-3 ${isCollapsed ? 'hidden' : ''}`}>
                         <img
                             src="/aio-button-192px.png"
-                            alt="AIO Agency"
+                            alt="AIO CRM"
                             className="w-8 h-8 rounded-lg"
                         />
-                        <span className="font-bold text-[var(--color-text-primary)] text-sm">AIO Agency</span>
+                        <span className="font-bold text-[var(--color-text-primary)] text-sm">AIO CRM</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -62,7 +67,19 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
 
                 {/* Menu Items */}
                 <nav className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-[var(--color-border)] scrollbar-track-transparent">
-                    {menuStructure.map((category, idx) => (
+                    {menuStructure.map((category, idx) => {
+                        const visibleItems = category.category === 'Systems'
+                            ? []
+                            : category.items.filter(item => item.visible !== false);
+                        const orderedItems = category.category === 'Main'
+                            ? visibleItems
+                            : sortByLabel(visibleItems);
+
+                        if (!visibleItems.length) {
+                            return null;
+                        }
+
+                        return (
                         <div key={idx} className="mb-6">
                             {!isCollapsed && (
                                 <h3 className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider px-3 mb-3">
@@ -70,7 +87,9 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                 </h3>
                             )}
                             <div className="space-y-1">
-                                {category.items.map(item => {
+                                {orderedItems.map(item => {
+                                    const isSystemsLauncher = item.id === 'aio-systems';
+                                    const isItemActive = activeModule === item.id || (isSystemsLauncher && systemsLauncherIds.includes(activeModule));
                                     if (item.type === 'group') {
                                         return (
                                             <div key={item.id}>
@@ -84,7 +103,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                 >
                                                     <span className={`flex items-center ${isCollapsed ? '' : 'gap-2'}`}>
                                                         {iconMap[item.icon] && React.createElement(iconMap[item.icon], { size: 16 })}
-                                                        {!isCollapsed && item.label}
+                                                        {!isCollapsed && normalizeDisplayText(item.label)}
                                                     </span>
                                                     {!isCollapsed && (
                                                         <ChevronRight
@@ -95,7 +114,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                 </button>
                                                 {!isCollapsed && expandedGroup === item.id && (
                                                     <div className="ml-4 mt-1 space-y-1 bg-[var(--color-bg-secondary)] rounded p-1">
-                                                        {item.children?.map(child => {
+                                                        {sortByLabel(item.children).map(child => {
                                                             // Handle iframe links - embed in app
                                                             if (child.type === 'iframe' && child.url) {
                                                                 return (
@@ -110,7 +129,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                                             : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
                                                                             }`}
                                                                     >
-                                                                        {child.label}
+                                                                        {normalizeDisplayText(child.label)}
                                                                     </button>
                                                                 );
                                                             }
@@ -125,7 +144,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                                         rel="noopener noreferrer"
                                                                         className="w-full text-left px-3 py-2 text-xs rounded transition text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] flex items-center justify-between group"
                                                                     >
-                                                                        <span>{child.label}</span>
+                                                                        <span>{normalizeDisplayText(child.label)}</span>
                                                                         <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition" />
                                                                     </a>
                                                                 );
@@ -144,7 +163,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                                         : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
                                                                         }`}
                                                                 >
-                                                                    {child.label}
+                                                                    {normalizeDisplayText(child.label)}
                                                                 </button>
                                                             );
                                                         })}
@@ -189,20 +208,20 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                             className={`w-full flex items-center rounded transition font-bold ${isCollapsed
                                                 ? 'px-2 py-2 justify-center'
                                                 : 'px-3 py-2 text-sm gap-2'
-                                                } ${activeModule === item.id
+                                                } ${isItemActive
                                                     ? 'bg-[var(--color-primary)] text-white'
                                                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
                                                 }`}
                                             title={isCollapsed ? item.label : ''}
                                         >
                                             {iconMap[item.icon] && React.createElement(iconMap[item.icon], { size: 16 })}
-                                            {!isCollapsed && item.label}
+                                            {!isCollapsed && normalizeDisplayText(item.label)}
                                         </button>
                                     );
                                 })}
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </nav>
 
                 {/* Help Docs Link */}

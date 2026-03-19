@@ -248,6 +248,7 @@ const PipelineModule = () => {
       <ModuleHeader
         title="Pipeline"
         titleIcon={GitMerge}
+        showTitle={false}
         showActions={true}
         actions={[
           {

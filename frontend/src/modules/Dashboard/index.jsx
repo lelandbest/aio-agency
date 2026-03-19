@@ -288,6 +288,7 @@ const DashboardModule = () => {
       <ModuleHeader
         title="Dashboard"
         titleIcon={Activity}
+        showTitle={false}
         actions={[
           {
             label: 'Export',

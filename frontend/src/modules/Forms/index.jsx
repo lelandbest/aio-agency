@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { mockSupabase } from '../../services/mockSupabase';
+import {
+  createFormApi,
+  createFormFolderApi,
+  deleteFormApi,
+  getCmsTablesApi,
+  getFormFoldersApi,
+  getFormsApi,
+  updateFormApi,
+  updateFormFolderApi
+} from '../../services/backendApi';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FolderTable from '../../components/FolderTable';
@@ -17,6 +26,16 @@ import {
 import CMSView from '../../components/CMS/CMSView';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import AIAssistButton from '../../components/AIAssistButton';
+
+const createFieldName = (label, fallback = 'field') => {
+  const base = (label || fallback)
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return base || fallback;
+};
 
 /**
  * FormBuilderModule
@@ -36,6 +55,10 @@ const FormBuilderModule = () => {
   // CMS Data Tab State
   const [showFormEntry, setShowFormEntry] = useState(false);
   const [entryForm, setEntryForm] = useState(null);
+  const [cmsTables, setCmsTables] = useState([]);
+  const [selectedCmsTable, setSelectedCmsTable] = useState(null);
+  const [cmsTableData, setCmsTableData] = useState([]);
+  const [cmsDataLoading, setCmsDataLoading] = useState(false);
 
   const FORM_TOOLS = [
     {
@@ -99,13 +122,23 @@ const FormBuilderModule = () => {
   }, []);
 
   const fetchFolders = async () => {
-    const { data } = await mockSupabase.from('form_folders').select();
-    if (data) setFolders(data);
+    try {
+      const data = await getFormFoldersApi();
+      setFolders(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading form folders:', error);
+      setFolders([]);
+    }
   };
 
   const fetchCmsTables = async () => {
-    const { data } = await mockSupabase.from('cms_tables').select();
-    if (data) setCmsTables(data);
+    try {
+      const data = await getCmsTablesApi();
+      setCmsTables(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading CMS tables:', error);
+      setCmsTables([]);
+    }
   };
 
   const loadCmsTableData = async (table) => {
@@ -126,8 +159,13 @@ const FormBuilderModule = () => {
 
   const fetchForms = async () => {
     setLoading(true);
-    const { data } = await mockSupabase.from('forms').select();
-    if (data) setForms(data);
+    try {
+      const data = await getFormsApi();
+      setForms(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading forms:', error);
+      setForms([]);
+    }
     setLoading(false);
   };
 
@@ -144,35 +182,57 @@ const FormBuilderModule = () => {
       creator: "AIO Flow™",
       triggers: null,
       automation: null,
+      settings: {
+        create_contact: true,
+        update_contact: true,
+        webhook_url: '',
+        notification_email: '',
+        redirect_url: '',
+        thank_you_message: 'Thanks, we received your submission.'
+      },
+      slug: `form_${Date.now()}`,
       schema: []
     };
-    const { data } = await mockSupabase.from('forms').insert([newForm]);
-    if (data) {
-      setForms(prev => [...prev, ...data]);
-      setCurrentForm(data[0]);
-      setView('editor');
+    try {
+      const data = await createFormApi(newForm);
+      if (data) {
+        setForms(prev => [data, ...prev]);
+        setCurrentForm(data);
+        setView('editor');
+      }
+    } catch (error) {
+      console.error('Error creating form:', error);
     }
   };
 
   const handleCreateFolder = async () => {
     const name = prompt("Enter folder name:", "New Folder");
     if (name) {
-      const newFolder = {
-        name: name,
-        user_id: 1, // Mock user ID
-        created_at: new Date().toISOString(),
-        expanded: true
-      };
-      const { data } = await mockSupabase.from('form_folders').insert([newFolder]);
-      if (data) {
-        setFolders(prev => [...prev, ...data]);
+      try {
+        const data = await createFormFolderApi({
+          name,
+          user_id: '1',
+          created_at: new Date().toISOString(),
+          expanded: true
+        });
+        if (data) {
+          setFolders(prev => [...prev, data]);
+        }
+      } catch (error) {
+        console.error('Error creating folder:', error);
       }
     }
   };
 
   const handleRenameFolder = async (folderId, newName) => {
-    // Mock rename functionality
-    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
+    try {
+      const folder = await updateFormFolderApi(folderId, { name: newName });
+      if (folder) {
+        setFolders(prev => prev.map((item) => (item.id === folderId ? folder : item)));
+      }
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+    }
   };
 
   const handleOpenFormEntry = (form) => {
@@ -182,13 +242,17 @@ const FormBuilderModule = () => {
 
   const handleOpenPublicLink = (form) => {
     // In a real app this opens the public URL
-    window.open(`/forms/public/${form.id}`, '_blank');
+    window.open(`/form/${form.slug || form.id}`, '_blank');
   };
 
   const toggleFolder = (folderId) => {
     setFolders(prev => prev.map(f =>
       f.id === folderId ? { ...f, expanded: !f.expanded } : f
     ));
+    const currentFolder = folders.find((folder) => folder.id === folderId);
+    updateFormFolderApi(folderId, { expanded: !(currentFolder?.expanded) }).catch((error) => {
+      console.error('Error updating folder visibility:', error);
+    });
   };
 
   const toggleFormSelection = (formId) => {
@@ -201,8 +265,13 @@ const FormBuilderModule = () => {
 
   const deleteForm = async (formId) => {
     if (confirm('Are you sure you want to delete this form?')) {
-      await mockSupabase.from('forms').delete().eq('id', formId);
-      fetchForms();
+      try {
+        await deleteFormApi(formId);
+        fetchForms();
+        fetchCmsTables();
+      } catch (error) {
+        console.error('Error deleting form:', error);
+      }
     }
   };
 
@@ -210,6 +279,7 @@ const FormBuilderModule = () => {
     if (!currentForm) return;
     const newField = {
       id: `field_${Date.now()}`,
+      name: `${createFieldName(tool.defaultLabel, tool.type)}_${(currentForm.schema?.length || 0) + 1}`,
       type: tool.type,
       label: tool.defaultLabel,
       placeholder: '',
@@ -230,7 +300,9 @@ const FormBuilderModule = () => {
       maxLength: '',
       pattern: '',
       customValidation: '',
-      errorMessage: ''
+      errorMessage: '',
+      map_to_contact: tool.type === 'email' ? 'email' : tool.type === 'tel' ? 'phone' : null,
+      is_identifier: tool.type === 'email'
     };
 
     const updatedForm = {
@@ -247,6 +319,9 @@ const FormBuilderModule = () => {
     const updatedSchema = currentForm.schema.map(f => {
       if (f.id === fieldId) {
         const updated = { ...f, [key]: value };
+        if (key === 'label' && !f.name) {
+          updated.name = createFieldName(value, f.type);
+        }
         if (key === 'options' && typeof value === 'string') {
           updated.options = value.split(',').map(o => o.trim());
         }
@@ -267,12 +342,27 @@ const FormBuilderModule = () => {
 
   const handleSaveForm = async () => {
     if (!currentForm) return;
-    await mockSupabase.from('forms').update({
-      schema: currentForm.schema,
-      name: currentForm.name,
-      last_modified_at: new Date().toISOString()
-    }).eq('id', currentForm.id);
-    fetchForms();
+    try {
+      const savedForm = await updateFormApi(currentForm.id, {
+        schema: currentForm.schema.map((field) => ({
+          ...field,
+          name: field.name || createFieldName(field.label, field.type)
+        })),
+        name: currentForm.name,
+        folder_id: currentForm.folder_id,
+        slug: currentForm.slug || `form_${Date.now()}`,
+        settings: currentForm.settings,
+        status: currentForm.status,
+        is_active: currentForm.is_active
+      });
+      if (savedForm) {
+        setCurrentForm(savedForm);
+      }
+      fetchForms();
+      fetchCmsTables();
+    } catch (error) {
+      console.error('Error saving form:', error);
+    }
   };
 
   const handleDragStart = (e, index) => {
@@ -692,3 +782,9 @@ FormBuilderModule.propTypes = {
 };
 
 export default FormBuilderModule;
+
+
+
+
+
+

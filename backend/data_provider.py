@@ -1,0 +1,4826 @@
+import json
+import os
+import sqlite3
+from abc import ABC, abstractmethod
+from contextvars import ContextVar, Token
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+from calendar_adapters import get_calendar_adapter, get_calendar_provider_catalog
+from mail_adapters import get_mail_adapter, get_provider_catalog
+
+DEFAULT_TENANT_ID = "tenant-primary"
+CURRENT_TENANT_ID: ContextVar[str | None] = ContextVar("current_tenant_id", default=None)
+
+
+def utcnow() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def parse_utc(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def json_loads(value: str | None, default: Any) -> Any:
+    if not value:
+        return default
+    return json.loads(value)
+
+
+def json_dumps(value: Any) -> str:
+    return json.dumps(value or {})
+
+
+def slugify(value: str) -> str:
+    normalized = "".join(char.lower() if char.isalnum() else "-" for char in value.strip())
+    compact = "-".join(part for part in normalized.split("-") if part)
+    return compact or "thread"
+
+
+def field_key(field: dict[str, Any]) -> str:
+    if field.get("name"):
+        return str(field["name"])
+    if field.get("label"):
+        return slugify(str(field["label"])).replace("-", "_")
+    if field.get("id"):
+        return str(field["id"])
+    return f"field_{unique_suffix()}"
+
+
+def unique_suffix() -> str:
+    return uuid4().hex[:10]
+
+
+def set_request_tenant_id(tenant_id: str | None) -> Token:
+    return CURRENT_TENANT_ID.set(tenant_id or DEFAULT_TENANT_ID)
+
+
+def reset_request_tenant(token: Token) -> None:
+    CURRENT_TENANT_ID.reset(token)
+
+
+def get_request_tenant_id() -> str:
+    return CURRENT_TENANT_ID.get() or DEFAULT_TENANT_ID
+
+
+def source_config_value(source: dict[str, Any], key: str, default: Any) -> Any:
+    config = source.get("config") or {}
+    return config.get(key, default)
+
+
+def disconnected_provider_config(provider: str | None, config: dict[str, Any] | None = None) -> dict[str, Any]:
+    next_config = dict(config or {})
+    for key in ["refresh_token", "access_token", "last_error", "connected_identity", "connected_calendar"]:
+        next_config.pop(key, None)
+    if provider == "microsoft365-calendar":
+        next_config.pop("user_id", None)
+        next_config.pop("calendar_id", None)
+    return next_config
+
+
+def events_overlap(start_a: str | None, end_a: str | None, start_b: str | None, end_b: str | None) -> bool:
+    parsed_start_a = parse_utc(start_a)
+    parsed_end_a = parse_utc(end_a)
+    parsed_start_b = parse_utc(start_b)
+    parsed_end_b = parse_utc(end_b)
+    if not parsed_start_a or not parsed_end_a or not parsed_start_b or not parsed_end_b:
+        return False
+    return parsed_start_a < parsed_end_b and parsed_end_a > parsed_start_b
+
+
+PIPELINE_STAGES = ["New", "Qualified", "Discovery", "Negotiating", "Closed Won"]
+
+
+def next_pipeline_stage(current: str | None) -> str:
+    if current not in PIPELINE_STAGES:
+        return PIPELINE_STAGES[0]
+    index = PIPELINE_STAGES.index(current)
+    return PIPELINE_STAGES[min(index + 1, len(PIPELINE_STAGES) - 1)]
+
+
+def next_meeting_slot() -> str:
+    return (datetime.now(UTC) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0).isoformat()
+
+
+def default_queue_definitions() -> list[dict[str, Any]]:
+    return [
+        {"id": "now", "label": "Now"},
+        {"id": "needs-reply", "label": "Needs Reply"},
+        {"id": "waiting", "label": "Waiting"},
+        {"id": "hot-leads", "label": "Hot Leads"},
+        {"id": "at-risk", "label": "At Risk"},
+        {"id": "scheduled", "label": "Scheduled Follow-ups"},
+        {"id": "automated", "label": "Automated"},
+        {"id": "closed", "label": "Closed"},
+    ]
+
+
+class BaseProvider(ABC):
+    provider_name = "base"
+
+    @abstractmethod
+    def health(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_contacts(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_contact(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_contact(self, contact_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_companies(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_tags(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_form_by_id(self, form_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_form_folders(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_form_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_form_folder(self, folder_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_forms(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_form(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_form(self, form_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_form(self, form_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_cms_tables(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_cms_table_data(self, slug: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def submit_form(self, form_id: str, form_data: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_mailboxes(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_mailbox(
+        self,
+        name: str,
+        address: str,
+        provider: str = "local-stub",
+        inbound_enabled: bool = True,
+        outbound_enabled: bool = True,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_mailbox(
+        self,
+        mailbox_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_mailbox(self, mailbox_id: str, fallback_mailbox_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def disconnect_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_mail_events(self, mailbox_id: str | None = None, thread_id: str | None = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendar_events(self, thread_id: str | None = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_calendar_event(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_calendar_event(self, event_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_calendar_event(self, event_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendars(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_booking_types(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_booking_type(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_booking_type(self, booking_type_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_booking_type(self, booking_type_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendar_sources(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_calendar_provider_catalog(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_calendar_source(
+        self,
+        name: str,
+        provider: str = "local-stub",
+        sync_direction: str = "two-way",
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_calendar_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_calendar_source(self, source_id: str, fallback_source_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def disconnect_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def test_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sync_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def push_calendar_event(self, event_id: str, source_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def import_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def reconcile_calendar_event(self, event_id: str, strategy: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_mail_provider_catalog(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def test_mailbox_connection(self, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sync_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ingest_mail_message(
+        self,
+        mailbox_id: str,
+        subject: str,
+        body: str,
+        sender_name: str,
+        sender_email: str,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_thread_via_mailbox(
+        self,
+        thread_id: str,
+        body: str,
+        mailbox_id: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str | None = None,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_comms_snapshot(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_thread(
+        self,
+        subject: str,
+        channel_type: str = "email",
+        contact_id: str | None = None,
+        company_id: str | None = None,
+        body: str = "",
+        status: str = "new",
+        assignee: str = "ECHO",
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def open_thread_for_contact(
+        self,
+        contact_id: str,
+        channel_type: str = "email",
+        subject: str | None = None,
+        body: str = "",
+        force_new: bool = False,
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_thread_message(
+        self,
+        thread_id: str,
+        body: str,
+        channel_type: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str = "mission@aiocrm.local",
+        recipients: list[str] | None = None,
+        direction: str = "outbound",
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_thread_status(self, thread_id: str, status: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def assign_thread(self, thread_id: str, assignee_name: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_thread_mailbox(self, thread_id: str, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def _mailbox_health_summary(self, mailbox: dict[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
+        latest_event = events[0] if events else None
+        latest_test = next((event for event in events if event["event_type"] == "mailbox.tested"), None)
+        latest_failure = next((event for event in events if event["event_type"] == "mail.failed"), None)
+        synced_at = parse_utc(mailbox.get("last_synced_at"))
+        state = "healthy"
+        label = "Healthy"
+        detail = "Inbound and outbound flows look ready."
+
+        if mailbox.get("status") in {"needs_config", "error"}:
+            state = "attention"
+            label = "Needs Config"
+            detail = latest_test.get("payload", {}).get("message") if latest_test else "Mailbox configuration needs attention."
+        elif not mailbox.get("inbound_enabled") and not mailbox.get("outbound_enabled"):
+            state = "limited"
+            label = "Paused"
+            detail = "Inbound and outbound are disabled."
+        elif not mailbox.get("inbound_enabled") or not mailbox.get("outbound_enabled"):
+            state = "limited"
+            label = "Partial"
+            detail = "Only part of this mailbox is enabled."
+        elif mailbox.get("status") == "ready":
+            state = "limited"
+            label = "Ready to Test"
+            detail = "Configuration is present, but no connection test has completed yet."
+        elif latest_failure:
+            state = "attention"
+            label = "Delivery Risk"
+            detail = latest_failure.get("payload", {}).get("message") or "A recent outbound delivery failed."
+        elif synced_at and (datetime.now(UTC) - synced_at).total_seconds() > 172800:
+            state = "attention"
+            label = "Sync Stale"
+            detail = "No mailbox sync has completed in the last 48 hours."
+        elif latest_test:
+            detail = latest_test.get("payload", {}).get("message") or detail
+
+        return {
+            "state": state,
+            "label": label,
+            "detail": detail,
+            "last_event_at": latest_event.get("created_at") if latest_event else None,
+            "last_tested_at": latest_test.get("created_at") if latest_test else None,
+        }
+
+    def _summarize_mailboxes(
+        self,
+        mailboxes: list[dict[str, Any]],
+        threads: list[dict[str, Any]],
+        events: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        queue_ids = [queue["id"] for queue in default_queue_definitions()]
+        threads_by_mailbox: dict[str, list[dict[str, Any]]] = {}
+        events_by_mailbox: dict[str, list[dict[str, Any]]] = {}
+
+        for thread in threads:
+            threads_by_mailbox.setdefault(thread["mailbox_id"], []).append(thread)
+        for event in events:
+            events_by_mailbox.setdefault(event["mailbox_id"], []).append(event)
+
+        summaries: list[dict[str, Any]] = []
+        for mailbox in sorted(mailboxes, key=lambda item: (item.get("name") or "").lower()):
+            mailbox_threads = threads_by_mailbox.get(mailbox["id"], [])
+            queue_counts = {
+                queue_id: sum(1 for thread in mailbox_threads if queue_id in (thread.get("queueIds") or []))
+                for queue_id in queue_ids
+            }
+            stats = {
+                "thread_count": len(mailbox_threads),
+                "active_count": sum(1 for thread in mailbox_threads if thread.get("status") != "closed"),
+                "new_count": sum(1 for thread in mailbox_threads if thread.get("status") == "new"),
+                "action_required_count": queue_counts.get("now", 0),
+                "needs_reply_count": queue_counts.get("needs-reply", 0),
+                "waiting_count": queue_counts.get("waiting", 0),
+                "hot_lead_count": queue_counts.get("hot-leads", 0),
+                "at_risk_count": queue_counts.get("at-risk", 0),
+                "scheduled_count": queue_counts.get("scheduled", 0),
+                "automated_count": queue_counts.get("automated", 0),
+                "closed_count": queue_counts.get("closed", 0),
+            }
+            latest_thread = max(mailbox_threads, key=lambda item: item.get("last_activity_at") or "", default=None)
+            summaries.append(
+                self.mail_adapter.describe_mailbox(
+                    {
+                        **mailbox,
+                        "stats": stats,
+                        "queue_counts": queue_counts,
+                        "health": self._mailbox_health_summary(mailbox, events_by_mailbox.get(mailbox["id"], [])),
+                        "latest_thread_at": latest_thread.get("last_activity_at") if latest_thread else None,
+                    }
+                )
+            )
+        return summaries
+
+    def _summarize_calendar_sources(
+        self,
+        sources: list[dict[str, Any]],
+        events: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        summaries: list[dict[str, Any]] = []
+        for source in sorted(sources, key=lambda item: (item.get("name") or "").lower()):
+            source_events = [event for event in events if (event.get("source_id") or "calendar-source-local") == source["id"]]
+            synced_count = sum(1 for event in source_events if event.get("sync_status") in {"synced", "local"})
+            imported_count = sum(1 for event in source_events if event.get("sync_status") == "imported")
+            conflict_count = sum(1 for event in source_events if event.get("conflict_state") == "review")
+            authority_mode = source_config_value(source, "authority_mode", "local-first")
+            import_policy = source_config_value(source, "import_policy", "review")
+            summaries.append(
+                {
+                    **get_calendar_adapter(source.get("provider")).describe_source(source),
+                    "authority_mode": authority_mode,
+                    "import_policy": import_policy,
+                    "event_counts": {
+                        "total": len(source_events),
+                        "synced": synced_count,
+                        "imported": imported_count,
+                        "conflicts": conflict_count,
+                        "pending": max(len(source_events) - synced_count, 0),
+                    },
+                    "health": {
+                        "state": "healthy" if source.get("status") == "connected" else "attention" if source.get("status") == "needs_config" else "limited",
+                        "label": "Connected" if source.get("status") == "connected" else "Needs Config" if source.get("status") == "needs_config" else "Ready to Test",
+                        "detail": (
+                            f"Authority {authority_mode}. Import policy {import_policy}. {conflict_count} conflicts awaiting review."
+                            if conflict_count
+                            else f"Authority {authority_mode}. Import policy {import_policy}. Calendar source is ready for export."
+                            if source.get("status") == "connected"
+                            else "Complete configuration and run a test."
+                            if source.get("status") == "needs_config"
+                            else f"Authority {authority_mode}. Import policy {import_policy}. Configuration exists but has not been tested yet."
+                        ),
+                    },
+                }
+            )
+        return summaries
+
+    def _calendar_import_metadata(
+        self,
+        source: dict[str, Any],
+        imported_event: dict[str, Any],
+        existing_events: list[dict[str, Any]],
+        *,
+        event_id: str | None = None,
+    ) -> dict[str, Any]:
+        authority_mode = source_config_value(source, "authority_mode", "local-first")
+        import_policy = source_config_value(source, "import_policy", "review")
+        has_overlap = any(
+            candidate.get("id") != event_id
+            and candidate.get("status") not in {"cancelled", "completed"}
+            and events_overlap(
+                imported_event.get("start_time"),
+                imported_event.get("end_time"),
+                candidate.get("start_time"),
+                candidate.get("end_time"),
+            )
+            for candidate in existing_events
+        )
+        if authority_mode == "mirror":
+            return {
+                "authority_mode": authority_mode,
+                "conflict_state": "mirrored",
+                "sync_status": "imported",
+                "sync_note": "Imported as a mirrored external hold; local schedule stays authoritative.",
+            }
+        if has_overlap or import_policy == "review":
+            return {
+                "authority_mode": authority_mode,
+                "conflict_state": "review",
+                "sync_status": "conflict",
+                "sync_note": "Imported event needs review before it can influence the local schedule.",
+            }
+        return {
+            "authority_mode": authority_mode,
+            "conflict_state": "clear",
+            "sync_status": "imported",
+            "sync_note": "Imported event is staged locally with no active conflicts.",
+        }
+
+    @abstractmethod
+    def summarize_thread(self, thread_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_thread_draft(self, thread_id: str, mode: str = "reply") -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def advance_thread_stage(self, thread_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def schedule_thread_meeting(self, thread_id: str, scheduled_at: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+class MockProvider(BaseProvider):
+    provider_name = "mock"
+
+    def __init__(self) -> None:
+        self.mail_adapter = get_mail_adapter(self.provider_name)
+        self.calendar_adapter = get_calendar_adapter("local-stub")
+        now = utcnow()
+        self.tags = [
+            {"id": "tag-vip", "name": "VIP", "color": "#8b5cf6", "type": "contact", "usage_count": 5, "created_at": now},
+            {"id": "tag-hot", "name": "Hot Lead", "color": "#ef4444", "type": "contact", "usage_count": 8, "created_at": now},
+            {"id": "tag-customer", "name": "Customer", "color": "#10b981", "type": "contact", "usage_count": 12, "created_at": now},
+        ]
+        self.companies = [
+            {"id": "company-techcorp", "name": "TechCorp Solutions", "industry": "Technology", "size": "51-200", "website": "https://techcorp.com", "owner": "AIO Flow"},
+            {"id": "company-finserve", "name": "FinServe Inc", "industry": "Finance", "size": "201-500", "website": "https://finserve.com", "owner": "AIO Flow"},
+            {"id": "company-edulearn", "name": "EduLearn Platform", "industry": "Education", "size": "51-200", "website": "https://edulearn.com", "owner": "Adam B."},
+        ]
+        self.contacts = [
+            {
+                "id": "contact-jenna",
+                "contact_id": "CNT-001",
+                "organization_id": "org-1",
+                "first_name": "Jenna",
+                "last_name": "Best",
+                "email": "jennalarinbest@gmail.com",
+                "phone": "+1 (555) 123-4567",
+                "company": "TechCorp Solutions",
+                "company_id": "company-techcorp",
+                "title": "Marketing Director",
+                "department": "Marketing",
+                "owner": "AIO Flow",
+                "source": "Website Form",
+                "status": "customer",
+                "lead_score": 92,
+                "quality": "hot",
+                "engagement": "high",
+                "tags": ["VIP", "Customer"],
+                "last_contacted_at": now,
+                "pipeline_stage": "Closed Won",
+                "created_at": now,
+                "updated_at": now,
+                "deleted_at": None,
+            },
+            {
+                "id": "contact-sarah",
+                "contact_id": "CNT-002",
+                "organization_id": "org-1",
+                "first_name": "Sarah",
+                "last_name": "Chen",
+                "email": "sarah.chen@finserve.com",
+                "phone": "+1 (555) 111-2222",
+                "company": "FinServe Inc",
+                "company_id": "company-finserve",
+                "title": "VP of Operations",
+                "department": "Operations",
+                "owner": "AIO Flow",
+                "source": "Conference",
+                "status": "customer",
+                "lead_score": 95,
+                "quality": "hot",
+                "engagement": "high",
+                "tags": ["VIP", "Customer"],
+                "last_contacted_at": now,
+                "pipeline_stage": "Closed Won",
+                "created_at": now,
+                "updated_at": now,
+                "deleted_at": None,
+            },
+        ]
+        self.forms = [
+            {
+                "id": "form-contact",
+                "name": "Contact Form",
+                "folder_id": "form-folder-default",
+                "slug": "contact_form",
+                "description": "Get in touch with us for any questions or inquiries",
+                "schema": [
+                    {"id": "f1", "name": "full_name", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "map_to_contact": "first_name", "is_identifier": False},
+                    {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "map_to_contact": "email", "is_identifier": True},
+                    {"id": "f3", "name": "phone", "label": "Phone Number", "type": "phone", "required": False, "placeholder": "+1 (555) 000-0000", "map_to_contact": "phone", "is_identifier": False},
+                    {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "map_to_contact": None, "is_identifier": False},
+                ],
+                "settings": {
+                    "create_contact": True,
+                    "update_contact": True,
+                    "webhook_url": "",
+                    "notification_email": "contact@aioagency.com",
+                    "redirect_url": "",
+                    "thank_you_message": "Thank you for contacting us! We'll get back to you within 24 hours.",
+                },
+                "is_active": True,
+                "responses_count": 0,
+                "last_response_at": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+        self.form_folders = [
+            {"id": "form-folder-default", "name": "My Forms", "user_id": "1", "created_at": now, "expanded": True}
+        ]
+        self.form_submissions: list[dict[str, Any]] = []
+        self.mailboxes = [
+            {"id": "mailbox-primary", "name": "Relationship HQ", "address": "mission@aiocrm.local", "provider": "local-stub", "status": "connected", "inbound_enabled": True, "outbound_enabled": True, "last_synced_at": now, "config": {"adapter": "local-stub"}},
+            {"id": "mailbox-growth", "name": "Growth Desk", "address": "growth@aiocrm.local", "provider": "local-stub", "status": "connected", "inbound_enabled": True, "outbound_enabled": True, "last_synced_at": now, "config": {"adapter": "local-stub"}},
+        ]
+        self.mail_events: list[dict[str, Any]] = []
+        self.calendar_sources = [
+            {"id": "calendar-source-local", "name": "Local Command Calendar", "provider": "local-stub", "status": "connected", "sync_direction": "two-way", "config": {"adapter": "local-stub", "authority_mode": "local-first", "import_policy": "review"}, "last_synced_at": now},
+            {"id": "calendar-source-google", "name": "Google Calendar", "provider": "google-calendar-oauth", "status": "needs_config", "sync_direction": "two-way", "config": {"authority_mode": "local-first", "import_policy": "review"}, "last_synced_at": None},
+        ]
+        self.calendars = [
+            {"id": "calendar-primary", "user_id": "1", "name": "AIO Calendar", "color": "#3b82f6", "is_default": True, "is_visible": True},
+            {"id": "calendar-booking", "user_id": "1", "name": "AIO Booking", "color": "#10b981", "is_default": False, "is_visible": True},
+        ]
+        self.booking_types = [
+            {"id": "booking-type-demo", "user_id": "1", "name": "Discovery Call", "slug": "discovery-call", "duration_minutes": 30, "location": "Google Meet", "description": "Introductory discovery meeting.", "color": "#10b981", "is_active": True},
+        ]
+        follow_up_start = next_meeting_slot()
+        self.calendar_events = [
+            {
+                "id": "calendar-event-emily-followup",
+                "calendar_id": "calendar-comms",
+                "source_id": "calendar-source-local",
+                "thread_id": "thread-emily-internal",
+                "contact_id": "contact-emily",
+                "company_id": "company-edulearn",
+                "title": "EduLearn conversion strategy review",
+                "description": "Internal follow-up generated from Comms scheduling.",
+                "start_time": follow_up_start,
+                "end_time": (parse_utc(follow_up_start) + timedelta(minutes=30)).isoformat(),
+                "status": "scheduled",
+                "location_type": "other",
+                "location": "Comms command room",
+                "meeting_url": "",
+                "sync_status": "local",
+                "external_event_ref": "",
+                "last_synced_at": now,
+                "authority_mode": "local-first",
+                "conflict_state": "clear",
+                "sync_note": "Created locally from the Comms workspace.",
+                "imported_at": None,
+                "source_payload": {},
+                "source": "comms",
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+        self.threads = [
+            {
+                "id": "thread-jenna-launch",
+                "mailbox_id": "mailbox-primary",
+                "channel_type": "email",
+                "subject": "Launch sequencing and executive narrative",
+                "generated_title": "Jenna wants a tighter launch story.",
+                "status": "waiting_on_us",
+                "ai_flags": {"high_intent": True, "hot_lead": True, "needs_human": True},
+                "ai_priority": "critical",
+                "priority_score": 96,
+                "owner": "ECHO",
+                "assignee": "STRIKER",
+                "contact_id": "contact-jenna",
+                "company_id": "company-techcorp",
+                "automation_state": "manual",
+                "last_activity_at": now,
+                "next_follow_up_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "thread-sarah-demo",
+                "mailbox_id": "mailbox-growth",
+                "channel_type": "email",
+                "subject": "Enterprise demo follow-up",
+                "generated_title": "Sarah is aligned on value but waiting on procurement.",
+                "status": "waiting_on_them",
+                "ai_flags": {"high_intent": True, "hot_lead": True, "follow_up_due": True},
+                "ai_priority": "high",
+                "priority_score": 84,
+                "owner": "STRIKER",
+                "assignee": "STRIKER",
+                "contact_id": "contact-sarah",
+                "company_id": "company-finserve",
+                "automation_state": "automated",
+                "last_activity_at": now,
+                "next_follow_up_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "thread-emily-internal",
+                "mailbox_id": "mailbox-primary",
+                "channel_type": "internal",
+                "subject": "Trial expansion plan",
+                "generated_title": "Internal planning around Emily’s conversion path.",
+                "status": "scheduled",
+                "ai_flags": {"follow_up_due": True},
+                "ai_priority": "medium",
+                "priority_score": 68,
+                "owner": "ALPHA",
+                "assignee": "ECHO",
+                "contact_id": "contact-emily",
+                "company_id": "company-edulearn",
+                "automation_state": "automated",
+                "last_activity_at": now,
+                "next_follow_up_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+        ]
+        self.messages = [
+            {"id": "msg-jenna-1", "thread_id": "thread-jenna-launch", "channel_type": "email", "direction": "inbound", "sender_name": "Jenna Best", "sender_email": "jennalarinbest@gmail.com", "recipients": ["mission@aiocrm.local"], "body": "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "plain_text": "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "delivery_status": "received", "created_at": now, "updated_at": now},
+            {"id": "msg-sarah-1", "thread_id": "thread-sarah-demo", "channel_type": "email", "direction": "inbound", "sender_name": "Sarah Chen", "sender_email": "sarah.chen@finserve.com", "recipients": ["growth@aiocrm.local"], "body": "This looks solid. I need to line up procurement and security review timing.", "plain_text": "This looks solid. I need to line up procurement and security review timing.", "delivery_status": "received", "created_at": now, "updated_at": now},
+            {"id": "msg-emily-1", "thread_id": "thread-emily-internal", "channel_type": "internal", "direction": "system", "sender_name": "ALPHA", "sender_email": "system@aiocrm.local", "recipients": ["Internal"], "body": "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "plain_text": "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "delivery_status": "logged", "created_at": now, "updated_at": now},
+        ]
+        self.thread_ai_briefs = {
+            "thread-jenna-launch": {"summary": "Jenna is close to approving the next phase but wants a sharper launch plan.", "disposition": "Active relationship signal", "recommended_next_step": "Send a milestone-based rollout and leadership summary.", "confidence": 0.94, "unresolved_questions": ["Confirm launch date", "Confirm approvers"], "crm_implications": ["Enterprise upsell potential"], "reasoning_cues": ["High intent signal", "Human intervention advised"]},
+            "thread-sarah-demo": {"summary": "The demo landed. Procurement timing is the only blocker.", "disposition": "Active relationship signal", "recommended_next_step": "Send a concise procurement-forward follow-up with booking option.", "confidence": 0.88, "unresolved_questions": ["Security review owner"], "crm_implications": ["Possible flagship finance account"], "reasoning_cues": ["High intent signal", "AI-assisted response is viable"]},
+            "thread-emily-internal": {"summary": "The trial is healthy but the buying trigger is still vague.", "disposition": "Active relationship signal", "recommended_next_step": "Prepare a tailored follow-up tied to active usage.", "confidence": 0.78, "unresolved_questions": ["Decision timeline"], "crm_implications": ["Could become an education playbook"], "reasoning_cues": ["Stable thread", "Follow-up due"]},
+        }
+        self.thread_actions = {
+            "thread-jenna-launch": [{"label": "Summarize"}, {"label": "Reply with AI"}, {"label": "Schedule follow-up"}],
+            "thread-sarah-demo": [{"label": "Summarize"}, {"label": "Reply with AI"}],
+            "thread-emily-internal": [{"label": "Summarize"}, {"label": "Run workflow"}],
+        }
+        self.thread_links = {
+            "thread-jenna-launch": [{"source_type": "contact", "source_id": "contact-jenna", "label": "Jenna Best"}, {"source_type": "company", "source_id": "company-techcorp", "label": "TechCorp Solutions"}],
+            "thread-sarah-demo": [{"source_type": "contact", "source_id": "contact-sarah", "label": "Sarah Chen"}, {"source_type": "company", "source_id": "company-finserve", "label": "FinServe Inc"}],
+            "thread-emily-internal": [{"source_type": "contact", "source_id": "contact-emily", "label": "Emily Watson"}, {"source_type": "company", "source_id": "company-edulearn", "label": "EduLearn Platform"}],
+        }
+
+    def health(self) -> dict[str, Any]:
+        return {"provider": self.provider_name, "status": "ready"}
+
+    def list_contacts(self) -> list[dict[str, Any]]:
+        return [contact for contact in self.contacts if not contact.get("deleted_at")]
+
+    def create_contact(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        contact = {
+            "id": payload.get("id") or f"contact-{unique_suffix()}",
+            "contact_id": payload.get("contact_id") or f"CNT-{unique_suffix().upper()}",
+            "organization_id": payload.get("organization_id") or "org-1",
+            "first_name": payload.get("first_name"),
+            "last_name": payload.get("last_name"),
+            "email": payload.get("email"),
+            "phone": payload.get("phone"),
+            "company": payload.get("company"),
+            "company_id": payload.get("company_id"),
+            "title": payload.get("title"),
+            "department": payload.get("department"),
+            "owner": payload.get("owner") or "AIO Flow",
+            "source": payload.get("source") or "Manual Entry",
+            "status": payload.get("status") or "contact",
+            "lead_score": payload.get("lead_score") or 50,
+            "quality": payload.get("quality") or "warm",
+            "engagement": payload.get("engagement") or "medium",
+            "tags": payload.get("tags") or [],
+            "last_contacted_at": payload.get("last_contacted_at"),
+            "pipeline_stage": payload.get("pipeline_stage") or "New",
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+            "deleted_at": payload.get("deleted_at"),
+            "website": payload.get("website"),
+            "dob": payload.get("dob"),
+            "owner_id": payload.get("owner_id"),
+            "address": payload.get("address") or {},
+            "custom_fields": payload.get("custom_fields") or {},
+            "opt_in_email": payload.get("opt_in_email", True),
+            "opt_in_sms": payload.get("opt_in_sms", True),
+            "opt_in_calls": payload.get("opt_in_calls", True),
+            "opt_in_flows": payload.get("opt_in_flows", True),
+            "ai_employee": payload.get("ai_employee"),
+        }
+        self.contacts.append(contact)
+        return contact
+
+    def update_contact(self, contact_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        contact = next((item for item in self.contacts if item["id"] == contact_id), None)
+        if not contact:
+            raise ValueError("Contact not found")
+        for key, value in updates.items():
+            if key in {"id", "contact_id"}:
+                continue
+            contact[key] = value
+        contact["updated_at"] = utcnow()
+        return contact
+
+    def list_companies(self) -> list[dict[str, Any]]:
+        return self.companies
+
+    def list_tags(self) -> list[dict[str, Any]]:
+        return self.tags
+
+    def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
+        return next((form for form in self.forms if form["slug"] == slug or form["id"] == slug), None)
+
+    def get_form_by_id(self, form_id: str) -> dict[str, Any] | None:
+        return next((form for form in self.forms if form["id"] == form_id), None)
+
+    def list_form_folders(self) -> list[dict[str, Any]]:
+        return sorted(self.form_folders, key=lambda folder: folder["name"].lower())
+
+    def create_form_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        folder = {
+            "id": payload.get("id") or f"form-folder-{unique_suffix()}",
+            "name": payload.get("name") or "New Folder",
+            "user_id": payload.get("user_id") or "1",
+            "created_at": payload.get("created_at") or utcnow(),
+            "expanded": payload.get("expanded", True),
+        }
+        self.form_folders.append(folder)
+        return folder
+
+    def update_form_folder(self, folder_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        folder = next((item for item in self.form_folders if item["id"] == folder_id), None)
+        if not folder:
+            raise ValueError("Form folder not found")
+        folder.update({key: value for key, value in updates.items() if value is not None})
+        return folder
+
+    def list_forms(self) -> list[dict[str, Any]]:
+        return sorted(self.forms, key=lambda form: (form.get("name") or "").lower())
+
+    def create_form(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        form = {
+            "id": payload.get("id") or f"form-{unique_suffix()}",
+            "name": payload.get("name") or "New Untitled Form",
+            "folder_id": payload.get("folder_id"),
+            "slug": payload.get("slug") or f"form_{unique_suffix()}",
+            "description": payload.get("description") or "",
+            "schema": payload.get("schema") or [],
+            "settings": payload.get("settings") or {"create_contact": True, "update_contact": True, "webhook_url": "", "notification_email": "", "redirect_url": "", "thank_you_message": "Thank you."},
+            "status": payload.get("status") or "Draft",
+            "is_active": bool(payload.get("is_active", False)),
+            "responses_count": payload.get("responses_count", 0),
+            "last_active": payload.get("last_active") or "Just now",
+            "last_modified_by": payload.get("last_modified_by") or "AIO Flow",
+            "last_modified_at": payload.get("last_modified_at") or now,
+            "creator": payload.get("creator") or "AIO Flow",
+            "triggers": payload.get("triggers"),
+            "automation": payload.get("automation"),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        self.forms.append(form)
+        return form
+
+    def update_form(self, form_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        form = next((item for item in self.forms if item["id"] == form_id), None)
+        if not form:
+            raise ValueError("Form not found")
+        for key, value in updates.items():
+            if value is not None:
+                form[key] = value
+        form["updated_at"] = utcnow()
+        form["last_modified_at"] = form["updated_at"]
+        return form
+
+    def delete_form(self, form_id: str) -> None:
+        self.forms = [form for form in self.forms if form["id"] != form_id]
+
+    def list_cms_tables(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": f"cms-{form['id']}",
+                "name": form["name"],
+                "slug": form["slug"],
+                "description": form.get("description") or "",
+                "record_count": sum(1 for submission in self.form_submissions if submission.get("form_id") == form["id"]),
+            }
+            for form in self.forms
+        ]
+
+    def list_cms_table_data(self, slug: str) -> list[dict[str, Any]]:
+        form = self.get_form_by_slug(slug)
+        if not form:
+            return []
+        rows = []
+        for submission in self.form_submissions:
+            if submission.get("form_id") != form["id"]:
+                continue
+            row = {
+                "submission_id": submission["id"],
+                "contact_id": submission.get("contact_id"),
+                "created_contact": submission.get("created_contact"),
+                "submitted_at": submission.get("submitted_at"),
+            }
+            submission_data = submission.get("submission_data") or submission.get("submission_json") or {}
+            row.update(submission_data)
+            rows.append(row)
+        return sorted(rows, key=lambda row: row.get("submitted_at") or "", reverse=True)
+
+    def submit_form(self, form_id: str, form_data: dict[str, Any]) -> dict[str, Any]:
+        form = self.get_form_by_id(form_id)
+        if not form:
+            raise ValueError("Form not found")
+
+        identifier_field = next((field for field in form["schema"] if field.get("is_identifier")), None)
+        if not identifier_field:
+            identifier_field = next((field for field in form["schema"] if field.get("map_to_contact") == "email"), None)
+        if not identifier_field:
+            identifier_field = next((field for field in form["schema"] if field.get("type") == "email"), None)
+
+        identifier_key = (identifier_field or {}).get("map_to_contact") or "email"
+        identifier_value = form_data.get(field_key(identifier_field)) if identifier_field else None
+        contact = next((item for item in self.contacts if item.get(identifier_key) == identifier_value), None)
+
+        if contact is None and form["settings"].get("create_contact"):
+            contact = {
+                "id": f"contact-{len(self.contacts) + 1}",
+                "contact_id": f"CNT-{len(self.contacts) + 1:03d}",
+                "organization_id": "org-1",
+                "source": f"Form: {form['name']}",
+                "status": "lead",
+                "lead_score": 50,
+                "quality": "warm",
+                "engagement": "medium",
+                "tags": ["Form Submission"],
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+                "deleted_at": None,
+            }
+            for field in form["schema"]:
+                mapped = field.get("map_to_contact")
+                current_value = form_data.get(field_key(field))
+                if mapped and current_value:
+                    contact[mapped] = current_value
+            self.contacts.append(contact)
+
+        if contact and form["settings"].get("update_contact"):
+            for field in form["schema"]:
+                mapped = field.get("map_to_contact")
+                current_value = form_data.get(field_key(field))
+                if mapped and current_value:
+                    contact[mapped] = current_value
+            contact["updated_at"] = utcnow()
+
+        submission = {
+            "id": f"submission-{len(self.form_submissions) + 1}",
+            "form_id": form_id,
+            "contact_id": contact["id"] if contact else None,
+            "submission_data": form_data,
+            "created_contact": bool(contact),
+            "submitted_at": utcnow(),
+        }
+        self.form_submissions.append(submission)
+        form["responses_count"] += 1
+        form["last_response_at"] = utcnow()
+        if submission["contact_id"]:
+            self.open_thread_for_contact(
+                submission["contact_id"],
+                channel_type="email",
+                subject=f"Form submission: {form['name']}",
+                body=", ".join(f"{key}: {value}" for key, value in form_data.items()),
+                force_new=True,
+            )
+        return {"success": True, "contactId": submission["contact_id"], "created": bool(contact), "submissionId": submission["id"]}
+
+    def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
+        activities: list[dict[str, Any]] = []
+        for thread in self._hydrate_threads():
+            if thread["contact_id"] != contact_id:
+                continue
+            for message in thread["messages"]:
+                direction = message.get("direction")
+                title = f"{thread['channel_type'].upper()} {'received' if direction == 'inbound' else 'sent' if direction == 'outbound' else 'logged'}"
+                activities.append(
+                    {
+                        "id": f"thread-activity-{message['id']}",
+                        "contact_id": contact_id,
+                        "user_id": "user-1",
+                        "activity_type": "email" if thread["channel_type"] == "email" else "sms" if thread["channel_type"] == "sms" else "note",
+                        "title": title,
+                        "description": message.get("plain_text") or message.get("body") or "",
+                        "metadata": {
+                            "thread_id": thread["id"],
+                            "channel_type": thread["channel_type"],
+                            "subject": thread["subject"],
+                            "ai_priority": thread.get("ai_priority"),
+                        },
+                        "created_at": message["created_at"],
+                    }
+                )
+            for action in thread.get("actions", []):
+                if action.get("status") not in {None, "completed"}:
+                    continue
+                if action.get("action_type") not in {"create-deal", "advance-stage", "schedule-meeting", "calendar-event-updated"}:
+                    continue
+                activities.append(
+                    {
+                        "id": f"thread-action-{thread['id']}-{action.get('action_type') or slugify(action.get('label', 'action'))}",
+                        "contact_id": contact_id,
+                        "user_id": "user-1",
+                        "activity_type": "workflow",
+                        "title": action.get("label") or "Workflow action",
+                        "description": f"Comms workflow executed on thread {thread['subject']}.",
+                        "metadata": {
+                            "thread_id": thread["id"],
+                            "channel_type": thread["channel_type"],
+                            "subject": thread["subject"],
+                            "status": action.get("status"),
+                        },
+                        "created_at": action.get("created_at") or thread["updated_at"],
+                    }
+                )
+            for event in thread.get("calendarEvents", []):
+                activities.append(
+                    {
+                        "id": f"calendar-activity-{event['id']}",
+                        "contact_id": contact_id,
+                        "user_id": "user-1",
+                        "activity_type": "meeting",
+                        "title": event.get("title") or "Meeting scheduled",
+                        "description": event.get("description") or f"Scheduled for {event.get('start_time')}.",
+                        "metadata": {
+                            "thread_id": thread["id"],
+                            "meeting_url": event.get("meeting_url"),
+                            "location": event.get("location"),
+                            "status": event.get("status"),
+                        },
+                        "created_at": event.get("start_time") or event.get("created_at") or thread["updated_at"],
+                    }
+                )
+        return sorted(activities, key=lambda item: item["created_at"], reverse=True)
+
+    def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
+        submissions = self.form_submissions
+        if contact_id:
+            submissions = [submission for submission in submissions if submission.get("contact_id") == contact_id]
+        return sorted(submissions, key=lambda item: item["submitted_at"], reverse=True)
+
+    def list_mailboxes(self) -> list[dict[str, Any]]:
+        return self._summarize_mailboxes(self.mailboxes, self._hydrate_threads(), self.list_mail_events())
+
+    def create_mailbox(
+        self,
+        name: str,
+        address: str,
+        provider: str = "local-stub",
+        inbound_enabled: bool = True,
+        outbound_enabled: bool = True,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        resolved_config = config or ({"adapter": "local-stub"} if provider == "local-stub" else {})
+        validation = self.mail_adapter.validate_mailbox({"provider": provider, "config": resolved_config})
+        mailbox = {
+            "id": f"mailbox-{slugify(name)}-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "name": name,
+            "address": address,
+            "provider": provider,
+            "status": "connected" if provider == "local-stub" else "ready" if validation["ok"] else "needs_config",
+            "inbound_enabled": inbound_enabled,
+            "outbound_enabled": outbound_enabled,
+            "last_synced_at": None,
+            "config": resolved_config,
+        }
+        self.mailboxes.append(mailbox)
+        return self.mail_adapter.describe_mailbox(mailbox)
+
+    def update_mailbox(self, mailbox_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        for key in ["name", "address", "provider", "status", "last_synced_at"]:
+            if key in updates and updates[key] is not None:
+                mailbox[key] = updates[key]
+        for key in ["inbound_enabled", "outbound_enabled"]:
+            if key in updates and updates[key] is not None:
+                mailbox[key] = bool(updates[key])
+        if "config" in updates and isinstance(updates["config"], dict):
+            mailbox["config"] = updates["config"]
+        if "status" not in updates:
+            adapter = get_mail_adapter(mailbox.get("provider"))
+            validation = adapter.validate_mailbox(mailbox)
+            mailbox["status"] = "connected" if mailbox.get("provider") == "local-stub" else "ready" if validation["ok"] else "needs_config"
+        return get_mail_adapter(mailbox.get("provider")).describe_mailbox(mailbox)
+
+    def delete_mailbox(self, mailbox_id: str, fallback_mailbox_id: str | None = None) -> dict[str, Any]:
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        remaining_mailboxes = [item for item in self.mailboxes if item["id"] != mailbox_id]
+        if not remaining_mailboxes:
+            raise ValueError("Cannot delete the last mailbox")
+        fallback = None
+        if fallback_mailbox_id:
+            fallback = next((item for item in remaining_mailboxes if item["id"] == fallback_mailbox_id), None)
+            if not fallback:
+                raise ValueError("Fallback mailbox not found")
+        if not fallback:
+            fallback = next((item for item in remaining_mailboxes if item.get("provider") != "local-stub"), None) or remaining_mailboxes[0]
+        reassigned_threads = 0
+        reassigned_events = 0
+        for thread in self.threads:
+            if thread.get("mailbox_id") == mailbox_id:
+                thread["mailbox_id"] = fallback["id"]
+                thread["updated_at"] = utcnow()
+                reassigned_threads += 1
+        for event in self.mail_events:
+            if event.get("mailbox_id") == mailbox_id:
+                event["mailbox_id"] = fallback["id"]
+                reassigned_events += 1
+        self.mailboxes = remaining_mailboxes
+        self._record_mail_event(
+            fallback["id"],
+            "mailbox.deleted",
+            {
+                "deleted_mailbox_id": mailbox_id,
+                "deleted_mailbox_name": mailbox.get("name"),
+                "fallback_mailbox_id": fallback["id"],
+                "fallback_mailbox_name": fallback.get("name"),
+                "reassigned_threads": reassigned_threads,
+                "reassigned_events": reassigned_events,
+            },
+            source_provider=fallback.get("provider"),
+        )
+        return {
+            "deleted_mailbox_id": mailbox_id,
+            "deleted_mailbox_name": mailbox.get("name"),
+            "fallback_mailbox_id": fallback["id"],
+            "fallback_mailbox_name": fallback.get("name"),
+            "reassigned_threads": reassigned_threads,
+            "reassigned_events": reassigned_events,
+        }
+
+    def disconnect_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        if mailbox.get("provider") == "local-stub":
+            raise ValueError("Local stub mailboxes do not need disconnect.")
+        mailbox["config"] = disconnected_provider_config(mailbox.get("provider"), mailbox.get("config"))
+        mailbox["status"] = "needs_config"
+        mailbox["last_synced_at"] = None
+        self._record_mail_event(
+            mailbox_id,
+            "mailbox.disconnected",
+            {"message": f"{mailbox.get('name')} was disconnected and must reconnect before use."},
+            source_provider=mailbox.get("provider"),
+        )
+        return self.mail_adapter.describe_mailbox(mailbox)
+
+    def list_mail_events(self, mailbox_id: str | None = None, thread_id: str | None = None) -> list[dict[str, Any]]:
+        events = self.mail_events
+        if mailbox_id:
+            events = [event for event in events if event["mailbox_id"] == mailbox_id]
+        if thread_id:
+            events = [event for event in events if event.get("thread_id") == thread_id]
+        return sorted(events, key=lambda item: item["created_at"], reverse=True)
+
+    def list_calendars(self) -> list[dict[str, Any]]:
+        return self.calendars
+
+    def list_calendar_events(self, thread_id: str | None = None) -> list[dict[str, Any]]:
+        events = self.calendar_events
+        if thread_id:
+            events = [event for event in events if event.get("thread_id") == thread_id]
+        return sorted(events, key=lambda item: item.get("start_time") or item.get("created_at") or "")
+
+    def create_calendar_event(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        event = {
+            "id": payload.get("id") or f"calendar-event-{unique_suffix()}",
+            "calendar_id": payload.get("calendar_id") or self.calendars[0]["id"],
+            "source_id": payload.get("source_id") or "calendar-source-local",
+            "thread_id": payload.get("thread_id"),
+            "contact_id": payload.get("contact_id"),
+            "company_id": payload.get("company_id"),
+            "title": payload.get("title") or "New Event",
+            "description": payload.get("description") or "",
+            "start_time": payload.get("start_time") or now,
+            "end_time": payload.get("end_time") or now,
+            "status": payload.get("status") or "scheduled",
+            "location_type": payload.get("location_type") or "other",
+            "location": payload.get("location") or "",
+            "meeting_url": payload.get("meeting_url") or "",
+            "sync_status": payload.get("sync_status") or "local",
+            "external_event_ref": payload.get("external_event_ref") or "",
+            "last_synced_at": payload.get("last_synced_at") or now,
+            "authority_mode": payload.get("authority_mode") or "local-first",
+            "conflict_state": payload.get("conflict_state") or "clear",
+            "sync_note": payload.get("sync_note") or "Created locally.",
+            "imported_at": payload.get("imported_at"),
+            "source_payload": payload.get("source_payload") or {},
+            "source": payload.get("source") or "calendar-local",
+            "guest_name": payload.get("guest_name"),
+            "guest_email": payload.get("guest_email"),
+            "guest_phone": payload.get("guest_phone"),
+            "booking_type_id": payload.get("booking_type_id"),
+            "all_day": bool(payload.get("all_day", False)),
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.calendar_events.append(event)
+        return event
+
+    def update_calendar_event(self, event_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        event = next((item for item in self.calendar_events if item["id"] == event_id), None)
+        if not event:
+            raise ValueError("Calendar event not found")
+        for key in ["title", "description", "start_time", "end_time", "status", "location_type", "location", "meeting_url", "source_id", "sync_status", "external_event_ref", "last_synced_at", "authority_mode", "conflict_state", "sync_note", "imported_at", "source_payload"]:
+            if key in updates and updates[key] is not None:
+                event[key] = updates[key]
+        event["updated_at"] = utcnow()
+        thread_id = event.get("thread_id")
+        if thread_id:
+            thread = next((item for item in self.threads if item["id"] == thread_id), None)
+            if thread:
+                if event.get("start_time"):
+                    thread["next_follow_up_at"] = event["start_time"]
+                if event.get("status") in {"scheduled", "confirmed"}:
+                    thread["status"] = "scheduled"
+                elif event.get("status") in {"completed", "cancelled", "no_show"}:
+                    thread["status"] = "waiting_on_us"
+                thread["updated_at"] = event["updated_at"]
+            label = f"Meeting {str(event.get('status') or 'updated').replace('_', ' ').title()}"
+            self.thread_actions.setdefault(thread_id, []).append(
+                {
+                    "id": f"thread-action-{thread_id}-calendar-{unique_suffix()}",
+                    "label": label,
+                    "action_type": "calendar-event-updated",
+                    "source": "system",
+                    "status": "completed",
+                    "created_at": event["updated_at"],
+                    "updated_at": event["updated_at"],
+                }
+            )
+        return dict(event)
+
+    def delete_calendar_event(self, event_id: str) -> None:
+        self.calendar_events = [event for event in self.calendar_events if event["id"] != event_id]
+
+    def list_booking_types(self) -> list[dict[str, Any]]:
+        return self.booking_types
+
+    def create_booking_type(self, payload: dict[str, Any]) -> dict[str, Any]:
+        booking_type = {
+            "id": payload.get("id") or f"booking-type-{unique_suffix()}",
+            "user_id": payload.get("user_id") or "1",
+            "name": payload.get("name") or "Meeting Type",
+            "slug": payload.get("slug") or slugify(payload.get("name") or f"booking-{unique_suffix()}"),
+            "duration_minutes": payload.get("duration_minutes") or 30,
+            "location": payload.get("location") or "Google Meet",
+            "description": payload.get("description") or "",
+            "color": payload.get("color") or "#10b981",
+            "is_active": bool(payload.get("is_active", True)),
+        }
+        self.booking_types.append(booking_type)
+        return booking_type
+
+    def update_booking_type(self, booking_type_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        booking_type = next((item for item in self.booking_types if item["id"] == booking_type_id), None)
+        if not booking_type:
+            raise ValueError("Booking type not found")
+        booking_type.update({key: value for key, value in updates.items() if value is not None})
+        return booking_type
+
+    def delete_booking_type(self, booking_type_id: str) -> None:
+        self.booking_types = [item for item in self.booking_types if item["id"] != booking_type_id]
+
+    def list_calendar_sources(self) -> list[dict[str, Any]]:
+        return self._summarize_calendar_sources(self.calendar_sources, self.calendar_events)
+
+    def get_calendar_provider_catalog(self) -> list[dict[str, Any]]:
+        return get_calendar_provider_catalog()
+
+    def create_calendar_source(
+        self,
+        name: str,
+        provider: str = "local-stub",
+        sync_direction: str = "two-way",
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        resolved_config = {
+            "authority_mode": "local-first",
+            "import_policy": "review",
+            **({"adapter": "local-stub"} if provider == "local-stub" else {}),
+            **(config or {}),
+        }
+        adapter = get_calendar_adapter(provider)
+        validation = adapter.validate_source({"provider": provider, "config": resolved_config})
+        source = {
+            "id": f"calendar-source-{slugify(name)}-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "name": name,
+            "provider": provider,
+            "status": "connected" if provider == "local-stub" else "ready" if validation["ok"] else "needs_config",
+            "sync_direction": sync_direction,
+            "config": resolved_config,
+            "last_synced_at": None,
+        }
+        self.calendar_sources.append(source)
+        return self._summarize_calendar_sources([source], self.calendar_events)[0]
+
+    def update_calendar_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        for key in ["name", "provider", "status", "sync_direction", "last_synced_at"]:
+            if key in updates and updates[key] is not None:
+                source[key] = updates[key]
+        if "config" in updates and isinstance(updates["config"], dict):
+            source["config"] = updates["config"]
+        if "status" not in updates:
+            adapter = get_calendar_adapter(source.get("provider"))
+            validation = adapter.validate_source(source)
+            if source.get("provider") == "local-stub":
+                source["status"] = "connected"
+            elif validation["ok"]:
+                source["status"] = "connected" if source.get("status") == "connected" else "ready"
+            else:
+                source["status"] = "needs_config"
+        return self._summarize_calendar_sources([source], self.calendar_events)[0]
+
+    def delete_calendar_source(self, source_id: str, fallback_source_id: str | None = None) -> dict[str, Any]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        remaining_sources = [item for item in self.calendar_sources if item["id"] != source_id]
+        fallback = None
+        if fallback_source_id:
+            fallback = next((item for item in remaining_sources if item["id"] == fallback_source_id), None)
+            if not fallback:
+                raise ValueError("Fallback calendar source not found")
+        reassigned_events = 0
+        cleared_events = 0
+        for event in self.calendar_events:
+            if event.get("source_id") == source_id:
+                if fallback:
+                    event["source_id"] = fallback["id"]
+                    reassigned_events += 1
+                else:
+                    event["source_id"] = None
+                    cleared_events += 1
+                event["updated_at"] = utcnow()
+        self.calendar_sources = remaining_sources
+        return {
+            "deleted_source_id": source_id,
+            "deleted_source_name": source.get("name"),
+            "fallback_source_id": fallback.get("id") if fallback else None,
+            "fallback_source_name": fallback.get("name") if fallback else None,
+            "reassigned_events": reassigned_events,
+            "cleared_events": cleared_events,
+        }
+
+    def disconnect_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        if source.get("provider") == "local-stub":
+            raise ValueError("Local stub calendar sources do not need disconnect.")
+        source["config"] = disconnected_provider_config(source.get("provider"), source.get("config"))
+        source["status"] = "needs_config"
+        source["last_synced_at"] = None
+        return self._summarize_calendar_sources([source], self.list_calendar_events())[0]
+
+    def test_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        result = adapter.test_connection(source)
+        source["status"] = "connected" if result["status"] == "ok" else "needs_config"
+        return {"source": self._summarize_calendar_sources([source], self.calendar_events)[0], "result": result}
+
+    def sync_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        result = adapter.sync_source(source)
+        source["last_synced_at"] = utcnow()
+        if result.get("config_updates"):
+            source["config"] = {**(source.get("config") or {}), **result["config_updates"]}
+        return {"source": self._summarize_calendar_sources([source], self.calendar_events)[0], "result": result}
+
+    def push_calendar_event(self, event_id: str, source_id: str | None = None) -> dict[str, Any]:
+        event = next((item for item in self.calendar_events if item["id"] == event_id), None)
+        if not event:
+            raise ValueError("Calendar event not found")
+        resolved_source = next((item for item in self.calendar_sources if item["id"] == (source_id or event.get("source_id") or "calendar-source-local")), None)
+        if not resolved_source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(resolved_source.get("provider"))
+        pushed = adapter.push_event(resolved_source, event)
+        now = utcnow()
+        event["source_id"] = resolved_source["id"]
+        event["sync_status"] = "local" if resolved_source.get("provider") == "local-stub" else "synced"
+        event["external_event_ref"] = pushed.get("external_event_ref", "")
+        event["last_synced_at"] = now
+        event["authority_mode"] = source_config_value(resolved_source, "authority_mode", "local-first")
+        event["conflict_state"] = "resolved"
+        event["sync_note"] = "Pushed outward from the local schedule."
+        event["updated_at"] = now
+        resolved_source["last_synced_at"] = now
+        return {"event": dict(event), "source": self._summarize_calendar_sources([resolved_source], self.calendar_events)[0], "result": pushed}
+
+    def import_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        result = adapter.import_events(source)
+        now = utcnow()
+        if result.get("config_updates"):
+            source["config"] = {**(source.get("config") or {}), **result["config_updates"]}
+        imported: list[dict[str, Any]] = []
+        for payload in result.get("events", []):
+            existing = next(
+                (
+                    item for item in self.calendar_events
+                    if item.get("source_id") == source_id and item.get("external_event_ref") == payload.get("external_event_ref")
+                ),
+                None,
+            )
+            metadata = self._calendar_import_metadata(source, payload, self.calendar_events, event_id=existing.get("id") if existing else None)
+            base_payload = {
+                "calendar_id": "calendar-comms",
+                "source_id": source_id,
+                "thread_id": None,
+                "contact_id": None,
+                "company_id": None,
+                "title": payload.get("title") or f"{source['name']} imported event",
+                "description": payload.get("description") or "Imported from an external calendar source.",
+                "start_time": payload.get("start_time") or next_meeting_slot(),
+                "end_time": payload.get("end_time") or (parse_utc(payload.get("start_time") or next_meeting_slot()) + timedelta(minutes=45)).isoformat(),
+                "status": payload.get("status") or "scheduled",
+                "location_type": payload.get("location_type") or "other",
+                "location": payload.get("location") or source.get("name"),
+                "meeting_url": payload.get("meeting_url") or "",
+                "external_event_ref": payload.get("external_event_ref") or f"{source_id}-{unique_suffix()}",
+                "last_synced_at": now,
+                "authority_mode": metadata["authority_mode"],
+                "conflict_state": metadata["conflict_state"],
+                "sync_status": metadata["sync_status"],
+                "sync_note": metadata["sync_note"],
+                "imported_at": now,
+                "source_payload": payload.get("source_payload") or {},
+                "source": "external-import",
+                "updated_at": now,
+            }
+            if existing:
+                existing.update(base_payload)
+                imported.append(dict(existing))
+            else:
+                event = {
+                    "id": f"calendar-event-import-{unique_suffix()}",
+                    "created_at": now,
+                    **base_payload,
+                }
+                self.calendar_events.append(event)
+                imported.append(dict(event))
+        source["last_synced_at"] = now
+        conflicted = sum(1 for event in imported if event.get("conflict_state") == "review")
+        return {
+            "source": self._summarize_calendar_sources([source], self.calendar_events)[0],
+            "events": imported,
+            "result": {
+                **result,
+                "imported_count": len(imported),
+                "conflicted_count": conflicted,
+                "message": result.get("message") or f"Imported {len(imported)} events from {source['name']}.",
+            },
+        }
+
+    def reconcile_calendar_event(self, event_id: str, strategy: str) -> dict[str, Any]:
+        event = next((item for item in self.calendar_events if item["id"] == event_id), None)
+        if not event:
+            raise ValueError("Calendar event not found")
+        if strategy not in {"keep_local", "accept_import"}:
+            raise ValueError("Invalid reconciliation strategy")
+        updates = {
+            "conflict_state": "resolved",
+            "sync_note": "Local schedule kept after reconciliation." if strategy == "keep_local" else "Imported schedule accepted into the local operating calendar.",
+            "sync_status": "local" if strategy == "keep_local" else "synced" if event.get("external_event_ref") else "imported",
+            "last_synced_at": utcnow(),
+        }
+        if strategy == "accept_import":
+            source_payload = event.get("source_payload") or {}
+            for key in ["title", "description", "start_time", "end_time", "location", "meeting_url"]:
+                if source_payload.get(key):
+                    updates[key] = source_payload[key]
+        updated = self.update_calendar_event(event_id, updates)
+        return {"event": updated, "result": {"strategy": strategy, "message": updates["sync_note"]}}
+
+    def get_mail_provider_catalog(self) -> list[dict[str, Any]]:
+        return get_provider_catalog()
+
+    def _record_mail_event(
+        self,
+        mailbox_id: str,
+        event_type: str,
+        payload: dict[str, Any],
+        *,
+        thread_id: str | None = None,
+        message_id: str | None = None,
+        source_provider: str | None = None,
+    ) -> dict[str, Any]:
+        event = {
+            "id": f"mail-event-{unique_suffix()}",
+            "mailbox_id": mailbox_id,
+            "thread_id": thread_id,
+            "message_id": message_id,
+            "event_type": event_type,
+            "source_provider": source_provider or self.mail_adapter.provider_name,
+            "payload": payload,
+            "created_at": utcnow(),
+        }
+        self.mail_events.append(event)
+        return event
+
+    def _ensure_contact_for_email(self, sender_name: str, sender_email: str) -> dict[str, Any]:
+        existing = next((contact for contact in self.contacts if (contact.get("email") or "").lower() == sender_email.lower()), None)
+        if existing:
+            return existing
+        name_parts = [part for part in sender_name.split(" ") if part]
+        first_name = name_parts[0] if name_parts else sender_email.split("@")[0]
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+        contact = {
+            "id": f"contact-{unique_suffix()}",
+            "contact_id": f"CNT-{unique_suffix().upper()}",
+            "organization_id": "org-1",
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": sender_email,
+            "phone": None,
+            "company": None,
+            "company_id": None,
+            "title": None,
+            "department": None,
+            "owner": "AIO Flow",
+            "source": "Inbound Email",
+            "status": "lead",
+            "lead_score": 55,
+            "quality": "warm",
+            "engagement": "medium",
+            "tags": ["Email Lead"],
+            "last_contacted_at": utcnow(),
+            "pipeline_stage": "New",
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+            "deleted_at": None,
+        }
+        self.contacts.append(contact)
+        return contact
+
+    def sync_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        try:
+            payload = adapter.build_sync_message(mailbox, self.contacts)
+        except ValueError as error:
+            self._record_mail_event(mailbox_id, "mailbox.sync_failed", {"message": str(error)}, source_provider=adapter.provider_name)
+            raise
+        mailbox["last_synced_at"] = utcnow()
+        config_updates = (payload or {}).get("config_updates") or {}
+        if config_updates:
+            mailbox["config"] = {**(mailbox.get("config") or {}), **config_updates}
+        if not payload:
+            event = self._record_mail_event(mailbox_id, "mailbox.synced", {"status": "noop", "message": "No new messages found."}, source_provider=adapter.provider_name)
+            return {"mailbox": adapter.describe_mailbox(mailbox), "result": {"status": "noop", "message": "No new messages found."}, "event": event}
+        thread = self.ingest_mail_message(
+            mailbox_id=mailbox_id,
+            subject=payload["subject"],
+            body=payload["body"],
+            sender_name=payload["sender_name"],
+            sender_email=payload["sender_email"],
+            recipients=payload.get("recipients"),
+        )
+        event = self._record_mail_event(mailbox_id, "mailbox.synced", payload, thread_id=thread["id"], message_id=thread["latestMessage"]["id"] if thread.get("latestMessage") else None, source_provider=adapter.provider_name)
+        return {"mailbox": adapter.describe_mailbox(mailbox), "thread": thread, "event": event}
+
+    def test_mailbox_connection(self, mailbox_id: str) -> dict[str, Any]:
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        result = adapter.test_connection(mailbox)
+        event = self._record_mail_event(mailbox_id, "mailbox.tested", result, source_provider=adapter.provider_name)
+        if result["status"] == "ok":
+            mailbox["status"] = "connected"
+        else:
+            mailbox["status"] = "needs_config"
+        return {"mailbox": adapter.describe_mailbox(mailbox), "result": result, "event": event}
+
+    def ingest_mail_message(
+        self,
+        mailbox_id: str,
+        subject: str,
+        body: str,
+        sender_name: str,
+        sender_email: str,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        contact = self._ensure_contact_for_email(sender_name, sender_email)
+        thread = self.open_thread_for_contact(
+            contact_id=contact["id"],
+            channel_type="email",
+            subject=subject,
+            force_new=False,
+            mailbox_id=mailbox_id,
+        )
+        thread = self.send_thread_message(
+            thread_id=thread["id"],
+            body=body,
+            channel_type="email",
+            sender_name=sender_name,
+            sender_email=sender_email,
+            recipients=recipients or [mailbox["address"]],
+            direction="inbound",
+        )
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        self._record_mail_event(mailbox_id, "mail.received", {"subject": subject, "sender_email": sender_email}, thread_id=thread["id"], message_id=thread["latestMessage"]["id"] if thread.get("latestMessage") else None, source_provider=adapter.provider_name)
+        mailbox["last_synced_at"] = utcnow()
+        return thread
+
+    def send_thread_via_mailbox(
+        self,
+        thread_id: str,
+        body: str,
+        mailbox_id: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str | None = None,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        resolved_mailbox_id = mailbox_id or thread["mailbox_id"]
+        mailbox = next((item for item in self.mailboxes if item["id"] == resolved_mailbox_id), None)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        resolved_recipients = recipients or ([thread.get("contact", {}).get("email")] if thread.get("contact") else [])
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        try:
+            delivery = adapter.deliver_outbound(
+                mailbox,
+                thread,
+                body=body,
+                sender_name=sender_name,
+                sender_email=sender_email or mailbox.get("address") or "mission@aiocrm.local",
+                recipients=[recipient for recipient in resolved_recipients if recipient],
+            )
+        except ValueError as error:
+            self._record_mail_event(resolved_mailbox_id, "mail.failed", {"message": str(error), "thread_id": thread_id}, thread_id=thread_id, source_provider=adapter.provider_name)
+            raise
+        updated = self.send_thread_message(
+            thread_id=thread_id,
+            body=body,
+            channel_type="email",
+            sender_name=delivery["sender_name"],
+            sender_email=delivery["sender_email"],
+            recipients=delivery["recipients"],
+            direction="outbound",
+        )
+        self._record_mail_event(
+            resolved_mailbox_id,
+            "mail.sent",
+            delivery["provider_payload"],
+            thread_id=thread_id,
+            message_id=updated["latestMessage"]["id"] if updated.get("latestMessage") else None,
+            source_provider=adapter.provider_name,
+        )
+        return updated
+
+    def _hydrate_threads(self) -> list[dict[str, Any]]:
+        contact_map = {contact["id"]: contact for contact in self.contacts}
+        company_map = {company["id"]: company for company in self.companies}
+        mailbox_map = {mailbox["id"]: mailbox for mailbox in self.mailboxes}
+        hydrated = []
+        for thread in self.threads:
+            messages = sorted([message for message in self.messages if message["thread_id"] == thread["id"]], key=lambda item: item["created_at"])
+            ai_flags = thread["ai_flags"]
+            hydrated.append(
+                {
+                    **thread,
+                    "aiFlags": ai_flags,
+                    "brief": self.thread_ai_briefs.get(thread["id"], {}),
+                    "actions": self.thread_actions.get(thread["id"], []),
+                    "links": self.thread_links.get(thread["id"], []),
+                    "calendarEvents": [event for event in self.calendar_events if event.get("thread_id") == thread["id"]],
+                    "mailbox": mailbox_map.get(thread["mailbox_id"]),
+                    "contact": contact_map.get(thread["contact_id"]),
+                    "company": company_map.get(thread["company_id"]),
+                    "messages": messages,
+                    "latestMessage": messages[-1] if messages else None,
+                    "preview": (messages[-1]["plain_text"] if messages else self.thread_ai_briefs.get(thread["id"], {}).get("summary")) or thread["generated_title"],
+                    "queueIds": self._queue_ids({**thread, "aiFlags": ai_flags}),
+                }
+            )
+        return sorted(hydrated, key=lambda item: item["last_activity_at"], reverse=True)
+
+    @staticmethod
+    def _queue_ids(thread: dict[str, Any]) -> list[str]:
+        flags = thread.get("aiFlags") or thread.get("ai_flags") or {}
+        queue_ids = []
+        if thread["status"] == "new" or flags.get("needs_human") or thread.get("priority_score", 0) >= 88:
+            queue_ids.append("now")
+        if thread["status"] == "waiting_on_us":
+            queue_ids.append("needs-reply")
+        if thread["status"] == "waiting_on_them":
+            queue_ids.append("waiting")
+        if flags.get("hot_lead") or flags.get("high_intent"):
+            queue_ids.append("hot-leads")
+        if flags.get("at_risk"):
+            queue_ids.append("at-risk")
+        if thread["status"] == "scheduled" or flags.get("follow_up_due"):
+            queue_ids.append("scheduled")
+        if thread.get("automation_state") == "automated":
+            queue_ids.append("automated")
+        if thread["status"] == "closed":
+            queue_ids.append("closed")
+        return queue_ids
+
+    def get_comms_snapshot(self) -> dict[str, Any]:
+        threads = self._hydrate_threads()
+        queue_counts = []
+        for queue in default_queue_definitions():
+            queue_counts.append({**queue, "count": sum(1 for thread in threads if queue["id"] in thread["queueIds"])})
+        return {"queues": queue_counts, "threads": threads, "allThreads": threads, "mailboxes": self.list_mailboxes(), "calendarEvents": self.list_calendar_events(), "agents": [{"name": "ALPHA"}, {"name": "ECHO"}, {"name": "STRIKER"}]}
+
+    def create_thread(
+        self,
+        subject: str,
+        channel_type: str = "email",
+        contact_id: str | None = None,
+        company_id: str | None = None,
+        body: str = "",
+        status: str = "new",
+        assignee: str = "ECHO",
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        now = utcnow()
+        thread_id = f"thread-{slugify(subject)}-{len(self.threads) + 1}"
+        contact = next((item for item in self.contacts if item["id"] == contact_id), None)
+        thread = {
+            "id": thread_id,
+            "mailbox_id": mailbox_id or "mailbox-primary",
+            "channel_type": channel_type,
+            "subject": subject,
+            "generated_title": subject,
+            "status": status,
+            "ai_flags": {"needs_human": True},
+            "ai_priority": "medium",
+            "priority_score": 70,
+            "owner": assignee,
+            "assignee": assignee,
+            "contact_id": contact_id,
+            "company_id": company_id or (contact.get("company_id") if contact else None),
+            "automation_state": "manual",
+            "last_activity_at": now,
+            "next_follow_up_at": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.threads.append(thread)
+        self.thread_ai_briefs[thread_id] = {
+            "summary": "Fresh thread awaiting triage.",
+            "disposition": "New signal",
+            "recommended_next_step": "Review context and send a clear next step.",
+            "confidence": 0.64,
+            "unresolved_questions": ["Confirm best next action"],
+            "crm_implications": [],
+            "reasoning_cues": ["Thread created manually"],
+        }
+        self.thread_actions[thread_id] = [{"label": "Summarize"}, {"label": "Reply with AI"}]
+        self.thread_links[thread_id] = []
+        if contact:
+            self.thread_links[thread_id].append({"source_type": "contact", "source_id": contact_id, "label": f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()})
+        if body:
+            self.send_thread_message(thread_id, body, channel_type=channel_type)
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def open_thread_for_contact(
+        self,
+        contact_id: str,
+        channel_type: str = "email",
+        subject: str | None = None,
+        body: str = "",
+        force_new: bool = False,
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not force_new:
+            for thread in self._hydrate_threads():
+                if thread["contact_id"] == contact_id and thread["channel_type"] == channel_type and thread["status"] != "closed":
+                    return thread
+        contact = next((item for item in self.contacts if item["id"] == contact_id), None)
+        resolved_subject = subject or f"{channel_type.upper()} follow-up for {contact.get('first_name', 'contact')} {contact.get('last_name', '')}".strip()
+        return self.create_thread(resolved_subject, channel_type=channel_type, contact_id=contact_id, company_id=contact.get("company_id") if contact else None, body=body, assignee="STRIKER" if channel_type == "email" else "ECHO", mailbox_id=mailbox_id)
+
+    def send_thread_message(
+        self,
+        thread_id: str,
+        body: str,
+        channel_type: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str = "mission@aiocrm.local",
+        recipients: list[str] | None = None,
+        direction: str = "outbound",
+    ) -> dict[str, Any]:
+        thread = next((item for item in self.threads if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        created_at = utcnow()
+        message = {
+            "id": f"msg-{thread_id}-{len(self.messages) + 1}",
+            "thread_id": thread_id,
+            "channel_type": channel_type or thread["channel_type"],
+            "direction": direction,
+            "sender_name": sender_name,
+            "sender_email": sender_email,
+            "recipients": recipients or [],
+            "body": body,
+            "plain_text": body,
+            "delivery_status": "sent" if direction == "outbound" else "logged" if direction == "system" else "received",
+            "created_at": created_at,
+            "updated_at": created_at,
+        }
+        self.messages.append(message)
+        thread["last_activity_at"] = created_at
+        thread["updated_at"] = created_at
+        if direction == "outbound":
+            thread["status"] = "waiting_on_them"
+            thread["ai_flags"]["follow_up_due"] = True
+        elif direction == "inbound":
+            thread["status"] = "waiting_on_us"
+            thread["ai_flags"]["needs_human"] = True
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def update_thread_status(self, thread_id: str, status: str) -> dict[str, Any]:
+        thread = next((item for item in self.threads if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        thread["status"] = status
+        thread["updated_at"] = utcnow()
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def assign_thread(self, thread_id: str, assignee_name: str) -> dict[str, Any]:
+        thread = next((item for item in self.threads if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        previous_assignee = thread.get("assignee") or "Unassigned"
+        thread["assignee"] = assignee_name
+        thread["owner"] = assignee_name
+        thread["updated_at"] = utcnow()
+        self.thread_actions.setdefault(thread_id, []).append(
+            {
+                "label": f"Assigned to {assignee_name}",
+                "action_type": "assign-thread",
+                "source": "system",
+                "status": "completed",
+                "created_at": thread["updated_at"],
+                "updated_at": thread["updated_at"],
+            }
+        )
+        self.send_thread_message(
+            thread_id,
+            f"Routing update: ownership moved from {previous_assignee} to {assignee_name}.",
+            channel_type="internal",
+            sender_name="ALPHA",
+            sender_email="system@aiocrm.local",
+            recipients=["Internal"],
+            direction="system",
+        )
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def update_thread_mailbox(self, thread_id: str, mailbox_id: str) -> dict[str, Any]:
+        thread = next((item for item in self.threads if item["id"] == thread_id), None)
+        mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        thread["mailbox_id"] = mailbox_id
+        thread["updated_at"] = utcnow()
+        self._record_mail_event(mailbox_id, "thread.mailbox_updated", {"thread_id": thread_id, "mailbox_name": mailbox["name"]}, thread_id=thread_id)
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def summarize_thread(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        latest_message = thread["latestMessage"]
+        if latest_message:
+            self.thread_ai_briefs[thread_id]["summary"] = f"{latest_message['sender_name']} is focused on {latest_message['plain_text'].lower().rstrip('.') }."
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def create_thread_draft(self, thread_id: str, mode: str = "reply") -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        summary = thread["brief"].get("summary") or thread["preview"]
+        first_name = thread.get("contact", {}).get("first_name") or "there"
+        if mode == "rewrite":
+            draft = f"Refined version: {summary} Next move: {thread['brief'].get('recommended_next_step', 'reply with clarity and confidence.')}"
+        elif mode == "extract":
+            draft = "Task extract:\n- Confirm owner for " + thread["subject"]
+        else:
+            draft = f"Hi {first_name},\n\nI reviewed your message. {summary}\n\nNext step from our side: {thread['brief'].get('recommended_next_step', 'I will get this moving and send the next update shortly.')}\n\nBest,\n{thread.get('assignee') or 'ECHO'}"
+        return {"draft": draft}
+
+    def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        if not thread.get("contact_id"):
+            raise ValueError("Thread must be linked to a contact before creating a deal.")
+        contact = next((item for item in self.contacts if item["id"] == thread["contact_id"]), None)
+        if not contact:
+            raise ValueError("Contact not found")
+        contact["pipeline_stage"] = "Qualified" if contact.get("pipeline_stage") == "New" else contact.get("pipeline_stage") or "Qualified"
+        contact["updated_at"] = utcnow()
+        links = self.thread_links.setdefault(thread_id, [])
+        if not any(link.get("source_type") == "deal" for link in links):
+            deal_label = f"{thread.get('company', {}).get('name') or contact.get('company') or contact.get('first_name') or 'Relationship'} Opportunity"
+            links.append({"source_type": "deal", "source_id": f"deal-{thread_id}", "label": deal_label})
+        self.thread_actions.setdefault(thread_id, []).append({"label": "Create Deal", "action_type": "create-deal", "source": "system", "status": "completed"})
+        self.send_thread_message(thread_id, "CRM action: created a deal shell from this conversation and set the contact to Qualified.", channel_type="internal", sender_name="ALPHA", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def advance_thread_stage(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        if not thread.get("contact_id"):
+            raise ValueError("Thread must be linked to a contact before advancing stage.")
+        contact = next((item for item in self.contacts if item["id"] == thread["contact_id"]), None)
+        if not contact:
+            raise ValueError("Contact not found")
+        stage = next_pipeline_stage(contact.get("pipeline_stage"))
+        contact["pipeline_stage"] = stage
+        contact["updated_at"] = utcnow()
+        self.thread_actions.setdefault(thread_id, []).append({"label": f"Advance Stage: {stage}", "action_type": "advance-stage", "source": "system", "status": "completed"})
+        self.send_thread_message(thread_id, f"CRM action: advanced the relationship to {stage}.", channel_type="internal", sender_name="STRIKER", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+    def schedule_thread_meeting(self, thread_id: str, scheduled_at: str | None = None) -> dict[str, Any]:
+        thread = next((item for item in self.threads if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        follow_up_at = scheduled_at or next_meeting_slot()
+        start_time = parse_utc(follow_up_at)
+        if not start_time:
+            raise ValueError("Invalid meeting time")
+        now = utcnow()
+        thread["next_follow_up_at"] = follow_up_at
+        thread["status"] = "scheduled"
+        thread["updated_at"] = now
+        existing_event = next((event for event in self.calendar_events if event.get("thread_id") == thread_id), None)
+        if existing_event:
+            existing_event.update(
+                {
+                    "title": f"{thread.get('subject')} meeting",
+                    "description": f"Scheduled from Comms for {thread['subject']}.",
+                    "start_time": follow_up_at,
+                    "end_time": (start_time + timedelta(minutes=30)).isoformat(),
+                    "status": "scheduled",
+                    "location_type": existing_event.get("location_type") or "other",
+                    "location": existing_event.get("location") or "Comms command room",
+                    "source_id": existing_event.get("source_id") or "calendar-source-local",
+                    "sync_status": existing_event.get("sync_status") or "local",
+                    "authority_mode": existing_event.get("authority_mode") or "local-first",
+                    "conflict_state": "clear",
+                    "sync_note": "Scheduled locally from the Comms workspace.",
+                    "updated_at": now,
+                }
+            )
+            calendar_event_id = existing_event["id"]
+        else:
+            calendar_event_id = f"calendar-event-{thread_id}-{unique_suffix()}"
+            self.calendar_events.append(
+                {
+                    "id": calendar_event_id,
+                    "calendar_id": "calendar-comms",
+                    "thread_id": thread_id,
+                    "contact_id": thread.get("contact_id"),
+                    "company_id": thread.get("company_id"),
+                    "title": f"{thread.get('subject')} meeting",
+                    "description": f"Scheduled from Comms for {thread['subject']}.",
+                    "start_time": follow_up_at,
+                    "end_time": (start_time + timedelta(minutes=30)).isoformat(),
+                    "status": "scheduled",
+                    "location_type": "other",
+                    "location": "Comms command room",
+                    "meeting_url": "",
+                    "source_id": "calendar-source-local",
+                    "sync_status": "local",
+                    "external_event_ref": "",
+                    "last_synced_at": now,
+                    "authority_mode": "local-first",
+                    "conflict_state": "clear",
+                    "sync_note": "Scheduled locally from the Comms workspace.",
+                    "imported_at": None,
+                    "source_payload": {},
+                    "source": "comms",
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+        links = self.thread_links.setdefault(thread_id, [])
+        if not any(link.get("source_type") == "calendar-event" and link.get("source_id") == calendar_event_id for link in links):
+            links.append({"source_type": "calendar-event", "source_id": calendar_event_id, "label": "Scheduled meeting"})
+        self.thread_actions.setdefault(thread_id, []).append({"label": "Schedule Meeting", "action_type": "schedule-meeting", "source": "system", "status": "completed"})
+        self.send_thread_message(thread_id, f"CRM action: scheduled a meeting follow-up for {follow_up_at}.", channel_type="internal", sender_name="ALPHA", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
+        return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+
+
+class SQLiteProvider(BaseProvider):
+    provider_name = "sqlite"
+
+    def __init__(self, db_path: str) -> None:
+        self.mail_adapter = get_mail_adapter(self.provider_name)
+        self.calendar_adapter = get_calendar_adapter("local-stub")
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    @staticmethod
+    def _default_tenant_id() -> str:
+        return DEFAULT_TENANT_ID
+
+    def _tenant_id(self) -> str:
+        return get_request_tenant_id()
+
+    @staticmethod
+    def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+        columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in columns:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    def _backfill_tenant_ids(self, conn: sqlite3.Connection) -> None:
+        tenant_id = self._default_tenant_id()
+        for table in [
+            "contacts",
+            "companies",
+            "tags",
+            "forms",
+            "form_folders",
+            "form_submissions",
+            "mailboxes",
+            "threads",
+            "messages",
+            "thread_ai_briefs",
+            "thread_actions",
+            "thread_links",
+            "calendar_events",
+            "calendars",
+            "booking_types",
+            "calendar_sources",
+            "mail_events",
+        ]:
+            conn.execute(f"UPDATE {table} SET tenant_id = COALESCE(tenant_id, ?)", (tenant_id,))
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS contacts (
+                    id TEXT PRIMARY KEY,
+                    contact_id TEXT NOT NULL,
+                    organization_id TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    email TEXT UNIQUE,
+                    phone TEXT,
+                    company TEXT,
+                    company_id TEXT,
+                    title TEXT,
+                    department TEXT,
+                    owner TEXT,
+                    source TEXT,
+                    status TEXT,
+                    lead_score INTEGER,
+                    quality TEXT,
+                    engagement TEXT,
+                    tags_json TEXT,
+                    last_contacted_at TEXT,
+                    pipeline_stage TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    deleted_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS companies (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    industry TEXT,
+                    size TEXT,
+                    website TEXT,
+                    owner TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS tags (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    color TEXT,
+                    type TEXT,
+                    usage_count INTEGER,
+                    created_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS forms (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    folder_id TEXT,
+                    slug TEXT UNIQUE NOT NULL,
+                    description TEXT,
+                    schema_json TEXT NOT NULL,
+                    settings_json TEXT NOT NULL,
+                    status TEXT,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    responses_count INTEGER NOT NULL DEFAULT 0,
+                    last_active TEXT,
+                    last_modified_by TEXT,
+                    creator TEXT,
+                    triggers_json TEXT,
+                    automation_json TEXT,
+                    last_response_at TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS form_folders (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    user_id TEXT,
+                    created_at TEXT,
+                    expanded INTEGER NOT NULL DEFAULT 1
+                );
+
+                CREATE TABLE IF NOT EXISTS form_submissions (
+                    id TEXT PRIMARY KEY,
+                    form_id TEXT NOT NULL,
+                    contact_id TEXT,
+                    submission_json TEXT NOT NULL,
+                    created_contact INTEGER NOT NULL DEFAULT 0,
+                    submitted_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS mailboxes (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    address TEXT,
+                    provider TEXT,
+                    status TEXT,
+                    inbound_enabled INTEGER,
+                    outbound_enabled INTEGER,
+                    last_synced_at TEXT,
+                    config_json TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS threads (
+                    id TEXT PRIMARY KEY,
+                    mailbox_id TEXT NOT NULL,
+                    channel_type TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    generated_title TEXT,
+                    status TEXT NOT NULL,
+                    ai_flags_json TEXT NOT NULL,
+                    ai_priority TEXT,
+                    priority_score INTEGER,
+                    owner TEXT,
+                    assignee TEXT,
+                    contact_id TEXT,
+                    company_id TEXT,
+                    automation_state TEXT,
+                    last_activity_at TEXT,
+                    next_follow_up_at TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    channel_type TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    sender_name TEXT,
+                    sender_email TEXT,
+                    recipients_json TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    plain_text TEXT NOT NULL,
+                    quoted_history TEXT,
+                    delivery_status TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS thread_ai_briefs (
+                    thread_id TEXT PRIMARY KEY,
+                    summary TEXT,
+                    disposition TEXT,
+                    recommended_next_step TEXT,
+                    confidence REAL,
+                    unresolved_questions_json TEXT NOT NULL,
+                    crm_implications_json TEXT NOT NULL,
+                    reasoning_cues_json TEXT NOT NULL,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS thread_actions (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    action_type TEXT NOT NULL,
+                    source TEXT,
+                    status TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS thread_links (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    label TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS calendar_events (
+                    id TEXT PRIMARY KEY,
+                    calendar_id TEXT NOT NULL,
+                    source_id TEXT,
+                    thread_id TEXT,
+                    contact_id TEXT,
+                    company_id TEXT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    start_time TEXT NOT NULL,
+                    end_time TEXT NOT NULL,
+                    status TEXT,
+                    location_type TEXT,
+                    location TEXT,
+                    meeting_url TEXT,
+                    sync_status TEXT,
+                    external_event_ref TEXT,
+                    last_synced_at TEXT,
+                    authority_mode TEXT,
+                    conflict_state TEXT,
+                    sync_note TEXT,
+                    imported_at TEXT,
+                    source_payload_json TEXT,
+                    guest_name TEXT,
+                    guest_email TEXT,
+                    guest_phone TEXT,
+                    booking_type_id TEXT,
+                    all_day INTEGER,
+                    source TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS calendars (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    name TEXT NOT NULL,
+                    color TEXT,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    is_visible INTEGER NOT NULL DEFAULT 1
+                );
+
+                CREATE TABLE IF NOT EXISTS booking_types (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    name TEXT NOT NULL,
+                    slug TEXT,
+                    duration_minutes INTEGER,
+                    location TEXT,
+                    location_type TEXT,
+                    description TEXT,
+                    color TEXT,
+                    buffer_before_minutes INTEGER,
+                    buffer_after_minutes INTEGER,
+                    is_active INTEGER NOT NULL DEFAULT 1
+                );
+
+                CREATE TABLE IF NOT EXISTS calendar_sources (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    status TEXT,
+                    sync_direction TEXT,
+                    config_json TEXT NOT NULL,
+                    last_synced_at TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS mail_events (
+                    id TEXT PRIMARY KEY,
+                    mailbox_id TEXT NOT NULL,
+                    thread_id TEXT,
+                    message_id TEXT,
+                    event_type TEXT NOT NULL,
+                    source_provider TEXT,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                """
+            )
+
+            self._ensure_column(conn, "mailboxes", "status", "TEXT")
+            self._ensure_column(conn, "mailboxes", "inbound_enabled", "INTEGER")
+            self._ensure_column(conn, "mailboxes", "outbound_enabled", "INTEGER")
+            self._ensure_column(conn, "mailboxes", "last_synced_at", "TEXT")
+            self._ensure_column(conn, "mailboxes", "config_json", "TEXT")
+            self._ensure_column(conn, "contacts", "tenant_id", "TEXT")
+            self._ensure_column(conn, "companies", "tenant_id", "TEXT")
+            self._ensure_column(conn, "tags", "tenant_id", "TEXT")
+            self._ensure_column(conn, "contacts", "website", "TEXT")
+            self._ensure_column(conn, "contacts", "dob", "TEXT")
+            self._ensure_column(conn, "contacts", "owner_id", "TEXT")
+            self._ensure_column(conn, "contacts", "address_json", "TEXT")
+            self._ensure_column(conn, "contacts", "custom_fields_json", "TEXT")
+            self._ensure_column(conn, "contacts", "opt_in_email", "INTEGER")
+            self._ensure_column(conn, "contacts", "opt_in_sms", "INTEGER")
+            self._ensure_column(conn, "contacts", "opt_in_calls", "INTEGER")
+            self._ensure_column(conn, "contacts", "opt_in_flows", "INTEGER")
+            self._ensure_column(conn, "contacts", "ai_employee", "TEXT")
+            self._ensure_column(conn, "forms", "tenant_id", "TEXT")
+            self._ensure_column(conn, "form_folders", "tenant_id", "TEXT")
+            self._ensure_column(conn, "form_submissions", "tenant_id", "TEXT")
+            self._ensure_column(conn, "forms", "folder_id", "TEXT")
+            self._ensure_column(conn, "forms", "status", "TEXT")
+            self._ensure_column(conn, "forms", "last_active", "TEXT")
+            self._ensure_column(conn, "forms", "last_modified_by", "TEXT")
+            self._ensure_column(conn, "forms", "creator", "TEXT")
+            self._ensure_column(conn, "forms", "triggers_json", "TEXT")
+            self._ensure_column(conn, "forms", "automation_json", "TEXT")
+            self._ensure_column(conn, "mailboxes", "tenant_id", "TEXT")
+            self._ensure_column(conn, "threads", "tenant_id", "TEXT")
+            self._ensure_column(conn, "messages", "tenant_id", "TEXT")
+            self._ensure_column(conn, "thread_ai_briefs", "tenant_id", "TEXT")
+            self._ensure_column(conn, "thread_actions", "tenant_id", "TEXT")
+            self._ensure_column(conn, "thread_links", "tenant_id", "TEXT")
+            self._ensure_column(conn, "calendars", "tenant_id", "TEXT")
+            self._ensure_column(conn, "booking_types", "tenant_id", "TEXT")
+            self._ensure_column(conn, "calendar_sources", "tenant_id", "TEXT")
+            self._ensure_column(conn, "calendar_events", "tenant_id", "TEXT")
+            self._ensure_column(conn, "mail_events", "tenant_id", "TEXT")
+            self._ensure_column(conn, "calendar_events", "source_id", "TEXT")
+            self._ensure_column(conn, "calendar_events", "sync_status", "TEXT")
+            self._ensure_column(conn, "calendar_events", "external_event_ref", "TEXT")
+            self._ensure_column(conn, "calendar_events", "last_synced_at", "TEXT")
+            self._ensure_column(conn, "calendar_events", "authority_mode", "TEXT")
+            self._ensure_column(conn, "calendar_events", "conflict_state", "TEXT")
+            self._ensure_column(conn, "calendar_events", "sync_note", "TEXT")
+            self._ensure_column(conn, "calendar_events", "imported_at", "TEXT")
+            self._ensure_column(conn, "calendar_events", "source_payload_json", "TEXT")
+            self._ensure_column(conn, "calendar_events", "guest_name", "TEXT")
+            self._ensure_column(conn, "calendar_events", "guest_email", "TEXT")
+            self._ensure_column(conn, "calendar_events", "guest_phone", "TEXT")
+            self._ensure_column(conn, "calendar_events", "booking_type_id", "TEXT")
+            self._ensure_column(conn, "calendar_events", "all_day", "INTEGER")
+            self._ensure_column(conn, "booking_types", "location_type", "TEXT")
+            self._ensure_column(conn, "booking_types", "buffer_before_minutes", "INTEGER")
+            self._ensure_column(conn, "booking_types", "buffer_after_minutes", "INTEGER")
+            self._ensure_column(conn, "calendar_sources", "status", "TEXT")
+            self._ensure_column(conn, "calendar_sources", "sync_direction", "TEXT")
+            self._ensure_column(conn, "calendar_sources", "config_json", "TEXT")
+            self._ensure_column(conn, "calendar_sources", "last_synced_at", "TEXT")
+            self._ensure_column(conn, "calendar_sources", "created_at", "TEXT")
+            self._ensure_column(conn, "calendar_sources", "updated_at", "TEXT")
+            conn.execute(
+                """
+                UPDATE mailboxes
+                SET
+                    status = COALESCE(status, 'connected'),
+                    inbound_enabled = COALESCE(inbound_enabled, 1),
+                    outbound_enabled = COALESCE(outbound_enabled, 1),
+                    provider = CASE WHEN provider IS NULL OR provider = 'sqlite' OR provider = 'mock-email' THEN 'local-stub' ELSE provider END,
+                    config_json = COALESCE(config_json, '{}')
+                """
+            )
+            conn.execute(
+                """
+                UPDATE contacts
+                SET
+                    address_json = COALESCE(address_json, '{}'),
+                    custom_fields_json = COALESCE(custom_fields_json, '{}'),
+                    opt_in_email = COALESCE(opt_in_email, 1),
+                    opt_in_sms = COALESCE(opt_in_sms, 1),
+                    opt_in_calls = COALESCE(opt_in_calls, 1),
+                    opt_in_flows = COALESCE(opt_in_flows, 1)
+                """
+            )
+            conn.execute(
+                """
+                UPDATE forms
+                SET
+                    status = COALESCE(status, CASE WHEN is_active = 1 THEN 'Active' ELSE 'Draft' END),
+                    folder_id = COALESCE(folder_id, 'form-folder-default'),
+                    last_active = COALESCE(last_active, last_response_at, 'Just now'),
+                    last_modified_by = COALESCE(last_modified_by, 'AIO Flow'),
+                    creator = COALESCE(creator, 'AIO Flow'),
+                    triggers_json = COALESCE(triggers_json, 'null'),
+                    automation_json = COALESCE(automation_json, 'null')
+                """
+            )
+            conn.execute(
+                """
+                UPDATE calendar_events
+                SET
+                    source_id = COALESCE(source_id, 'calendar-source-local'),
+                    sync_status = COALESCE(sync_status, 'local'),
+                    external_event_ref = COALESCE(external_event_ref, ''),
+                    last_synced_at = COALESCE(last_synced_at, updated_at),
+                    authority_mode = COALESCE(authority_mode, 'local-first'),
+                    conflict_state = COALESCE(conflict_state, 'clear'),
+                    sync_note = COALESCE(sync_note, 'Created locally.'),
+                    source_payload_json = COALESCE(source_payload_json, '{}'),
+                    all_day = COALESCE(all_day, 0)
+                """
+            )
+            self._backfill_tenant_ids(conn)
+            existing_form_folders = conn.execute("SELECT COUNT(*) AS count FROM form_folders").fetchone()["count"]
+            if not existing_form_folders:
+                conn.execute(
+                    "INSERT INTO form_folders (id, tenant_id, name, user_id, created_at, expanded) VALUES (?, ?, ?, ?, ?, ?)",
+                    ("form-folder-default", self._default_tenant_id(), "My Forms", "1", utcnow(), 1),
+                )
+            existing_calendars = conn.execute("SELECT COUNT(*) AS count FROM calendars").fetchone()["count"]
+            if not existing_calendars:
+                conn.executemany(
+                    "INSERT INTO calendars (id, tenant_id, user_id, name, color, is_default, is_visible) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        ("calendar-primary", self._default_tenant_id(), "1", "AIO Calendar", "#3b82f6", 1, 1),
+                        ("calendar-booking", self._default_tenant_id(), "1", "AIO Booking", "#10b981", 0, 1),
+                        ("calendar-comms", self._default_tenant_id(), "system", "Comms", "#f59e0b", 0, 1),
+                    ],
+                )
+            existing_booking_types = conn.execute("SELECT COUNT(*) AS count FROM booking_types").fetchone()["count"]
+            if not existing_booking_types:
+                conn.execute(
+                    "INSERT INTO booking_types (id, tenant_id, user_id, name, slug, duration_minutes, location, description, color, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ("booking-type-demo", self._default_tenant_id(), "1", "Discovery Call", "discovery-call", 30, "Google Meet", "Introductory discovery meeting.", "#10b981", 1),
+                )
+            existing_sources = conn.execute("SELECT COUNT(*) AS count FROM calendar_sources").fetchone()["count"]
+            if not existing_sources:
+                seeded_now = utcnow()
+                conn.executemany(
+                    "INSERT INTO calendar_sources (id, tenant_id, name, provider, status, sync_direction, config_json, last_synced_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        ("calendar-source-local", self._default_tenant_id(), "Local Command Calendar", "local-stub", "connected", "two-way", json.dumps({"adapter": "local-stub", "authority_mode": "local-first", "import_policy": "review"}), seeded_now, seeded_now, seeded_now),
+                    ],
+                )
+
+            existing = conn.execute("SELECT COUNT(*) AS count FROM contacts").fetchone()["count"]
+            if existing:
+                return
+
+            now = utcnow()
+            contacts = [
+                (
+                    "contact-jenna", "CNT-001", "org-1", "Jenna", "Best", "jennalarinbest@gmail.com",
+                    "+1 (555) 123-4567", "TechCorp Solutions", "company-techcorp", "Marketing Director", "Marketing",
+                    "AIO Flow", "Website Form", "customer", 92, "hot", "high",
+                    json.dumps(["VIP", "Customer"]), now, "Closed Won", now, now, None,
+                ),
+                (
+                    "contact-sarah", "CNT-002", "org-1", "Sarah", "Chen", "sarah.chen@finserve.com",
+                    "+1 (555) 111-2222", "FinServe Inc", "company-finserve", "VP of Operations", "Operations",
+                    "AIO Flow", "Conference", "customer", 95, "hot", "high",
+                    json.dumps(["VIP", "Customer"]), now, "Closed Won", now, now, None,
+                ),
+                (
+                    "contact-emily", "CNT-003", "org-1", "Emily", "Watson", "emily.watson@edulearn.com",
+                    "+1 (555) 333-4444", "EduLearn Platform", "company-edulearn", "Product Manager", "Product",
+                    "Adam B.", "Website Form", "lead", 64, "warm", "medium",
+                    json.dumps(["Trial", "Prospect"]), now, "Discovery", now, now, None,
+                ),
+            ]
+            companies = [
+                ("company-techcorp", "TechCorp Solutions", "Technology", "51-200", "https://techcorp.com", "AIO Flow"),
+                ("company-finserve", "FinServe Inc", "Finance", "201-500", "https://finserve.com", "AIO Flow"),
+                ("company-edulearn", "EduLearn Platform", "Education", "51-200", "https://edulearn.com", "Adam B."),
+            ]
+            tags = [
+                ("tag-vip", "VIP", "#8b5cf6", "contact", 5, now),
+                ("tag-hot", "Hot Lead", "#ef4444", "contact", 8, now),
+                ("tag-customer", "Customer", "#10b981", "contact", 12, now),
+            ]
+            forms = [
+                (
+                    "form-contact",
+                    "Contact Form",
+                    "contact_form",
+                    "Get in touch with us for any questions or inquiries",
+                    json.dumps([
+                        {"id": "f1", "name": "full_name", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "map_to_contact": "first_name", "is_identifier": False},
+                        {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "map_to_contact": "email", "is_identifier": True},
+                        {"id": "f3", "name": "phone", "label": "Phone Number", "type": "phone", "required": False, "placeholder": "+1 (555) 000-0000", "map_to_contact": "phone", "is_identifier": False},
+                        {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "map_to_contact": None, "is_identifier": False},
+                    ]),
+                    json.dumps({
+                        "create_contact": True,
+                        "update_contact": True,
+                        "webhook_url": "",
+                        "notification_email": "contact@aioagency.com",
+                        "redirect_url": "",
+                        "thank_you_message": "Thank you for contacting us! We'll get back to you within 24 hours.",
+                    }),
+                    1,
+                    0,
+                    None,
+                    now,
+                    now,
+                )
+            ]
+            mailboxes = [
+                ("mailbox-primary", "Relationship HQ", "mission@aiocrm.local", "local-stub", "connected", 1, 1, now, json.dumps({"adapter": "local-stub"})),
+                ("mailbox-growth", "Growth Desk", "growth@aiocrm.local", "local-stub", "connected", 1, 1, now, json.dumps({"adapter": "local-stub"})),
+            ]
+            threads = [
+                (
+                    "thread-jenna-launch", "mailbox-primary", "email", "Launch sequencing and executive narrative",
+                    "Jenna wants a tighter launch story.", "waiting_on_us", json.dumps({"high_intent": True, "hot_lead": True, "needs_human": True}),
+                    "critical", 96, "ECHO", "STRIKER", "contact-jenna", "company-techcorp", "manual", now, now, now, now,
+                ),
+                (
+                    "thread-sarah-demo", "mailbox-growth", "email", "Enterprise demo follow-up",
+                    "Sarah is aligned on value but waiting on procurement.", "waiting_on_them", json.dumps({"high_intent": True, "hot_lead": True, "follow_up_due": True}),
+                    "high", 84, "STRIKER", "STRIKER", "contact-sarah", "company-finserve", "automated", now, now, now, now,
+                ),
+                (
+                    "thread-emily-internal", "mailbox-primary", "internal", "Trial expansion plan",
+                    "Internal planning around Emily’s conversion path.", "scheduled", json.dumps({"follow_up_due": True}),
+                    "medium", 68, "ALPHA", "ECHO", "contact-emily", "company-edulearn", "automated", now, now, now, now,
+                ),
+            ]
+            messages = [
+                ("msg-jenna-1", "thread-jenna-launch", "email", "inbound", "Jenna Best", "jennalarinbest@gmail.com", json.dumps(["mission@aiocrm.local"]), "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "", "received", now, now),
+                ("msg-sarah-1", "thread-sarah-demo", "email", "inbound", "Sarah Chen", "sarah.chen@finserve.com", json.dumps(["growth@aiocrm.local"]), "This looks solid. I need to line up procurement and security review timing.", "This looks solid. I need to line up procurement and security review timing.", "", "received", now, now),
+                ("msg-emily-1", "thread-emily-internal", "internal", "system", "ALPHA", "system@aiocrm.local", json.dumps(["Internal"]), "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "", "logged", now, now),
+            ]
+            thread_briefs = [
+                ("thread-jenna-launch", "Jenna is close to approving the next phase but wants a sharper launch plan.", "Active relationship signal", "Send a milestone-based rollout and leadership summary.", 0.94, json.dumps(["Confirm launch date", "Confirm approvers"]), json.dumps(["Enterprise upsell potential"]), json.dumps(["High intent signal", "Human intervention advised"]), now),
+                ("thread-sarah-demo", "The demo landed. Procurement timing is the only blocker.", "Active relationship signal", "Send a concise procurement-forward follow-up with booking option.", 0.88, json.dumps(["Security review owner"]), json.dumps(["Possible flagship finance account"]), json.dumps(["High intent signal", "AI-assisted response is viable"]), now),
+                ("thread-emily-internal", "The trial is healthy but the buying trigger is still vague.", "Active relationship signal", "Prepare a tailored follow-up tied to active usage.", 0.78, json.dumps(["Decision timeline"]), json.dumps(["Could become an education playbook"]), json.dumps(["Stable thread", "Follow-up due"]), now),
+            ]
+            thread_actions = [
+                ("thread-action-1", "thread-jenna-launch", "Summarize", "summarize", "ai", "suggested", now, now),
+                ("thread-action-2", "thread-jenna-launch", "Reply with AI", "reply-with-ai", "ai", "suggested", now, now),
+                ("thread-action-3", "thread-sarah-demo", "Reply with AI", "reply-with-ai", "ai", "suggested", now, now),
+            ]
+            thread_links = [
+                ("thread-link-1", "thread-jenna-launch", "contact", "contact-jenna", "Jenna Best"),
+                ("thread-link-2", "thread-jenna-launch", "company", "company-techcorp", "TechCorp Solutions"),
+                ("thread-link-3", "thread-sarah-demo", "contact", "contact-sarah", "Sarah Chen"),
+                ("thread-link-4", "thread-sarah-demo", "company", "company-finserve", "FinServe Inc"),
+                ("thread-link-5", "thread-emily-internal", "contact", "contact-emily", "Emily Watson"),
+                ("thread-link-6", "thread-emily-internal", "company", "company-edulearn", "EduLearn Platform"),
+            ]
+            calendar_events = [
+                (
+                    "calendar-event-emily-followup",
+                    "calendar-comms",
+                    "calendar-source-local",
+                    "thread-emily-internal",
+                    "contact-emily",
+                    "company-edulearn",
+                    "EduLearn conversion strategy review",
+                    "Internal follow-up generated from Comms scheduling.",
+                    now,
+                    (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
+                    "scheduled",
+                    "other",
+                    "Comms command room",
+                    "",
+                    "local",
+                    "",
+                    now,
+                    "local-first",
+                    "clear",
+                    "Created locally from the Comms workspace.",
+                    None,
+                    json.dumps({}),
+                    "comms",
+                    now,
+                    now,
+                )
+            ]
+
+            conn.executemany(
+                """
+                INSERT INTO contacts (
+                    id, contact_id, organization_id, tenant_id, first_name, last_name, email, phone, company, company_id,
+                    title, department, owner, source, status, lead_score, quality, engagement, tags_json,
+                    last_contacted_at, pipeline_stage, created_at, updated_at, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], row[1], row[2], self._default_tenant_id(), *row[3:]) for row in contacts],
+            )
+            conn.executemany("INSERT INTO companies (id, tenant_id, name, industry, size, website, owner) VALUES (?, ?, ?, ?, ?, ?, ?)", [(row[0], self._default_tenant_id(), *row[1:]) for row in companies])
+            conn.executemany("INSERT INTO tags (id, tenant_id, name, color, type, usage_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [(row[0], self._default_tenant_id(), *row[1:]) for row in tags])
+            conn.executemany(
+                """
+                INSERT INTO forms (
+                    id, tenant_id, name, slug, description, schema_json, settings_json, is_active,
+                    responses_count, last_response_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in forms],
+            )
+            conn.executemany(
+                "INSERT INTO mailboxes (id, tenant_id, name, address, provider, status, inbound_enabled, outbound_enabled, last_synced_at, config_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in mailboxes],
+            )
+            conn.executemany(
+                """
+                INSERT INTO threads (
+                    id, tenant_id, mailbox_id, channel_type, subject, generated_title, status, ai_flags_json,
+                    ai_priority, priority_score, owner, assignee, contact_id, company_id,
+                    automation_state, last_activity_at, next_follow_up_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in threads],
+            )
+            conn.executemany(
+                """
+                INSERT INTO messages (
+                    id, tenant_id, thread_id, channel_type, direction, sender_name, sender_email, recipients_json,
+                    body, plain_text, quoted_history, delivery_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in messages],
+            )
+            conn.executemany(
+                """
+                INSERT INTO thread_ai_briefs (
+                    thread_id, tenant_id, summary, disposition, recommended_next_step, confidence,
+                    unresolved_questions_json, crm_implications_json, reasoning_cues_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in thread_briefs],
+            )
+            conn.executemany(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in thread_actions],
+            )
+            conn.executemany(
+                "INSERT INTO thread_links (id, tenant_id, thread_id, source_type, source_id, label) VALUES (?, ?, ?, ?, ?, ?)",
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in thread_links],
+            )
+            conn.executemany(
+                """
+                INSERT INTO calendar_events (
+                    id, tenant_id, calendar_id, source_id, thread_id, contact_id, company_id, title, description,
+                    start_time, end_time, status, location_type, location, meeting_url, sync_status,
+                    external_event_ref, last_synced_at, authority_mode, conflict_state, sync_note, imported_at,
+                    source_payload_json, source, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(row[0], self._default_tenant_id(), *row[1:]) for row in calendar_events],
+            )
+            self._backfill_tenant_ids(conn)
+
+    def _rows(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def _tenant_rows(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        return self._rows(query, (self._tenant_id(), *params))
+
+    def _calendar_event_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        event = dict(row)
+        event["source_payload"] = json_loads(event.pop("source_payload_json", None), {})
+        event["authority_mode"] = event.get("authority_mode") or "local-first"
+        event["conflict_state"] = event.get("conflict_state") or "clear"
+        event["sync_note"] = event.get("sync_note") or ""
+        event["all_day"] = bool(event.get("all_day", 0))
+        return event
+
+    def _contact_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        contact = dict(row)
+        contact["tags"] = json_loads(contact.pop("tags_json", None), [])
+        contact["address"] = json_loads(contact.pop("address_json", None), {})
+        contact["custom_fields"] = json_loads(contact.pop("custom_fields_json", None), {})
+        contact["opt_in_email"] = bool(contact.get("opt_in_email", 1))
+        contact["opt_in_sms"] = bool(contact.get("opt_in_sms", 1))
+        contact["opt_in_calls"] = bool(contact.get("opt_in_calls", 1))
+        contact["opt_in_flows"] = bool(contact.get("opt_in_flows", 1))
+        return contact
+
+    def _form_from_row(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "folder_id": row.get("folder_id"),
+            "slug": row["slug"],
+            "description": row["description"],
+            "schema": json_loads(row["schema_json"], []),
+            "settings": json_loads(row["settings_json"], {}),
+            "status": row.get("status") or ("Active" if row.get("is_active") else "Draft"),
+            "is_active": bool(row["is_active"]),
+            "responses_count": row["responses_count"],
+            "last_active": row.get("last_active"),
+            "last_modified_by": row.get("last_modified_by"),
+            "creator": row.get("creator"),
+            "triggers": json_loads(row.get("triggers_json"), None),
+            "automation": json_loads(row.get("automation_json"), None),
+            "last_response_at": row["last_response_at"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "last_modified_at": row["updated_at"],
+        }
+
+    def _thread_queue_ids(self, thread: dict[str, Any]) -> list[str]:
+        flags = thread.get("aiFlags") or thread.get("ai_flags") or {}
+        queue_ids: list[str] = []
+        if thread["status"] == "new" or flags.get("needs_human") or thread.get("priority_score", 0) >= 88:
+            queue_ids.append("now")
+        if thread["status"] == "waiting_on_us":
+            queue_ids.append("needs-reply")
+        if thread["status"] == "waiting_on_them":
+            queue_ids.append("waiting")
+        if flags.get("hot_lead") or flags.get("high_intent"):
+            queue_ids.append("hot-leads")
+        if flags.get("at_risk"):
+            queue_ids.append("at-risk")
+        if thread["status"] == "scheduled" or flags.get("follow_up_due"):
+            queue_ids.append("scheduled")
+        if thread.get("automation_state") == "automated":
+            queue_ids.append("automated")
+        if thread["status"] == "closed":
+            queue_ids.append("closed")
+        return queue_ids
+
+    def _get_thread_context(self) -> list[dict[str, Any]]:
+        tenant_id = self._tenant_id()
+        contacts = {contact["id"]: contact for contact in self.list_contacts()}
+        companies = {company["id"]: company for company in self.list_companies()}
+        with self._connect() as conn:
+            mailboxes = {row["id"]: dict(row) for row in conn.execute("SELECT * FROM mailboxes WHERE tenant_id = ?", (tenant_id,)).fetchall()}
+            message_rows = [dict(row) for row in conn.execute("SELECT * FROM messages WHERE tenant_id = ? ORDER BY created_at ASC", (tenant_id,)).fetchall()]
+            brief_rows = {row["thread_id"]: dict(row) for row in conn.execute("SELECT * FROM thread_ai_briefs WHERE tenant_id = ?", (tenant_id,)).fetchall()}
+            action_rows: dict[str, list[dict[str, Any]]] = {}
+            for row in conn.execute("SELECT * FROM thread_actions WHERE tenant_id = ? ORDER BY created_at ASC", (tenant_id,)).fetchall():
+                payload = dict(row)
+                action_rows.setdefault(payload["thread_id"], []).append(payload)
+            link_rows: dict[str, list[dict[str, Any]]] = {}
+            for row in conn.execute("SELECT * FROM thread_links WHERE tenant_id = ?", (tenant_id,)).fetchall():
+                payload = dict(row)
+                link_rows.setdefault(payload["thread_id"], []).append(payload)
+            calendar_event_rows: dict[str, list[dict[str, Any]]] = {}
+            for row in conn.execute("SELECT * FROM calendar_events WHERE tenant_id = ? ORDER BY start_time ASC", (tenant_id,)).fetchall():
+                payload = dict(row)
+                calendar_event_rows.setdefault(payload["thread_id"], []).append(payload)
+            threads = [dict(row) for row in conn.execute("SELECT * FROM threads WHERE tenant_id = ? ORDER BY last_activity_at DESC", (tenant_id,)).fetchall()]
+
+        hydrated = []
+        for thread in threads:
+            thread_messages = []
+            for message in message_rows:
+                if message["thread_id"] != thread["id"]:
+                    continue
+                thread_messages.append(
+                    {
+                        **message,
+                        "recipients": json_loads(message.pop("recipients_json"), []),
+                    }
+                )
+            brief_row = brief_rows.get(thread["id"])
+            brief = {
+                "summary": brief_row["summary"],
+                "disposition": brief_row["disposition"],
+                "recommended_next_step": brief_row["recommended_next_step"],
+                "confidence": brief_row["confidence"],
+                "unresolved_questions": json_loads(brief_row["unresolved_questions_json"], []),
+                "crm_implications": json_loads(brief_row["crm_implications_json"], []),
+                "reasoning_cues": json_loads(brief_row["reasoning_cues_json"], []),
+            } if brief_row else {}
+            ai_flags = json_loads(thread.pop("ai_flags_json"), {})
+            latest_message = thread_messages[-1] if thread_messages else None
+            hydrated.append(
+                {
+                    **thread,
+                    "aiFlags": ai_flags,
+                    "brief": brief,
+                    "actions": action_rows.get(thread["id"], []),
+                    "links": link_rows.get(thread["id"], []),
+                    "calendarEvents": calendar_event_rows.get(thread["id"], []),
+                    "mailbox": mailboxes.get(thread["mailbox_id"]),
+                    "contact": contacts.get(thread["contact_id"]),
+                    "company": companies.get(thread["company_id"]),
+                    "messages": thread_messages,
+                    "latestMessage": latest_message,
+                    "preview": (latest_message["plain_text"] if latest_message else brief.get("summary")) or thread["generated_title"],
+                    "queueIds": self._thread_queue_ids({**thread, "aiFlags": ai_flags}),
+                }
+            )
+        return hydrated
+
+    def health(self) -> dict[str, Any]:
+        return {"provider": self.provider_name, "status": "ready", "db_path": str(self.db_path)}
+
+    def list_contacts(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM contacts WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC")
+        return [self._contact_from_row(row) for row in rows]
+
+    def create_contact(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": payload.get("id") or f"contact-{unique_suffix()}",
+            "contact_id": payload.get("contact_id") or f"CNT-{unique_suffix().upper()}",
+            "organization_id": payload.get("organization_id") or "org-1",
+            "tenant_id": self._tenant_id(),
+            "first_name": payload.get("first_name"),
+            "last_name": payload.get("last_name"),
+            "email": payload.get("email"),
+            "phone": payload.get("phone"),
+            "company": payload.get("company"),
+            "company_id": payload.get("company_id"),
+            "title": payload.get("title"),
+            "department": payload.get("department"),
+            "owner": payload.get("owner") or "AIO Flow",
+            "source": payload.get("source") or "Manual Entry",
+            "status": payload.get("status") or "contact",
+            "lead_score": payload.get("lead_score") or 50,
+            "quality": payload.get("quality") or "warm",
+            "engagement": payload.get("engagement") or "medium",
+            "tags_json": json.dumps(payload.get("tags") or []),
+            "last_contacted_at": payload.get("last_contacted_at"),
+            "pipeline_stage": payload.get("pipeline_stage") or "New",
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+            "deleted_at": payload.get("deleted_at"),
+            "website": payload.get("website"),
+            "dob": payload.get("dob"),
+            "owner_id": payload.get("owner_id"),
+            "address_json": json.dumps(payload.get("address") or {}),
+            "custom_fields_json": json.dumps(payload.get("custom_fields") or {}),
+            "opt_in_email": int(payload.get("opt_in_email", True)),
+            "opt_in_sms": int(payload.get("opt_in_sms", True)),
+            "opt_in_calls": int(payload.get("opt_in_calls", True)),
+            "opt_in_flows": int(payload.get("opt_in_flows", True)),
+            "ai_employee": payload.get("ai_employee"),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO contacts (
+                    id, contact_id, organization_id, tenant_id, first_name, last_name, email, phone, company, company_id,
+                    title, department, owner, source, status, lead_score, quality, engagement, tags_json,
+                    last_contacted_at, pipeline_stage, created_at, updated_at, deleted_at, website, dob, owner_id,
+                    address_json, custom_fields_json, opt_in_email, opt_in_sms, opt_in_calls, opt_in_flows, ai_employee
+                ) VALUES (
+                    :id, :contact_id, :organization_id, :tenant_id, :first_name, :last_name, :email, :phone, :company, :company_id,
+                    :title, :department, :owner, :source, :status, :lead_score, :quality, :engagement, :tags_json,
+                    :last_contacted_at, :pipeline_stage, :created_at, :updated_at, :deleted_at, :website, :dob, :owner_id,
+                    :address_json, :custom_fields_json, :opt_in_email, :opt_in_sms, :opt_in_calls, :opt_in_flows, :ai_employee
+                )
+                """,
+                record,
+            )
+            conn.commit()
+        return self._contact_from_row(record)
+
+    def update_contact(self, contact_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        allowed_scalar = {
+            "first_name", "last_name", "email", "phone", "company", "company_id", "title", "department",
+            "owner", "source", "status", "lead_score", "quality", "engagement", "last_contacted_at",
+            "pipeline_stage", "deleted_at", "website", "dob", "owner_id", "ai_employee"
+        }
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Contact not found")
+            payload = {}
+            for key in allowed_scalar:
+                if key in updates:
+                    payload[key] = updates[key]
+            if "tags" in updates:
+                payload["tags_json"] = json.dumps(updates.get("tags") or [])
+            if "address" in updates:
+                payload["address_json"] = json.dumps(updates.get("address") or {})
+            if "custom_fields" in updates:
+                payload["custom_fields_json"] = json.dumps(updates.get("custom_fields") or {})
+            for key in ["opt_in_email", "opt_in_sms", "opt_in_calls", "opt_in_flows"]:
+                if key in updates:
+                    payload[key] = int(bool(updates[key]))
+            if not payload:
+                return self._contact_from_row(dict(existing))
+            payload["updated_at"] = utcnow()
+            assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+            conn.execute(f"UPDATE contacts SET {assignments} WHERE id = ? AND tenant_id = ?", (*payload.values(), contact_id, self._tenant_id()))
+            conn.commit()
+            refreshed = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
+        return self._contact_from_row(dict(refreshed))
+
+    def list_companies(self) -> list[dict[str, Any]]:
+        return self._tenant_rows("SELECT * FROM companies WHERE tenant_id = ? ORDER BY name ASC")
+
+    def list_tags(self) -> list[dict[str, Any]]:
+        return self._tenant_rows("SELECT * FROM tags WHERE tenant_id = ? ORDER BY name ASC")
+
+    def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM forms WHERE tenant_id = ? AND (slug = ? OR id = ?)", (self._tenant_id(), slug, slug)).fetchone()
+        return self._form_from_row(dict(row) if row else None)
+
+    def get_form_by_id(self, form_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM forms WHERE tenant_id = ? AND id = ?", (self._tenant_id(), form_id)).fetchone()
+        return self._form_from_row(dict(row) if row else None)
+
+    def list_form_folders(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM form_folders WHERE tenant_id = ? ORDER BY name ASC")
+        return [{**row, "expanded": bool(row.get("expanded", 1))} for row in rows]
+
+    def create_form_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        folder = {
+            "id": payload.get("id") or f"form-folder-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "name": payload.get("name") or "New Folder",
+            "user_id": payload.get("user_id") or "1",
+            "created_at": payload.get("created_at") or utcnow(),
+            "expanded": int(bool(payload.get("expanded", True))),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO form_folders (id, tenant_id, name, user_id, created_at, expanded) VALUES (?, ?, ?, ?, ?, ?)",
+                (folder["id"], folder["tenant_id"], folder["name"], folder["user_id"], folder["created_at"], folder["expanded"]),
+            )
+            conn.commit()
+        return {**folder, "expanded": bool(folder["expanded"])}
+
+    def update_form_folder(self, folder_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {}
+        for key in ["name", "user_id"]:
+            if key in updates and updates[key] is not None:
+                payload[key] = updates[key]
+        if "expanded" in updates:
+            payload["expanded"] = int(bool(updates["expanded"]))
+        if not payload:
+            existing = next((folder for folder in self.list_form_folders() if folder["id"] == folder_id), None)
+            if not existing:
+                raise ValueError("Form folder not found")
+            return existing
+        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        with self._connect() as conn:
+            row = conn.execute("SELECT id FROM form_folders WHERE id = ? AND tenant_id = ?", (folder_id, self._tenant_id())).fetchone()
+            if not row:
+                raise ValueError("Form folder not found")
+            conn.execute(f"UPDATE form_folders SET {assignments} WHERE id = ? AND tenant_id = ?", (*payload.values(), folder_id, self._tenant_id()))
+            conn.commit()
+        return next(folder for folder in self.list_form_folders() if folder["id"] == folder_id)
+
+    def list_forms(self) -> list[dict[str, Any]]:
+        return [self._form_from_row(row) for row in self._tenant_rows("SELECT * FROM forms WHERE tenant_id = ? ORDER BY updated_at DESC")]
+
+    def create_form(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": payload.get("id") or f"form-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "name": payload.get("name") or "New Untitled Form",
+            "folder_id": payload.get("folder_id") or "form-folder-default",
+            "slug": payload.get("slug") or f"form_{unique_suffix()}",
+            "description": payload.get("description") or "",
+            "schema_json": json.dumps(payload.get("schema") or []),
+            "settings_json": json.dumps(payload.get("settings") or {"create_contact": True, "update_contact": True, "webhook_url": "", "notification_email": "", "redirect_url": "", "thank_you_message": "Thank you."}),
+            "status": payload.get("status") or "Draft",
+            "is_active": int(bool(payload.get("is_active", False))),
+            "responses_count": payload.get("responses_count", 0),
+            "last_active": payload.get("last_active") or "Just now",
+            "last_modified_by": payload.get("last_modified_by") or "AIO Flow",
+            "creator": payload.get("creator") or "AIO Flow",
+            "triggers_json": json.dumps(payload.get("triggers")),
+            "automation_json": json.dumps(payload.get("automation")),
+            "last_response_at": payload.get("last_response_at"),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO forms (
+                    id, tenant_id, name, folder_id, slug, description, schema_json, settings_json, status, is_active,
+                    responses_count, last_active, last_modified_by, creator, triggers_json, automation_json,
+                    last_response_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"], record["tenant_id"], record["name"], record["folder_id"], record["slug"], record["description"],
+                    record["schema_json"], record["settings_json"], record["status"], record["is_active"],
+                    record["responses_count"], record["last_active"], record["last_modified_by"], record["creator"],
+                    record["triggers_json"], record["automation_json"], record["last_response_at"],
+                    record["created_at"], record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return self._form_from_row(record)
+
+    def update_form(self, form_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {}
+        for key in ["name", "folder_id", "slug", "description", "status", "last_active", "last_modified_by", "creator", "last_response_at"]:
+            if key in updates and updates[key] is not None:
+                payload[key] = updates[key]
+        if "schema" in updates:
+            payload["schema_json"] = json.dumps(updates["schema"] or [])
+        if "settings" in updates:
+            payload["settings_json"] = json.dumps(updates["settings"] or {})
+        if "is_active" in updates:
+            payload["is_active"] = int(bool(updates["is_active"]))
+        if "responses_count" in updates and updates["responses_count"] is not None:
+            payload["responses_count"] = updates["responses_count"]
+        if "triggers" in updates:
+            payload["triggers_json"] = json.dumps(updates["triggers"])
+        if "automation" in updates:
+            payload["automation_json"] = json.dumps(updates["automation"])
+        if not payload:
+            form = self.get_form_by_id(form_id)
+            if not form:
+                raise ValueError("Form not found")
+            return form
+        payload["updated_at"] = utcnow()
+        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        with self._connect() as conn:
+            row = conn.execute("SELECT id FROM forms WHERE id = ? AND tenant_id = ?", (form_id, self._tenant_id())).fetchone()
+            if not row:
+                raise ValueError("Form not found")
+            conn.execute(f"UPDATE forms SET {assignments} WHERE id = ? AND tenant_id = ?", (*payload.values(), form_id, self._tenant_id()))
+            conn.commit()
+        return self.get_form_by_id(form_id)
+
+    def delete_form(self, form_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM forms WHERE id = ? AND tenant_id = ?", (form_id, self._tenant_id()))
+            conn.commit()
+
+    def list_cms_tables(self) -> list[dict[str, Any]]:
+        forms = self.list_forms()
+        submission_counts: dict[str, int] = {}
+        for row in self._tenant_rows("SELECT form_id, COUNT(*) AS total FROM form_submissions WHERE tenant_id = ? GROUP BY form_id"):
+            submission_counts[row["form_id"]] = row["total"]
+        return [
+            {
+                "id": f"cms-{form['id']}",
+                "name": form["name"],
+                "slug": form["slug"],
+                "description": form.get("description") or "",
+                "record_count": submission_counts.get(form["id"], 0),
+            }
+            for form in forms
+        ]
+
+    def list_cms_table_data(self, slug: str) -> list[dict[str, Any]]:
+        form = self.get_form_by_slug(slug)
+        if not form:
+            return []
+        rows = self._tenant_rows("SELECT * FROM form_submissions WHERE tenant_id = ? AND form_id = ? ORDER BY submitted_at DESC", (form["id"],))
+        data = []
+        for row in rows:
+            entry = {
+                "submission_id": row["id"],
+                "contact_id": row.get("contact_id"),
+                "created_contact": bool(row.get("created_contact")),
+                "submitted_at": row.get("submitted_at"),
+            }
+            entry.update(json_loads(row.get("submission_json"), {}))
+            data.append(entry)
+        return data
+
+    def submit_form(self, form_id: str, form_data: dict[str, Any]) -> dict[str, Any]:
+        form = self.get_form_by_id(form_id)
+        if not form:
+            raise ValueError("Form not found")
+
+        identifier_field = next((field for field in form["schema"] if field.get("is_identifier")), None)
+        if not identifier_field:
+            identifier_field = next((field for field in form["schema"] if field.get("map_to_contact") == "email"), None)
+        if not identifier_field:
+            identifier_field = next((field for field in form["schema"] if field.get("type") == "email"), None)
+
+        identifier_key = (identifier_field or {}).get("map_to_contact") or "email"
+        identifier_value = form_data.get(field_key(identifier_field)) if identifier_field else None
+        created_contact = False
+
+        with self._connect() as conn:
+            row = conn.execute(f"SELECT * FROM contacts WHERE tenant_id = ? AND {identifier_key} = ?", (self._tenant_id(), identifier_value)).fetchone()
+            contact_id = None
+
+            if row:
+                contact_id = row["id"]
+                if form["settings"].get("update_contact"):
+                    updates = {}
+                    for field in form["schema"]:
+                        mapped = field.get("map_to_contact")
+                        current_value = form_data.get(field_key(field))
+                        if mapped and current_value:
+                            updates[mapped] = current_value
+                    if updates:
+                        assignments = ", ".join(f"{key} = ?" for key in updates.keys())
+                        params = tuple(updates.values()) + (utcnow(), contact_id, self._tenant_id())
+                        conn.execute(f"UPDATE contacts SET {assignments}, updated_at = ? WHERE id = ? AND tenant_id = ?", params)
+            elif form["settings"].get("create_contact"):
+                contact_id = f"contact-{unique_suffix()}"
+                payload = {
+                    "id": contact_id,
+                    "contact_id": f"CNT-{unique_suffix().upper()}",
+                    "organization_id": "org-1",
+                    "tenant_id": self._tenant_id(),
+                    "first_name": None,
+                    "last_name": None,
+                    "email": None,
+                    "phone": None,
+                    "company": None,
+                    "company_id": None,
+                    "title": None,
+                    "department": None,
+                    "owner": "AIO Flow",
+                    "source": f"Form: {form['name']}",
+                    "status": "lead",
+                    "lead_score": 50,
+                    "quality": "warm",
+                    "engagement": "medium",
+                    "tags_json": json.dumps(["Form Submission"]),
+                    "last_contacted_at": utcnow(),
+                    "pipeline_stage": "New",
+                    "created_at": utcnow(),
+                    "updated_at": utcnow(),
+                    "deleted_at": None,
+                }
+                for field in form["schema"]:
+                    mapped = field.get("map_to_contact")
+                    current_value = form_data.get(field_key(field))
+                    if mapped and current_value:
+                        payload[mapped] = current_value
+                conn.execute(
+                    """
+                    INSERT INTO contacts (
+                        id, contact_id, organization_id, tenant_id, first_name, last_name, email, phone, company, company_id,
+                        title, department, owner, source, status, lead_score, quality, engagement, tags_json,
+                        last_contacted_at, pipeline_stage, created_at, updated_at, deleted_at
+                    ) VALUES (
+                        :id, :contact_id, :organization_id, :tenant_id, :first_name, :last_name, :email, :phone, :company, :company_id,
+                        :title, :department, :owner, :source, :status, :lead_score, :quality, :engagement, :tags_json,
+                        :last_contacted_at, :pipeline_stage, :created_at, :updated_at, :deleted_at
+                    )
+                    """,
+                    payload,
+                )
+                created_contact = True
+
+            submission_id = f"submission-{unique_suffix()}"
+            conn.execute(
+                "INSERT INTO form_submissions (id, tenant_id, form_id, contact_id, submission_json, created_contact, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (submission_id, self._tenant_id(), form_id, contact_id, json_dumps(form_data), int(created_contact), utcnow()),
+            )
+            conn.execute(
+                "UPDATE forms SET responses_count = responses_count + 1, last_response_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                (utcnow(), utcnow(), form_id, self._tenant_id()),
+            )
+            conn.commit()
+
+        if contact_id:
+            self.open_thread_for_contact(
+                contact_id,
+                channel_type="email",
+                subject=f"Form submission: {form['name']}",
+                body=", ".join(f"{key}: {value}" for key, value in form_data.items()),
+                force_new=True,
+            )
+
+        return {"success": True, "contactId": contact_id, "created": created_contact, "submissionId": submission_id}
+
+    def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
+        activities: list[dict[str, Any]] = []
+        for thread in self._get_thread_context():
+            if thread["contact_id"] != contact_id:
+                continue
+            for message in thread["messages"]:
+                direction = message.get("direction")
+                title = f"{thread['channel_type'].upper()} {'received' if direction == 'inbound' else 'sent' if direction == 'outbound' else 'logged'}"
+                activities.append(
+                    {
+                        "id": f"thread-activity-{message['id']}",
+                        "contact_id": contact_id,
+                        "user_id": "user-1",
+                        "activity_type": "email" if thread["channel_type"] == "email" else "sms" if thread["channel_type"] == "sms" else "note",
+                        "title": title,
+                        "description": message.get("plain_text") or message.get("body") or "",
+                        "metadata": {
+                            "thread_id": thread["id"],
+                            "channel_type": thread["channel_type"],
+                            "subject": thread["subject"],
+                            "ai_priority": thread.get("ai_priority"),
+                        },
+                        "created_at": message["created_at"],
+                    }
+                )
+            for action in thread.get("actions", []):
+                if action.get("status") != "completed":
+                    continue
+                if action.get("action_type") not in {"create-deal", "advance-stage", "schedule-meeting", "calendar-event-updated"}:
+                    continue
+                activities.append(
+                    {
+                        "id": action["id"],
+                        "contact_id": contact_id,
+                        "user_id": "user-1",
+                        "activity_type": "workflow",
+                        "title": action.get("label") or "Workflow action",
+                        "description": f"Comms workflow executed on thread {thread['subject']}.",
+                        "metadata": {
+                            "thread_id": thread["id"],
+                            "channel_type": thread["channel_type"],
+                            "subject": thread["subject"],
+                            "status": action.get("status"),
+                        },
+                        "created_at": action.get("created_at") or thread["updated_at"],
+                    }
+                )
+            for event in thread.get("calendarEvents", []):
+                activities.append(
+                    {
+                        "id": f"calendar-activity-{event['id']}",
+                        "contact_id": contact_id,
+                        "user_id": "user-1",
+                        "activity_type": "meeting",
+                        "title": event.get("title") or "Meeting scheduled",
+                        "description": event.get("description") or f"Scheduled for {event.get('start_time')}.",
+                        "metadata": {
+                            "thread_id": thread["id"],
+                            "meeting_url": event.get("meeting_url"),
+                            "location": event.get("location"),
+                            "status": event.get("status"),
+                        },
+                        "created_at": event.get("start_time") or event.get("created_at") or thread["updated_at"],
+                    }
+                )
+        return sorted(activities, key=lambda item: item["created_at"], reverse=True)
+
+    def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM form_submissions WHERE tenant_id = ?"
+        params: tuple[Any, ...] = (self._tenant_id(),)
+        if contact_id:
+            query += " AND contact_id = ?"
+            params = (self._tenant_id(), contact_id)
+        query += " ORDER BY submitted_at DESC"
+        rows = self._rows(query, params)
+        for row in rows:
+            row["submission_data"] = json_loads(row.pop("submission_json"), {})
+            row["created_contact"] = bool(row["created_contact"])
+        return rows
+
+    def list_mailboxes(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM mailboxes WHERE tenant_id = ? ORDER BY name ASC")
+        mailboxes = [
+            {
+                **row,
+                "inbound_enabled": bool(row.get("inbound_enabled", 1)),
+                "outbound_enabled": bool(row.get("outbound_enabled", 1)),
+                "config": json_loads(row.pop("config_json"), {}),
+            }
+            for row in rows
+        ]
+        return self._summarize_mailboxes(mailboxes, self._get_thread_context(), self.list_mail_events())
+
+    def list_calendars(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM calendars WHERE tenant_id = ? ORDER BY is_default DESC, name ASC")
+        return [
+            {
+                **row,
+                "is_default": bool(row.get("is_default", 0)),
+                "is_visible": bool(row.get("is_visible", 1)),
+            }
+            for row in rows
+        ]
+
+    def list_calendar_events(self, thread_id: str | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM calendar_events WHERE tenant_id = ?"
+        params: tuple[Any, ...] = (self._tenant_id(),)
+        if thread_id:
+            query += " AND thread_id = ?"
+            params = (self._tenant_id(), thread_id)
+        query += " ORDER BY start_time ASC"
+        return [self._calendar_event_from_row(row) for row in self._rows(query, params)]
+
+    def create_calendar_event(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        calendars = self.list_calendars()
+        default_calendar_id = next((calendar["id"] for calendar in calendars if calendar.get("is_default")), None) or (calendars[0]["id"] if calendars else "calendar-primary")
+        record = {
+            "id": payload.get("id") or f"calendar-event-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "calendar_id": payload.get("calendar_id") or default_calendar_id,
+            "source_id": payload.get("source_id") or "calendar-source-local",
+            "thread_id": payload.get("thread_id"),
+            "contact_id": payload.get("contact_id"),
+            "company_id": payload.get("company_id"),
+            "title": payload.get("title") or "New Event",
+            "description": payload.get("description") or "",
+            "start_time": payload.get("start_time") or now,
+            "end_time": payload.get("end_time") or now,
+            "status": payload.get("status") or "scheduled",
+            "location_type": payload.get("location_type") or "other",
+            "location": payload.get("location") or "",
+            "meeting_url": payload.get("meeting_url") or "",
+            "sync_status": payload.get("sync_status") or "local",
+            "external_event_ref": payload.get("external_event_ref") or "",
+            "last_synced_at": payload.get("last_synced_at"),
+            "authority_mode": payload.get("authority_mode") or "local-first",
+            "conflict_state": payload.get("conflict_state") or "clear",
+            "sync_note": payload.get("sync_note") or "Created locally.",
+            "imported_at": payload.get("imported_at"),
+            "source_payload_json": json.dumps(payload.get("source_payload") or {}),
+            "guest_name": payload.get("guest_name"),
+            "guest_email": payload.get("guest_email"),
+            "guest_phone": payload.get("guest_phone"),
+            "booking_type_id": payload.get("booking_type_id"),
+            "all_day": int(bool(payload.get("all_day", False))),
+            "source": payload.get("source") or "calendar-local",
+            "created_at": now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO calendar_events (
+                    id, tenant_id, calendar_id, source_id, thread_id, contact_id, company_id, title, description,
+                    start_time, end_time, status, location_type, location, meeting_url, sync_status,
+                    external_event_ref, last_synced_at, authority_mode, conflict_state, sync_note, imported_at,
+                    source_payload_json, guest_name, guest_email, guest_phone, booking_type_id, all_day, source,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"], record["tenant_id"], record["calendar_id"], record["source_id"], record["thread_id"], record["contact_id"],
+                    record["company_id"], record["title"], record["description"], record["start_time"], record["end_time"],
+                    record["status"], record["location_type"], record["location"], record["meeting_url"], record["sync_status"],
+                    record["external_event_ref"], record["last_synced_at"], record["authority_mode"], record["conflict_state"],
+                    record["sync_note"], record["imported_at"], record["source_payload_json"], record["guest_name"],
+                    record["guest_email"], record["guest_phone"], record["booking_type_id"], record["all_day"], record["source"],
+                    record["created_at"], record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return next((item for item in self.list_calendar_events() if item["id"] == record["id"]), self._calendar_event_from_row(record))
+
+    def update_calendar_event(self, event_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM calendar_events WHERE id = ? AND tenant_id = ?", (event_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Calendar event not found")
+            event = self._calendar_event_from_row(dict(existing))
+            allowed_keys = ["calendar_id", "title", "description", "start_time", "end_time", "status", "location_type", "location", "meeting_url", "source_id", "sync_status", "external_event_ref", "last_synced_at", "authority_mode", "conflict_state", "sync_note", "imported_at", "source_payload", "guest_name", "guest_email", "guest_phone", "booking_type_id", "all_day", "source"]
+            payload = {key: updates[key] for key in allowed_keys if key in updates and updates[key] is not None}
+            if not payload:
+                return event
+            if "source_payload" in payload:
+                payload["source_payload_json"] = json.dumps(payload.pop("source_payload"))
+            if "all_day" in payload:
+                payload["all_day"] = int(bool(payload["all_day"]))
+            payload["updated_at"] = utcnow()
+            assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+            conn.execute(
+                f"UPDATE calendar_events SET {assignments} WHERE id = ? AND tenant_id = ?",
+                (*payload.values(), event_id, self._tenant_id()),
+            )
+            refreshed = {**event, **payload}
+            if refreshed.get("thread_id"):
+                next_follow_up_at = refreshed.get("start_time")
+                status = refreshed.get("status")
+                thread_status = "scheduled" if status in {"scheduled", "confirmed"} else "waiting_on_us"
+                conn.execute(
+                    "UPDATE threads SET status = ?, next_follow_up_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                    (thread_status, next_follow_up_at, payload["updated_at"], refreshed["thread_id"], self._tenant_id()),
+                )
+                conn.execute(
+                    "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        f"thread-action-{refreshed['thread_id']}-calendar-{unique_suffix()}",
+                        self._tenant_id(),
+                        refreshed["thread_id"],
+                        f"Meeting {str(status or 'updated').replace('_', ' ').title()}",
+                        "calendar-event-updated",
+                        "system",
+                        "completed",
+                        payload["updated_at"],
+                        payload["updated_at"],
+                    ),
+                )
+            conn.commit()
+        return next((item for item in self.list_calendar_events() if item["id"] == event_id), refreshed)
+
+    def delete_calendar_event(self, event_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM calendar_events WHERE id = ? AND tenant_id = ?", (event_id, self._tenant_id()))
+            conn.commit()
+
+    def list_booking_types(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM booking_types WHERE tenant_id = ? ORDER BY name ASC")
+        return [
+            {
+                **row,
+                "duration_minutes": row.get("duration_minutes") or 30,
+                "location_type": row.get("location_type") or "other",
+                "buffer_before_minutes": row.get("buffer_before_minutes") or 0,
+                "buffer_after_minutes": row.get("buffer_after_minutes") or 0,
+                "is_active": bool(row.get("is_active", 1)),
+            }
+            for row in rows
+        ]
+
+    def create_booking_type(self, payload: dict[str, Any]) -> dict[str, Any]:
+        record = {
+            "id": payload.get("id") or f"booking-type-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "user_id": payload.get("user_id") or "1",
+            "name": payload.get("name") or "Meeting Type",
+            "slug": payload.get("slug") or slugify(payload.get("name") or f"booking-{unique_suffix()}"),
+            "duration_minutes": payload.get("duration_minutes") or 30,
+            "location": payload.get("location") or "",
+            "location_type": payload.get("location_type") or "other",
+            "description": payload.get("description") or "",
+            "color": payload.get("color") or "#10b981",
+            "buffer_before_minutes": payload.get("buffer_before_minutes") or 0,
+            "buffer_after_minutes": payload.get("buffer_after_minutes") or 0,
+            "is_active": int(bool(payload.get("is_active", True))),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO booking_types (
+                    id, tenant_id, user_id, name, slug, duration_minutes, location, location_type, description, color,
+                    buffer_before_minutes, buffer_after_minutes, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"], record["tenant_id"], record["user_id"], record["name"], record["slug"], record["duration_minutes"],
+                    record["location"], record["location_type"], record["description"], record["color"],
+                    record["buffer_before_minutes"], record["buffer_after_minutes"], record["is_active"],
+                ),
+            )
+            conn.commit()
+        return next((item for item in self.list_booking_types() if item["id"] == record["id"]), {**record, "is_active": bool(record["is_active"])})
+
+    def update_booking_type(self, booking_type_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {}
+        for key in ["name", "slug", "location", "location_type", "description", "color", "user_id"]:
+            if key in updates and updates[key] is not None:
+                payload[key] = updates[key]
+        for key in ["duration_minutes", "buffer_before_minutes", "buffer_after_minutes"]:
+            if key in updates and updates[key] is not None:
+                payload[key] = int(updates[key])
+        if "is_active" in updates and updates["is_active"] is not None:
+            payload["is_active"] = int(bool(updates["is_active"]))
+        if not payload:
+            existing = next((item for item in self.list_booking_types() if item["id"] == booking_type_id), None)
+            if not existing:
+                raise ValueError("Booking type not found")
+            return existing
+        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        with self._connect() as conn:
+            row = conn.execute("SELECT id FROM booking_types WHERE id = ? AND tenant_id = ?", (booking_type_id, self._tenant_id())).fetchone()
+            if not row:
+                raise ValueError("Booking type not found")
+            conn.execute(f"UPDATE booking_types SET {assignments} WHERE id = ? AND tenant_id = ?", (*payload.values(), booking_type_id, self._tenant_id()))
+            conn.commit()
+        return next(item for item in self.list_booking_types() if item["id"] == booking_type_id)
+
+    def delete_booking_type(self, booking_type_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM booking_types WHERE id = ? AND tenant_id = ?", (booking_type_id, self._tenant_id()))
+            conn.commit()
+
+    def list_calendar_sources(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM calendar_sources WHERE tenant_id = ? ORDER BY name ASC")
+        sources = [
+            {
+                **row,
+                "config": json_loads(row.pop("config_json"), {}),
+            }
+            for row in rows
+        ]
+        return self._summarize_calendar_sources(sources, self.list_calendar_events())
+
+    def get_calendar_provider_catalog(self) -> list[dict[str, Any]]:
+        return get_calendar_provider_catalog()
+
+    def create_calendar_source(
+        self,
+        name: str,
+        provider: str = "local-stub",
+        sync_direction: str = "two-way",
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        resolved_config = {
+            "authority_mode": "local-first",
+            "import_policy": "review",
+            **({"adapter": "local-stub"} if provider == "local-stub" else {}),
+            **(config or {}),
+        }
+        adapter = get_calendar_adapter(provider)
+        validation = adapter.validate_source({"provider": provider, "config": resolved_config})
+        source = {
+            "id": f"calendar-source-{slugify(name)}-{unique_suffix()}",
+            "name": name,
+            "provider": provider,
+            "status": "connected" if provider == "local-stub" else "ready" if validation["ok"] else "needs_config",
+            "sync_direction": sync_direction,
+            "config": resolved_config,
+            "last_synced_at": None,
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO calendar_sources (id, tenant_id, name, provider, status, sync_direction, config_json, last_synced_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    source["id"],
+                    source["tenant_id"],
+                    source["name"],
+                    source["provider"],
+                    source["status"],
+                    source["sync_direction"],
+                    json.dumps(source["config"]),
+                    source["last_synced_at"],
+                    source["created_at"],
+                    source["updated_at"],
+                ),
+            )
+            conn.commit()
+        return self._summarize_calendar_sources([source], self.list_calendar_events())[0]
+
+    def update_calendar_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM calendar_sources WHERE id = ? AND tenant_id = ?", (source_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Calendar source not found")
+            source = dict(existing)
+            payload = {}
+            for key in ["name", "provider", "status", "sync_direction", "last_synced_at"]:
+                if key in updates and updates[key] is not None:
+                    payload[key] = updates[key]
+            if "config" in updates and isinstance(updates["config"], dict):
+                merged_config = {
+                    "authority_mode": "local-first",
+                    "import_policy": "review",
+                    **json_loads(source.get("config_json"), {}),
+                    **updates["config"],
+                }
+                payload["config_json"] = json.dumps(merged_config)
+            if "status" not in updates:
+                adapter = get_calendar_adapter(payload.get("provider", source.get("provider")))
+                current_config = (
+                    {
+                        "authority_mode": "local-first",
+                        "import_policy": "review",
+                        **json_loads(source.get("config_json"), {}),
+                        **updates.get("config", {}),
+                    }
+                    if isinstance(updates.get("config"), dict)
+                    else json_loads(source.get("config_json"), {})
+                )
+                validation = adapter.validate_source(
+                    {
+                        "provider": payload.get("provider", source.get("provider")),
+                        "config": current_config,
+                    }
+                )
+                resolved_provider = payload.get("provider", source.get("provider"))
+                if resolved_provider == "local-stub":
+                    payload["status"] = "connected"
+                elif validation["ok"]:
+                    payload["status"] = "connected" if source.get("status") == "connected" else "ready"
+                else:
+                    payload["status"] = "needs_config"
+            payload["updated_at"] = utcnow()
+            assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+            conn.execute(f"UPDATE calendar_sources SET {assignments} WHERE id = ? AND tenant_id = ?", (*payload.values(), source_id, self._tenant_id()))
+            conn.commit()
+        return next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+
+    def delete_calendar_source(self, source_id: str, fallback_source_id: str | None = None) -> dict[str, Any]:
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM calendar_sources WHERE id = ? AND tenant_id = ?", (source_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Calendar source not found")
+            fallback_row = None
+            if fallback_source_id:
+                fallback_row = conn.execute("SELECT * FROM calendar_sources WHERE id = ? AND tenant_id = ?", (fallback_source_id, self._tenant_id())).fetchone()
+                if not fallback_row:
+                    raise ValueError("Fallback calendar source not found")
+            reassigned_events = conn.execute(
+                "SELECT COUNT(*) FROM calendar_events WHERE tenant_id = ? AND source_id = ?",
+                (self._tenant_id(), source_id),
+            ).fetchone()[0]
+            now = utcnow()
+            if fallback_row:
+                conn.execute(
+                    "UPDATE calendar_events SET source_id = ?, updated_at = ? WHERE tenant_id = ? AND source_id = ?",
+                    (fallback_row["id"], now, self._tenant_id(), source_id),
+                )
+                cleared_events = 0
+            else:
+                conn.execute(
+                    "UPDATE calendar_events SET source_id = NULL, updated_at = ? WHERE tenant_id = ? AND source_id = ?",
+                    (now, self._tenant_id(), source_id),
+                )
+                cleared_events = reassigned_events
+                reassigned_events = 0
+            conn.execute("DELETE FROM calendar_sources WHERE id = ? AND tenant_id = ?", (source_id, self._tenant_id()))
+            conn.commit()
+        return {
+            "deleted_source_id": source_id,
+            "deleted_source_name": existing["name"],
+            "fallback_source_id": fallback_row["id"] if fallback_row else None,
+            "fallback_source_name": fallback_row["name"] if fallback_row else None,
+            "reassigned_events": reassigned_events,
+            "cleared_events": cleared_events,
+        }
+
+    def disconnect_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        if source.get("provider") == "local-stub":
+            raise ValueError("Local stub calendar sources do not need disconnect.")
+        next_config = {
+            "authority_mode": source_config_value(source, "authority_mode", "local-first"),
+            "import_policy": source_config_value(source, "import_policy", "review"),
+            **disconnected_provider_config(source.get("provider"), source.get("config")),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE calendar_sources
+                SET status = ?, last_synced_at = ?, config_json = ?, updated_at = ?
+                WHERE id = ? AND tenant_id = ?
+                """,
+                ("needs_config", None, json.dumps(next_config), utcnow(), source_id, self._tenant_id()),
+            )
+            conn.commit()
+        return next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+
+    def test_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        result = adapter.test_connection(source)
+        next_config = {
+            **(source.get("config") or {}),
+            "last_tested_at": utcnow(),
+        }
+        if result.get("connected_calendar"):
+            next_config["connected_calendar"] = result["connected_calendar"]
+        if result["status"] == "ok":
+            next_config.pop("last_error", None)
+        else:
+            next_config["last_error"] = result.get("message")
+        updated = self.update_calendar_source(
+            source_id,
+            {
+                "status": "connected" if result["status"] == "ok" else "needs_config",
+                "config": next_config,
+            },
+        )
+        return {"source": updated, "result": result}
+
+    def sync_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        try:
+            result = adapter.sync_source(source)
+        except ValueError as error:
+            self.update_calendar_source(
+                source_id,
+                {
+                    "config": {**(source.get("config") or {}), "last_error": str(error)},
+                },
+            )
+            raise
+        updates: dict[str, Any] = {"last_synced_at": utcnow()}
+        updates["config"] = {
+            **(source.get("config") or {}),
+            **(result.get("config_updates") or {}),
+        }
+        updates["config"].pop("last_error", None)
+        updated = self.update_calendar_source(source_id, updates)
+        return {"source": updated, "result": result}
+
+    def push_calendar_event(self, event_id: str, source_id: str | None = None) -> dict[str, Any]:
+        event = next((item for item in self.list_calendar_events() if item["id"] == event_id), None)
+        if not event:
+            raise ValueError("Calendar event not found")
+        resolved_source_id = source_id or event.get("source_id") or "calendar-source-local"
+        source = next((item for item in self.list_calendar_sources() if item["id"] == resolved_source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        try:
+            result = adapter.push_event(source, event)
+        except ValueError as error:
+            self.update_calendar_source(
+                source["id"],
+                {
+                    "config": {**(source.get("config") or {}), "last_error": str(error)},
+                },
+            )
+            raise
+        synced_at = utcnow()
+        updated_event = self.update_calendar_event(
+            event_id,
+            {
+                "source_id": source["id"],
+                "sync_status": "local" if source.get("provider") == "local-stub" else "synced",
+                "external_event_ref": result.get("external_event_ref", ""),
+                "last_synced_at": synced_at,
+                "authority_mode": source_config_value(source, "authority_mode", "local-first"),
+                "conflict_state": "resolved",
+                "sync_note": "Pushed outward from the local schedule.",
+            },
+        )
+        updated_source = self.update_calendar_source(
+            source["id"],
+            {
+                "last_synced_at": synced_at,
+                "config": {**(source.get("config") or {}), "last_error": None},
+            },
+        )
+        return {"event": updated_event, "source": updated_source, "result": result}
+
+    def import_calendar_source(self, source_id: str) -> dict[str, Any]:
+        source = next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        try:
+            result = adapter.import_events(source)
+        except ValueError as error:
+            self.update_calendar_source(
+                source_id,
+                {
+                    "config": {**(source.get("config") or {}), "last_error": str(error)},
+                },
+            )
+            raise
+        now = utcnow()
+        source_updates: dict[str, Any] = {"last_synced_at": now}
+        source_updates["config"] = {
+            **(source.get("config") or {}),
+            **(result.get("config_updates") or {}),
+        }
+        source_updates["config"].pop("last_error", None)
+        imported: list[dict[str, Any]] = []
+        existing_events = self.list_calendar_events()
+        with self._connect() as conn:
+            for payload in result.get("events", []):
+                existing = conn.execute(
+                    "SELECT * FROM calendar_events WHERE tenant_id = ? AND source_id = ? AND external_event_ref = ?",
+                    (self._tenant_id(), source_id, payload.get("external_event_ref")),
+                ).fetchone()
+                existing_event = self._calendar_event_from_row(dict(existing)) if existing else None
+                metadata = self._calendar_import_metadata(source, payload, existing_events, event_id=existing_event.get("id") if existing_event else None)
+                normalized = {
+                    "calendar_id": "calendar-comms",
+                    "source_id": source_id,
+                    "thread_id": None,
+                    "contact_id": None,
+                    "company_id": None,
+                    "title": payload.get("title") or f"{source['name']} imported event",
+                    "description": payload.get("description") or "Imported from an external calendar source.",
+                    "start_time": payload.get("start_time") or next_meeting_slot(),
+                    "end_time": payload.get("end_time") or (parse_utc(payload.get("start_time") or next_meeting_slot()) + timedelta(minutes=45)).isoformat(),
+                    "status": payload.get("status") or "scheduled",
+                    "location_type": payload.get("location_type") or "other",
+                    "location": payload.get("location") or source.get("name"),
+                    "meeting_url": payload.get("meeting_url") or "",
+                    "sync_status": metadata["sync_status"],
+                    "external_event_ref": payload.get("external_event_ref") or f"{source_id}-{unique_suffix()}",
+                    "last_synced_at": now,
+                    "authority_mode": metadata["authority_mode"],
+                    "conflict_state": metadata["conflict_state"],
+                    "sync_note": metadata["sync_note"],
+                    "imported_at": now,
+                    "source_payload_json": json.dumps(payload.get("source_payload") or {}),
+                    "source": "external-import",
+                    "updated_at": now,
+                }
+                if existing_event:
+                    assignments = ", ".join(f"{key} = ?" for key in normalized.keys())
+                    conn.execute(
+                        f"UPDATE calendar_events SET {assignments} WHERE id = ?",
+                        (*normalized.values(), existing_event["id"]),
+                    )
+                    imported.append(self._calendar_event_from_row({**existing_event, **normalized}))
+                else:
+                    event_id = f"calendar-event-import-{unique_suffix()}"
+                    created_at = now
+                    conn.execute(
+                        """
+                        INSERT INTO calendar_events (
+                            id, tenant_id, calendar_id, source_id, thread_id, contact_id, company_id, title, description,
+                            start_time, end_time, status, location_type, location, meeting_url, sync_status,
+                            external_event_ref, last_synced_at, authority_mode, conflict_state, sync_note, imported_at,
+                            source_payload_json, source, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            event_id,
+                            self._tenant_id(),
+                            normalized["calendar_id"],
+                            normalized["source_id"],
+                            normalized["thread_id"],
+                            normalized["contact_id"],
+                            normalized["company_id"],
+                            normalized["title"],
+                            normalized["description"],
+                            normalized["start_time"],
+                            normalized["end_time"],
+                            normalized["status"],
+                            normalized["location_type"],
+                            normalized["location"],
+                            normalized["meeting_url"],
+                            normalized["sync_status"],
+                            normalized["external_event_ref"],
+                            normalized["last_synced_at"],
+                            normalized["authority_mode"],
+                            normalized["conflict_state"],
+                            normalized["sync_note"],
+                            normalized["imported_at"],
+                            normalized["source_payload_json"],
+                            normalized["source"],
+                            created_at,
+                            normalized["updated_at"],
+                        ),
+                    )
+                    imported.append(
+                        self._calendar_event_from_row(
+                            {
+                                "id": event_id,
+                                "created_at": created_at,
+                                **normalized,
+                            }
+                        )
+                    )
+            conn.commit()
+        updated_source = self.update_calendar_source(source_id, source_updates)
+        conflicted = sum(1 for event in imported if event.get("conflict_state") == "review")
+        return {
+            "source": updated_source,
+            "events": imported,
+            "result": {
+                **result,
+                "imported_count": len(imported),
+                "conflicted_count": conflicted,
+                "message": result.get("message") or f"Imported {len(imported)} events from {source['name']}.",
+            },
+        }
+
+    def reconcile_calendar_event(self, event_id: str, strategy: str) -> dict[str, Any]:
+        event = next((item for item in self.list_calendar_events() if item["id"] == event_id), None)
+        if not event:
+            raise ValueError("Calendar event not found")
+        if strategy not in {"keep_local", "accept_import"}:
+            raise ValueError("Invalid reconciliation strategy")
+        updates = {
+            "conflict_state": "resolved",
+            "sync_note": "Local schedule kept after reconciliation." if strategy == "keep_local" else "Imported schedule accepted into the local operating calendar.",
+            "sync_status": "local" if strategy == "keep_local" else "synced" if event.get("external_event_ref") else "imported",
+            "last_synced_at": utcnow(),
+        }
+        if strategy == "accept_import":
+            source_payload = event.get("source_payload") or {}
+            for key in ["title", "description", "start_time", "end_time", "location", "meeting_url"]:
+                if source_payload.get(key):
+                    updates[key] = source_payload[key]
+        updated = self.update_calendar_event(event_id, updates)
+        return {"event": updated, "result": {"strategy": strategy, "message": updates["sync_note"]}}
+
+    def create_mailbox(
+        self,
+        name: str,
+        address: str,
+        provider: str = "local-stub",
+        inbound_enabled: bool = True,
+        outbound_enabled: bool = True,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        resolved_config = config or ({"adapter": "local-stub"} if provider == "local-stub" else {})
+        validation = self.mail_adapter.validate_mailbox({"provider": provider, "config": resolved_config})
+        mailbox = {
+            "id": f"mailbox-{slugify(name)}-{unique_suffix()}",
+            "name": name,
+            "address": address,
+            "provider": provider,
+            "status": "connected" if provider == "local-stub" else "ready" if validation["ok"] else "needs_config",
+            "inbound_enabled": inbound_enabled,
+            "outbound_enabled": outbound_enabled,
+            "last_synced_at": None,
+            "config": resolved_config,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO mailboxes (
+                    id, tenant_id, name, address, provider, status, inbound_enabled, outbound_enabled, last_synced_at, config_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    mailbox["id"],
+                    mailbox["tenant_id"],
+                    mailbox["name"],
+                    mailbox["address"],
+                    mailbox["provider"],
+                    mailbox["status"],
+                    int(mailbox["inbound_enabled"]),
+                    int(mailbox["outbound_enabled"]),
+                    mailbox["last_synced_at"],
+                    json.dumps(mailbox["config"]),
+                ),
+            )
+            conn.commit()
+        return self.mail_adapter.describe_mailbox(mailbox)
+
+    def update_mailbox(self, mailbox_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        next_mailbox = {
+            **mailbox,
+            "name": updates.get("name", mailbox["name"]),
+            "address": updates.get("address", mailbox["address"]),
+            "provider": updates.get("provider", mailbox["provider"]),
+            "status": updates.get("status", mailbox.get("status")),
+            "inbound_enabled": mailbox["inbound_enabled"] if updates.get("inbound_enabled") is None else bool(updates["inbound_enabled"]),
+            "outbound_enabled": mailbox["outbound_enabled"] if updates.get("outbound_enabled") is None else bool(updates["outbound_enabled"]),
+            "last_synced_at": updates.get("last_synced_at", mailbox.get("last_synced_at")),
+            "config": updates.get("config", mailbox.get("config", {})),
+        }
+        if "status" not in updates:
+            adapter = get_mail_adapter(next_mailbox.get("provider"))
+            validation = adapter.validate_mailbox(next_mailbox)
+            next_mailbox["status"] = "connected" if next_mailbox.get("provider") == "local-stub" else "ready" if validation["ok"] else "needs_config"
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE mailboxes
+                SET name = ?, address = ?, provider = ?, status = ?, inbound_enabled = ?, outbound_enabled = ?, last_synced_at = ?, config_json = ?
+                WHERE id = ? AND tenant_id = ?
+                """,
+                (
+                    next_mailbox["name"],
+                    next_mailbox["address"],
+                    next_mailbox["provider"],
+                    next_mailbox["status"],
+                    int(next_mailbox["inbound_enabled"]),
+                    int(next_mailbox["outbound_enabled"]),
+                    next_mailbox["last_synced_at"],
+                    json.dumps(next_mailbox["config"]),
+                    mailbox_id,
+                    self._tenant_id(),
+                ),
+            )
+            conn.commit()
+        return get_mail_adapter(next_mailbox.get("provider")).describe_mailbox(next_mailbox)
+
+    def delete_mailbox(self, mailbox_id: str, fallback_mailbox_id: str | None = None) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        with self._connect() as conn:
+            remaining_rows = conn.execute(
+                "SELECT * FROM mailboxes WHERE tenant_id = ? AND id != ? ORDER BY CASE WHEN provider = 'local-stub' THEN 1 ELSE 0 END, name ASC",
+                (self._tenant_id(), mailbox_id),
+            ).fetchall()
+            if not remaining_rows:
+                raise ValueError("Cannot delete the last mailbox")
+            fallback_row = None
+            if fallback_mailbox_id:
+                fallback_row = next((row for row in remaining_rows if row["id"] == fallback_mailbox_id), None)
+                if not fallback_row:
+                    raise ValueError("Fallback mailbox not found")
+            if not fallback_row:
+                fallback_row = remaining_rows[0]
+            reassigned_threads = conn.execute(
+                "SELECT COUNT(*) FROM threads WHERE tenant_id = ? AND mailbox_id = ?",
+                (self._tenant_id(), mailbox_id),
+            ).fetchone()[0]
+            reassigned_events = conn.execute(
+                "SELECT COUNT(*) FROM mail_events WHERE tenant_id = ? AND mailbox_id = ?",
+                (self._tenant_id(), mailbox_id),
+            ).fetchone()[0]
+            now = utcnow()
+            conn.execute("UPDATE threads SET mailbox_id = ?, updated_at = ? WHERE tenant_id = ? AND mailbox_id = ?", (fallback_row["id"], now, self._tenant_id(), mailbox_id))
+            conn.execute("UPDATE mail_events SET mailbox_id = ? WHERE tenant_id = ? AND mailbox_id = ?", (fallback_row["id"], self._tenant_id(), mailbox_id))
+            conn.execute("DELETE FROM mailboxes WHERE id = ? AND tenant_id = ?", (mailbox_id, self._tenant_id()))
+            conn.commit()
+        fallback = self._get_mailbox_row(fallback_row["id"])
+        self._record_mail_event(
+            fallback_row["id"],
+            "mailbox.deleted",
+            {
+                "deleted_mailbox_id": mailbox_id,
+                "deleted_mailbox_name": mailbox.get("name"),
+                "fallback_mailbox_id": fallback_row["id"],
+                "fallback_mailbox_name": fallback_row["name"],
+                "reassigned_threads": reassigned_threads,
+                "reassigned_events": reassigned_events,
+            },
+            source_provider=(fallback or {}).get("provider") if fallback else fallback_row["provider"],
+        )
+        return {
+            "deleted_mailbox_id": mailbox_id,
+            "deleted_mailbox_name": mailbox.get("name"),
+            "fallback_mailbox_id": fallback_row["id"],
+            "fallback_mailbox_name": fallback_row["name"],
+            "reassigned_threads": reassigned_threads,
+            "reassigned_events": reassigned_events,
+        }
+
+    def disconnect_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        if mailbox.get("provider") == "local-stub":
+            raise ValueError("Local stub mailboxes do not need disconnect.")
+        updated = self.update_mailbox(
+            mailbox_id,
+            {
+                "status": "needs_config",
+                "last_synced_at": None,
+                "config": disconnected_provider_config(mailbox.get("provider"), mailbox.get("config")),
+            },
+        )
+        self._record_mail_event(
+            mailbox_id,
+            "mailbox.disconnected",
+            {"message": f"{mailbox.get('name')} was disconnected and must reconnect before use."},
+            source_provider=mailbox.get("provider"),
+        )
+        return updated
+
+    def list_mail_events(self, mailbox_id: str | None = None, thread_id: str | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM mail_events"
+        params: list[str] = [self._tenant_id()]
+        clauses: list[str] = ["tenant_id = ?"]
+        if mailbox_id:
+            clauses.append("mailbox_id = ?")
+            params.append(mailbox_id)
+        if thread_id:
+            clauses.append("thread_id = ?")
+            params.append(thread_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC"
+        rows = self._rows(query, tuple(params))
+        for row in rows:
+            row["payload"] = json_loads(row.pop("payload_json"), {})
+        return rows
+
+    def get_mail_provider_catalog(self) -> list[dict[str, Any]]:
+        return get_provider_catalog()
+
+    def _record_mail_event(
+        self,
+        mailbox_id: str,
+        event_type: str,
+        payload: dict[str, Any],
+        *,
+        thread_id: str | None = None,
+        message_id: str | None = None,
+        source_provider: str | None = None,
+    ) -> dict[str, Any]:
+        event = {
+            "id": f"mail-event-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "mailbox_id": mailbox_id,
+            "thread_id": thread_id,
+            "message_id": message_id,
+            "event_type": event_type,
+            "source_provider": source_provider or self.mail_adapter.provider_name,
+            "payload": payload,
+            "created_at": utcnow(),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO mail_events (
+                    id, tenant_id, mailbox_id, thread_id, message_id, event_type, source_provider, payload_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event["id"],
+                    event["tenant_id"],
+                    event["mailbox_id"],
+                    event["thread_id"],
+                    event["message_id"],
+                    event["event_type"],
+                    event["source_provider"],
+                    json.dumps(event["payload"]),
+                    event["created_at"],
+                ),
+            )
+            conn.commit()
+        return event
+
+    def _ensure_contact_for_email(self, sender_name: str, sender_email: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM contacts WHERE tenant_id = ? AND LOWER(email) = LOWER(?)", (self._tenant_id(), sender_email)).fetchone()
+            if row:
+                payload = dict(row)
+                payload["tags"] = json_loads(payload.pop("tags_json"), [])
+                return payload
+            name_parts = [part for part in sender_name.split(" ") if part]
+            first_name = name_parts[0] if name_parts else sender_email.split("@")[0]
+            last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+            contact_id = f"contact-{unique_suffix()}"
+            payload = {
+                "id": contact_id,
+                "contact_id": f"CNT-{unique_suffix().upper()}",
+                "organization_id": "org-1",
+                "tenant_id": self._tenant_id(),
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": sender_email,
+                "phone": None,
+                "company": None,
+                "company_id": None,
+                "title": None,
+                "department": None,
+                "owner": "AIO Flow",
+                "source": "Inbound Email",
+                "status": "lead",
+                "lead_score": 55,
+                "quality": "warm",
+                "engagement": "medium",
+                "tags_json": json.dumps(["Email Lead"]),
+                "last_contacted_at": utcnow(),
+                "pipeline_stage": "New",
+                "created_at": utcnow(),
+                "updated_at": utcnow(),
+                "deleted_at": None,
+            }
+            conn.execute(
+                """
+                INSERT INTO contacts (
+                    id, contact_id, organization_id, tenant_id, first_name, last_name, email, phone, company, company_id,
+                    title, department, owner, source, status, lead_score, quality, engagement, tags_json,
+                    last_contacted_at, pipeline_stage, created_at, updated_at, deleted_at
+                ) VALUES (
+                    :id, :contact_id, :organization_id, :tenant_id, :first_name, :last_name, :email, :phone, :company, :company_id,
+                    :title, :department, :owner, :source, :status, :lead_score, :quality, :engagement, :tags_json,
+                    :last_contacted_at, :pipeline_stage, :created_at, :updated_at, :deleted_at
+                )
+                """,
+                payload,
+            )
+            conn.commit()
+        payload["tags"] = json_loads(payload.pop("tags_json"), [])
+        return payload
+
+    def _get_mailbox_row(self, mailbox_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM mailboxes WHERE id = ? AND tenant_id = ?", (mailbox_id, self._tenant_id())).fetchone()
+        if not row:
+            return None
+        payload = dict(row)
+        payload["config"] = json_loads(payload.pop("config_json"), {})
+        payload["inbound_enabled"] = bool(payload.get("inbound_enabled", 1))
+        payload["outbound_enabled"] = bool(payload.get("outbound_enabled", 1))
+        return payload
+
+    def sync_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        try:
+            payload = adapter.build_sync_message(mailbox, self.list_contacts())
+        except ValueError as error:
+            self.update_mailbox(
+                mailbox_id,
+                {
+                    "config": {**(mailbox.get("config") or {}), "last_error": str(error)},
+                },
+            )
+            self._record_mail_event(mailbox_id, "mailbox.sync_failed", {"message": str(error)}, source_provider=adapter.provider_name)
+            raise
+        updated_at = utcnow()
+        config_updates = (payload or {}).get("config_updates") or {}
+        mailbox_updates: dict[str, Any] = {"last_synced_at": updated_at}
+        mailbox_updates["config"] = {**(mailbox.get("config") or {}), **config_updates}
+        mailbox_updates["config"].pop("last_error", None)
+        mailbox = self.update_mailbox(mailbox_id, mailbox_updates)
+        if not payload:
+            event = self._record_mail_event(mailbox_id, "mailbox.synced", {"status": "noop", "message": "No new messages found."}, source_provider=adapter.provider_name)
+            return {"mailbox": mailbox, "result": {"status": "noop", "message": "No new messages found."}, "event": event}
+        thread = self.ingest_mail_message(
+            mailbox_id=mailbox_id,
+            subject=payload["subject"],
+            body=payload["body"],
+            sender_name=payload["sender_name"],
+            sender_email=payload["sender_email"],
+            recipients=payload.get("recipients"),
+        )
+        event = self._record_mail_event(mailbox_id, "mailbox.synced", payload, thread_id=thread["id"], message_id=thread["latestMessage"]["id"] if thread.get("latestMessage") else None, source_provider=adapter.provider_name)
+        return {"mailbox": adapter.describe_mailbox(mailbox), "thread": thread, "event": event}
+
+    def test_mailbox_connection(self, mailbox_id: str) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        result = adapter.test_connection(mailbox)
+        status = "connected" if result["status"] == "ok" else "needs_config"
+        next_config = {
+            **(mailbox.get("config") or {}),
+            "last_tested_at": utcnow(),
+        }
+        if result.get("connected_identity"):
+            next_config["connected_identity"] = result["connected_identity"]
+        if result["status"] == "ok":
+            next_config.pop("last_error", None)
+        else:
+            next_config["last_error"] = result.get("message")
+        mailbox = self.update_mailbox(mailbox_id, {"status": status, "config": next_config})
+        event = self._record_mail_event(mailbox_id, "mailbox.tested", result, source_provider=adapter.provider_name)
+        return {"mailbox": mailbox, "result": result, "event": event}
+
+    def ingest_mail_message(
+        self,
+        mailbox_id: str,
+        subject: str,
+        body: str,
+        sender_name: str,
+        sender_email: str,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        contact = self._ensure_contact_for_email(sender_name, sender_email)
+        thread = self.open_thread_for_contact(
+            contact_id=contact["id"],
+            channel_type="email",
+            subject=subject,
+            force_new=False,
+            mailbox_id=mailbox_id,
+        )
+        thread = self.send_thread_message(
+            thread_id=thread["id"],
+            body=body,
+            channel_type="email",
+            sender_name=sender_name,
+            sender_email=sender_email,
+            recipients=recipients or [mailbox["address"]],
+            direction="inbound",
+        )
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        self._record_mail_event(mailbox_id, "mail.received", {"subject": subject, "sender_email": sender_email}, thread_id=thread["id"], message_id=thread["latestMessage"]["id"] if thread.get("latestMessage") else None, source_provider=adapter.provider_name)
+        return thread
+
+    def send_thread_via_mailbox(
+        self,
+        thread_id: str,
+        body: str,
+        mailbox_id: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str | None = None,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        resolved_mailbox_id = mailbox_id or thread["mailbox_id"]
+        mailbox = self._get_mailbox_row(resolved_mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        resolved_recipients = [recipient for recipient in (recipients or [thread.get("contact", {}).get("email")]) if recipient]
+        adapter = get_mail_adapter(mailbox.get("provider"))
+        try:
+            delivery = adapter.deliver_outbound(
+                mailbox,
+                thread,
+                body=body,
+                sender_name=sender_name,
+                sender_email=sender_email or mailbox.get("address") or "mission@aiocrm.local",
+                recipients=resolved_recipients,
+            )
+        except ValueError as error:
+            self.update_mailbox(
+                resolved_mailbox_id,
+                {
+                    "config": {**(mailbox.get("config") or {}), "last_error": str(error)},
+                },
+            )
+            self._record_mail_event(resolved_mailbox_id, "mail.failed", {"message": str(error), "thread_id": thread_id}, thread_id=thread_id, source_provider=adapter.provider_name)
+            raise
+        self.update_mailbox(
+            resolved_mailbox_id,
+            {
+                "config": {**(mailbox.get("config") or {}), "last_error": None},
+            },
+        )
+        updated = self.send_thread_message(
+            thread_id=thread_id,
+            body=body,
+            channel_type="email",
+            sender_name=delivery["sender_name"],
+            sender_email=delivery["sender_email"],
+            recipients=delivery["recipients"],
+            direction="outbound",
+        )
+        self._record_mail_event(
+            resolved_mailbox_id,
+            "mail.sent",
+            delivery["provider_payload"],
+            thread_id=thread_id,
+            message_id=updated["latestMessage"]["id"] if updated.get("latestMessage") else None,
+            source_provider=adapter.provider_name,
+        )
+        return updated
+
+    def get_comms_snapshot(self) -> dict[str, Any]:
+        threads = self._get_thread_context()
+        queues = [{**queue, "count": sum(1 for thread in threads if queue["id"] in thread["queueIds"])} for queue in default_queue_definitions()]
+        return {"queues": queues, "threads": threads, "allThreads": threads, "mailboxes": self.list_mailboxes(), "calendarEvents": self.list_calendar_events(), "agents": [{"name": "ALPHA"}, {"name": "ECHO"}, {"name": "STRIKER"}]}
+
+    def create_thread(
+        self,
+        subject: str,
+        channel_type: str = "email",
+        contact_id: str | None = None,
+        company_id: str | None = None,
+        body: str = "",
+        status: str = "new",
+        assignee: str = "ECHO",
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        now = utcnow()
+        thread_id = f"thread-{slugify(subject)}-{unique_suffix()}"
+        resolved_company_id = company_id
+        if contact_id and not resolved_company_id:
+            with self._connect() as conn:
+                row = conn.execute("SELECT company_id FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
+                resolved_company_id = row["company_id"] if row else None
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO threads (
+                    id, tenant_id, mailbox_id, channel_type, subject, generated_title, status, ai_flags_json, ai_priority,
+                    priority_score, owner, assignee, contact_id, company_id, automation_state, last_activity_at,
+                    next_follow_up_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    thread_id, self._tenant_id(), mailbox_id or "mailbox-primary", channel_type, subject, subject, status, json.dumps({"needs_human": True}),
+                    "medium", 70, assignee, assignee, contact_id, resolved_company_id, "manual", now, None, now, now,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO thread_ai_briefs (
+                    thread_id, tenant_id, summary, disposition, recommended_next_step, confidence,
+                    unresolved_questions_json, crm_implications_json, reasoning_cues_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    thread_id, self._tenant_id(), "Fresh thread awaiting triage.", "New signal", "Review context and send a clear next step.",
+                    0.64, json.dumps(["Confirm best next action"]), json.dumps([]), json.dumps(["Thread created manually"]), now,
+                ),
+            )
+            conn.executemany(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (f"thread-action-{thread_id}-1", self._tenant_id(), thread_id, "Summarize", "summarize", "ai", "suggested", now, now),
+                    (f"thread-action-{thread_id}-2", self._tenant_id(), thread_id, "Reply with AI", "reply-with-ai", "ai", "suggested", now, now),
+                ],
+            )
+            if contact_id:
+                conn.execute(
+                    "INSERT INTO thread_links (id, tenant_id, thread_id, source_type, source_id, label) SELECT ?, ?, ?, 'contact', id, first_name || ' ' || last_name FROM contacts WHERE id = ? AND tenant_id = ?",
+                    (f"thread-link-{thread_id}-contact", self._tenant_id(), thread_id, contact_id, self._tenant_id()),
+                )
+            if resolved_company_id:
+                conn.execute(
+                    "INSERT INTO thread_links (id, tenant_id, thread_id, source_type, source_id, label) SELECT ?, ?, ?, 'company', id, name FROM companies WHERE id = ? AND tenant_id = ?",
+                    (f"thread-link-{thread_id}-company", self._tenant_id(), thread_id, resolved_company_id, self._tenant_id()),
+                )
+            conn.commit()
+        if body:
+            self.send_thread_message(thread_id, body, channel_type=channel_type)
+        return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
+
+    def open_thread_for_contact(
+        self,
+        contact_id: str,
+        channel_type: str = "email",
+        subject: str | None = None,
+        body: str = "",
+        force_new: bool = False,
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not force_new:
+            for thread in self._get_thread_context():
+                if thread["contact_id"] == contact_id and thread["channel_type"] == channel_type and thread["status"] != "closed":
+                    return thread
+        with self._connect() as conn:
+            contact = conn.execute("SELECT first_name, last_name, company_id FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
+        if not contact:
+            raise ValueError("Contact not found")
+        resolved_subject = subject or f"{channel_type.upper()} follow-up for {contact['first_name']} {contact['last_name']}".strip()
+        return self.create_thread(resolved_subject, channel_type=channel_type, contact_id=contact_id, company_id=contact["company_id"], body=body, assignee="STRIKER" if channel_type == "email" else "ECHO", mailbox_id=mailbox_id)
+
+    def send_thread_message(
+        self,
+        thread_id: str,
+        body: str,
+        channel_type: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str = "mission@aiocrm.local",
+        recipients: list[str] | None = None,
+        direction: str = "outbound",
+    ) -> dict[str, Any]:
+        created_at = utcnow()
+        message_id = f"msg-{thread_id}-{unique_suffix()}"
+        with self._connect() as conn:
+            thread_row = conn.execute("SELECT * FROM threads WHERE id = ? AND tenant_id = ?", (thread_id, self._tenant_id())).fetchone()
+            if not thread_row:
+                raise ValueError("Thread not found")
+            thread = dict(thread_row)
+            resolved_channel = channel_type or thread["channel_type"]
+            resolved_recipients = recipients or []
+            conn.execute(
+                """
+                INSERT INTO messages (
+                    id, tenant_id, thread_id, channel_type, direction, sender_name, sender_email, recipients_json,
+                    body, plain_text, quoted_history, delivery_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    message_id, self._tenant_id(), thread_id, resolved_channel, direction, sender_name, sender_email, json.dumps(resolved_recipients),
+                    body, body, "", "sent" if direction == "outbound" else "logged" if direction == "system" else "received", created_at, created_at,
+                ),
+            )
+            ai_flags = json_loads(thread["ai_flags_json"], {})
+            status = thread["status"]
+            summary_text = "System note logged: " + body[:120]
+            next_step = "Review the CRM/operator note and decide the next move."
+            if direction == "outbound":
+                ai_flags["follow_up_due"] = True
+                status = "waiting_on_them"
+                summary_text = f"Outbound {resolved_channel} sent: " + body[:120]
+                next_step = "Monitor for response and prep the next touchpoint."
+            elif direction == "inbound":
+                ai_flags["needs_human"] = True
+                status = "waiting_on_us"
+                summary_text = f"Inbound {resolved_channel} received: " + body[:120]
+                next_step = "Review the new signal and craft a precise reply."
+            conn.execute(
+                "UPDATE threads SET status = ?, ai_flags_json = ?, last_activity_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                (status, json.dumps(ai_flags), created_at, created_at, thread_id, self._tenant_id()),
+            )
+            conn.execute(
+                "UPDATE thread_ai_briefs SET summary = ?, recommended_next_step = ?, updated_at = ? WHERE thread_id = ? AND tenant_id = ?",
+                (
+                    summary_text,
+                    next_step,
+                    created_at,
+                    thread_id,
+                    self._tenant_id(),
+                ),
+            )
+            conn.commit()
+        return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
+
+    def update_thread_status(self, thread_id: str, status: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            conn.execute("UPDATE threads SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", (status, utcnow(), thread_id, self._tenant_id()))
+            conn.commit()
+        return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
+
+    def assign_thread(self, thread_id: str, assignee_name: str) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        previous_assignee = thread.get("assignee") or "Unassigned"
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute("UPDATE threads SET assignee = ?, owner = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", (assignee_name, assignee_name, now, thread_id, self._tenant_id()))
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (f"thread-action-{unique_suffix()}", self._tenant_id(), thread_id, f"Assigned to {assignee_name}", "assign-thread", "system", "completed", now, now),
+            )
+            conn.commit()
+        self.send_thread_message(
+            thread_id,
+            f"Routing update: ownership moved from {previous_assignee} to {assignee_name}.",
+            channel_type="internal",
+            sender_name="ALPHA",
+            sender_email="system@aiocrm.local",
+            recipients=["Internal"],
+            direction="system",
+        )
+        return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
+
+    def update_thread_mailbox(self, thread_id: str, mailbox_id: str) -> dict[str, Any]:
+        mailbox = self._get_mailbox_row(mailbox_id)
+        if not mailbox:
+            raise ValueError("Mailbox not found")
+        with self._connect() as conn:
+            conn.execute("UPDATE threads SET mailbox_id = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", (mailbox_id, utcnow(), thread_id, self._tenant_id()))
+            conn.commit()
+        self._record_mail_event(mailbox_id, "thread.mailbox_updated", {"thread_id": thread_id, "mailbox_name": mailbox["name"]}, thread_id=thread_id)
+        return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
+
+    def summarize_thread(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        latest = thread["latestMessage"]
+        summary = thread["brief"].get("summary", "No summary available.")
+        if latest:
+            summary = f"{latest['sender_name']} is focused on {latest['plain_text'].lower().rstrip('.')}."
+        with self._connect() as conn:
+            conn.execute("UPDATE thread_ai_briefs SET summary = ?, updated_at = ? WHERE thread_id = ? AND tenant_id = ?", (summary, utcnow(), thread_id, self._tenant_id()))
+            conn.commit()
+        return next(item for item in self._get_thread_context() if item["id"] == thread_id)
+
+    def create_thread_draft(self, thread_id: str, mode: str = "reply") -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        first_name = (thread.get("contact") or {}).get("first_name") or "there"
+        summary = thread["brief"].get("summary") or thread["preview"]
+        if mode == "rewrite":
+            draft = f"Refined version: {summary} Next move: {thread['brief'].get('recommended_next_step', 'reply with clarity and confidence.')}"
+        elif mode == "extract":
+            draft = "Task extract:\n- Confirm owner for " + thread["subject"]
+        else:
+            draft = f"Hi {first_name},\n\nI reviewed your message. {summary}\n\nNext step from our side: {thread['brief'].get('recommended_next_step', 'I will get this moving and send the next update shortly.')}\n\nBest,\n{thread.get('assignee') or 'ECHO'}"
+        return {"draft": draft}
+
+    def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        if not thread.get("contact_id"):
+            raise ValueError("Thread must be linked to a contact before creating a deal.")
+        deal_label = f"{thread.get('company', {}).get('name') or thread.get('contact', {}).get('first_name') or 'Relationship'} Opportunity"
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE contacts SET pipeline_stage = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                ("Qualified" if (thread.get("contact") or {}).get("pipeline_stage") == "New" else (thread.get("contact") or {}).get("pipeline_stage") or "Qualified", now, thread["contact_id"], self._tenant_id()),
+            )
+            exists = conn.execute("SELECT 1 FROM thread_links WHERE tenant_id = ? AND thread_id = ? AND source_type = 'deal' LIMIT 1", (self._tenant_id(), thread_id)).fetchone()
+            if not exists:
+                conn.execute(
+                    "INSERT INTO thread_links (id, tenant_id, thread_id, source_type, source_id, label) VALUES (?, ?, ?, 'deal', ?, ?)",
+                    (f"thread-link-{thread_id}-deal", self._tenant_id(), thread_id, f"deal-{thread_id}", deal_label),
+                )
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (f"thread-action-{thread_id}-deal-{unique_suffix()}", self._tenant_id(), thread_id, "Create Deal", "create-deal", "system", "completed", now, now),
+            )
+            conn.commit()
+        self.send_thread_message(thread_id, "CRM action: created a deal shell from this conversation and qualified the linked contact.", channel_type="internal", sender_name="ALPHA", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
+        return next(item for item in self._get_thread_context() if item["id"] == thread_id)
+
+    def advance_thread_stage(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        if not thread.get("contact_id"):
+            raise ValueError("Thread must be linked to a contact before advancing stage.")
+        stage = next_pipeline_stage((thread.get("contact") or {}).get("pipeline_stage"))
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute("UPDATE contacts SET pipeline_stage = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", (stage, now, thread["contact_id"], self._tenant_id()))
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (f"thread-action-{thread_id}-stage-{unique_suffix()}", self._tenant_id(), thread_id, f"Advance Stage: {stage}", "advance-stage", "system", "completed", now, now),
+            )
+            conn.commit()
+        self.send_thread_message(thread_id, f"CRM action: advanced the linked relationship to {stage}.", channel_type="internal", sender_name="STRIKER", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
+        return next(item for item in self._get_thread_context() if item["id"] == thread_id)
+
+    def schedule_thread_meeting(self, thread_id: str, scheduled_at: str | None = None) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        follow_up_at = scheduled_at or next_meeting_slot()
+        start_time = parse_utc(follow_up_at)
+        if not start_time:
+            raise ValueError("Invalid meeting time")
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute("UPDATE threads SET status = ?, next_follow_up_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", ("scheduled", follow_up_at, now, thread_id, self._tenant_id()))
+            existing_event = conn.execute("SELECT id FROM calendar_events WHERE tenant_id = ? AND thread_id = ? LIMIT 1", (self._tenant_id(), thread_id)).fetchone()
+            calendar_event_id = existing_event["id"] if existing_event else f"calendar-event-{thread_id}-{unique_suffix()}"
+            if existing_event:
+                conn.execute(
+                    """
+                    UPDATE calendar_events
+                    SET title = ?, description = ?, start_time = ?, end_time = ?, status = ?, location_type = ?, location = ?, source_id = ?, sync_status = ?, external_event_ref = ?, last_synced_at = ?, authority_mode = ?, conflict_state = ?, sync_note = ?, imported_at = ?, source_payload_json = ?, updated_at = ?
+                    WHERE id = ? AND tenant_id = ?
+                    """,
+                    (
+                        f"{thread['subject']} meeting",
+                        f"Scheduled from Comms for {thread['subject']}.",
+                        follow_up_at,
+                        (start_time + timedelta(minutes=30)).isoformat(),
+                        "scheduled",
+                        "other",
+                        "Comms command room",
+                        "calendar-source-local",
+                        "local",
+                        "",
+                        now,
+                        "local-first",
+                        "clear",
+                        "Scheduled locally from the Comms workspace.",
+                        None,
+                        json.dumps({}),
+                        now,
+                        calendar_event_id,
+                        self._tenant_id(),
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO calendar_events (
+                        id, tenant_id, calendar_id, thread_id, contact_id, company_id, title, description, start_time, end_time,
+                        status, location_type, location, meeting_url, source_id, sync_status, external_event_ref, last_synced_at,
+                        authority_mode, conflict_state, sync_note, imported_at, source_payload_json, source, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        calendar_event_id,
+                        self._tenant_id(),
+                        "calendar-comms",
+                        thread_id,
+                        thread.get("contact_id"),
+                        thread.get("company_id"),
+                        f"{thread['subject']} meeting",
+                        f"Scheduled from Comms for {thread['subject']}.",
+                        follow_up_at,
+                        (start_time + timedelta(minutes=30)).isoformat(),
+                        "scheduled",
+                        "other",
+                        "Comms command room",
+                        "",
+                        "calendar-source-local",
+                        "local",
+                        "",
+                        now,
+                        "local-first",
+                        "clear",
+                        "Scheduled locally from the Comms workspace.",
+                        None,
+                        json.dumps({}),
+                        "comms",
+                        now,
+                        now,
+                    ),
+                )
+            existing_link = conn.execute(
+                "SELECT 1 FROM thread_links WHERE tenant_id = ? AND thread_id = ? AND source_type = 'calendar-event' AND source_id = ? LIMIT 1",
+                (self._tenant_id(), thread_id, calendar_event_id),
+            ).fetchone()
+            if not existing_link:
+                conn.execute(
+                    "INSERT INTO thread_links (id, tenant_id, thread_id, source_type, source_id, label) VALUES (?, ?, ?, 'calendar-event', ?, ?)",
+                    (f'thread-link-{thread_id}-calendar-{unique_suffix()}', self._tenant_id(), thread_id, calendar_event_id, "Scheduled meeting"),
+                )
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (f"thread-action-{thread_id}-meeting-{unique_suffix()}", self._tenant_id(), thread_id, "Schedule Meeting", "schedule-meeting", "system", "completed", now, now),
+            )
+            conn.commit()
+        self.send_thread_message(thread_id, f"CRM action: scheduled a meeting follow-up for {follow_up_at}.", channel_type="internal", sender_name="ALPHA", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
+        return next(item for item in self._get_thread_context() if item["id"] == thread_id)
+
+
+def create_provider() -> BaseProvider:
+    provider_name = os.getenv("DATA_PROVIDER", "sqlite").lower()
+    if provider_name == "mock":
+        return MockProvider()
+    db_path = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "data" / "aio_crm.db"))
+    return SQLiteProvider(db_path)

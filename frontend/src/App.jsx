@@ -1,5 +1,4 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { mockSupabase } from './services/mockSupabase';
 import { ThemeProvider } from './lib/ThemeContext';
 import AuthContext from './contexts/AuthContext';
 import DbContext from './contexts/DbContext';
@@ -8,6 +7,8 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
+import { clearStoredSessionToken, getStoredSessionToken } from './services/authStorage';
+import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './services/backendApi';
 
 // Lazy load modules for code splitting
 const DashboardModule = lazy(() => import('./modules/Dashboard'));
@@ -21,6 +22,8 @@ const DesignModule = lazy(() => import('./modules/Design'));
 const IntegrationsManager = lazy(() => import('./modules/Integrations'));
 const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
+const CommsModule = lazy(() => import('./modules/Comms'));
+const SystemsModule = lazy(() => import('./modules/Systems'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -32,7 +35,7 @@ import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
-  Phone, Settings, Search, Menu, Video, Crosshair, EyeOff, Activity, Zap, Rocket
+  Phone, Settings, Video, Crosshair, EyeOff, Activity, Zap, Rocket
 } from 'lucide-react';
 
 // ============ MENU STRUCTURE ============
@@ -74,9 +77,47 @@ const App = () => {
   const [formSlug, setFormSlug] = useState(null);
   const [lastNonFullscreen, setLastNonFullscreen] = useState('dashboard');
   const [flowId, setFlowId] = useState(null);
+  const [commsThreadId, setCommsThreadId] = useState(null);
+  const [integrationCategory, setIntegrationCategory] = useState('automation');
 
   const fullscreenModules = ['flows'];
   const isFullscreen = fullscreenModules.includes(activeModule);
+
+  const findMenuItemById = (items, targetId, parent = null) => {
+    for (const item of items) {
+      if (item.id === targetId) {
+        return { item, parent };
+      }
+
+      if (item.children) {
+        const found = findMenuItemById(item.children, targetId, item);
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const currentModuleMeta = (() => {
+    const found = findMenuItemById(MENU_STRUCTURE.flatMap(category => category.items), activeModule);
+    const item = found?.item;
+    const parent = found?.parent;
+    const label = item?.label || parent?.label || 'AIO CRM';
+
+    return {
+      label,
+      icon: item?.icon || parent?.icon || null,
+      type: item?.type || 'internal',
+      searchPlaceholder: item?.searchPlaceholder || `Search ${label}...`,
+    };
+  })();
+
+  const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market'];
+  const systemsLauncherItems = MENU_STRUCTURE
+    .flatMap(category => category.items)
+    .filter(item => systemsLauncherIds.includes(item.id));
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -85,18 +126,43 @@ const App = () => {
   }, [activeModule, isFullscreen]);
 
   useEffect(() => {
-    // Check if URL is a public form link
-    const path = window.location.pathname;
-    if (path.startsWith('/form/')) {
-      const slug = path.replace('/form/', '');
-      setFormSlug(slug);
-      setCurrentPage('form');
-    }
+    let cancelled = false;
 
-    // Simulate checking for existing session
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    const initializeApp = async () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/form/')) {
+        const slug = path.replace('/form/', '');
+        setFormSlug(slug);
+        setCurrentPage('form');
+      }
+
+      const sessionToken = getStoredSessionToken();
+      if (!sessionToken) {
+        if (!cancelled) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const restoredSession = await getCurrentSessionApi();
+        if (!cancelled) {
+          setSession(restoredSession);
+        }
+      } catch {
+        clearStoredSessionToken();
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeApp();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -108,6 +174,12 @@ const App = () => {
       if (detail.flowId !== undefined) {
         setFlowId(detail.flowId);
       }
+      if (detail.threadId !== undefined) {
+        setCommsThreadId(detail.threadId);
+      }
+      if (detail.integrationCategory !== undefined) {
+        setIntegrationCategory(detail.integrationCategory);
+      }
     };
     window.addEventListener('aio:navigate', handleNavigate);
     return () => window.removeEventListener('aio:navigate', handleNavigate);
@@ -117,10 +189,28 @@ const App = () => {
     setSession(session);
   };
 
+  const refreshSession = async () => {
+    const refreshed = await getCurrentSessionApi();
+    setSession(refreshed);
+    return refreshed;
+  };
+
   const handleLogout = async () => {
-    await mockSupabase.auth.signOut();
+    try {
+      await logoutApi();
+    } catch {}
+    clearStoredSessionToken();
     setSession(null);
     setActiveModule('dashboard');
+  };
+
+  const handleSwitchTenant = async (tenantId) => {
+    if (!tenantId || session?.tenant?.id === tenantId) {
+      return session;
+    }
+    const nextSession = await switchTenantSessionApi(tenantId);
+    setSession(nextSession);
+    return nextSession;
   };
 
   if (loading) {
@@ -214,6 +304,7 @@ const App = () => {
       'set-personal': 'personal',
       'set-billing': 'billing',
       'set-security': 'security',
+      'set-workspace': 'workspace',
       'set-whitelabel': 'whitelabel',
       'set-vars': 'variables'
     };
@@ -238,7 +329,7 @@ const App = () => {
     }
 
     // Check if this is a settings tab
-    const settingsTabs = ['set-personal', 'set-billing', 'set-security', 'set-whitelabel', 'set-vars'];
+    const settingsTabs = ['set-personal', 'set-billing', 'set-security', 'set-workspace', 'set-whitelabel', 'set-vars'];
     if (settingsTabs.includes(activeModule)) {
       const activeSettingsTab = getSettingsTabFromModuleId(activeModule);
       return <SettingsModule menuStructure={MENU_STRUCTURE} activeSettingsTab={activeSettingsTab} />;
@@ -247,6 +338,14 @@ const App = () => {
     switch (activeModule) {
       case 'dashboard':
         return <DashboardModule />;
+      case 'aio-systems':
+        return (
+          <SystemsModule
+            systems={systemsLauncherItems}
+            iconMap={ICON_MAP}
+            onOpenSystem={setActiveModule}
+          />
+        );
       case 'crm':
         return <CRMModule />;
       case 'forms':
@@ -262,15 +361,15 @@ const App = () => {
       case 'design':
         return <DesignModule />;
       case 'integrations':
-        return <IntegrationsManager />;
+        return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':
         return <FlowsModule flowId={flowId} onExit={() => setActiveModule(lastNonFullscreen || 'dashboard')} />;
       case 'chat':
-        return <PlaceholderModule name="Chat" />;
+        return <CommsModule initialChannel="all" initialThreadId={commsThreadId} />;
       case 'marketplace':
         return <PlaceholderModule name="Marketplace" />;
       case 'sms-voip':
-        return <PlaceholderModule name="SMS/VoIP" />;
+        return <CommsModule initialChannel="sms" initialThreadId={commsThreadId} />;
       case 'settings':
         return <SettingsModule menuStructure={MENU_STRUCTURE} />;
       default:
@@ -280,7 +379,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
-      <AuthContext.Provider value={{ session, user: session?.user }}>
+        <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
         <DbContext.Provider value={{ db, setDb }}>
           <div className="h-screen flex bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
             {/* Sidebar */}
@@ -298,36 +397,16 @@ const App = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Top Bar with User Icons */}
-              {!isFullscreen && <TopBar onLogout={handleLogout} onNavigate={setCurrentPage} />}
-
-              {/* Module Header */}
               {!isFullscreen && (
-                <div className="h-16 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex items-center justify-between px-6">
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => setIsMobileOpen(!isMobileOpen)}
-                      className="lg:hidden p-2 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)]"
-                    >
-                      <Menu size={20} />
-                    </button>
-                    <h1 className="text-lg font-bold text-[var(--color-text-primary)]">
-                      {MENU_STRUCTURE
-                        .flatMap(cat => cat.items)
-                        .find(item => item.id === activeModule)?.label || 'AIO Agency'}
-                    </h1>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="hidden md:flex items-center gap-2 px-3 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg">
-                      <Search size={16} className="text-[var(--color-text-secondary)]" />
-                      <input
-                        type="text"
-                        placeholder="Search..."
-                        className="bg-transparent outline-none text-sm text-[var(--color-text-secondary)] placeholder-[var(--color-text-tertiary)] w-48"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <TopBar
+                  onLogout={handleLogout}
+                  onNavigate={setCurrentPage}
+                  title={currentModuleMeta.label}
+                  titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
+                  searchPlaceholder={currentModuleMeta.searchPlaceholder}
+                  showSearch={currentModuleMeta.type !== 'iframe'}
+                  onToggleMobileMenu={() => setIsMobileOpen(true)}
+                />
               )}
 
               {/* Module Content */}
@@ -355,4 +434,9 @@ export default function AppWithErrorBoundary() {
     </ErrorBoundary>
   );
 }
+
+
+
+
+
 

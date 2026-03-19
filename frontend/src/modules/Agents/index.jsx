@@ -51,6 +51,7 @@ const AIOAgentsModule = () => {
       <ModuleHeader
         title="AIO Command Center"
         titleIcon={Bot}
+        showTitle={false}
         statusBadge={{ label: 'Systems Online', color: 'success' }}
         actions={[
           {

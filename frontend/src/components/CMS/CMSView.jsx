@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Database, Search, Download, Table, ArrowLeft } from 'lucide-react';
-import { mockSupabase } from '../../services/mockSupabase';
+import { getCmsTablesApi } from '../../services/backendApi';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -17,8 +17,13 @@ const CMSView = ({ onBack }) => {
     }, []);
 
     const fetchCmsTables = async () => {
-        const { data } = await mockSupabase.from('cms_tables').select();
-        if (data) setCmsTables(data);
+        try {
+            const data = await getCmsTablesApi();
+            setCmsTables(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error loading cms tables:', error);
+            setCmsTables([]);
+        }
     };
 
     const loadCmsTableData = async (table) => {

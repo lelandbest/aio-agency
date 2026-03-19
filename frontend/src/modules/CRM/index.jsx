@@ -1,15 +1,29 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { mockSupabase } from '../../services/mockSupabase';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createWorkspaceUserApi,
+  createContactApi,
+  getCompaniesApi,
+  getContactActivitiesApi,
+  getContactFormSubmissionsApi,
+  getContactsApi,
+  getUserAccessApi,
+  getTagsApi,
+  openThreadForContactApi,
+  updateContactApi
+} from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
   Trash2, X, Download, MessageCircle, Calendar, Zap,
   AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft,
-  Edit, Clipboard, FileInput, User, Building2
+  Edit, Clipboard, FileInput, User, Building2, KeyRound, Shield, ExternalLink
 } from 'lucide-react';
 
 const CRMModule = () => {
+  const { tenant, tenants = [], switchTenant } = useAuth();
+  const importInputRef = useRef(null);
   // State Management
   const [activeTab, setActiveTab] = useState('Contacts');
   const [contacts, setContacts] = useState([]);
@@ -29,9 +43,25 @@ const CRMModule = () => {
   const [activities, setActivities] = useState([]);
   const [activityTab, setActivityTab] = useState('Activity');
   const [formsSubmitted, setFormsSubmitted] = useState([]);
+  const [userAccess, setUserAccess] = useState(null);
+  const [loadingUserAccess, setLoadingUserAccess] = useState(false);
+  const [showUserAccessModal, setShowUserAccessModal] = useState(false);
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [editedContact, setEditedContact] = useState(null);
+  const [detailPanels, setDetailPanels] = useState({
+    forms: true,
+    flows: true,
+    bookings: true,
+    pipelines: true,
+    billing: true
+  });
+  const [billingModal, setBillingModal] = useState(null);
+  const [bulkActionModal, setBulkActionModal] = useState({ open: false, action: '', value: '' });
+  const [bulkActionSubmitting, setBulkActionSubmitting] = useState(false);
+  const [bulkActionError, setBulkActionError] = useState('');
+
+  const currentWorkspace = tenant || tenants[0] || null;
   
   // Filter states
   const [filters, setFilters] = useState({
@@ -91,38 +121,39 @@ const CRMModule = () => {
     }
   }, [selectedContact]);
 
+  const toggleDetailPanel = (panel) => {
+    setDetailPanels((current) => ({ ...current, [panel]: !current[panel] }));
+  };
+
   const loadActivitiesAndForms = async () => {
     if (!selectedContact) return;
-    
-    try {
-      // Load activities
-      const { data: activitiesData } = await mockSupabase
-        .from('contact_activities')
-        .select()
-        .eq('contact_id', selectedContact.id)
-        .order('created_at', { ascending: false });
-      
-      setActivities(activitiesData || []);
 
-      // Load form submissions
-      const { data: submissionsData } = await mockSupabase
-        .from('form_submissions')
-        .select()
-        .eq('contact_id', selectedContact.id);
-      
+    try {
+      setLoadingUserAccess(true);
+      const [activitiesData, submissionsData, accessData] = await Promise.all([
+        getContactActivitiesApi(selectedContact.id),
+        getContactFormSubmissionsApi(selectedContact.id),
+        getUserAccessApi(selectedContact.email)
+      ]);
+      setActivities(activitiesData || []);
       setFormsSubmitted(submissionsData || []);
+      setUserAccess(accessData || null);
     } catch (error) {
       console.error('Error loading activities:', error);
+      setUserAccess(null);
+    } finally {
+      setLoadingUserAccess(false);
     }
   };
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: contactsData } = await mockSupabase.from('crm_contacts').select();
-      const { data: companiesData } = await mockSupabase.from('companies').select();
-      const { data: tagsData } = await mockSupabase.from('tags').select();
-      
+      const [contactsData, companiesData, tagsData] = await Promise.all([
+        getContactsApi(),
+        getCompaniesApi(),
+        getTagsApi()
+      ]);
       setContacts(contactsData || []);
       setCompanies(companiesData || []);
       setTags(tagsData || []);
@@ -130,6 +161,100 @@ const CRMModule = () => {
       console.error('Error loading data:', error);
     }
     setLoading(false);
+  };
+
+  const normalizeText = (value) => String(value || '').trim().toLowerCase();
+
+  const getSystemTagsForContact = (contact) => {
+    const tags = new Set(contact.system_tags || []);
+    if (contact.source === 'CSV Import') tags.add('Imported');
+    if (contact.source === 'Manual Entry') tags.add('Manual');
+    if (contact.source === 'API Created') tags.add('API Created');
+    if (contact.source === 'Form Submission') tags.add('Form Submission');
+    return Array.from(tags);
+  };
+
+  const getAssignedFlows = (contact) => {
+    const flows = contact.custom_fields?.assigned_flows;
+    return Array.isArray(flows) ? flows : [];
+  };
+
+  const getInputTypeForContact = (contact) => {
+    const source = normalizeText(contact.source);
+    if (source.includes('form')) return 'Form';
+    if (source.includes('api')) return 'API';
+    if (source.includes('manual')) return 'Manual';
+    if (source.includes('email')) return 'Email';
+    if (source.includes('phone')) return 'Phone';
+    return contact.input_type || '';
+  };
+
+  const matchesSelectOperator = (operator, actualValue, expectedValue) => {
+    const actual = normalizeText(actualValue);
+    const expected = normalizeText(expectedValue);
+    if (operator === 'is') return actual === expected;
+    if (operator === 'is not') return actual !== expected;
+    if (operator === 'is in') return expected.split(',').map((item) => item.trim()).includes(actual);
+    if (operator === 'is not in') return !expected.split(',').map((item) => item.trim()).includes(actual);
+    if (operator === 'is defined') return Boolean(actual);
+    if (operator === 'is not defined') return !actual;
+    return true;
+  };
+
+  const matchesArrayOperator = (operator, values, expectedValue) => {
+    const normalized = (values || []).map((value) => normalizeText(value));
+    const expected = normalizeText(expectedValue);
+    if (operator === 'has') return normalized.includes(expected);
+    if (operator === 'has not') return !normalized.includes(expected);
+    if (operator === 'is defined') return normalized.length > 0;
+    if (operator === 'is not defined') return normalized.length === 0;
+    return true;
+  };
+
+  const matchesDatePreset = (dateValue, preset, operator = 'is') => {
+    if (!dateValue) {
+      return operator === 'is not defined';
+    }
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return false;
+    const now = new Date();
+    const daysByPreset = {
+      'last 7 days': 7,
+      'last 30 days': 30,
+      'last 90 days': 90
+    };
+    const presetKey = normalizeText(preset);
+    let matches = false;
+    if (daysByPreset[presetKey]) {
+      const threshold = new Date(now);
+      threshold.setDate(now.getDate() - daysByPreset[presetKey]);
+      matches = date >= threshold;
+    } else if (presetKey === 'this year') {
+      matches = date.getFullYear() === now.getFullYear();
+    } else if (presetKey === 'today') {
+      matches = date.toDateString() === now.toDateString();
+    } else if (presetKey === 'this week') {
+      const threshold = new Date(now);
+      threshold.setDate(now.getDate() - 7);
+      matches = date >= threshold;
+    } else if (presetKey === 'this month') {
+      matches = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    } else {
+      matches = normalizeText(dateValue).includes(presetKey);
+    }
+    return operator === 'is not' ? !matches : matches;
+  };
+
+  const patchContacts = async (contactIds, buildPayload) => {
+    for (const id of contactIds) {
+      const contact = contacts.find((entry) => entry.id === id);
+      if (!contact) continue;
+      const payload = buildPayload(contact);
+      if (payload) {
+        await updateContactApi(id, payload);
+      }
+    }
+    await loadData();
   };
 
   // Filter and sort contacts
@@ -150,35 +275,48 @@ const CRMModule = () => {
     // Apply active filters
     Object.entries(filters).forEach(([key, filter]) => {
       if (!filter.active || !filter.value) return;
-      
+
       switch (key) {
         case 'department':
-          filtered = filtered.filter(c => {
-            if (filter.operator === 'is') return c.department === filter.value;
-            if (filter.operator === 'is not') return c.department !== filter.value;
-            if (filter.operator === 'is defined') return !!c.department;
-            if (filter.operator === 'is not defined') return !c.department;
-            return true;
-          });
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.department, filter.value));
           break;
         case 'owner':
-          filtered = filtered.filter(c => {
-            if (filter.operator === 'is') return c.owner === filter.value;
-            if (filter.operator === 'is not') return c.owner !== filter.value;
-            if (filter.operator === 'is defined') return !!c.owner;
-            if (filter.operator === 'is not defined') return !c.owner;
-            return true;
-          });
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.owner, filter.value));
           break;
         case 'tags':
-          filtered = filtered.filter(c => {
-            if (filter.operator === 'has') return c.tags?.includes(filter.value);
-            if (filter.operator === 'has not') return !c.tags?.includes(filter.value);
-            return true;
+          filtered = filtered.filter((c) => matchesArrayOperator(filter.operator, c.tags, filter.value));
+          break;
+        case 'system_tags':
+          filtered = filtered.filter((c) => matchesArrayOperator(filter.operator, getSystemTagsForContact(c), filter.value));
+          break;
+        case 'flow':
+          filtered = filtered.filter((c) => matchesArrayOperator(filter.operator, getAssignedFlows(c), filter.value));
+          break;
+        case 'input':
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, getInputTypeForContact(c), filter.value));
+          break;
+        case 'created_date':
+          filtered = filtered.filter((c) => matchesDatePreset(c.created_at, filter.value, filter.operator));
+          break;
+        case 'updated_date':
+          filtered = filtered.filter((c) => matchesDatePreset(c.updated_at, filter.value, filter.operator));
+          break;
+        case 'last_contacted':
+          filtered = filtered.filter((c) => matchesDatePreset(c.last_contacted_at, filter.value, filter.operator));
+          break;
+        case 'sms_email_activity':
+          filtered = filtered.filter((c) => {
+            const engagement = normalizeText(c.engagement);
+            const hasRecent = Boolean(c.last_contacted_at);
+            let actual = 'Inactive';
+            if (engagement === 'high') actual = 'High Engagement';
+            else if (engagement === 'low') actual = 'Low Engagement';
+            else if (hasRecent) actual = 'Active';
+            return matchesSelectOperator(filter.operator, actual, filter.value);
           });
           break;
         case 'lead_score':
-          filtered = filtered.filter(c => {
+          filtered = filtered.filter((c) => {
             const score = c.lead_score || 0;
             if (filter.value === '90-100') return score >= 90 && score <= 100;
             if (filter.value === '70-89') return score >= 70 && score < 90;
@@ -188,12 +326,46 @@ const CRMModule = () => {
             return true;
           });
           break;
-        case 'pipeline':
-          filtered = filtered.filter(c => {
-            if (filter.operator === 'is') return c.pipeline_stage === filter.value;
-            if (filter.operator === 'is not') return c.pipeline_stage !== filter.value;
-            return true;
+        case 'address':
+          filtered = filtered.filter((c) => {
+            const address = typeof c.address === 'object'
+              ? [c.address.street, c.address.city, c.address.state, c.address.zip, c.address.country].join(' ')
+              : c.address || '';
+            return matchesSelectOperator(filter.operator, address, filter.value);
           });
+          break;
+        case 'extra_details':
+          filtered = filtered.filter((c) => {
+            const completeness = c.email && c.phone && c.company ? 'Complete' : 'Incomplete';
+            const status = c.validation_status || completeness;
+            return matchesSelectOperator(filter.operator, status, filter.value);
+          });
+          break;
+        case 'pipeline':
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.pipeline_stage, filter.value));
+          break;
+        case 'pipeline_column':
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.custom_fields?.pipeline_column || c.status, filter.value));
+          break;
+        case 'name':
+          filtered = filtered.filter((c) => {
+            const letter = normalizeText(c.first_name || c.last_name).charAt(0);
+            const inFirstHalf = letter >= 'a' && letter <= 'm';
+            const matches = filter.value === 'A-M' ? inFirstHalf : !inFirstHalf;
+            return filter.operator === 'is not' ? !matches : matches;
+          });
+          break;
+        case 'form_submitted':
+          filtered = filtered.filter((c) => {
+            const forms = Array.isArray(c.custom_fields?.submitted_forms) ? c.custom_fields.submitted_forms : [];
+            if (filter.value === 'Any Form') {
+              return forms.length > 0 || normalizeText(c.source).includes('form');
+            }
+            return matchesArrayOperator(filter.operator, forms, filter.value) || normalizeText(c.source) === normalizeText(filter.value);
+          });
+          break;
+        case 'form_submission_date':
+          filtered = filtered.filter((c) => matchesDatePreset(c.custom_fields?.last_form_submission_at || c.updated_at, filter.value, filter.operator));
           break;
       }
     });
@@ -252,6 +424,42 @@ const CRMModule = () => {
     }
   };
 
+  const navigateToCommsThread = (thread, channelType = 'email') => {
+    if (!thread) return;
+    window.dispatchEvent(new CustomEvent('aio:navigate', {
+      detail: {
+        module: channelType === 'sms' ? 'sms-voip' : 'chat',
+        threadId: thread.id
+      }
+    }));
+  };
+
+  const openContactThread = async (contact, channelType = 'email', options = {}) => {
+    if (!contact?.id) return;
+    const thread = await openThreadForContactApi({
+      contact_id: contact.id,
+      channel_type: channelType,
+      subject: options.subject,
+      body: options.body || ''
+    });
+    navigateToCommsThread(thread, channelType);
+  };
+
+  const openSelectedThreads = async (contactIds, channelType = 'email') => {
+    const selected = contacts.filter(contact => contactIds.includes(contact.id));
+    if (!selected.length) return;
+    const threads = [];
+    for (const contact of selected) {
+      threads.push(await openThreadForContactApi({
+        contact_id: contact.id,
+        channel_type: channelType,
+        subject: channelType.toUpperCase() + ' follow-up for ' + contact.first_name + ' ' + contact.last_name
+      }));
+    }
+    navigateToCommsThread(threads[0], channelType);
+    alert('Opened ' + threads.length + ' ' + channelType.toUpperCase() + ' thread(s) in Comms');
+  };
+
   // Bulk actions
   const handleBulkAction = async (action) => {
     if (selectedContacts.size === 0) {
@@ -265,7 +473,7 @@ const CRMModule = () => {
       case 'delete':
         if (confirm(`Delete ${selectedIds.length} contact(s)?`)) {
           for (const id of selectedIds) {
-            await mockSupabase.from('crm_contacts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+            await updateContactApi(id, { deleted_at: new Date().toISOString() });
           }
           await loadData();
           setSelectedContacts(new Set());
@@ -274,42 +482,36 @@ const CRMModule = () => {
         break;
       
       case 'add_tag':
-        const tagToAdd = prompt('Enter tag name:');
-        if (tagToAdd) {
-          for (const id of selectedIds) {
-            const contact = contacts.find(c => c.id === id);
-            const updatedTags = [...(contact.tags || []), tagToAdd];
-            await mockSupabase.from('crm_contacts').update({ tags: updatedTags }).eq('id', id);
-          }
-          await loadData();
-          alert('Tag added to selected contacts');
-        }
+        setBulkActionError('');
+        setBulkActionModal({ open: true, action, value: '' });
         break;
       
       case 'remove_tag':
-        const tagToRemove = prompt('Enter tag name to remove:');
-        if (tagToRemove) {
-          for (const id of selectedIds) {
-            const contact = contacts.find(c => c.id === id);
-            const updatedTags = (contact.tags || []).filter(t => t !== tagToRemove);
-            await mockSupabase.from('crm_contacts').update({ tags: updatedTags }).eq('id', id);
-          }
-          await loadData();
-          alert('Tag removed from selected contacts');
-        }
+        setBulkActionError('');
+        setBulkActionModal({ open: true, action, value: '' });
         break;
       
       case 'set_owner':
-        const newOwner = prompt('Enter owner name:');
-        if (newOwner) {
-          for (const id of selectedIds) {
-            await mockSupabase.from('crm_contacts').update({ owner: newOwner }).eq('id', id);
-          }
-          await loadData();
-          alert('Owner updated for selected contacts');
-        }
+        setBulkActionError('');
+        setBulkActionModal({ open: true, action, value: '' });
+        break;
+
+      case 'set_department':
+      case 'assign_ai':
+      case 'add_flow':
+      case 'remove_flow':
+        setBulkActionError('');
+        setBulkActionModal({ open: true, action, value: '' });
         break;
       
+      case 'send_email':
+        openSelectedThreads(selectedIds, 'email');
+        break;
+
+      case 'send_sms':
+        openSelectedThreads(selectedIds, 'sms');
+        break;
+
       case 'export':
         // Export selected contacts as CSV
         const csvData = filteredAndSortedContacts
@@ -323,6 +525,31 @@ const CRMModule = () => {
         a.download = 'contacts.csv';
         a.click();
         break;
+
+      case 'send_api': {
+        const payload = filteredAndSortedContacts
+          .filter((contact) => selectedIds.includes(contact.id))
+          .map((contact) => ({
+            id: contact.id,
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            email: contact.email,
+            phone: contact.phone,
+            company: contact.company,
+            owner: contact.owner,
+            department: contact.department,
+            tags: contact.tags || [],
+            custom_fields: contact.custom_fields || {}
+          }));
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'contacts-api-payload.json';
+        a.click();
+        window.URL.revokeObjectURL(url);
+        break;
+      }
       
       default:
         alert(`${action} - Coming soon!`);
@@ -372,13 +599,195 @@ const CRMModule = () => {
         deleted_at: null
       };
 
-      await mockSupabase.from('crm_contacts').insert([newContact]);
+      await createContactApi(newContact);
       await loadData();
       setShowCreateModal(false);
       alert('Contact created successfully!');
     } catch (error) {
       console.error('Error creating contact:', error);
       alert('Error creating contact');
+    }
+  };
+
+  const buildUserFormData = (contact = null) => ({
+    site: currentWorkspace?.name || 'Current Site',
+    username: contact?.email ? contact.email.split('@')[0] : '',
+    firstName: contact?.first_name || '',
+    lastName: contact?.last_name || '',
+    email: contact?.email || '',
+    dob: contact?.dob || '',
+    password: '',
+    confirmPassword: '',
+    system: 'Create New System',
+    systemName: contact?.company || `${[contact?.first_name, contact?.last_name].filter(Boolean).join(' ')} Workspace`.trim(),
+    billing: 'complimentary',
+    package: '',
+    street: contact?.address?.street || '',
+    apartment: contact?.address?.apartment || '',
+    city: contact?.address?.city || '',
+    state: contact?.address?.state || '',
+    zip: contact?.address?.zip || '',
+    country: contact?.address?.country || 'United States',
+    phone: contact?.phone || ''
+  });
+
+  const openCreateUserModal = (contact = null) => {
+    if (contact) {
+      setSelectedContact(contact);
+    }
+    setCreateModalTab('Create User');
+    setShowCreateModal(true);
+  };
+
+  const closeBulkActionModal = () => {
+    setBulkActionModal({ open: false, action: '', value: '' });
+    setBulkActionError('');
+    setBulkActionSubmitting(false);
+  };
+
+  const applyBulkAction = async () => {
+    const action = bulkActionModal.action;
+    const value = (bulkActionModal.value || '').trim();
+    const selectedIds = Array.from(selectedContacts);
+    if (!selectedIds.length) {
+      closeBulkActionModal();
+      return;
+    }
+    if (!value) {
+      setBulkActionError('A value is required.');
+      return;
+    }
+
+    setBulkActionSubmitting(true);
+    setBulkActionError('');
+    try {
+      switch (action) {
+        case 'add_tag':
+          await patchContacts(selectedIds, (contact) => ({ tags: Array.from(new Set([...(contact.tags || []), value])) }));
+          break;
+        case 'remove_tag':
+          await patchContacts(selectedIds, (contact) => ({ tags: (contact.tags || []).filter((tag) => tag !== value) }));
+          break;
+        case 'set_owner':
+          await patchContacts(selectedIds, () => ({ owner: value }));
+          break;
+        case 'set_department':
+          await patchContacts(selectedIds, () => ({ department: value }));
+          break;
+        case 'assign_ai':
+          await patchContacts(selectedIds, (contact) => ({
+            ai_employee: value,
+            custom_fields: { ...(contact.custom_fields || {}), assigned_ai: value }
+          }));
+          break;
+        case 'add_flow':
+          await patchContacts(selectedIds, (contact) => {
+            const flows = Array.isArray(contact.custom_fields?.assigned_flows) ? contact.custom_fields.assigned_flows : [];
+            return { custom_fields: { ...(contact.custom_fields || {}), assigned_flows: Array.from(new Set([...flows, value])) } };
+          });
+          break;
+        case 'remove_flow':
+          await patchContacts(selectedIds, (contact) => {
+            const flows = Array.isArray(contact.custom_fields?.assigned_flows) ? contact.custom_fields.assigned_flows : [];
+            return { custom_fields: { ...(contact.custom_fields || {}), assigned_flows: flows.filter((flow) => flow !== value) } };
+          });
+          break;
+        default:
+          break;
+      }
+      closeBulkActionModal();
+    } catch (error) {
+      setBulkActionError(error.message || 'Unable to apply bulk action.');
+      setBulkActionSubmitting(false);
+    }
+  };
+
+  const handleImportContacts = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const [headerLine, ...rows] = text.split(/\r?\n/).filter(Boolean);
+      const headers = (headerLine || '').split(',').map((value) => value.trim().toLowerCase());
+      const normalizedRows = rows.map((row) => row.split(','));
+      for (const values of normalizedRows) {
+        const record = Object.fromEntries(headers.map((header, index) => [header, (values[index] || '').trim()]));
+        if (!record.email && !record.first_name && !record.last_name) continue;
+        await createContactApi({
+          contact_id: `CNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          organization_id: 'org-1',
+          first_name: record.first_name || record.firstname || '',
+          last_name: record.last_name || record.lastname || '',
+          email: record.email || '',
+          phone: record.phone || '',
+          company: record.company || '',
+          title: record.title || '',
+          department: record.department || '',
+          website: record.website || '',
+          address: {
+            street: record.street || '',
+            apartment: record.apartment || '',
+            city: record.city || '',
+            state: record.state || '',
+            zip: record.zip || '',
+            country: record.country || 'United States'
+          },
+          owner: record.owner || 'AIO Flow\u2122',
+          source: 'CSV Import',
+          status: 'contact',
+          lead_score: Number(record.lead_score || 50),
+          tags: record.tags ? record.tags.split('|').map((tag) => tag.trim()).filter(Boolean) : [],
+          custom_fields: {}
+        });
+      }
+      await loadData();
+      alert('Contacts imported successfully.');
+    } catch (error) {
+      alert(error.message || 'Unable to import contacts.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const runCrmAssist = async () => {
+    if (selectedContact) {
+      await openContactThread(selectedContact, 'internal', {
+        subject: `CRM assist for ${selectedContact.first_name} ${selectedContact.last_name}`.trim(),
+        body: 'Review this contact and suggest the next best action.'
+      });
+      return;
+    }
+    if (selectedContacts.size === 1) {
+      const contact = contacts.find((entry) => entry.id === Array.from(selectedContacts)[0]);
+      if (contact) {
+        await openContactThread(contact, 'internal', {
+          subject: `CRM assist for ${contact.first_name} ${contact.last_name}`.trim(),
+          body: 'Review this contact and suggest the next best action.'
+        });
+        return;
+      }
+    }
+    alert('Select a contact first to launch CRM assist.');
+  };
+
+  const openUserAccessModal = () => {
+    setShowUserAccessModal(true);
+  };
+
+  const handleAdminWorkspaceSwitch = async (workspaceId) => {
+    if (!workspaceId || !switchTenant) {
+      return;
+    }
+    try {
+      await switchTenant(workspaceId);
+      window.dispatchEvent(new CustomEvent('aio:navigate', {
+        detail: {
+          module: 'crm'
+        }
+      }));
+      setShowUserAccessModal(false);
+    } catch (error) {
+      alert(error.message || 'Unable to switch workspace.');
     }
   };
 
@@ -405,8 +814,8 @@ const CRMModule = () => {
   const renderSortIcon = (field) => {
     if (sortField !== field) return <ArrowUpDown size={14} className="text-[var(--color-text-tertiary)]" />;
     return sortDirection === 'asc' ? 
-      <ArrowUp size={14} className="text-purple-500" /> : 
-      <ArrowDown size={14} className="text-purple-500" />;
+      <ArrowUp size={14} className="text-[var(--color-primary)]" /> : 
+      <ArrowDown size={14} className="text-[var(--color-primary)]" />;
   };
 
   // Render tabs based on activeTab
@@ -552,7 +961,7 @@ const CRMModule = () => {
                           className="w-4 h-4"
                         />
                       </td>
-                      <td className="px-4 py-3 text-purple-400 font-medium hover:text-purple-300" onClick={() => setSelectedContact(contact)}>
+                      <td className="px-4 py-3 text-[var(--color-primary)] font-medium hover:text-[var(--color-primary-hover)]" onClick={() => setSelectedContact(contact)}>
                         {contact.first_name} {contact.last_name}
                       </td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
@@ -560,7 +969,7 @@ const CRMModule = () => {
                       <td className="px-4 py-3">
                         <div className="flex gap-1 flex-wrap">
                           {contact.tags?.map((tag, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs">
+                            <span key={idx} className="px-2 py-0.5 bg-[var(--color-primary)]/15 text-[var(--color-primary)] rounded text-xs">
                               {tag}
                             </span>
                           ))}
@@ -639,6 +1048,11 @@ const CRMModule = () => {
 
   // CONTACT DETAIL VIEW (Placeholder for Phase 4)
   const renderContactDetailView = () => {
+    const meetingActivities = activities.filter((activity) => activity.activity_type === 'meeting');
+    const workflowActivities = activities.filter((activity) => activity.activity_type === 'workflow');
+    const upcomingMeeting = [...meetingActivities]
+      .filter((activity) => new Date(activity.created_at).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0] || null;
     const getActivityIcon = (type) => {
       switch(type) {
         case 'form': return '📋';
@@ -653,6 +1067,38 @@ const CRMModule = () => {
       }
     };
 
+    const getActivityTone = (activity) => {
+      if (activity.activity_type === 'meeting') return 'border-emerald-500/20 bg-emerald-500/10';
+      if (activity.activity_type === 'workflow') return 'border-sky-500/20 bg-sky-500/10';
+      if (activity.activity_type === 'note') return 'border-amber-500/20 bg-amber-500/10';
+      return 'border-transparent bg-[color:var(--color-border)/0.3]';
+    };
+
+    const renderActivityMetadata = (activity) => {
+      const metadata = activity.metadata || {};
+      const chips = [];
+      if (metadata.status) chips.push(`Status ${String(metadata.status).replace(/_/g, ' ')}`);
+      if (metadata.subject) chips.push(metadata.subject);
+      if (metadata.location) chips.push(metadata.location);
+      return (
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--color-text-tertiary)]">
+          {chips.slice(0, 3).map((chip) => (
+            <span key={chip} className="px-2 py-1 rounded-full border border-[var(--color-border)]">{chip}</span>
+          ))}
+          {metadata.meeting_url ? (
+            <a
+              href={metadata.meeting_url}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 rounded-full border border-[var(--color-border)] text-sky-300 hover:text-sky-200"
+            >
+              Open meeting
+            </a>
+          ) : null}
+        </div>
+      );
+    };
+
     const filteredActivities = activityTab === 'Activity' 
       ? activities 
       : activities.filter(a => {
@@ -660,8 +1106,96 @@ const CRMModule = () => {
           if (activityTab === 'Notes') return a.activity_type === 'note';
           if (activityTab === 'Flow Emails') return a.activity_type === 'email' || a.activity_type === 'automation' || a.activity_type === 'flow';
           if (activityTab === 'Flow SMS') return a.activity_type === 'sms';
+          if (activityTab === 'Flow Activity') return a.activity_type === 'workflow' || a.activity_type === 'automation' || a.activity_type === 'flow' || a.activity_type === 'meeting';
           return false;
         });
+
+    const flowEmailActivities = activities.filter((activity) => ['email', 'automation', 'flow'].includes(activity.activity_type));
+    const bookingActivities = meetingActivities;
+    const billingItems = [
+      {
+        id: 'credit-cards',
+        label: 'Credit Cards',
+        count: 0,
+        emptyMessage: 'No credit cards are attached to this contact yet.',
+        lines: [
+          `Contact: ${selectedContact.first_name} ${selectedContact.last_name}`.trim(),
+          `Email: ${selectedContact.email || 'No email on file'}`,
+          'Status: no payment methods recorded'
+        ]
+      },
+      {
+        id: 'orders',
+        label: 'Orders',
+        count: 0,
+        emptyMessage: 'No orders are associated with this contact yet.',
+        lines: [
+          `Pipeline stage: ${selectedContact.pipeline_stage || 'New'}`,
+          'Order history: empty'
+        ]
+      },
+      {
+        id: 'purchases',
+        label: 'Purchases',
+        count: 0,
+        emptyMessage: 'No purchases are associated with this contact yet.',
+        lines: [
+          `Company: ${selectedContact.company || 'No company linked'}`,
+          'Purchases: none'
+        ]
+      },
+      {
+        id: 'transactions',
+        label: 'Transactions',
+        count: 0,
+        emptyMessage: 'No transactions are available for this contact yet.',
+        lines: [
+          `Owner: ${selectedContact.owner || 'Unassigned'}`,
+          'Transactions: none'
+        ]
+      },
+      {
+        id: 'invoices',
+        label: 'Invoices',
+        count: 0,
+        emptyMessage: 'No invoices are attached to this contact yet.',
+        lines: [
+          `Contact ID: ${selectedContact.id}`,
+          'Invoices: none'
+        ]
+      }
+    ];
+
+    const renderTimelineIcon = (type) => {
+      switch (type) {
+        case 'form': return <FileInput size={18} className="text-cyan-300" />;
+        case 'email': return <Mail size={18} className="text-sky-300" />;
+        case 'call': return <Phone size={18} className="text-emerald-300" />;
+        case 'sms': return <MessageCircle size={18} className="text-amber-300" />;
+        case 'note': return <Clipboard size={18} className="text-violet-300" />;
+        case 'meeting': return <Calendar size={18} className="text-emerald-300" />;
+        case 'flow':
+        case 'automation':
+        case 'workflow': return <Zap size={18} className="text-sky-300" />;
+        default: return <AlertCircle size={18} className="text-[var(--color-text-secondary)]" />;
+      }
+    };
+
+    const renderSideSection = (panelId, title, content, badge = null) => (
+      <div className="bg-[var(--color-bg-primary)] rounded p-3">
+        <button
+          onClick={() => toggleDetailPanel(panelId)}
+          className="w-full flex items-center justify-between gap-3 text-left"
+        >
+          <span className="text-sm font-bold text-white">{title}</span>
+          <div className="flex items-center gap-2">
+            {badge}
+            <ChevronDown size={14} className={`transition-transform ${detailPanels[panelId] ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+        {detailPanels[panelId] ? <div className="mt-3">{content}</div> : null}
+      </div>
+    );
 
     const handleEditContact = () => {
       setEditedContact({...selectedContact});
@@ -669,12 +1203,10 @@ const CRMModule = () => {
     };
 
     const handleSaveContact = async () => {
-      await mockSupabase.from('crm_contacts').update(editedContact).eq('id', selectedContact.id);
-      setSelectedContact(editedContact);
+      const updated = await updateContactApi(selectedContact.id, editedContact);
+      setSelectedContact(updated);
       setIsEditingContact(false);
-      // Refresh contacts list
-      const { data } = await mockSupabase.from('crm_contacts').select();
-      setContacts(data || []);
+      await loadData();
     };
 
     const handleCancelEdit = () => {
@@ -684,6 +1216,44 @@ const CRMModule = () => {
 
     const handleFieldChange = (field, value) => {
       setEditedContact(prev => ({...prev, [field]: value}));
+    };
+
+    const handleDeleteContact = async () => {
+      if (!confirm(`Delete ${currentContact.first_name} ${currentContact.last_name}?`)) {
+        return;
+      }
+      await updateContactApi(currentContact.id, { deleted_at: new Date().toISOString() });
+      setSelectedContact(null);
+      setIsEditingContact(false);
+      await loadData();
+    };
+
+    const handleQuickAction = async (label) => {
+      switch (label) {
+        case 'Note':
+          await openContactThread(currentContact, 'internal', {
+            subject: `Internal note for ${currentContact.first_name} ${currentContact.last_name}`.trim(),
+            body: 'Capture an internal note for this contact.'
+          });
+          break;
+        case 'Email':
+          await openContactThread(currentContact, 'email');
+          break;
+        case 'SMS':
+          await openContactThread(currentContact, 'sms');
+          break;
+        case 'Meet':
+          await openContactThread(currentContact, 'email', {
+            subject: `Schedule meeting with ${currentContact.first_name} ${currentContact.last_name}`.trim(),
+            body: 'Share availability and confirm the next meeting.'
+          });
+          break;
+        case 'Form':
+          window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forms' } }));
+          break;
+        default:
+          break;
+      }
     };
 
     const currentContact = isEditingContact ? editedContact : selectedContact;
@@ -704,7 +1274,7 @@ const CRMModule = () => {
             <div className="flex justify-between items-start">
               <div>
                 <h2 className="text-lg font-bold text-white">{currentContact.first_name} {currentContact.last_name}</h2>
-                <button className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
+                <button onClick={handleDeleteContact} className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
               </div>
               {!isEditingContact ? (
                 <button onClick={handleEditContact} className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1">
@@ -744,7 +1314,7 @@ const CRMModule = () => {
                 { icon: Calendar, label: 'Meet' },
                 { icon: FileInput, label: 'Form' }
               ].map((action, idx) => (
-                <button key={idx} className="flex-1 flex flex-col items-center gap-1 p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs">
+                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex-1 flex flex-col items-center gap-1 p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs">
                   <action.icon size={16} />
                   <span className="text-xs">{action.label}</span>
                 </button>
@@ -760,10 +1330,10 @@ const CRMModule = () => {
                     type="email"
                     value={currentContact.email || ''}
                     onChange={(e) => handleFieldChange('email', e.target.value)}
-                    className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-purple-400 text-sm"
+                      className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-primary)] text-sm"
                   />
                 ) : (
-                  <p className="text-purple-400 flex items-center gap-1">
+                    <p className="text-[var(--color-primary)] flex items-center gap-1">
                     <Mail size={14} /> {currentContact.email}
                   </p>
                 )}
@@ -812,6 +1382,24 @@ const CRMModule = () => {
                       : '--'}
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 border-t border-[var(--color-border)] pt-3">
+              <div className="rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Meetings</div>
+                <div className="mt-1 text-lg font-semibold text-white">{meetingActivities.length}</div>
+                <div className="text-[11px] text-[var(--color-text-secondary)]">{upcomingMeeting ? `Next ${new Date(upcomingMeeting.created_at).toLocaleDateString()}` : 'No upcoming'}</div>
+              </div>
+              <div className="rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Workflows</div>
+                <div className="mt-1 text-lg font-semibold text-white">{workflowActivities.length}</div>
+                <div className="text-[11px] text-[var(--color-text-secondary)]">{workflowActivities[0] ? 'Recently touched' : 'No actions yet'}</div>
+              </div>
+              <div className="rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Forms</div>
+                <div className="mt-1 text-lg font-semibold text-white">{formsSubmitted.length}</div>
+                <div className="text-[11px] text-[var(--color-text-secondary)]">{formsSubmitted[0] ? 'Captured' : 'No submissions'}</div>
               </div>
             </div>
 
@@ -880,14 +1468,60 @@ const CRMModule = () => {
               </div>
             )}
 
-            {/* Account Buttons */}
-            <div className="space-y-2">
-              <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
-                User Account Details
-              </button>
-              <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded text-sm font-medium">
-                Create User Login
-              </button>
+            {/* User Access */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">User Access</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">
+                    {loadingUserAccess ? 'Loading access...' : (userAccess?.user?.name || 'No login created')}
+                  </div>
+                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
+                  <KeyRound size={18} />
+                </div>
+              </div>
+
+              {userAccess ? (
+                <>
+                  <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 space-y-1 text-sm">
+                    <div className="text-[var(--color-text-secondary)]">Role: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.role || userAccess.user.role || '--'}</span></div>
+                    <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.workspace_name || '--'}</span></div>
+                    <div className="text-[var(--color-text-secondary)]">Site: <span className="font-medium text-[var(--color-text-primary)]">{window.location.origin}</span></div>
+                  </div>
+                  <div className="grid gap-2">
+                    <button
+                      onClick={openUserAccessModal}
+                      className="w-full rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
+                    >
+                      User Account Details
+                    </button>
+                    <button
+                      onClick={() => {
+                        const preferredMembership = (userAccess.memberships || []).find((membership) => membership.can_switch_as_admin) || userAccess.memberships?.[0];
+                        if (preferredMembership?.tenant_id) {
+                          handleAdminWorkspaceSwitch(preferredMembership.tenant_id);
+                        }
+                      }}
+                      className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                    >
+                      Login As Admin
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    This contact does not have an app login yet.
+                  </p>
+                  <button
+                    onClick={() => openCreateUserModal(selectedContact)}
+                    className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                  >
+                    Create User Login
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -902,7 +1536,7 @@ const CRMModule = () => {
                 onClick={() => setActivityTab(tab)}
                 className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
                   activityTab === tab 
-                    ? 'bg-purple-600 text-white' 
+                    ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' 
                     : 'bg-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white'
                 }`}
               >
@@ -919,20 +1553,19 @@ const CRMModule = () => {
               </div>
             ) : (
               filteredActivities.map(activity => (
-                <div key={activity.id} className="flex gap-3 p-3 bg-[color:var(--color-border)/0.3] rounded-lg hover:bg-[color:var(--color-border)/0.5] transition">
-                  <div className="text-2xl">{getActivityIcon(activity.activity_type)}</div>
+                <div key={activity.id} className={`flex gap-3 p-3 rounded-lg border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+                    {renderTimelineIcon(activity.activity_type)}
+                  </div>
                   <div className="flex-1">
-                    <h4 className="text-white font-medium text-sm">{activity.title}</h4>
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-white font-medium text-sm">{activity.title}</h4>
+                      <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
+                        {activity.activity_type}
+                      </span>
+                    </div>
                     <p className="text-[var(--color-text-secondary)] text-xs mt-1">{activity.description}</p>
-                    {activity.metadata && (
-                      <div className="mt-2 text-xs text-[var(--color-text-tertiary)]">
-                        {Object.entries(activity.metadata).slice(0, 3).map(([key, value]) => (
-                          <span key={key} className="mr-3">
-                            <strong>{key}:</strong> {typeof value === 'object' ? JSON.stringify(value).slice(0, 30) : value}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {activity.metadata ? renderActivityMetadata(activity) : null}
                     <p className="text-[var(--color-text-tertiary)] text-xs mt-2">
                       {new Date(activity.created_at).toLocaleString()}
                     </p>
@@ -943,15 +1576,15 @@ const CRMModule = () => {
           </div>
         </div>
 
-        {/* RIGHT: Related Items */}
+        {/* RIGHT: Relationship Assets */}
         <div className="w-80 bg-[var(--color-bg-secondary)] border-l border-[var(--color-border)] overflow-y-auto p-4 space-y-4 mt-12">
           {/* Forms Submitted */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+            <button onClick={() => toggleDetailPanel('forms')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
               <span>Forms Submitted ({formsSubmitted.length})</span>
-              <ChevronDown size={14} />
-            </h3>
-            <div className="space-y-2">
+              <ChevronDown size={14} className={detailPanels.forms ? 'rotate-180' : ''} />
+            </button>
+            {detailPanels.forms ? <div className="space-y-2">
               {formsSubmitted.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-tertiary)]">No form submissions</p>
               ) : (
@@ -964,53 +1597,116 @@ const CRMModule = () => {
                   </div>
                 ))
               )}
-            </div>
+            </div> : null}
           </div>
 
           {/* Flows */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+            <button onClick={() => toggleDetailPanel('flows')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
               <span>Flows</span>
-              <ChevronDown size={14} />
-            </h3>
-            <p className="text-xs text-[var(--color-text-tertiary)]">No active flows</p>
+              <ChevronDown size={14} className={detailPanels.flows ? 'rotate-180' : ''} />
+            </button>
+            {detailPanels.flows ? (
+              flowEmailActivities.length === 0 && workflowActivities.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-tertiary)]">No active flow or automation activity</p>
+              ) : (
+                <div className="space-y-2">
+                  {[...workflowActivities, ...flowEmailActivities].slice(0, 6).map((activity) => (
+                    <div key={activity.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs border border-[var(--color-border)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-white font-medium">{activity.title}</p>
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activity.activity_type}</span>
+                      </div>
+                      <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : null}
           </div>
 
           {/* Booking */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
-              <span>Booking</span>
-              <ChevronDown size={14} />
-            </h3>
-            <p className="text-xs text-[var(--color-text-tertiary)]">No bookings</p>
+            <button onClick={() => toggleDetailPanel('bookings')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
+              <span>Bookings</span>
+              <ChevronDown size={14} className={detailPanels.bookings ? 'rotate-180' : ''} />
+            </button>
+            {detailPanels.bookings ? (
+              meetingActivities.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-tertiary)]">No bookings or meetings yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {meetingActivities.slice(0, 6).map((activity) => (
+                    <div key={activity.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs border border-[var(--color-border)]">
+                      <p className="text-white font-medium">{activity.title}</p>
+                      <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
+                      <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{new Date(activity.created_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : null}
           </div>
 
           {/* Pipelines */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+            <button onClick={() => toggleDetailPanel('pipelines')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
               <span>Pipelines</span>
-              <ChevronDown size={14} />
-            </h3>
-            <div className="p-2 bg-purple-900/20 rounded text-xs">
-              <p className="text-purple-400 font-medium">{selectedContact.pipeline_stage || 'New'}</p>
-            </div>
+              <ChevronDown size={14} className={detailPanels.pipelines ? 'rotate-180' : ''} />
+            </button>
+            {detailPanels.pipelines ? <div className="p-2 bg-[var(--color-primary)]/12 rounded text-xs">
+              <p className="text-[var(--color-primary)] font-medium">{selectedContact.pipeline_stage || 'New'}</p>
+            </div> : null}
           </div>
 
           {/* Billing */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <h3 className="text-sm font-bold text-white mb-2 flex justify-between">
+            <button onClick={() => toggleDetailPanel('billing')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
               <span>Billing</span>
-              <ChevronDown size={14} />
-            </h3>
-            <div className="space-y-1 text-xs">
-              <p className="text-[var(--color-text-secondary)]">Credit Cards (0)</p>
-              <p className="text-[var(--color-text-secondary)]">Orders (0)</p>
-              <p className="text-[var(--color-text-secondary)]">Purchases (0)</p>
-              <p className="text-[var(--color-text-secondary)]">Transactions (0)</p>
-              <p className="text-[var(--color-text-secondary)]">Invoices (0)</p>
-            </div>
+              <ChevronDown size={14} className={detailPanels.billing ? 'rotate-180' : ''} />
+            </button>
+            {detailPanels.billing ? <div className="space-y-2 text-xs">
+              {billingItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setBillingModal(item)}
+                  className="w-full flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-left text-[var(--color-text-secondary)] hover:text-white"
+                >
+                  <span>{item.label}</span>
+                  <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px]">{item.count}</span>
+                </button>
+              ))}
+            </div> : null}
           </div>
         </div>
+
+        {billingModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Billing Detail</div>
+                  <h3 className="mt-1 text-lg font-semibold text-white">{billingModal.label}</h3>
+                </div>
+                <button onClick={() => setBillingModal(null)} className="rounded-lg border border-[var(--color-border)] p-2 text-[var(--color-text-secondary)] hover:text-white">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="space-y-3 px-5 py-4 text-sm">
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 text-[var(--color-text-secondary)]">
+                  {billingModal.emptyMessage}
+                </div>
+                <div className="space-y-2">
+                  {billingModal.lines.map((line) => (
+                    <div key={line} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -1051,13 +1747,13 @@ const CRMModule = () => {
                   <td className="px-4 py-3">
                     <input type="checkbox" className="w-4 h-4" />
                   </td>
-                  <td className="px-4 py-3 text-purple-400 font-medium">{company.name}</td>
+                  <td className="px-4 py-3 text-[var(--color-primary)] font-medium">{company.name}</td>
                   <td className="px-4 py-3 text-[var(--color-text-secondary)]">{company.industry || '--'}</td>
                   <td className="px-4 py-3 text-[var(--color-text-secondary)]">{company.lead_score || '--'}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 flex-wrap">
                       {company.tags?.map((tag, idx) => (
-                        <span key={idx} className="px-2 py-0.5 bg-purple-600/20 text-purple-400 rounded text-xs">
+                            <span key={idx} className="px-2 py-0.5 bg-[var(--color-primary)]/15 text-[var(--color-primary)] rounded text-xs">
                           {tag}
                         </span>
                       ))}
@@ -1099,40 +1795,78 @@ const CRMModule = () => {
       website: ''
     });
     
-    const [userFormData, setUserFormData] = useState({
-      site: 'Current Site',
-      username: '',
-      firstName: '',
-      lastName: '',
-      email: '',
-      dob: '',
-      password: '',
-      confirmPassword: '',
-      system: 'Create New System',
-      billing: 'complimentary',
-      package: '',
-      street: '',
-      apartment: '',
-      city: '',
-      state: '',
-      zip: '',
-      country: 'United States',
-      phone: ''
-    });
+    const [userFormData, setUserFormData] = useState(buildUserFormData(selectedContact));
+    const [userSubmitting, setUserSubmitting] = useState(false);
+    const [userError, setUserError] = useState('');
 
-    const handleSubmit = (e) => {
+    useEffect(() => {
+      if (createModalTab === 'Create User') {
+        setUserFormData(buildUserFormData(selectedContact));
+        setUserError('');
+      }
+    }, [createModalTab, selectedContact]);
+
+    const handleSubmit = async (e) => {
       e.preventDefault();
       if (createModalTab === 'Contact') {
         handleCreateContact(formData);
       } else {
-        handleCreateUser(userFormData);
+        await handleCreateUser(userFormData);
       }
     };
     
     const handleCreateUser = async (data) => {
-      // Placeholder for user creation
-      alert('Create User functionality - Coming soon!\nThis will create a multi-tenant user account with system access.');
-      setShowCreateModal(false);
+      if (!currentWorkspace?.id) {
+        setUserError('No active workspace is selected.');
+        return;
+      }
+      if (!data.firstName.trim() || !data.lastName.trim()) {
+        setUserError('First name and last name are required.');
+        return;
+      }
+      if (!data.username.trim()) {
+        setUserError('Username is required.');
+        return;
+      }
+      if (!data.email.trim()) {
+        setUserError('Email is required.');
+        return;
+      }
+      if (!data.password || data.password.length < 8) {
+        setUserError('Password must be at least 8 characters.');
+        return;
+      }
+      if (data.password !== data.confirmPassword) {
+        setUserError('Passwords do not match.');
+        return;
+      }
+      if (data.system === 'Create New System' && !(data.systemName || '').trim()) {
+        setUserError('System name is required when creating a new system.');
+        return;
+      }
+
+      setUserSubmitting(true);
+      setUserError('');
+      try {
+        const response = await createWorkspaceUserApi(currentWorkspace.id, {
+          username: data.username.trim(),
+          email: data.email.trim(),
+          password: data.password,
+          name: `${data.firstName.trim()} ${data.lastName.trim()}`.trim(),
+          role: data.system === 'Create New System' ? 'owner' : 'staff',
+          create_workspace: data.system === 'Create New System',
+          workspace_name: data.system === 'Create New System' ? data.systemName.trim() : null
+        });
+        const refreshedAccess = await getUserAccessApi(data.email.trim());
+        setUserAccess(refreshedAccess || null);
+        setShowCreateModal(false);
+        const workspaceName = response?.workspace?.name || currentWorkspace.name || 'Current System';
+        alert(`User created successfully.\nLogin: ${data.email.trim()}\nWorkspace: ${workspaceName}`);
+      } catch (error) {
+        setUserError(error.message || 'Unable to create user login.');
+      } finally {
+        setUserSubmitting(false);
+      }
     };
 
     return (
@@ -1300,6 +2034,12 @@ const CRMModule = () => {
           ) : (
             // CREATE USER FORM (Multi-tenant)
             <>
+              {userError ? (
+                <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  {userError}
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Which Site Will This User Login On?</label>
                 <select
@@ -1307,7 +2047,7 @@ const CRMModule = () => {
                   onChange={(e) => setUserFormData({...userFormData, site: e.target.value})}
                   className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
                 >
-                  <option>Current Site</option>
+                  <option>{currentWorkspace?.name || 'Current Site'}</option>
                 </select>
               </div>
 
@@ -1405,6 +2145,19 @@ const CRMModule = () => {
                   <option>Current System</option>
                 </select>
               </div>
+
+              {userFormData.system === 'Create New System' ? (
+                <div>
+                  <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">New System Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={userFormData.systemName || ''}
+                    onChange={(e) => setUserFormData({...userFormData, systemName: e.target.value})}
+                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                  />
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -1540,9 +2293,169 @@ const CRMModule = () => {
             </button>
             <button 
               type="submit"
+              disabled={createModalTab === 'Create User' && userSubmitting}
               className="px-6 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded text-sm font-medium"
             >
-              {createModalTab === 'Contact' ? 'Create Contact' : 'Create User'}
+              {createModalTab === 'Contact' ? 'Create Contact' : (userSubmitting ? 'Creating User...' : 'Create User')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const UserAccessModal = () => {
+    const accessMemberships = userAccess?.memberships || [];
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="w-full max-w-2xl rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">User Access</div>
+              <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
+                {userAccess?.user?.name || selectedContact?.first_name || 'Contact'}
+              </h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">{userAccess?.user?.email || selectedContact?.email || '--'}</p>
+            </div>
+            <button onClick={() => setShowUserAccessModal(false)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-4 p-6">
+            {!userAccess ? (
+              <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 text-sm text-[var(--color-text-secondary)]">
+                No CRM-linked user login exists for this contact yet.
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Username</div>
+                    <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{userAccess.user.username || '--'}</div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Provider</div>
+                    <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{userAccess.user.provider || 'local-password'}</div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Access Points</div>
+                    <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{accessMemberships.length}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {accessMemberships.map((membership) => (
+                    <div key={membership.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Shield size={15} className="text-[var(--color-primary)]" />
+                            <span className="text-sm font-semibold text-[var(--color-text-primary)]">{membership.workspace_name}</span>
+                          </div>
+                          <div className="space-y-1 text-sm">
+                            <div className="text-[var(--color-text-secondary)]">Role: <span className="font-medium text-[var(--color-text-primary)]">{membership.role}</span></div>
+                            <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{membership.workspace_name}</span></div>
+                            <div className="text-[var(--color-text-secondary)]">Site: <span className="font-medium text-[var(--color-text-primary)]">{window.location.origin}</span></div>
+                          </div>
+                        </div>
+                        {membership.can_switch_as_admin ? (
+                          <button
+                            onClick={() => handleAdminWorkspaceSwitch(membership.tenant_id)}
+                            className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
+                          >
+                            Login As Admin
+                          </button>
+                        ) : (
+                          <div className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+                            Admin does not have access
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const BulkActionModal = () => {
+    const titles = {
+      add_tag: 'Add Tag',
+      remove_tag: 'Remove Tag',
+      set_owner: 'Set Owner',
+      set_department: 'Set Department',
+      assign_ai: 'Assign AI',
+      add_flow: 'Add Flow',
+      remove_flow: 'Remove Flow'
+    };
+    const placeholders = {
+      add_tag: 'VIP',
+      remove_tag: 'Prospect',
+      set_owner: 'Adam B.',
+      set_department: 'Sales',
+      assign_ai: 'STRIKER',
+      add_flow: 'Discovery Sequence',
+      remove_flow: 'Discovery Sequence'
+    };
+    const optionsMap = {
+      set_department: filterOptions.department,
+      assign_ai: ['ALPHA', 'APEX', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
+    };
+    const options = optionsMap[bulkActionModal.action] || null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)]">{titles[bulkActionModal.action] || 'Bulk Action'}</h3>
+            <button onClick={closeBulkActionModal} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="space-y-4 p-5">
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Apply this action to {selectedContacts.size} selected contact{selectedContacts.size === 1 ? '' : 's'}.
+            </p>
+            {bulkActionError ? (
+              <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {bulkActionError}
+              </div>
+            ) : null}
+            {options ? (
+              <select
+                value={bulkActionModal.value}
+                onChange={(e) => setBulkActionModal((current) => ({ ...current, value: e.target.value }))}
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+              >
+                <option value="">Select...</option>
+                {options.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={bulkActionModal.value}
+                onChange={(e) => setBulkActionModal((current) => ({ ...current, value: e.target.value }))}
+                placeholder={placeholders[bulkActionModal.action] || ''}
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+              />
+            )}
+          </div>
+          <div className="flex justify-end gap-3 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-5 py-4">
+            <button onClick={closeBulkActionModal} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]">
+              Cancel
+            </button>
+            <button
+              onClick={applyBulkAction}
+              disabled={bulkActionSubmitting}
+              className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+            >
+              {bulkActionSubmitting ? 'Applying...' : 'Apply'}
             </button>
           </div>
         </div>
@@ -1553,15 +2466,23 @@ const CRMModule = () => {
   // MAIN RENDER
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        onChange={handleImportContacts}
+        className="hidden"
+      />
       {/* Header with Actions - Using ModuleHeader Component */}
       <ModuleHeader
         title="CRM"
         titleIcon={Users}
+        showTitle={false}
         actions={[
           {
             label: 'Import',
             icon: FileInput,
-            onClick: () => console.log('Import clicked'),
+            onClick: () => importInputRef.current?.click(),
             variant: 'secondary'
           },
           {
@@ -1575,7 +2496,7 @@ const CRMModule = () => {
         showActions={true}
         aiAssistSlot={(
           <AIAssistButton
-            onAssist={() => console.log('AI Assist: CRM')}
+            onAssist={runCrmAssist}
             tooltip="AI Assist"
             iconType="crosshair"
           />
@@ -1606,8 +2527,16 @@ const CRMModule = () => {
 
       {/* Create Contact Modal */}
       {showCreateModal && <CreateContactModal />}
+      {showUserAccessModal && <UserAccessModal />}
+      {bulkActionModal.open && <BulkActionModal />}
     </div>
   );
 };
 
 export default CRMModule;
+
+
+
+
+
+

@@ -81,6 +81,7 @@ android-sdk/ -e
 # Environment files
 *.env
 *.env.*
+backend/data/*.db
 -e 
 # Environment files
 *.env
