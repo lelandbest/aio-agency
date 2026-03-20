@@ -1077,9 +1077,19 @@ class AIAssistService:
         return None
 
     def _generic_result(self, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
-        seed = current_value or _clean(context.get("company")) or _clean(context.get("email")) or _title(field)
+        brain_memory = _clean(context.get("brain_memory_summary"))
+        seed = (
+            current_value
+            or _clean(context.get("company"))
+            or _clean(context.get("email"))
+            or (brain_memory.splitlines()[0] if brain_memory else "")
+            or _title(field)
+        )
         suggestion = seed or f"Refined {field}"
-        return AssistResult(suggestion, [suggestion], "Generated from the current field context.", "")
+        rationale = "Generated from the current field context."
+        if brain_memory:
+            rationale += " Enriched with AIO Brain memory."
+        return AssistResult(suggestion, [suggestion], rationale, "")
 
 
 ai_assist_service = AIAssistService()

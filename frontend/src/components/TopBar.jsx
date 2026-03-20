@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 
-const TopBar = ({ onLogout, onNavigate, title, titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu }) => {
+const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showTenantDropdown, setShowTenantDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -51,6 +51,11 @@ const TopBar = ({ onLogout, onNavigate, title, titleIcon: TitleIcon, searchPlace
                     <h1 className="text-lg font-bold text-[var(--color-text-primary)] truncate">
                         {normalizeDisplayText(title)}
                     </h1>
+                    {subtitle ? (
+                        <div className="mt-0.5 text-xs text-[var(--color-text-secondary)] truncate">
+                            {subtitle}
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
@@ -267,6 +272,7 @@ TopBar.propTypes = {
     onLogout: PropTypes.func.isRequired,
     onNavigate: PropTypes.func.isRequired,
     title: PropTypes.string.isRequired,
+    subtitle: PropTypes.string,
     titleIcon: PropTypes.elementType,
     searchPlaceholder: PropTypes.string,
     showSearch: PropTypes.bool,

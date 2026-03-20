@@ -360,6 +360,29 @@ export async function deleteBrainLinkApi(linkId) {
   });
 }
 
+export async function getBrainIngestsApi(sourceId = '', limit = 25) {
+  const params = new URLSearchParams();
+  if (sourceId) params.set('source_id', sourceId);
+  if (limit) params.set('limit', String(limit));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const response = await request(`/api/brain/ingests${suffix}`);
+  return response.data || [];
+}
+
+export async function createBrainIngestApi(payload) {
+  const response = await request('/api/brain/ingests', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function searchBrainMemoryApi(query, limit = 6) {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  const response = await request(`/api/brain/search?${params.toString()}`);
+  return response.data || [];
+}
+
 export async function upsertGlobalVariableApi(payload) {
   const response = await request('/api/settings/variables', {
     method: 'POST',

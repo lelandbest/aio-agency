@@ -137,7 +137,7 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Operations",
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "chat", label: "Comm", icon: "Radio", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "chat", label: "Comms", icon: "Radio", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "flows", label: "Flows", icon: "Zap", type: "internal", visible: true, iconColor: "#9ca3af" },

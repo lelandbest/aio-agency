@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarDays,
   ChevronDown,
+  FileText,
   Mail,
   MessageSquare,
   Phone,
@@ -66,7 +67,7 @@ const EMPTY_SNAPSHOT = {
   allThreads: [],
   mailboxes: [],
   calendarEvents: [],
-  agents: [{ name: 'ALPHA' }, { name: 'ECHO' }, { name: 'STRIKER' }]
+  agents: []
 };
 
 const AGENT_ROLE_HINTS = {
@@ -81,6 +82,29 @@ const CHANNEL_FILTERS = [
   { id: 'sms', label: 'SMS', icon: Smartphone },
   { id: 'internal', label: 'Internal', icon: MessageSquare }
 ];
+
+const COMPOSER_CHANNEL_LABELS = {
+  email: 'Email',
+  sms: 'SMS',
+  internal: 'Note'
+};
+
+const COMMS_WORKSPACE_SCALE = 0.75;
+const LEFT_PANEL_MIN = 280;
+const LEFT_PANEL_MAX = 480;
+const RIGHT_PANEL_MIN = 320;
+const RIGHT_PANEL_MAX = 560;
+const COMMS_TOOLBAR_SECONDARY = '!h-11 !rounded-xl !border !border-slate-600/75 !bg-[linear-gradient(180deg,rgba(19,27,45,0.56),rgba(10,16,30,0.68))] !px-4 !text-slate-100 shadow-[inset_0_1px_0_rgba(148,163,184,0.12),0_0_0_1px_rgba(148,163,184,0.04),0_10px_24px_rgba(2,6,23,0.22)] hover:!border-sky-400/45 hover:!bg-[linear-gradient(180deg,rgba(25,36,61,0.62),rgba(13,21,38,0.74))] disabled:!border-slate-800 disabled:!bg-[linear-gradient(180deg,rgba(19,27,45,0.34),rgba(10,16,30,0.4))]';
+const COMMS_TOOLBAR_REPORT = '!h-11 !rounded-xl !border !border-cyan-500/35 !bg-[linear-gradient(180deg,rgba(10,31,43,0.36),rgba(7,20,32,0.5))] !px-4 !text-cyan-100 shadow-[inset_0_1px_0_rgba(103,232,249,0.1),0_0_0_1px_rgba(34,211,238,0.06),0_10px_24px_rgba(2,6,23,0.22)] hover:!border-cyan-400/55 hover:!bg-[linear-gradient(180deg,rgba(12,41,58,0.46),rgba(8,25,37,0.58))] disabled:!border-slate-800 disabled:!bg-[linear-gradient(180deg,rgba(10,31,43,0.22),rgba(7,20,32,0.3))] disabled:!text-slate-400';
+const COMMS_TOOLBAR_GHOST = '!h-11 !rounded-xl !border !border-slate-700/70 !bg-[linear-gradient(180deg,rgba(15,23,42,0.24),rgba(15,23,42,0.12))] !px-4 !text-slate-300 shadow-[inset_0_1px_0_rgba(148,163,184,0.05)] hover:!border-slate-500/70 hover:!bg-[linear-gradient(180deg,rgba(15,23,42,0.38),rgba(15,23,42,0.2))] hover:!text-slate-100';
+const COMMS_TOOLBAR_PRIMARY = '!h-11 !rounded-xl !border !border-sky-400/45 !bg-[linear-gradient(180deg,rgba(32,71,126,0.28),rgba(12,22,38,0.42))] !px-5 !text-sky-100 shadow-[inset_0_1px_0_rgba(191,219,254,0.12),0_0_0_1px_rgba(96,165,250,0.08),0_12px_28px_rgba(37,99,235,0.18)] hover:!border-sky-300/65 hover:!bg-[linear-gradient(180deg,rgba(40,88,154,0.36),rgba(13,24,42,0.48))]';
+const COMMS_PANEL = 'rounded-[1.5rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(12,19,34,0.98),rgba(7,12,24,0.98))] shadow-[0_18px_40px_rgba(2,6,23,0.22),inset_0_1px_0_rgba(148,163,184,0.05)]';
+const COMMS_SUBPANEL = 'rounded-[1.05rem] border border-slate-800/70 bg-[linear-gradient(180deg,rgba(17,25,41,0.94),rgba(10,16,29,0.94))] shadow-[inset_0_1px_0_rgba(148,163,184,0.05)]';
+const COMMS_READING_WIDTH = 'max-w-[72rem]';
+const COMMS_COLUMN_BG = 'bg-[linear-gradient(180deg,rgba(10,16,28,0.94),rgba(7,11,22,0.98))]';
+const COMMS_SECTION_BG = 'bg-[linear-gradient(180deg,rgba(12,18,31,0.82),rgba(9,14,24,0.5))]';
+const COMMS_MAIN_BG = 'bg-[linear-gradient(180deg,rgba(12,18,31,0.58),rgba(8,12,22,0.34)_35%,rgba(8,12,22,0.2))]';
+const COMMS_HEADER_BG = 'bg-[linear-gradient(180deg,rgba(14,20,34,0.96),rgba(10,16,28,0.9))]';
 
 const statusTone = {
   new: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
@@ -323,7 +347,7 @@ const DEFAULT_PROVIDER_CATALOG = [
   }
 ];
 
-const createMailboxDraft = (provider = 'local-stub') => ({
+const createMailboxDraft = (provider = '') => ({
   name: '',
   address: '',
   provider,
@@ -336,6 +360,68 @@ const formatFlags = (thread) => Object.entries(thread.aiFlags || {}).filter(([, 
 const isMailboxOauthProvider = (providerId) => ['gmail-oauth', 'microsoft365-oauth'].includes(providerId);
 const openMailboxAdmin = () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'integrations', integrationCategory: 'email' } }));
 
+const buildThreadReport = (thread, kind = 'executive') => {
+  if (!thread) return '';
+  const contactName = thread.contact ? `${thread.contact.first_name} ${thread.contact.last_name}`.trim() : 'Unlinked contact';
+  const companyName = thread.company?.name || 'No company linked';
+  const stage = thread.contact?.pipeline_stage || 'No CRM stage';
+  const summary = normalizeAiText(thread.brief?.summary, thread.preview || 'No brief available.');
+  const nextStep = normalizeAiText(thread.brief?.recommended_next_step, 'No recommended next step yet.');
+  const unresolved = (thread.brief?.unresolved_questions || []).filter(Boolean);
+  const cues = (thread.brief?.reasoning_cues || []).filter(Boolean);
+  const flags = formatFlags(thread);
+  const actions = ((thread.actions || []).filter((action) => action.status === 'completed').slice(-5)).map((action) => (
+    `- ${action.label} (${action.source || 'system'}, ${formatRelative(action.created_at || thread.updated_at)})`
+  ));
+
+  if (kind === 'operator') {
+    return [
+      'Operator Report',
+      `Thread: ${thread.subject}`,
+      `Contact: ${contactName}`,
+      `Company: ${companyName}`,
+      `Assigned Agent: ${thread.assignee || 'Unassigned'}`,
+      `Stage: ${stage}`,
+      `Status: ${thread.status}`,
+      '',
+      'Situation',
+      summary,
+      '',
+      'Next Step',
+      nextStep,
+      '',
+      'Open Questions',
+      unresolved.length ? unresolved.map((item) => `- ${item}`).join('\n') : '- None logged',
+      '',
+      'Recent Agent / System Activity',
+      actions.length ? actions.join('\n') : '- No completed actions yet',
+    ].join('\n');
+  }
+
+  return [
+    'Executive Thread Report',
+    `Thread: ${thread.subject}`,
+    `Priority: ${thread.ai_priority || 'medium'}`,
+    `Contact: ${contactName}`,
+    `Company: ${companyName}`,
+    `Stage: ${stage}`,
+    `Owner: ${thread.owner || 'Unassigned'}`,
+    `Assignee: ${thread.assignee || 'Unassigned'}`,
+    '',
+    'Executive Summary',
+    summary,
+    '',
+    'Recommended Next Step',
+    nextStep,
+    '',
+    'Signals',
+    flags.length ? `- ${flags.join('\n- ')}` : '- No active AI flags',
+    '',
+    'Reasoning Cues',
+    cues.length ? cues.map((item) => `- ${item}`).join('\n') : '- No reasoning cues logged',
+  ].join('\n');
+};
+
 const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   const [queueId, setQueueId] = useState('now');
   const [channel, setChannel] = useState(initialChannel);
@@ -347,13 +433,18 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   const [composerChannel, setComposerChannel] = useState(initialChannel === 'all' ? 'email' : initialChannel);
   const [busyLabel, setBusyLabel] = useState('');
   const [mailboxEvents, setMailboxEvents] = useState([]);
-  const [mailboxForm, setMailboxForm] = useState({ name: '', address: '', provider: 'local-stub', status: 'connected', inbound_enabled: true, outbound_enabled: true, config: {} });
-  const [mailboxProviders, setMailboxProviders] = useState(DEFAULT_PROVIDER_CATALOG);
+  const [mailboxForm, setMailboxForm] = useState({ name: '', address: '', provider: '', status: 'connected', inbound_enabled: true, outbound_enabled: true, config: {} });
+  const [mailboxProviders, setMailboxProviders] = useState([]);
   const [mailboxTestResult, setMailboxTestResult] = useState(null);
   const [isMailboxComposerOpen, setIsMailboxComposerOpen] = useState(false);
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
   const [actionNotice, setActionNotice] = useState(null);
   const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1600 : window.innerWidth));
+  const [leftPanelWidth, setLeftPanelWidth] = useState(360);
+  const [rightPanelWidth, setRightPanelWidth] = useState(420);
+  const [activeResizeSide, setActiveResizeSide] = useState(null);
+  const layoutRef = useRef(null);
 
   const refresh = async () => {
     try {
@@ -368,13 +459,20 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
       });
     } catch (error) {
       setSnapshot(EMPTY_SNAPSHOT);
-      setActionNotice({ tone: 'error', message: 'Comm requires the local backend. Backend snapshot could not be loaded.' });
+      setActionNotice({ tone: 'error', message: 'Comms requires the local backend. Backend snapshot could not be loaded.' });
     }
   };
 
   useEffect(() => {
     refresh();
   }, [queueId, channel, search, activeMailboxId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,7 +484,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
         }
       } catch (error) {
         if (!cancelled) {
-          setMailboxProviders(DEFAULT_PROVIDER_CATALOG);
+          setMailboxProviders([]);
         }
       }
     })();
@@ -467,16 +565,46 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   }, [selectedThreadId]);
 
   useEffect(() => {
+    if (!activeResizeSide) return undefined;
+
+    const handleMouseMove = (event) => {
+      const bounds = layoutRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+
+      if (activeResizeSide === 'left') {
+        const maxWidth = Math.min(LEFT_PANEL_MAX, bounds.width - (viewportWidth >= 1536 ? rightPanelWidth : 0) - 420);
+        const nextWidth = Math.min(Math.max(event.clientX - bounds.left, LEFT_PANEL_MIN), Math.max(LEFT_PANEL_MIN, maxWidth));
+        setLeftPanelWidth(nextWidth);
+        return;
+      }
+
+      const maxWidth = Math.min(RIGHT_PANEL_MAX, bounds.width - leftPanelWidth - 420);
+      const nextWidth = Math.min(Math.max(bounds.right - event.clientX, RIGHT_PANEL_MIN), Math.max(RIGHT_PANEL_MIN, maxWidth));
+      setRightPanelWidth(nextWidth);
+    };
+
+    const handleMouseUp = () => setActiveResizeSide(null);
+    document.body.style.cursor = 'col-resize';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [activeResizeSide, leftPanelWidth, rightPanelWidth, viewportWidth]);
+
+  useEffect(() => {
     const mailbox = (snapshot.mailboxes || []).find((item) => item.id === (selectedThread?.mailbox_id || activeMailbox?.id)) || snapshot.mailboxes?.[0] || null;
     if (!mailbox) {
-      setMailboxForm({ name: '', address: '', provider: 'local-stub', status: 'connected', inbound_enabled: true, outbound_enabled: true, config: {} });
+      setMailboxForm({ name: '', address: '', provider: '', status: 'connected', inbound_enabled: true, outbound_enabled: true, config: {} });
       setMailboxTestResult(null);
       return;
     }
     setMailboxForm({
       name: mailbox.name || '',
       address: mailbox.address || '',
-      provider: mailbox.provider || 'local-stub',
+      provider: mailbox.provider || '',
       status: mailbox.status || 'connected',
       inbound_enabled: mailbox.inbound_enabled !== false,
       outbound_enabled: mailbox.outbound_enabled !== false,
@@ -543,7 +671,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     if (!subject) return;
     await runAction('Creating', async () => {
       const mailboxId = activeMailbox?.id || selectedMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
-      const thread = await createThreadApi({ subject, channel_type: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comm mission control.', mailbox_id: mailboxId });
+      const thread = await createThreadApi({ subject, channel_type: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailbox_id: mailboxId });
       setSelectedThreadId(thread?.id || null);
     });
   };
@@ -707,6 +835,25 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
       setActionNotice({ tone: 'success', message: 'Meeting follow-up scheduled from the active thread.' });
     });
   };
+  const handleCreateReport = async (kind) => {
+    if (!selectedThread?.id) return;
+    const label = kind === 'executive' ? 'Creating executive report' : 'Creating operator report';
+    await runAction(label, async () => {
+      const report = buildThreadReport(selectedThread, kind);
+      await sendThreadMessageApi(selectedThread.id, {
+        body: report,
+        channel_type: 'internal',
+        sender_name: kind === 'executive' ? 'ALPHA' : (selectedThread.assignee || 'ECHO'),
+        sender_email: 'system@aiocrm.local',
+        recipients: ['Internal'],
+        direction: 'system'
+      });
+      setActionNotice({
+        tone: 'success',
+        message: kind === 'executive' ? 'Executive report logged to the thread.' : 'Operator report logged to the thread.'
+      });
+    });
+  };
   const handleAssignThread = async (assigneeName) => {
     if (!selectedThread?.id || !assigneeName || assigneeName === selectedThread.assignee) {
       setIsAssigneeMenuOpen(false);
@@ -743,10 +890,17 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     () => (snapshot.mailboxes || []).find((mailbox) => mailbox.id === selectedMailboxId) || activeMailbox || snapshot.mailboxes?.[0] || null,
     [snapshot.mailboxes, selectedMailboxId, activeMailbox]
   );
-  const selectedProvider = mailboxProviders.find((provider) => provider.id === mailboxForm.provider) || DEFAULT_PROVIDER_CATALOG[0];
-  const draftProvider = mailboxProviders.find((provider) => provider.id === mailboxDraft.provider) || DEFAULT_PROVIDER_CATALOG[0];
+  const selectedProvider = mailboxProviders.find((provider) => provider.id === mailboxForm.provider) || { id: '', label: mailboxForm.provider || 'Unknown provider', fields: [] };
+  const draftProvider = mailboxProviders.find((provider) => provider.id === mailboxDraft.provider) || { id: '', label: mailboxDraft.provider || 'Unknown provider', fields: [] };
   const selectedMailboxHealth = mailboxHealthTone[selectedMailbox?.health?.state || 'healthy'] || mailboxHealthTone.healthy;
-  const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === selectedMailbox?.provider) || DEFAULT_PROVIDER_CATALOG[0];
+  const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === selectedMailbox?.provider) || { id: '', label: selectedMailbox?.provider || 'Unknown provider', fields: [] };
+  const isDesktopComms = viewportWidth >= 1280;
+  const isWideDesktopComms = viewportWidth >= 1536;
+  const workspaceLayoutStyle = isWideDesktopComms
+    ? { gridTemplateColumns: `${leftPanelWidth}px 10px minmax(0,1fr) 10px ${rightPanelWidth}px` }
+    : isDesktopComms
+      ? { gridTemplateColumns: `${leftPanelWidth}px 10px minmax(0,1fr)` }
+      : undefined;
   const selectedMailboxEventSummary = useMemo(() => ({
     failures: mailboxEvents.filter((event) => event.event_type.includes('failed')).length,
     sent: mailboxEvents.filter((event) => event.event_type === 'mail.sent').length,
@@ -765,12 +919,16 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     () => ((selectedThread?.actions || []).filter((action) => action.status === 'completed').slice().reverse()),
     [selectedThread]
   );
+  const recentAgentActions = useMemo(
+    () => completedThreadActions.filter((action) => ['ai', 'system'].includes(action.source || '')).slice(0, 5),
+    [completedThreadActions]
+  );
   const threadCalendarEvents = useMemo(
     () => selectedThread?.calendarEvents || [],
     [selectedThread]
   );
   const availableAgents = useMemo(
-    () => (snapshot.agents || EMPTY_SNAPSHOT.agents).map((agent) => agent.name),
+    () => (snapshot.agents || []).map((agent) => agent.name).filter(Boolean),
     [snapshot.agents]
   );
   const briefSummary = normalizeAiText(
@@ -781,131 +939,147 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     selectedThread?.brief?.recommended_next_step,
     'Review the latest inbound signal and send the next decisive response.'
   );
+  const compactPulseItems = useMemo(() => {
+    if (!selectedThreadPulse) return [];
+    return [
+      {
+        key: 'touch',
+        label: 'Touch',
+        value: selectedThreadPulse.latestMessage?.direction || 'none',
+        detail: selectedThreadPulse.latestMessage?.created_at ? formatRelative(selectedThreadPulse.latestMessage.created_at) : 'No messages yet',
+        tone: pulseTone.neutral
+      },
+      {
+        key: 'reply',
+        label: 'Reply',
+        value: selectedThreadPulse.awaitingReply ? `Waiting ${formatWindow(selectedThreadPulse.latestOutbound?.created_at)}` : 'Clear',
+        detail: selectedThreadPulse.awaitingReply ? 'Needs response' : 'Not blocked',
+        tone: pulseTone[selectedThreadPulse.awaitingReply ? (selectedThreadPulse.latestOutbound && Date.now() - new Date(selectedThreadPulse.latestOutbound.created_at).getTime() >= 172800000 ? 'danger' : 'warning') : 'success']
+      },
+      {
+        key: 'follow-up',
+        label: 'Follow-up',
+        value: selectedThreadPulse.followUpDue ? 'Due now' : selectedThreadPulse.followUpScheduled ? formatRelative(selectedThread?.next_follow_up_at) : 'None',
+        detail: selectedThreadPulse.followUpScheduled ? formatDateTime(selectedThread?.next_follow_up_at) : 'No scheduled follow-up',
+        tone: pulseTone[selectedThreadPulse.followUpDue ? 'danger' : selectedThreadPulse.followUpScheduled ? 'info' : 'neutral']
+      },
+      {
+        key: 'delivery',
+        label: 'Delivery',
+        value: selectedThreadPulse.deliveryState || 'No send',
+        detail: selectedThreadPulse.latestMessage?.direction === 'outbound' ? 'Latest outbound state' : 'Waiting for outbound',
+        tone: pulseTone[selectedThreadPulse.deliveryState && selectedThreadPulse.deliveryState !== 'sent' ? 'warning' : 'success']
+      }
+    ];
+  }, [selectedThread?.next_follow_up_at, selectedThreadPulse]);
+  const commsWindowStyle = COMMS_WORKSPACE_SCALE < 1
+    ? {
+        transform: `scale(${COMMS_WORKSPACE_SCALE})`,
+        transformOrigin: 'top left',
+        width: `calc(100% / ${COMMS_WORKSPACE_SCALE})`,
+        height: `calc(100% / ${COMMS_WORKSPACE_SCALE})`
+      }
+    : undefined;
+  const hiddenScrollbarStyle = {
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none'
+  };
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
-      <ModuleHeader
-        title="Comm"
-        titleIcon={Radio}
-        showTitle={false}
-        actions={[
-          { label: 'Simulate Receive', icon: Sparkles, onClick: () => runAction('Simulating', async () => {
-            const seedThread = snapshot.threads[0] || snapshot.allThreads?.[0];
-            const targetChannel = channel === 'all' ? 'email' : channel;
-            if (seedThread && targetChannel === 'email' && (seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id)) {
-              await ingestMailboxMessageApi(seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id, {
-                subject: seedThread.subject,
-                body: 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
-                sender_name: seedThread.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Incoming Contact',
-                sender_email: seedThread.contact?.email || 'contact@inbox.local',
-                recipients: [seedThread.mailbox?.address || snapshot.mailboxes?.[0]?.address].filter(Boolean)
-              });
-            } else if (seedThread) {
-              await sendThreadMessageApi(seedThread.id, {
-                body: targetChannel === 'sms' ? 'Quick check-in. Are we still on for the follow-up and do you have the latest scope details handy?' : 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
-                channel_type: targetChannel,
-                sender_name: seedThread.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Incoming Contact',
-                sender_email: seedThread.contact?.email || 'contact@inbox.local',
-                recipients: ['mission@aiocrm.local'],
-                direction: 'inbound'
-              });
-            }
-          }), variant: 'secondary' },
-          { label: 'Sync Mailbox', icon: Mail, onClick: () => runAction('Syncing', async () => {
-            if (!selectedMailbox?.id) return;
-            await syncMailboxApi(selectedMailbox.id);
-          }), variant: 'secondary' },
-          { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'secondary' },
-          { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary' }
-        ]}
-        statusBadge={{ label: `${snapshot.threads.length} visible threads${selectedMailbox ? ` / ${selectedMailbox.name}` : ''}`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
-        aiAssistSlot={<AIAssistButton onAssist={() => handleAiAction('summarize')} tooltip="Refresh AI brief" iconType="sparkles" />}
-      />
+    <div className="h-full min-h-0 overflow-hidden">
+      <style>{`
+        .comms-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
+        .comms-thread-strip{scrollbar-width:thin;scrollbar-color:rgba(96,165,250,0.58) rgba(15,23,42,0.42);}
+        .comms-thread-strip::-webkit-scrollbar{height:10px;}
+        .comms-thread-strip::-webkit-scrollbar-track{background:rgba(15,23,42,0.4);border-radius:999px;}
+        .comms-thread-strip::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(96,165,250,0.75),rgba(59,130,246,0.58));border-radius:999px;border:2px solid rgba(15,23,42,0.34);}
+        .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
+      `}</style>
+      <div className="h-full bg-[var(--color-bg-secondary)] rounded-[1.75rem] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-[0_22px_60px_rgba(2,6,23,0.28)]" style={commsWindowStyle}>
+        <ModuleHeader
+          title="Comms"
+          titleIcon={Radio}
+          showTitle={false}
+          actions={[
+            { label: 'Simulate Receive', icon: Sparkles, onClick: () => runAction('Simulating', async () => {
+              const seedThread = snapshot.threads[0] || snapshot.allThreads?.[0];
+              const targetChannel = channel === 'all' ? 'email' : channel;
+              if (seedThread && targetChannel === 'email' && (seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id)) {
+                await ingestMailboxMessageApi(seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id, {
+                  subject: seedThread.subject,
+                  body: 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
+                  sender_name: seedThread.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Incoming Contact',
+                  sender_email: seedThread.contact?.email || 'contact@inbox.local',
+                  recipients: [seedThread.mailbox?.address || snapshot.mailboxes?.[0]?.address].filter(Boolean)
+                });
+              } else if (seedThread) {
+                await sendThreadMessageApi(seedThread.id, {
+                  body: targetChannel === 'sms' ? 'Quick check-in. Are we still on for the follow-up and do you have the latest scope details handy?' : 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
+                  channel_type: targetChannel,
+                  sender_name: seedThread.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Incoming Contact',
+                  sender_email: seedThread.contact?.email || 'contact@inbox.local',
+                  recipients: ['mission@aiocrm.local'],
+                  direction: 'inbound'
+                });
+              }
+            }), variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY },
+            { label: 'Sync Mailbox', icon: Mail, onClick: () => runAction('Syncing', async () => {
+              if (!selectedMailbox?.id) return;
+              await syncMailboxApi(selectedMailbox.id);
+            }), variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY },
+            { label: 'Inject Inbound', icon: ArrowRight, onClick: handleReceiveForMailbox, disabled: !selectedMailbox?.id, variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY },
+            { label: 'Draft Reply', icon: MessageSquare, onClick: () => handleAiAction('reply'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY, groupStart: true },
+            { label: 'Extract Tasks', icon: Workflow, onClick: () => handleAiAction('extract'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY },
+            { label: 'Run Workflow', icon: Bot, onClick: handleWorkflowNote, disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY },
+            { label: 'Operator Report', icon: FileText, onClick: () => handleCreateReport('operator'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_REPORT, groupStart: true },
+            { label: 'Executive Report', icon: FileText, onClick: () => handleCreateReport('executive'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_REPORT },
+            { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'ghost', className: COMMS_TOOLBAR_GHOST, groupStart: true },
+            { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary', className: COMMS_TOOLBAR_PRIMARY }
+          ]}
+          statusBadge={{ label: `${snapshot.threads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
+          aiAssistSlot={<AIAssistButton onAssist={() => handleAiAction('summarize')} tooltip="Refresh AI brief" iconType="crosshair" />}
+        />
 
-      {actionNotice ? (
-        <div className={`mx-4 mt-4 rounded-xl border px-4 py-3 text-sm ${
-          actionNotice.tone === 'success'
-            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-            : actionNotice.tone === 'warning'
-              ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-              : 'border-red-500/30 bg-red-500/10 text-red-200'
-        }`}>
-          {actionNotice.message}
-        </div>
-      ) : null}
-
-      {selectedMailbox ? (
-        <div className="mx-4 mt-4 rounded-2xl border border-[var(--color-border)] bg-[linear-gradient(90deg,rgba(59,130,246,0.12),rgba(15,23,42,0.18))] px-4 py-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`h-2.5 w-2.5 rounded-full ${selectedMailboxHealth.dot}`} />
-                <div className="text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</div>
-                <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">{selectedMailboxProvider.label}</span>
-                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${selectedMailboxHealth.card}`}>{selectedMailbox.health?.label || selectedMailbox.status}</span>
-              </div>
-              <div className="flex flex-wrap gap-2 text-[11px] text-[var(--color-text-secondary)]">
-                <span>Address {selectedMailbox.address || 'unassigned'}</span>
-                <span>Last sync {selectedMailbox.last_synced_at ? formatRelative(selectedMailbox.last_synced_at) : 'never'}</span>
-                <span>Inbound {selectedMailbox.inbound_enabled ? 'on' : 'off'}</span>
-                <span>Outbound {selectedMailbox.outbound_enabled ? 'on' : 'off'}</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={openMailboxAdmin} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Manage in Integrations</button>
-                <button onClick={handleTestMailbox} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Test Connection</button>
-                <button onClick={() => runAction('Syncing', async () => {
-                  await syncMailboxApi(selectedMailbox.id);
-                })} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Run Sync</button>
-                <button onClick={handleReceiveForMailbox} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Inject Inbound</button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[360px]">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Now</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.queue_counts?.now || 0}</div>
-              </div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Reply</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.queue_counts?.['needs-reply'] || 0}</div>
-              </div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Inbound</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxEventSummary.received}</div>
-              </div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Failures</div>
-                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxEventSummary.failures}</div>
-              </div>
-            </div>
+        {actionNotice ? (
+          <div className={`mx-4 mt-4 rounded-xl border px-4 py-3 text-sm ${
+            actionNotice.tone === 'success'
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+              : actionNotice.tone === 'warning'
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                : 'border-red-500/30 bg-red-500/10 text-red-200'
+          }`}>
+            {actionNotice.message}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full min-h-0 grid grid-cols-1 xl:grid-cols-12">
-          <aside className="xl:col-span-3 min-w-0 border-b xl:border-b-0 xl:border-r border-[var(--color-border)] bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_50%)] flex flex-col min-h-0">
-            <div className="p-4 border-b border-[var(--color-border)] space-y-3">
+        <div className="flex-1 overflow-hidden">
+          <div ref={layoutRef} className="h-full min-h-0 grid grid-cols-1" style={workspaceLayoutStyle}>
+          <aside style={hiddenScrollbarStyle} className={`comms-scroll-hidden min-w-0 border-b border-[var(--color-border)] ${COMMS_COLUMN_BG} flex flex-col min-h-0 overflow-y-auto ${isDesktopComms ? 'col-start-1 row-start-1 row-span-2 border-b-0 border-r' : ''}`}>
+            <div className={`p-4 border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-3 text-[var(--color-text-secondary)]" />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search threads, contacts, companies" className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {CHANNEL_FILTERS.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button key={item.id} onClick={() => setChannel(item.id)} className={`px-3 py-1.5 rounded-full text-xs border flex items-center gap-1.5 ${channel === item.id ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] border-[var(--color-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
-                      <Icon size={13} />
-                      {item.label}
-                    </button>
-                  );
-                })}
+              <div className="space-y-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">View</div>
+                <div className="flex flex-wrap gap-2">
+                  {CHANNEL_FILTERS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button key={item.id} onClick={() => setChannel(item.id)} className={`px-3 py-1.5 rounded-full text-xs border flex items-center gap-1.5 ${channel === item.id ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] border-[var(--color-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
+                        <Icon size={13} />
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="p-4 border-b border-[var(--color-border)] space-y-2">
+            <div className={`p-4 border-b border-[var(--color-border)] space-y-2 ${COMMS_SECTION_BG}`}>
               <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailboxes</div>
               <div className="space-y-2">
-                <button onClick={() => setActiveMailboxId('all')} className={`w-full rounded-xl border px-3 py-2 text-left ${activeMailboxId === 'all' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]'}`}>
+                <button onClick={() => setActiveMailboxId('all')} className={`w-full rounded-[1.2rem] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(2,6,23,0.18)] ${activeMailboxId === 'all' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]'}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-sm text-[var(--color-text-primary)]">All Mailboxes</div>
@@ -913,16 +1087,13 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                     </div>
                     <div className="text-xs text-[var(--color-text-secondary)]">{mailboxVisibleCounts.all || 0}</div>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-[var(--color-text-secondary)]">
-                    <span>Now {queueCards.find((queue) => queue.id === 'now')?.count || 0}</span>
-                    <span>Reply {queueCards.find((queue) => queue.id === 'needs-reply')?.count || 0}</span>
-                    <span>Risk {queueCards.find((queue) => queue.id === 'at-risk')?.count || 0}</span>
-                  </div>
+                  <div className="mt-2 text-[10px] text-[var(--color-text-secondary)]">Unified view across the active queue and channel.</div>
                 </button>
                 {(snapshot.mailboxes || []).map((mailbox) => {
                   const health = mailboxHealthTone[mailbox.health?.state || 'healthy'] || mailboxHealthTone.healthy;
+                  const isActiveMailbox = activeMailboxId === mailbox.id;
                   return (
-                    <button key={mailbox.id} onClick={() => setActiveMailboxId(mailbox.id)} className={`w-full rounded-xl border px-3 py-2 text-left ${activeMailboxId === mailbox.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]'}`}>
+                    <button key={mailbox.id} onClick={() => setActiveMailboxId(mailbox.id)} className={`w-full rounded-[1.2rem] border px-3 py-2.5 text-left transition shadow-[0_10px_24px_rgba(2,6,23,0.18)] ${isActiveMailbox ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]'}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-2">
@@ -938,58 +1109,168 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                         <span>Now {mailbox.queue_counts?.now || 0}</span>
                         <span>Reply {mailbox.queue_counts?.['needs-reply'] || 0}</span>
                       </div>
+                      {isActiveMailbox ? (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <div className={`${COMMS_SUBPANEL} px-2.5 py-2`}>
+                            <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Address</div>
+                            <div className="mt-1 text-xs text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{mailbox.address || 'unassigned'}</div>
+                          </div>
+                          <div className={`${COMMS_SUBPANEL} px-2.5 py-2`}>
+                            <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Last Sync</div>
+                            <div className="mt-1 text-xs text-[var(--color-text-primary)]">{mailbox.last_synced_at ? formatRelative(mailbox.last_synced_at) : 'never'}</div>
+                          </div>
+                          <div className={`${COMMS_SUBPANEL} px-2.5 py-2`}>
+                            <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Outbound</div>
+                            <div className="mt-1 text-xs text-[var(--color-text-primary)]">{mailbox.outbound_enabled ? 'enabled' : 'off'}</div>
+                          </div>
+                          <div className={`${COMMS_SUBPANEL} px-2.5 py-2`}>
+                            <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Visible</div>
+                            <div className="mt-1 text-xs text-[var(--color-text-primary)]">{mailboxVisibleCounts[mailbox.id] || 0} thread{(mailboxVisibleCounts[mailbox.id] || 0) === 1 ? '' : 's'}</div>
+                          </div>
+                        </div>
+                      ) : null}
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            <div className="p-4 border-b border-[var(--color-border)] grid grid-cols-2 gap-2">
-              {queueCards.map((queue) => {
-                return (
-                  <button key={queue.id} onClick={() => setQueueId(queue.id)} className={`p-3 rounded-xl border text-left ${queueId === queue.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'}`}>
-                    <div className="text-xs text-[var(--color-text-secondary)]">{queue.label}</div>
-                    <div className="text-lg font-semibold text-[var(--color-text-primary)]">{queue.count || 0}</div>
-                  </button>
-                );
-              })}
+            <div className={`p-4 border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailbox Admin</div>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleTestMailbox} disabled={!selectedMailbox?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
+                  <button onClick={openMailboxAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
+                </div>
+              </div>
+              <div className={`rounded-[1.2rem] border px-3 py-3 shadow-[0_12px_28px_rgba(2,6,23,0.22)] ${selectedMailboxHealth.card}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.2em] opacity-80">Mailbox Health</div>
+                    <div className="mt-1 text-sm font-semibold">{selectedMailbox?.health?.label || 'Healthy'}</div>
+                  </div>
+                  <div className="text-right text-xs opacity-80">
+                    <div>Last sync {selectedMailbox?.last_synced_at ? formatRelative(selectedMailbox.last_synced_at) : 'never'}</div>
+                    <div>Last test {selectedMailbox?.health?.last_tested_at ? formatRelative(selectedMailbox.health.last_tested_at) : 'never'}</div>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm opacity-90">{selectedMailbox?.health?.detail || 'Inbound and outbound flows look ready.'}</div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-[0.95rem] border border-white/10 bg-black/10 px-2 py-2">
+                    <div className="opacity-70">Now</div>
+                    <div className="mt-1 text-sm font-semibold">{selectedMailbox?.queue_counts?.now || 0}</div>
+                  </div>
+                  <div className="rounded-[0.95rem] border border-white/10 bg-black/10 px-2 py-2">
+                    <div className="opacity-70">Reply</div>
+                    <div className="mt-1 text-sm font-semibold">{selectedMailbox?.queue_counts?.['needs-reply'] || 0}</div>
+                  </div>
+                  <div className="rounded-[0.95rem] border border-white/10 bg-black/10 px-2 py-2">
+                    <div className="opacity-70">Risk</div>
+                    <div className="mt-1 text-sm font-semibold">{selectedMailbox?.queue_counts?.['at-risk'] || 0}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-3 text-sm">
+                <div className={`${COMMS_SUBPANEL} px-3 py-3`}>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Address</div>
+                  <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedMailbox?.address || 'Unassigned'}</div>
+                </div>
+                <div className={`${COMMS_SUBPANEL} px-3 py-3`}>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
+                  <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedMailboxProvider.label}</div>
+                </div>
+              </div>
+              <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
+                Credential edits, OAuth connection, and mailbox creation now live in <span className="font-medium text-[var(--color-text-primary)]">Admin &gt; Integrations</span>. Comms keeps operational controls only.
+              </div>
+              {mailboxTestResult ? (
+                <div className={`rounded-[1.1rem] border px-3 py-3 text-sm ${mailboxTestResult.status === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+                  {mailboxTestResult.message}
+                </div>
+              ) : null}
             </div>
 
-            <div className="flex-1 overflow-auto p-3 space-y-3">
-              {snapshot.threads.map((thread) => {
-                const pulse = getThreadPulse(thread);
-                return (
-                  <button key={thread.id} onClick={() => setSelectedThreadId(thread.id)} className={`w-full text-left rounded-2xl border p-4 transition ${selectedThread?.id === thread.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 shadow-[0_0_0_1px_rgba(59,130,246,0.2)]' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/30'}`}>
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div>
-                        <div className="text-sm font-semibold text-[var(--color-text-primary)]">{thread.contact ? `${thread.contact.first_name} ${thread.contact.last_name}` : thread.generated_title}</div>
-                        <div className="text-xs text-[var(--color-text-secondary)]">{thread.company?.name || thread.mailbox?.name}</div>
+            <div className={`p-4 border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><AlertTriangle size={16} /> Mail Events</div>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  {selectedMailboxEventSummary.failures} failures / {selectedMailboxEventSummary.received} inbound
+                </span>
+              </div>
+              <div className="space-y-2">
+                {mailboxEvents.length > 0 ? mailboxEvents.slice(0, 6).map((event) => {
+                  const meta = describeMailEvent(event);
+                  return (
+                    <div key={event.id} className={`rounded-xl border px-3 py-3 ${mailEventTone[meta.tone] || mailEventTone.info}`}>
+                      <div className="flex items-center justify-between gap-3 text-xs opacity-80">
+                        <span>{meta.title}</span>
+                        <span>{formatRelative(event.created_at)}</span>
                       </div>
-                      <span className={`px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] ${statusTone[thread.status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>{thread.status.replace(/_/g, ' ')}</span>
-                    </div>
-                    <div className="text-sm text-[var(--color-text-primary)] mb-1">{thread.subject}</div>
-                    <div className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{thread.preview}</div>
-                    {pulse.chips.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {pulse.chips.map((chip) => (
-                          <span key={chip.key} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${pulseTone[chip.tone] || pulseTone.neutral}`}>{chip.label}</span>
-                        ))}
+                      <div className="mt-1 text-sm font-medium">{meta.detail}</div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] opacity-80">
+                        <span>Provider {event.source_provider}</span>
+                        {event.payload?.mailbox_address ? <span>Mailbox {event.payload.mailbox_address}</span> : null}
+                        {event.payload?.recipient_count ? <span>Recipients {event.payload.recipient_count}</span> : null}
                       </div>
-                    ) : null}
-                    <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--color-text-tertiary)]">
-                      <span>{thread.ai_priority} priority</span>
-                      <span>{formatRelative(thread.last_activity_at)}</span>
                     </div>
-                  </button>
-                );
-              })}
+                  );
+                }) : (
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">No recent mail events for this mailbox.</div>
+                )}
+              </div>
             </div>
           </aside>
-          <main className="xl:col-span-5 min-w-0 border-b xl:border-b-0 xl:border-r border-[var(--color-border)] flex flex-col min-h-0 overflow-hidden bg-[linear-gradient(180deg,rgba(15,23,42,0.22),transparent_35%)]">
+
+          {isDesktopComms ? (
+            <div
+              onMouseDown={() => setActiveResizeSide('left')}
+              className={`hidden xl:block col-start-2 row-start-1 row-span-2 cursor-col-resize bg-transparent transition ${activeResizeSide === 'left' ? 'bg-[var(--color-primary)]/30' : 'hover:bg-[var(--color-primary)]/15'}`}
+            />
+          ) : null}
+
+          <main className={`min-w-0 flex flex-col min-h-0 overflow-hidden ${COMMS_MAIN_BG} ${isDesktopComms ? 'col-start-3 row-start-1 border-b border-[var(--color-border)]' : 'border-b border-[var(--color-border)]'} ${isWideDesktopComms ? '2xl:border-b-0 2xl:border-r' : ''}`}>
             {selectedThread ? (
               <>
-                <div className="p-5 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-                  <div className="flex flex-wrap items-start justify-between gap-4 min-w-0">
+              <div className={`p-5 border-b border-[var(--color-border)] ${COMMS_HEADER_BG} shadow-[inset_0_-1px_0_rgba(15,23,42,0.82)]`}>
+                  <div className="flex items-center justify-between gap-3 min-w-0">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Thread Queue</div>
+                    <div className="flex flex-wrap gap-2">
+                      {queueCards.map((queue) => (
+                        <button
+                          key={queue.id}
+                          onClick={() => setQueueId(queue.id)}
+                          disabled={queue.count === 0}
+                          className={`rounded-full border px-4 py-2 text-xs ${queueId === queue.id ? 'border-sky-400/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.24),rgba(12,22,38,0.34))] text-sky-100 shadow-[inset_0_1px_0_rgba(191,219,254,0.1),0_10px_24px_rgba(37,99,235,0.1)]' : 'border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.08))] text-[var(--color-text-secondary)] hover:border-slate-500/70 hover:text-[var(--color-text-primary)]'} ${queue.count === 0 ? 'cursor-not-allowed opacity-40 hover:text-[var(--color-text-secondary)]' : ''}`}
+                        >
+                          {queue.label} {queue.count || 0}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="comms-thread-strip mt-4 -mx-1 flex gap-3 overflow-x-auto px-1 pb-3">
+                    {snapshot.threads.map((thread) => {
+                      const pulse = getThreadPulse(thread);
+                      return (
+                        <button key={thread.id} onClick={() => setSelectedThreadId(thread.id)} className={`min-w-[18rem] max-w-[18rem] flex-none rounded-[1.35rem] border p-3 text-left transition shadow-[0_12px_28px_rgba(2,6,23,0.2)] ${selectedThread?.id === thread.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_16px_32px_rgba(37,99,235,0.18)]' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/30'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{thread.contact ? `${thread.contact.first_name} ${thread.contact.last_name}` : thread.generated_title}</div>
+                              <div className="truncate text-xs text-[var(--color-text-secondary)]">{thread.company?.name || thread.mailbox?.name}</div>
+                            </div>
+                            <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${statusTone[thread.status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>{thread.status.replace(/_/g, ' ')}</span>
+                          </div>
+                          <div className="mt-2 line-clamp-1 text-sm text-[var(--color-text-primary)]">{thread.subject}</div>
+                          <div className="mt-1 flex items-center justify-between text-[11px] text-[var(--color-text-tertiary)]">
+                            <span>{pulse.chips[0]?.label || `${thread.ai_priority} priority`}</span>
+                            <span>{formatRelative(thread.last_activity_at)}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className={`mt-4 mx-auto flex w-full ${COMMS_READING_WIDTH} flex-wrap items-start justify-between gap-4 min-w-0`}>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <h2 className="min-w-0 break-words text-xl font-semibold text-[var(--color-text-primary)] [overflow-wrap:anywhere]">{selectedThread.subject}</h2>
@@ -1022,92 +1303,100 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                           ) : null}
                         </div>
                       </div>
-                      <p className="max-w-2xl text-sm text-[var(--color-text-secondary)] break-words [overflow-wrap:anywhere]">{selectedThread.generated_title}</p>
+                      <div className="flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
+                        <span>{selectedThread.contact ? `${selectedThread.contact.first_name} ${selectedThread.contact.last_name}` : 'Unlinked contact'}</span>
+                        <span>{selectedThread.company?.name || selectedThread.mailbox?.name || 'No company linked'}</span>
+                        <span>{formatRelative(selectedThread.last_activity_at)}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => handleAiAction('summarize')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Summarize</button>
-                      <button onClick={() => handleAiAction('reply')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Reply with AI</button>
-                      <button onClick={() => handleAiAction('rewrite')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Rewrite</button>
-                      <button onClick={() => handleAiAction('extract')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Extract Tasks</button>
-                    </div>
+                    <button onClick={() => handleAiAction('summarize')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Refresh Brief</button>
                   </div>
-                  {selectedThreadPulse ? (
-                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Latest Touch</div>
-                        <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedThreadPulse.latestMessage?.direction || 'none'}</div>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{selectedThreadPulse.latestMessage?.created_at ? formatRelative(selectedThreadPulse.latestMessage.created_at) : 'No messages yet'}</div>
-                      </div>
-                      <div className={`rounded-xl border px-3 py-3 ${pulseTone[selectedThreadPulse.awaitingReply ? (selectedThreadPulse.latestOutbound && Date.now() - new Date(selectedThreadPulse.latestOutbound.created_at).getTime() >= 172800000 ? 'danger' : 'warning') : 'success']}`}>
-                        <div className="text-[10px] uppercase tracking-[0.18em] opacity-80">Reply Clock</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedThreadPulse.awaitingReply ? `Waiting ${formatWindow(selectedThreadPulse.latestOutbound?.created_at)}` : 'Replied or inbound'}</div>
-                        <div className="mt-1 text-xs opacity-80">{selectedThreadPulse.awaitingReply ? 'Last outbound has not been answered yet.' : 'Conversation is not blocked on a reply.'}</div>
-                      </div>
-                      <div className={`rounded-xl border px-3 py-3 ${pulseTone[selectedThreadPulse.followUpDue ? 'danger' : selectedThreadPulse.followUpScheduled ? 'info' : 'neutral']}`}>
-                        <div className="text-[10px] uppercase tracking-[0.18em] opacity-80">Follow-up</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedThreadPulse.followUpDue ? 'Due now' : selectedThreadPulse.followUpScheduled ? formatRelative(selectedThread.next_follow_up_at) : 'Not scheduled'}</div>
-                        <div className="mt-1 text-xs opacity-80">{selectedThread.next_follow_up_at || 'No follow-up timestamp on this thread.'}</div>
-                      </div>
-                      <div className={`rounded-xl border px-3 py-3 ${pulseTone[selectedThreadPulse.deliveryState && selectedThreadPulse.deliveryState !== 'sent' ? 'warning' : 'success']}`}>
-                        <div className="text-[10px] uppercase tracking-[0.18em] opacity-80">Delivery</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedThreadPulse.deliveryState || 'No outbound send yet'}</div>
-                        <div className="mt-1 text-xs opacity-80">{selectedThreadPulse.latestMessage?.direction === 'outbound' ? 'Latest outbound delivery state.' : 'Waiting for the next outbound action.'}</div>
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
 
-                <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 py-5 space-y-4">
-                  {selectedThread.messages.map((message) => (
-                    <div key={message.id} className={`max-w-[92%] min-w-0 rounded-2xl border p-4 ${message.direction === 'outbound' ? 'ml-auto bg-[var(--color-primary)]/12 border-[var(--color-primary)]/30' : message.direction === 'system' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
-                      <div className="flex items-center justify-between gap-3 mb-2 text-xs text-[var(--color-text-secondary)]">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-[var(--color-text-primary)]">{message.sender_name}</span>
-                          {message.direction === 'outbound' && message.delivery_status ? (
-                            <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${message.delivery_status === 'sent' ? pulseTone.success : pulseTone.warning}`}>{message.delivery_status}</span>
-                          ) : null}
+                <div style={hiddenScrollbarStyle} className="comms-scroll-hidden flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 py-5">
+                  <div className={`mx-auto flex w-full ${COMMS_READING_WIDTH} flex-col space-y-4`}>
+                    {selectedThread.messages.map((message) => (
+                      <div key={message.id} className={`max-w-[92%] min-w-0 rounded-[1.4rem] border p-4 shadow-[0_14px_30px_rgba(2,6,23,0.18)] ${message.direction === 'outbound' ? 'ml-auto bg-[var(--color-primary)]/12 border-[var(--color-primary)]/30' : message.direction === 'system' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
+                        <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--color-text-secondary)]">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-[var(--color-text-primary)]">{message.sender_name}</span>
+                            {message.direction === 'outbound' && message.delivery_status ? (
+                              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${message.delivery_status === 'sent' ? pulseTone.success : pulseTone.warning}`}>{message.delivery_status}</span>
+                            ) : null}
+                          </div>
+                          <span>{formatRelative(message.created_at)}</span>
                         </div>
-                        <span>{formatRelative(message.created_at)}</span>
+                        <div className="text-sm leading-6 text-[var(--color-text-primary)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                          {normalizeAiText(message.plain_text, message.body || '')}
+                        </div>
+                        {message.recipients?.length ? (
+                          <div className="mt-3 text-[11px] text-[var(--color-text-tertiary)] break-words [overflow-wrap:anywhere]">Recipients: {message.recipients.join(', ')}</div>
+                        ) : null}
                       </div>
-                      <div className="text-sm leading-6 text-[var(--color-text-primary)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                        {normalizeAiText(message.plain_text, message.body || '')}
-                      </div>
-                      {message.recipients?.length ? (
-                        <div className="mt-3 text-[11px] text-[var(--color-text-tertiary)] break-words [overflow-wrap:anywhere]">Recipients: {message.recipients.join(', ')}</div>
-                      ) : null}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
-                <div className="border-t border-[var(--color-border)] p-4 bg-[var(--color-bg-tertiary)] space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={handleMoveThreadToMailbox} disabled={!activeMailbox?.id || activeMailbox.id === selectedThread.mailbox_id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Move to {activeMailbox?.name || 'mailbox'}</button>
-                    <button onClick={() => runAction('Scheduling', async () => {
-                      await updateThreadStatusApi(selectedThread.id, 'scheduled');
-                    })} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Schedule Follow-up</button>
-                    <button onClick={handleWorkflowNote} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Run Workflow</button>
-                    <button onClick={() => runAction('Closing', async () => {
-                      await updateThreadStatusApi(selectedThread.id, 'closed');
-                    })} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Close Thread</button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {CHANNEL_FILTERS.filter((item) => item.id !== 'all').map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button key={item.id} onClick={() => setComposerChannel(item.id)} className={`px-3 py-2 rounded-lg border text-sm flex items-center gap-2 ${composerChannel === item.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
-                          <Icon size={14} />
-                          {item.label}
+                <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-4">
+                  <div className={`mx-auto flex w-full ${COMMS_READING_WIDTH} flex-col space-y-3`}>
+                    <div className="pb-1">
+                      <div className="mx-auto flex flex-wrap items-stretch justify-center gap-2">
+                        {compactPulseItems.map((item) => (
+                          <div key={item.key} className={`min-w-[7.5rem] flex-none rounded-[0.95rem] border px-3 py-2 shadow-[0_8px_18px_rgba(2,6,23,0.14)] ${item.tone}`}>
+                            <div className="text-[9px] uppercase tracking-[0.18em] opacity-80">{item.label}</div>
+                            <div className="mt-1 text-sm font-semibold leading-none">{item.value}</div>
+                          </div>
+                        ))}
+                        <button onClick={handleMoveThreadToMailbox} disabled={!activeMailbox?.id || activeMailbox.id === selectedThread.mailbox_id} className="h-[3.25rem] min-w-[7.5rem] flex-none rounded-[0.95rem] border border-[var(--color-border)] px-3 py-2 text-left text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">
+                          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mailbox</div>
+                          <div className="mt-1 font-medium text-[var(--color-text-primary)]">Move Mail</div>
                         </button>
-                      );
-                    })}
-                  </div>
-                  <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={5} placeholder="Draft the next move, log an internal note, or send a precise follow-up..." className="w-full rounded-2xl bg-[var(--color-bg-primary)] border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs text-[var(--color-text-tertiary)]">{busyLabel ? `${busyLabel}...` : 'Thread-first comm with AI-guided actions.'}</div>
-                    <button onClick={handleSend} disabled={!composer.trim()} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium flex items-center gap-2">
-                      <Send size={14} />
-                      Send
-                    </button>
+                        <button onClick={() => runAction('Scheduling', async () => {
+                          await updateThreadStatusApi(selectedThread.id, 'scheduled');
+                        })} className="h-[3.25rem] min-w-[7.5rem] flex-none rounded-[0.95rem] border border-[var(--color-border)] px-3 py-2 text-left text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">
+                          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Action</div>
+                          <div className="mt-1 font-medium text-[var(--color-text-primary)]">Follow-Up</div>
+                        </button>
+                        <button onClick={() => runAction('Closing', async () => {
+                          await updateThreadStatusApi(selectedThread.id, 'closed');
+                        })} className="h-[3.25rem] min-w-[7.5rem] flex-none rounded-[0.95rem] border border-[var(--color-border)] px-3 py-2 text-left text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">
+                          <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Thread</div>
+                          <div className="mt-1 font-medium text-[var(--color-text-primary)]">Close</div>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-stretch gap-3">
+                      <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={3} placeholder="Draft the next move, log an internal note, or send a precise follow-up..." className="min-h-[5.75rem] flex-1 rounded-[1.25rem] bg-[var(--color-bg-primary)] border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-text-primary)] shadow-[inset_0_1px_0_rgba(148,163,184,0.05)] focus:outline-none focus:border-[var(--color-primary)]" />
+                      <div className="flex items-center gap-3 self-stretch">
+                        <button onClick={handleSend} disabled={!composer.trim()} className="h-10 self-center rounded-xl bg-[var(--color-primary)] px-4 hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium flex items-center gap-2">
+                          <Send size={14} />
+                          Send
+                        </button>
+                        <div className="flex min-w-[6.25rem] flex-col justify-start gap-2 pt-1">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Send via</div>
+                          {CHANNEL_FILTERS.filter((item) => item.id !== 'all').map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => setComposerChannel(item.id)}
+                                className={`h-8 rounded-[0.85rem] border px-3 py-1.5 text-xs flex items-center gap-2 transition ${
+                                  composerChannel === item.id
+                                    ? 'border-sky-400/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.24),rgba(12,22,38,0.34))] text-sky-100 shadow-[inset_0_1px_0_rgba(191,219,254,0.1),0_10px_24px_rgba(37,99,235,0.12)]'
+                                    : 'border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.22),rgba(15,23,42,0.1))] text-[var(--color-text-secondary)] hover:border-slate-500/70 hover:text-[var(--color-text-primary)]'
+                                }`}
+                              >
+                                <Icon size={12} />
+                                {COMPOSER_CHANNEL_LABELS[item.id] || item.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    {busyLabel ? (
+                      <div className="text-xs text-[var(--color-text-tertiary)]">{busyLabel}...</div>
+                    ) : null}
                   </div>
                 </div>
               </>
@@ -1116,16 +1405,26 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
             )}
           </main>
 
-          <aside className="xl:col-span-4 min-w-0 flex flex-col min-h-0 overflow-hidden bg-[linear-gradient(180deg,rgba(16,185,129,0.12),transparent_35%)]">
+          {isWideDesktopComms ? (
+            <div
+              onMouseDown={() => setActiveResizeSide('right')}
+              className={`hidden 2xl:block col-start-4 row-start-1 cursor-col-resize bg-transparent transition ${activeResizeSide === 'right' ? 'bg-[var(--color-primary)]/30' : 'hover:bg-[var(--color-primary)]/15'}`}
+            />
+          ) : null}
+
+          <aside className={`min-w-0 flex flex-col min-h-0 overflow-hidden ${COMMS_COLUMN_BG} ${isWideDesktopComms ? 'col-start-5 row-start-1 border-t-0' : isDesktopComms ? 'col-[1/4] row-start-2 border-t' : 'border-t'} border-[var(--color-border)]`}>
             {selectedThread ? (
-              <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-5 space-y-5">
-                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+              <div style={hiddenScrollbarStyle} className="comms-scroll-hidden flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-5 space-y-5">
+                <section className={`min-w-0 ${COMMS_PANEL} p-4 space-y-3`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> AI Brief</div>
                     <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.ai_priority} priority</span>
                   </div>
-                  <p className="text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefSummary}</p>
-                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3">
+                  <div className={`${COMMS_SUBPANEL} p-3`}>
+                    <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">What Matters</div>
+                    <div className="line-clamp-4 text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefSummary}</div>
+                  </div>
+                  <div className={`${COMMS_SUBPANEL} p-3`}>
                     <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">Recommended Next Step</div>
                     <div className="text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefNextStep}</div>
                   </div>
@@ -1134,17 +1433,63 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                       <span key={flag} className="px-2 py-1 rounded-full text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)]">{flag}</span>
                     ))}
                   </div>
+                  {(selectedThread.brief?.reasoning_cues || []).length ? (
+                    <div className="space-y-2">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Cues</div>
+                      {(selectedThread.brief?.reasoning_cues || []).slice(0, 3).map((cue) => (
+                        <div key={cue} className={`${COMMS_SUBPANEL} px-3 py-2 text-sm text-[var(--color-text-secondary)]`}>{cue}</div>
+                      ))}
+                    </div>
+                  ) : null}
                 </section>
 
-                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                <section className={`${COMMS_PANEL} p-4 space-y-3`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> Agent Activity</div>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.assignee || 'Unassigned'}</span>
+                  </div>
+                  <div className={`${COMMS_SUBPANEL} p-3`}>
+                    <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Current Assignee</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedThread.assignee || 'Unassigned'}</div>
+                    <div className="mt-1 text-sm text-[var(--color-text-secondary)]">{AGENT_ROLE_HINTS[selectedThread.assignee] || 'Route this thread to the agent best suited for the next move.'}</div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {availableAgents.map((agentName) => (
+                      <button
+                        key={agentName}
+                        onClick={() => handleAssignThread(agentName)}
+                        className={`px-3 py-2 rounded-xl border text-left text-xs ${selectedThread.assignee === agentName ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)]'}`}
+                      >
+                        {agentName}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="space-y-2">
+                    {recentAgentActions.length ? recentAgentActions.map((action) => (
+                      <div key={action.id || `${action.action_type}-${action.label}`} className={`${COMMS_SUBPANEL} px-3 py-3`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-medium text-[var(--color-text-primary)]">{action.label}</div>
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{action.source || 'system'}</span>
+                        </div>
+                        <div className="mt-2 text-xs text-[var(--color-text-secondary)]">{formatRelative(action.created_at || selectedThread.updated_at)}</div>
+                      </div>
+                    )) : (
+                      <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
+                        No explicit agent activity logged yet.
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className={`min-w-0 ${COMMS_PANEL} p-4 space-y-3`}>
                   <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><User size={16} /> Relationship Context</div>
                   <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] p-3">
+                    <div className={`${COMMS_SUBPANEL} p-3`}>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-1">Contact</div>
                       <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.contact ? `${selectedThread.contact.first_name} ${selectedThread.contact.last_name}` : 'Unlinked'}</div>
                       <div className="text-[var(--color-text-secondary)]">{selectedThread.contact?.email || 'No email linked'}</div>
                     </div>
-                    <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] p-3">
+                    <div className={`${COMMS_SUBPANEL} p-3`}>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-1">Company</div>
                       <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.company?.name || 'No company linked'}</div>
                       <div className="text-[var(--color-text-secondary)]">{selectedThread.mailbox?.name}</div>
@@ -1153,22 +1498,22 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
                     <div className="flex items-center gap-2"><CalendarDays size={14} /> Last activity {formatRelative(selectedThread.last_activity_at)}</div>
                     <div className="flex items-center gap-2"><Building2 size={14} /> Channel {selectedThread.channel_type}</div>
-                    <div className="flex items-center gap-2"><Mail size={14} /> Mailbox {selectedThread.mailbox?.status || 'unknown'} via {selectedThread.mailbox?.provider || 'local-stub'}</div>
+                    <div className="flex items-center gap-2"><Mail size={14} /> Mailbox {selectedThread.mailbox?.status || 'unknown'} via {selectedThread.mailbox?.provider || 'unknown provider'}</div>
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                <section className={`${COMMS_PANEL} p-4 space-y-3`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Building2 size={16} /> CRM Linkage</div>
                     <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.contact?.pipeline_stage || 'No stage'}</span>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] p-3">
+                    <div className={`${COMMS_SUBPANEL} p-3`}>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-1">Current Stage</div>
                       <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.contact?.pipeline_stage || 'Unlinked'}</div>
                       <div className="text-[var(--color-text-secondary)]">{selectedThread.contact ? 'Derived from the linked contact record.' : 'Link a contact before moving this relationship through pipeline.'}</div>
                     </div>
-                    <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] p-3">
+                    <div className={`${COMMS_SUBPANEL} p-3`}>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-1">Deal Link</div>
                       <div className="text-[var(--color-text-primary)] font-medium">{selectedDealLink?.label || 'No deal yet'}</div>
                       <div className="text-[var(--color-text-secondary)]">{selectedDealLink ? selectedDealLink.source_id : 'Create a deal shell directly from this thread.'}</div>
@@ -1181,11 +1526,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                <section className={`${COMMS_PANEL} p-4 space-y-3`}>
                   <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Workflow size={16} /> Tracks</div>
                   <div className="space-y-2">
                     {threadCalendarEvents.map((event) => (
-                      <div key={event.id} className="min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                      <div key={event.id} className={`min-w-0 ${COMMS_SUBPANEL} px-3 py-3`}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 text-sm font-medium text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{event.title}</div>
                           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar</span>
@@ -1199,7 +1544,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                           <span>{event.conflict_state || 'clear'}</span>
                         </div>
                         {event.sync_note ? (
-                          <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+                          <div className={`${COMMS_SUBPANEL} mt-2 px-3 py-2 text-xs text-[var(--color-text-secondary)]`}>
                             {event.sync_note}
                           </div>
                         ) : null}
@@ -1254,7 +1599,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                       </div>
                     ))}
                     {completedThreadActions.map((action) => (
-                      <div key={action.id || `${action.action_type}-${action.label}`} className="min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                      <div key={action.id || `${action.action_type}-${action.label}`} className={`min-w-0 ${COMMS_SUBPANEL} px-3 py-3`}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 text-sm font-medium text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{action.label}</div>
                           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{action.source || 'system'}</span>
@@ -1266,7 +1611,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                       </div>
                     ))}
                     {threadCalendarEvents.length === 0 && completedThreadActions.length === 0 ? (
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                      <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
                         No tracks yet. AI, workflow, calendar, and automation actions will appear here as this thread changes state.
                       </div>
                     ) : null}
@@ -1274,7 +1619,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                 </section>
 
                 {isMailboxComposerOpen ? (
-                  <section className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-4 space-y-3">
+                  <section className="rounded-[1.5rem] border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-4 space-y-3 shadow-[0_18px_36px_rgba(2,6,23,0.22)]">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailbox Onboarding</div>
@@ -1302,10 +1647,10 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                           ))}
                         </select>
                       </label>
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                        {mailboxDraft.provider === 'local-stub'
-                          ? 'Local stub mailboxes are immediately usable for simulated inbound and outbound testing.'
-                          : 'External providers start in a setup state until the stored configuration is tested.'}
+                      <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
+                        {mailboxDraft.provider
+                          ? 'External providers start in a setup state until the stored configuration is tested.'
+                          : 'Load a provider catalog from the backend before creating a mailbox here.'}
                       </div>
                     </div>
                     {draftProvider.fields?.length > 0 ? (
@@ -1322,7 +1667,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                                   [field.key]: event.target.value
                                 }
                               }))}
-                              className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                              className={`w-full ${COMMS_SUBPANEL} px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]`}
                             />
                           </label>
                         ))}
@@ -1340,109 +1685,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-xs text-[var(--color-text-tertiary)]">Create first, then use the existing mailbox panel to run a connection test and sync check.</div>
-                      <button onClick={handleSubmitMailboxDraft} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim()} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium">Create Mailbox</button>
+                      <button onClick={handleSubmitMailboxDraft} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim() || !mailboxDraft.provider} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium">Create Mailbox</button>
                     </div>
                   </section>
                 ) : null}
 
-                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailbox Admin</div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={handleTestMailbox} disabled={!selectedMailbox?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
-                      <button onClick={openMailboxAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
-                    </div>
-                  </div>
-                  <div className={`rounded-xl border px-3 py-3 ${selectedMailboxHealth.card}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.2em] opacity-80">Mailbox Health</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedMailbox?.health?.label || 'Healthy'}</div>
-                      </div>
-                      <div className="text-right text-xs opacity-80">
-                        <div>Last sync {selectedMailbox?.last_synced_at ? formatRelative(selectedMailbox.last_synced_at) : 'never'}</div>
-                        <div>Last test {selectedMailbox?.health?.last_tested_at ? formatRelative(selectedMailbox.health.last_tested_at) : 'never'}</div>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-sm opacity-90">{selectedMailbox?.health?.detail || 'Inbound and outbound flows look ready.'}</div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                      <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2">
-                        <div className="opacity-70">Now</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedMailbox?.queue_counts?.now || 0}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2">
-                        <div className="opacity-70">Reply</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedMailbox?.queue_counts?.['needs-reply'] || 0}</div>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2">
-                        <div className="opacity-70">Risk</div>
-                        <div className="mt-1 text-sm font-semibold">{selectedMailbox?.queue_counts?.['at-risk'] || 0}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
-                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Address</div>
-                      <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedMailbox?.address || 'Unassigned'}</div>
-                    </div>
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
-                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
-                      <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedMailboxProvider.label}</div>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                    Credential edits, OAuth connection, and mailbox creation now live in <span className="font-medium text-[var(--color-text-primary)]">Admin &gt; Integrations</span>. Comms keeps operational controls only.
-                  </div>
-                  {mailboxTestResult ? (
-                    <div className={`rounded-xl border px-3 py-3 text-sm ${mailboxTestResult.status === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
-                      {mailboxTestResult.message}
-                    </div>
-                  ) : null}
-                </section>
-
-                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><AlertTriangle size={16} /> Mail Events</div>
-                  <div className="space-y-2">
-                    {mailboxEvents.length > 0 ? mailboxEvents.slice(0, 6).map((event) => {
-                      const meta = describeMailEvent(event);
-                      return (
-                        <div key={event.id} className={`rounded-xl border px-3 py-3 ${mailEventTone[meta.tone] || mailEventTone.info}`}>
-                          <div className="flex items-center justify-between gap-3 text-xs opacity-80">
-                            <span>{meta.title}</span>
-                            <span>{formatRelative(event.created_at)}</span>
-                          </div>
-                          <div className="mt-1 text-sm font-medium">{meta.detail}</div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] opacity-80">
-                            <span>Provider {event.source_provider}</span>
-                            {event.payload?.mailbox_address ? <span>Mailbox {event.payload.mailbox_address}</span> : null}
-                            {event.payload?.recipient_count ? <span>Recipients {event.payload.recipient_count}</span> : null}
-                          </div>
-                        </div>
-                      );
-                    }) : (
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">No recent mail events for this mailbox.</div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Workflow size={16} /> Operator Actions</div>
-                  <div className="grid sm:grid-cols-2 gap-2">
-                    <button onClick={() => handleAiAction('reply')} className="px-3 py-3 rounded-xl border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]">Reply with AI</button>
-                    <button onClick={() => handleAiAction('rewrite')} className="px-3 py-3 rounded-xl border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]">Rewrite</button>
-                    <button onClick={() => handleAiAction('extract')} className="px-3 py-3 rounded-xl border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]">Extract Tasks</button>
-                    <button onClick={handleWorkflowNote} className="px-3 py-3 rounded-xl border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]">Run Workflow</button>
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><AlertTriangle size={16} /> AI Cues</div>
-                  <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-                    {(selectedThread.brief?.reasoning_cues || []).map((cue) => (
-                      <li key={cue} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2">{cue}</li>
-                    ))}
-                  </ul>
-                </section>
               </div>
             ) : (
               <div className="h-full flex items-center justify-center text-[var(--color-text-secondary)]">Select a thread to inspect context.</div>
@@ -1450,6 +1697,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
           </aside>
         </div>
       </div>
+    </div>
     </div>
   );
 };

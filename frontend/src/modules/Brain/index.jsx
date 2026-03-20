@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Database, FilePlus2, Library, Link2, Save, Trash2 } from 'lucide-react';
+import { BookOpen, Database, FilePlus2, Globe, Library, Link2, Save, Search, Trash2, UploadCloud } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import BrainGraphPanel from './BrainGraphPanel';
 import {
   assistAiApi,
+  createBrainIngestApi,
   createBrainItemApi,
   createBrainLinkApi,
   createBrainSourceApi,
@@ -12,6 +13,7 @@ import {
   deleteBrainLinkApi,
   deleteBrainSourceApi,
   getBrainOverviewApi,
+  searchBrainMemoryApi,
   updateBrainItemApi,
   updateBrainProfileApi,
   updateBrainSourceApi,
@@ -49,6 +51,29 @@ const EMPTY_ITEM = {
   status: 'draft',
   tags: '',
 };
+
+const EMPTY_INGEST = {
+  source_id: '',
+  label: '',
+  source_type: 'document',
+  ingest_type: 'text',
+  location: '',
+  notes: '',
+  content: '',
+  url: '',
+};
+
+const readFileAsBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const [, base64 = ''] = result.split(',');
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error(`Unable to read ${file?.name || 'selected file'}.`));
+    reader.readAsDataURL(file);
+  });
 
 const StatCard = ({ label, value, hint, icon: Icon }) => (
   <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3">
@@ -426,13 +451,20 @@ const Brain = () => {
   const [creatingSource, setCreatingSource] = useState(false);
   const [creatingMcp, setCreatingMcp] = useState(false);
   const [creatingItem, setCreatingItem] = useState(false);
+  const [creatingIngest, setCreatingIngest] = useState(false);
   const [assistMode, setAssistMode] = useState('');
   const [pendingNodeId, setPendingNodeId] = useState('');
+  const [ingestDraft, setIngestDraft] = useState(EMPTY_INGEST);
+  const [ingestFile, setIngestFile] = useState(null);
+  const [memoryQuery, setMemoryQuery] = useState('');
+  const [memoryResults, setMemoryResults] = useState([]);
+  const [searchingMemory, setSearchingMemory] = useState(false);
 
   const sources = overview?.sources || [];
   const items = overview?.items || [];
   const links = overview?.links || [];
-  const stats = overview?.stats || { source_count: 0, knowledge_count: 0, active_count: 0, draft_count: 0 };
+  const ingests = overview?.ingests || [];
+  const stats = overview?.stats || { source_count: 0, knowledge_count: 0, ingest_count: 0, active_count: 0, draft_count: 0 };
   const mcpServers = sources.filter((source) => source.source_type === 'mcp');
   const sourcesById = useMemo(
     () => Object.fromEntries(sources.map((source) => [source.id, source])),
@@ -529,6 +561,89 @@ const Brain = () => {
       setError(createError.message || 'Unable to connect MCP server.');
     } finally {
       setCreatingMcp(false);
+    }
+  };
+
+  const handleCreateIngest = async () => {
+    const hasExistingSource = Boolean(ingestDraft.source_id);
+    if (!hasExistingSource && !ingestDraft.label.trim()) {
+      setError('Select an existing source or provide a source label for ingest.');
+      return;
+    }
+    if (ingestDraft.ingest_type === 'url' && !ingestDraft.url.trim()) {
+      setError('A URL is required for URL ingest.');
+      return;
+    }
+    if (ingestDraft.ingest_type === 'text' && !ingestDraft.content.trim()) {
+      setError('Paste text to ingest into Brain memory.');
+      return;
+    }
+    if (ingestDraft.ingest_type === 'file' && !ingestFile) {
+      setError('Choose a file to ingest.');
+      return;
+    }
+
+    setCreatingIngest(true);
+    setError('');
+    try {
+      const payload = {
+        source_id: ingestDraft.source_id || null,
+        label: ingestDraft.label.trim() || null,
+        source_type: ingestDraft.source_type,
+        location: ingestDraft.ingest_type === 'url' ? ingestDraft.url.trim() : ingestDraft.location.trim(),
+        notes: ingestDraft.notes.trim(),
+        ingest_type: ingestDraft.ingest_type,
+        content: ingestDraft.ingest_type === 'text' ? ingestDraft.content.trim() : '',
+      };
+
+      if (ingestDraft.ingest_type === 'url') {
+        payload.url = ingestDraft.url.trim();
+      }
+
+      if (ingestDraft.ingest_type === 'file' && ingestFile) {
+        payload.file_name = ingestFile.name;
+        payload.mime_type = ingestFile.type || 'text/plain';
+        payload.file_content_base64 = await readFileAsBase64(ingestFile);
+      }
+
+      await createBrainIngestApi(payload);
+      const nextQuery =
+        ingestDraft.ingest_type === 'text'
+          ? ingestDraft.label.trim() || ingestDraft.content.trim().slice(0, 80)
+          : ingestDraft.ingest_type === 'url'
+          ? ingestDraft.url.trim()
+          : ingestFile?.name || ingestDraft.label.trim();
+      setIngestDraft(EMPTY_INGEST);
+      setIngestFile(null);
+      if (nextQuery) {
+        setMemoryQuery(nextQuery);
+      }
+      await loadBrain();
+      if (nextQuery) {
+        await handleSearchMemory(nextQuery);
+      }
+    } catch (createError) {
+      setError(createError.message || 'Unable to ingest source into Brain memory.');
+    } finally {
+      setCreatingIngest(false);
+    }
+  };
+
+  const handleSearchMemory = async (queryOverride = '') => {
+    const nextQuery = (queryOverride || memoryQuery).trim();
+    if (!nextQuery) {
+      setMemoryResults([]);
+      return;
+    }
+    setSearchingMemory(true);
+    setError('');
+    try {
+      const results = await searchBrainMemoryApi(nextQuery, 8);
+      setMemoryResults(results || []);
+    } catch (searchError) {
+      setError(searchError.message || 'Unable to search Brain memory.');
+    } finally {
+      setSearchingMemory(false);
     }
   };
 
@@ -734,6 +849,7 @@ const Brain = () => {
       <div className="grid gap-4 xl:grid-cols-4 md:grid-cols-2">
         <StatCard label="Sources" value={stats.source_count} hint="Knowledge inputs connected" icon={Database} />
         <StatCard label="Knowledge" value={stats.knowledge_count} hint="Saved memory objects" icon={BookOpen} />
+        <StatCard label="Ingests" value={stats.ingest_count || ingests.length} hint="Recorded source imports" icon={UploadCloud} />
         <StatCard label="Active" value={stats.active_count} hint="Ready for AI retrieval" icon={Library} />
         <StatCard label="Drafts" value={stats.draft_count} hint="Still being shaped" icon={FilePlus2} />
       </div>
@@ -1003,6 +1119,146 @@ const Brain = () => {
           </section>
 
           <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+            <div className="mb-4">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Source Ingest</div>
+              <div className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                Persist text, URLs, and lightweight files as chunked Brain memory that retrieval can feed into future AI runs.
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <select
+                value={ingestDraft.source_id}
+                onChange={(event) => setIngestDraft((current) => ({ ...current, source_id: event.target.value }))}
+                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+              >
+                <option value="">Create a new source from this ingest</option>
+                {sources.filter((source) => source.source_type !== 'mcp').map((source) => (
+                  <option key={source.id} value={source.id}>{source.label}</option>
+                ))}
+              </select>
+
+              {!ingestDraft.source_id ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    placeholder="Source label"
+                    value={ingestDraft.label}
+                    onChange={(event) => setIngestDraft((current) => ({ ...current, label: event.target.value }))}
+                    className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                  />
+                  <select
+                    value={ingestDraft.source_type}
+                    onChange={(event) => setIngestDraft((current) => ({ ...current, source_type: event.target.value }))}
+                    className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                  >
+                    <option value="document">Document</option>
+                    <option value="url">URL</option>
+                    <option value="profile">Profile</option>
+                    <option value="workspace">Workspace</option>
+                  </select>
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <select
+                  value={ingestDraft.ingest_type}
+                  onChange={(event) => setIngestDraft((current) => ({ ...current, ingest_type: event.target.value }))}
+                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                >
+                  <option value="text">Paste Text</option>
+                  <option value="url">Fetch URL</option>
+                  <option value="file">Upload File</option>
+                </select>
+                <input
+                  placeholder="Why this ingest matters"
+                  value={ingestDraft.notes}
+                  onChange={(event) => setIngestDraft((current) => ({ ...current, notes: event.target.value }))}
+                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                />
+              </div>
+
+              {ingestDraft.ingest_type === 'text' ? (
+                <textarea
+                  rows={5}
+                  placeholder="Paste SOPs, transcripts, brand docs, positioning, customer notes, or other durable memory."
+                  value={ingestDraft.content}
+                  onChange={(event) => setIngestDraft((current) => ({ ...current, content: event.target.value }))}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                />
+              ) : null}
+
+              {ingestDraft.ingest_type === 'url' ? (
+                <div className="relative">
+                  <Globe size={16} className="pointer-events-none absolute left-3 top-3 text-[var(--color-text-tertiary)]" />
+                  <input
+                    placeholder="https://example.com/source"
+                    value={ingestDraft.url}
+                    onChange={(event) => setIngestDraft((current) => ({ ...current, url: event.target.value }))}
+                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-10 py-2 text-[var(--color-text-primary)]"
+                  />
+                </div>
+              ) : null}
+
+              {ingestDraft.ingest_type === 'file' ? (
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                  <UploadCloud size={18} className="text-[var(--color-primary)]" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {ingestFile ? ingestFile.name : 'Choose a text-like file to ingest'}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.markdown,.json,.csv,.html,.htm,.xml"
+                    className="hidden"
+                    onChange={(event) => setIngestFile(event.target.files?.[0] || null)}
+                  />
+                </label>
+              ) : null}
+
+              <button
+                onClick={handleCreateIngest}
+                disabled={creatingIngest}
+                className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-text-on-primary)]"
+              >
+                {creatingIngest ? 'Ingesting...' : 'Ingest Into Brain'}
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {ingests.length ? ingests.map((ingest) => {
+                const source = sourcesById[ingest.source_id];
+                return (
+                  <div key={ingest.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold text-[var(--color-text-primary)]">{ingest.title || source?.label || 'Brain ingest'}</div>
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                        {ingest.ingest_type}
+                      </span>
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                        {ingest.chunk_count} chunk{ingest.chunk_count === 1 ? '' : 's'}
+                      </span>
+                      {source ? (
+                        <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-emerald-200">
+                          {source.label}
+                        </span>
+                      ) : null}
+                    </div>
+                    {ingest.location ? (
+                      <div className="mt-2 text-sm text-[var(--color-text-secondary)]">{ingest.location}</div>
+                    ) : null}
+                    {ingest.content_excerpt ? (
+                      <div className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{ingest.content_excerpt}</div>
+                    ) : null}
+                  </div>
+                );
+              }) : (
+                <div className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-5 text-sm text-[var(--color-text-secondary)]">
+                  No Brain ingests recorded yet.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
               <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Knowledge Sources</div>
@@ -1175,6 +1431,57 @@ const Brain = () => {
               )) : (
                 <div className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-5 text-sm text-[var(--color-text-secondary)]">
                   No MCP servers connected yet.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+            <div className="mb-4">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Memory Retrieval</div>
+              <div className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                Query the current Brain index directly to inspect what the shared AI service can pull back into assist context.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3 top-3 text-[var(--color-text-tertiary)]" />
+                <input
+                  placeholder="Search positioning, SOPs, playbooks, or ingested source text"
+                  value={memoryQuery}
+                  onChange={(event) => setMemoryQuery(event.target.value)}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-10 py-2 text-[var(--color-text-primary)]"
+                />
+              </div>
+              <button
+                onClick={() => handleSearchMemory()}
+                disabled={searchingMemory}
+                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)]"
+              >
+                {searchingMemory ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {memoryResults.length ? memoryResults.map((result) => (
+                <div key={result.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-semibold text-[var(--color-text-primary)]">{result.title}</div>
+                    <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                      {result.kind}
+                    </span>
+                    {result.source_label ? (
+                      <span className="rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-sky-200">
+                        {result.source_label}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{result.excerpt}</div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-5 text-sm text-[var(--color-text-secondary)]">
+                  {memoryQuery.trim() ? 'No matching Brain memory yet.' : 'Run a retrieval query to inspect indexed Brain memory.'}
                 </div>
               )}
             </div>

@@ -58,24 +58,29 @@ const Actions = ({ actions }) => {
         const isVariant = action.variant === 'primary' || (action.variant !== 'secondary' && action.variant !== 'ghost');
 
         return (
-          <button
-            key={idx}
-            onClick={action.onClick}
-            disabled={action.disabled}
-            className={`
-              px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-all
-              ${isVariant
-                ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] disabled:opacity-50'
-                : action.variant === 'secondary'
-                ? 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50'
-                : 'bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] disabled:opacity-50'
-              }
-            `}
-            title={action.title}
-          >
-            {ActionIcon && <ActionIcon size={16} />}
-              <span>{normalizeDisplayText(action.label)}</span>
-          </button>
+          <React.Fragment key={idx}>
+            {action.groupStart ? (
+              <div className="mx-1 hidden h-8 w-px self-center rounded-full bg-slate-700/70 xl:block" />
+            ) : null}
+            <button
+              onClick={action.onClick}
+              disabled={action.disabled}
+              className={`
+                px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-all
+                ${isVariant
+                  ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] disabled:opacity-50'
+                  : action.variant === 'secondary'
+                  ? 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50'
+                  : 'bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] disabled:opacity-50'
+                }
+                ${action.className || ''}
+              `}
+              title={action.title}
+            >
+              {ActionIcon && <ActionIcon size={16} />}
+                <span>{normalizeDisplayText(action.label)}</span>
+            </button>
+          </React.Fragment>
         );
       })}
     </div>
@@ -84,18 +89,21 @@ const Actions = ({ actions }) => {
 
 const ModuleHeader = ({
   title,
+  subtitle = '',
   titleIcon: TitleIcon,
   breadcrumbs = [],
   actions = [],
   statusBadge = null,
   showTitle = true,
+  showCompactTitle = false,
   showActions = true,
+  toolbarRightSlot = null,
   aiAssistSlot = null,
   className = ''
 }) => {
-  const hasToolbar = (showActions && actions.length > 0) || breadcrumbs.length > 0 || statusBadge || aiAssistSlot;
+  const hasToolbar = (showActions && actions.length > 0) || breadcrumbs.length > 0 || statusBadge || toolbarRightSlot || aiAssistSlot;
 
-  if (!showTitle && !hasToolbar) {
+  if (!showTitle && !hasToolbar && !subtitle) {
     return null;
   }
 
@@ -104,14 +112,32 @@ const ModuleHeader = ({
       <div className={`border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] ${className}`}>
         <div className="px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap min-w-0">
+            {showCompactTitle ? (
+              <div className="min-w-0 mr-2">
+                <div className="text-lg font-bold text-[var(--color-text-primary)] truncate">
+                  {normalizeDisplayText(title)}
+                </div>
+                {subtitle ? (
+                  <div className="mt-0.5 text-sm text-[var(--color-text-secondary)] truncate">
+                    {subtitle}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <Breadcrumbs breadcrumbs={breadcrumbs} />
             {showActions && <Actions actions={actions} />}
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            {toolbarRightSlot}
             <StatusBadge statusBadge={statusBadge} />
             {aiAssistSlot}
           </div>
         </div>
+        {subtitle && !showCompactTitle ? (
+          <div className="px-6 pb-3 text-sm text-[var(--color-text-secondary)]">
+            {subtitle}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -125,6 +151,7 @@ const ModuleHeader = ({
             {showActions && <Actions actions={actions} />}
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            {toolbarRightSlot}
             <StatusBadge statusBadge={statusBadge} />
             {aiAssistSlot}
           </div>
@@ -132,14 +159,21 @@ const ModuleHeader = ({
       )}
 
       <div className="px-6 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
           {TitleIcon && <TitleIcon size={20} className="text-[var(--color-primary)] flex-shrink-0" />}
-          <h1 className="text-lg font-bold text-[var(--color-text-primary)] truncate">
-            {normalizeDisplayText(title)}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-[var(--color-text-primary)] truncate">
+              {normalizeDisplayText(title)}
+            </h1>
+            {subtitle ? (
+              <div className="mt-0.5 text-sm text-[var(--color-text-secondary)] truncate">
+                {subtitle}
+              </div>
+            ) : null}
+          </div>
           <Breadcrumbs breadcrumbs={breadcrumbs} />
         </div>
-        <StatusBadge statusBadge={statusBadge} />
+        {!hasToolbar ? <StatusBadge statusBadge={statusBadge} /> : null}
       </div>
     </div>
   );

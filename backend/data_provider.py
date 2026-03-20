@@ -61,6 +61,73 @@ def unique_suffix() -> str:
     return uuid4().hex[:10]
 
 
+def normalize_text_content(value: str | None) -> str:
+    raw = str(value or "").replace("\r", "\n")
+    lines = [" ".join(line.split()) for line in raw.split("\n")]
+    compact = "\n".join(line for line in lines if line)
+    return compact.strip()
+
+
+def summarize_excerpt(value: str | None, limit: int = 220) -> str:
+    compact = " ".join(normalize_text_content(value).split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: max(0, limit - 3)].rstrip() + "..."
+
+
+def chunk_text_content(value: str | None, chunk_size: int = 900, overlap: int = 120) -> list[str]:
+    text = normalize_text_content(value)
+    if not text:
+        return []
+    words = text.split()
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for word in words:
+        additional = len(word) + (1 if current else 0)
+        if current and current_len + additional > chunk_size:
+            chunk = " ".join(current).strip()
+            if chunk:
+                chunks.append(chunk)
+            if overlap > 0:
+                overlap_words: list[str] = []
+                overlap_len = 0
+                for existing in reversed(current):
+                    extra = len(existing) + (1 if overlap_words else 0)
+                    if overlap_words and overlap_len + extra > overlap:
+                        break
+                    overlap_words.insert(0, existing)
+                    overlap_len += extra
+                current = overlap_words
+                current_len = len(" ".join(current))
+            else:
+                current = []
+                current_len = 0
+        current.append(word)
+        current_len += additional
+    final_chunk = " ".join(current).strip()
+    if final_chunk:
+        chunks.append(final_chunk)
+    return chunks
+
+
+def score_text_match(query: str, values: list[str]) -> tuple[int, list[str]]:
+    terms = [term for term in " ".join(str(query or "").lower().split()).split(" ") if term]
+    haystacks = [str(value or "").lower() for value in values if str(value or "").strip()]
+    if not terms or not haystacks:
+        return 0, []
+    score = 0
+    matched: list[str] = []
+    for term in terms:
+        term_hits = 0
+        for haystack in haystacks:
+            term_hits += haystack.count(term)
+        if term_hits:
+            matched.append(term)
+            score += term_hits
+    return score, matched
+
+
 def set_request_tenant_id(tenant_id: str | None) -> Token:
     return CURRENT_TENANT_ID.set(tenant_id or DEFAULT_TENANT_ID)
 
@@ -202,6 +269,18 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def delete_brain_link(self, link_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_ingests(self, source_id: str | None = None, limit: int = 25) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ingest_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_brain_memory(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -862,6 +941,8 @@ class MockProvider(BaseProvider):
                 "updated_at": now,
             },
         ]
+        self.brain_ingests: list[dict[str, Any]] = []
+        self.brain_chunks: list[dict[str, Any]] = []
         self.form_folders = [
             {"id": "form-folder-default", "name": "My Forms", "user_id": "1", "created_at": now, "expanded": True}
         ]
@@ -1113,6 +1194,8 @@ class MockProvider(BaseProvider):
                 or (link["to_type"] == "source" and link["to_id"] == source_id)
             )
         ]
+        self.brain_ingests = [ingest for ingest in self.brain_ingests if ingest.get("source_id") != source_id]
+        self.brain_chunks = [chunk for chunk in self.brain_chunks if chunk.get("source_id") != source_id]
 
     def list_brain_items(self) -> list[dict[str, Any]]:
         return sorted((dict(item) for item in self.brain_items), key=lambda item: item.get("updated_at") or "", reverse=True)
@@ -1198,6 +1281,143 @@ class MockProvider(BaseProvider):
 
     def delete_brain_link(self, link_id: str) -> None:
         self.brain_links = [link for link in self.brain_links if link["id"] != link_id]
+
+    def list_brain_ingests(self, source_id: str | None = None, limit: int = 25) -> list[dict[str, Any]]:
+        rows = [
+            dict(ingest)
+            for ingest in self.brain_ingests
+            if not source_id or ingest.get("source_id") == source_id
+        ]
+        rows.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+        return rows[: max(1, limit)]
+
+    def ingest_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        content = normalize_text_content(payload.get("content"))
+        if not content:
+            raise ValueError("No extracted text was available to ingest.")
+        source_id = payload.get("source_id")
+        now = utcnow()
+        source = next((item for item in self.brain_sources if item["id"] == source_id), None) if source_id else None
+        if source:
+            for key in ["label", "source_type", "location", "notes"]:
+                if key in payload and payload.get(key) is not None:
+                    source[key] = payload.get(key)
+            source["status"] = payload.get("status") or "ready"
+            source["updated_at"] = now
+        else:
+            source = self.create_brain_source(
+                {
+                    "label": payload.get("label") or payload.get("title") or "Ingested Source",
+                    "source_type": payload.get("source_type") or "document",
+                    "status": payload.get("status") or "ready",
+                    "location": payload.get("location") or "",
+                    "notes": payload.get("notes") or "",
+                }
+            )
+            source_id = source["id"]
+        chunks = chunk_text_content(content)
+        if not chunks:
+            raise ValueError("Unable to create Brain chunks from this ingest.")
+        ingest = {
+            "id": payload.get("id") or f"brain-ingest-{unique_suffix()}",
+            "tenant_id": DEFAULT_TENANT_ID,
+            "source_id": source_id,
+            "ingest_type": payload.get("ingest_type") or "text",
+            "title": payload.get("title") or payload.get("label") or source.get("label") or "Brain ingest",
+            "location": payload.get("location") or source.get("location") or "",
+            "content_excerpt": summarize_excerpt(content),
+            "content_length": len(content),
+            "chunk_count": len(chunks),
+            "status": "ready",
+            "error": "",
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.brain_ingests.append(ingest)
+        self.brain_chunks = [chunk for chunk in self.brain_chunks if chunk.get("source_id") != source_id]
+        self.brain_chunks.extend(
+            [
+                {
+                    "id": f"brain-chunk-{unique_suffix()}",
+                    "tenant_id": DEFAULT_TENANT_ID,
+                    "source_id": source_id,
+                    "ingest_id": ingest["id"],
+                    "ordinal": index,
+                    "title": ingest["title"],
+                    "content": chunk,
+                    "content_excerpt": summarize_excerpt(chunk),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                for index, chunk in enumerate(chunks, start=1)
+            ]
+        )
+        return {"source": dict(source), "ingest": dict(ingest)}
+
+    def search_brain_memory(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        resolved_query = normalize_text_content(query)
+        if not resolved_query:
+            return []
+        source_lookup = {source["id"]: source for source in self.brain_sources}
+        candidates: list[dict[str, Any]] = []
+        for chunk in self.brain_chunks:
+            score, matched = score_text_match(resolved_query, [chunk.get("title"), chunk.get("content")])
+            if score:
+                source = source_lookup.get(chunk.get("source_id"))
+                candidates.append(
+                    {
+                        "id": chunk["id"],
+                        "kind": "chunk",
+                        "title": chunk.get("title") or (source or {}).get("label") or "Brain source",
+                        "excerpt": chunk.get("content_excerpt") or summarize_excerpt(chunk.get("content")),
+                        "source_id": chunk.get("source_id"),
+                        "source_label": (source or {}).get("label") or "",
+                        "score": score + 2,
+                        "matched_terms": matched,
+                    }
+                )
+        for item in self.brain_items:
+            score, matched = score_text_match(resolved_query, [item.get("title"), item.get("content"), " ".join(item.get("tags") or [])])
+            if score:
+                source = source_lookup.get(item.get("source_id"))
+                candidates.append(
+                    {
+                        "id": item["id"],
+                        "kind": "item",
+                        "title": item.get("title") or "Knowledge item",
+                        "excerpt": summarize_excerpt(item.get("content")),
+                        "source_id": item.get("source_id"),
+                        "source_label": (source or {}).get("label") or "",
+                        "score": score + 3,
+                        "matched_terms": matched,
+                    }
+                )
+        profile = self.brain_profile
+        profile_score, profile_terms = score_text_match(
+            resolved_query,
+            [
+                profile.get("company_name"),
+                profile.get("overview"),
+                profile.get("mission"),
+                profile.get("brand_voice"),
+                profile.get("ideal_customer"),
+            ],
+        )
+        if profile_score:
+            candidates.append(
+                {
+                    "id": profile["id"],
+                    "kind": "profile",
+                    "title": profile.get("company_name") or "Workspace profile",
+                    "excerpt": summarize_excerpt(profile.get("overview") or profile.get("mission")),
+                    "source_id": "profile",
+                    "source_label": "Workspace profile",
+                    "score": profile_score + 1,
+                    "matched_terms": profile_terms,
+                }
+            )
+        candidates.sort(key=lambda item: (item.get("score") or 0, item.get("title") or ""), reverse=True)
+        return candidates[: max(1, limit)]
 
     def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
         return next((form for form in self.forms if form["slug"] == slug or form["id"] == slug), None)
@@ -2501,6 +2721,8 @@ class SQLiteProvider(BaseProvider):
             "brain_sources",
             "brain_items",
             "brain_links",
+            "brain_ingests",
+            "brain_chunks",
             "forms",
             "form_folders",
             "form_submissions",
@@ -2617,6 +2839,35 @@ class SQLiteProvider(BaseProvider):
                     to_type TEXT NOT NULL,
                     to_id TEXT NOT NULL,
                     relationship_type TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_ingests (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    source_id TEXT NOT NULL,
+                    ingest_type TEXT,
+                    status TEXT,
+                    title TEXT,
+                    location TEXT,
+                    content_excerpt TEXT,
+                    content_length INTEGER,
+                    chunk_count INTEGER,
+                    error TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_chunks (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    source_id TEXT NOT NULL,
+                    ingest_id TEXT NOT NULL,
+                    ordinal INTEGER,
+                    title TEXT,
+                    content TEXT NOT NULL,
+                    content_excerpt TEXT,
                     created_at TEXT,
                     updated_at TEXT
                 );
@@ -2833,6 +3084,8 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "brain_sources", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_items", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_links", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_ingests", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_chunks", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_sources", "graph_x", "REAL")
             self._ensure_column(conn, "brain_sources", "graph_y", "REAL")
             self._ensure_column(conn, "brain_items", "graph_x", "REAL")
@@ -3697,6 +3950,14 @@ class SQLiteProvider(BaseProvider):
                 (utcnow(), self._tenant_id(), source_id),
             )
             conn.execute(
+                "DELETE FROM brain_chunks WHERE tenant_id = ? AND source_id = ?",
+                (self._tenant_id(), source_id),
+            )
+            conn.execute(
+                "DELETE FROM brain_ingests WHERE tenant_id = ? AND source_id = ?",
+                (self._tenant_id(), source_id),
+            )
+            conn.execute(
                 "DELETE FROM brain_links WHERE tenant_id = ? AND ((from_type = 'source' AND from_id = ?) OR (to_type = 'source' AND to_id = ?))",
                 (self._tenant_id(), source_id, source_id),
             )
@@ -3861,6 +4122,231 @@ class SQLiteProvider(BaseProvider):
                 (link_id, self._tenant_id()),
             )
             conn.commit()
+
+    def list_brain_ingests(self, source_id: str | None = None, limit: int = 25) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            if source_id:
+                rows = conn.execute(
+                    "SELECT * FROM brain_ingests WHERE tenant_id = ? AND source_id = ? ORDER BY created_at DESC LIMIT ?",
+                    (self._tenant_id(), source_id, max(1, limit)),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM brain_ingests WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?",
+                    (self._tenant_id(), max(1, limit)),
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    def ingest_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        content = normalize_text_content(payload.get("content"))
+        if not content:
+            raise ValueError("No extracted text was available to ingest.")
+        now = utcnow()
+        with self._connect() as conn:
+            source_id = payload.get("source_id")
+            source_row = None
+            if source_id:
+                source_row = conn.execute(
+                    "SELECT * FROM brain_sources WHERE id = ? AND tenant_id = ?",
+                    (source_id, self._tenant_id()),
+                ).fetchone()
+                if not source_row:
+                    raise ValueError("Brain source not found")
+                updates = {}
+                for key in ["label", "source_type", "location", "notes"]:
+                    if key in payload and payload.get(key) is not None:
+                        updates[key] = payload.get(key)
+                updates["status"] = payload.get("status") or "ready"
+                updates["updated_at"] = now
+                assignments = ", ".join(f"{key} = ?" for key in updates.keys())
+                conn.execute(
+                    f"UPDATE brain_sources SET {assignments} WHERE id = ? AND tenant_id = ?",
+                    (*updates.values(), source_id, self._tenant_id()),
+                )
+            else:
+                source_id = payload.get("id") or f"brain-source-{unique_suffix()}"
+                source_record = {
+                    "id": source_id,
+                    "tenant_id": self._tenant_id(),
+                    "label": payload.get("label") or payload.get("title") or "Ingested Source",
+                    "source_type": payload.get("source_type") or "document",
+                    "status": payload.get("status") or "ready",
+                    "location": payload.get("location") or "",
+                    "notes": payload.get("notes") or "",
+                    "graph_x": payload.get("graph_x"),
+                    "graph_y": payload.get("graph_y"),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                conn.execute(
+                    """
+                    INSERT INTO brain_sources (
+                        id, tenant_id, label, source_type, status, location, notes, graph_x, graph_y, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        source_record["id"],
+                        source_record["tenant_id"],
+                        source_record["label"],
+                        source_record["source_type"],
+                        source_record["status"],
+                        source_record["location"],
+                        source_record["notes"],
+                        source_record["graph_x"],
+                        source_record["graph_y"],
+                        source_record["created_at"],
+                        source_record["updated_at"],
+                    ),
+                )
+            source = dict(
+                conn.execute(
+                    "SELECT * FROM brain_sources WHERE id = ? AND tenant_id = ?",
+                    (source_id, self._tenant_id()),
+                ).fetchone()
+            )
+            chunks = chunk_text_content(content)
+            if not chunks:
+                raise ValueError("Unable to create Brain chunks from this ingest.")
+            ingest = {
+                "id": payload.get("ingest_id") or f"brain-ingest-{unique_suffix()}",
+                "tenant_id": self._tenant_id(),
+                "source_id": source_id,
+                "ingest_type": payload.get("ingest_type") or "text",
+                "status": "ready",
+                "title": payload.get("title") or payload.get("label") or source.get("label") or "Brain ingest",
+                "location": payload.get("location") or source.get("location") or "",
+                "content_excerpt": summarize_excerpt(content),
+                "content_length": len(content),
+                "chunk_count": len(chunks),
+                "error": "",
+                "created_at": now,
+                "updated_at": now,
+            }
+            conn.execute(
+                """
+                INSERT INTO brain_ingests (
+                    id, tenant_id, source_id, ingest_type, status, title, location, content_excerpt, content_length, chunk_count, error, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    ingest["id"],
+                    ingest["tenant_id"],
+                    ingest["source_id"],
+                    ingest["ingest_type"],
+                    ingest["status"],
+                    ingest["title"],
+                    ingest["location"],
+                    ingest["content_excerpt"],
+                    ingest["content_length"],
+                    ingest["chunk_count"],
+                    ingest["error"],
+                    ingest["created_at"],
+                    ingest["updated_at"],
+                ),
+            )
+            conn.execute(
+                "DELETE FROM brain_chunks WHERE tenant_id = ? AND source_id = ?",
+                (self._tenant_id(), source_id),
+            )
+            conn.executemany(
+                """
+                INSERT INTO brain_chunks (
+                    id, tenant_id, source_id, ingest_id, ordinal, title, content, content_excerpt, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        f"brain-chunk-{unique_suffix()}",
+                        self._tenant_id(),
+                        source_id,
+                        ingest["id"],
+                        index,
+                        ingest["title"],
+                        chunk,
+                        summarize_excerpt(chunk),
+                        now,
+                        now,
+                    )
+                    for index, chunk in enumerate(chunks, start=1)
+                ],
+            )
+            conn.commit()
+        return {"source": source, "ingest": ingest}
+
+    def search_brain_memory(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        resolved_query = normalize_text_content(query)
+        if not resolved_query:
+            return []
+        profile = self.get_brain_profile()
+        sources = {source["id"]: source for source in self.list_brain_sources()}
+        candidates: list[dict[str, Any]] = []
+        with self._connect() as conn:
+            chunk_rows = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT * FROM brain_chunks WHERE tenant_id = ? ORDER BY updated_at DESC",
+                    (self._tenant_id(),),
+                ).fetchall()
+            ]
+        for chunk in chunk_rows:
+            score, matched = score_text_match(resolved_query, [chunk.get("title"), chunk.get("content")])
+            if not score:
+                continue
+            source = sources.get(chunk.get("source_id"))
+            candidates.append(
+                {
+                    "id": chunk["id"],
+                    "kind": "chunk",
+                    "title": chunk.get("title") or (source or {}).get("label") or "Brain source",
+                    "excerpt": chunk.get("content_excerpt") or summarize_excerpt(chunk.get("content")),
+                    "source_id": chunk.get("source_id"),
+                    "source_label": (source or {}).get("label") or "",
+                    "score": score + 2,
+                    "matched_terms": matched,
+                }
+            )
+        for item in self.list_brain_items():
+            score, matched = score_text_match(resolved_query, [item.get("title"), item.get("content"), " ".join(item.get("tags") or [])])
+            if not score:
+                continue
+            source = sources.get(item.get("source_id"))
+            candidates.append(
+                {
+                    "id": item["id"],
+                    "kind": "item",
+                    "title": item.get("title") or "Knowledge item",
+                    "excerpt": summarize_excerpt(item.get("content")),
+                    "source_id": item.get("source_id"),
+                    "source_label": (source or {}).get("label") or "",
+                    "score": score + 3,
+                    "matched_terms": matched,
+                }
+            )
+        profile_score, profile_terms = score_text_match(
+            resolved_query,
+            [
+                profile.get("company_name"),
+                profile.get("overview"),
+                profile.get("mission"),
+                profile.get("brand_voice"),
+                profile.get("ideal_customer"),
+            ],
+        )
+        if profile_score:
+            candidates.append(
+                {
+                    "id": profile["id"],
+                    "kind": "profile",
+                    "title": profile.get("company_name") or "Workspace profile",
+                    "excerpt": summarize_excerpt(profile.get("overview") or profile.get("mission")),
+                    "source_id": "profile",
+                    "source_label": "Workspace profile",
+                    "score": profile_score + 1,
+                    "matched_terms": profile_terms,
+                }
+            )
+        candidates.sort(key=lambda item: (item.get("score") or 0, item.get("title") or ""), reverse=True)
+        return candidates[: max(1, limit)]
 
     def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
         with self._connect() as conn:

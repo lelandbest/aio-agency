@@ -1,9 +1,14 @@
 import json
 import logging
 import os
+from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from html import unescape
+from html.parser import HTMLParser
 from typing import Any
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from uuid import uuid4
 
 import uvicorn
@@ -46,6 +51,89 @@ GOOGLE_APP_AUTH_SCOPE = "openid email profile"
 
 def utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        text = " ".join(str(data or "").split())
+        if text:
+            self.parts.append(text)
+
+
+def normalize_ingest_text(value: str | None) -> str:
+    lines = [" ".join(line.split()) for line in str(value or "").replace("\r", "\n").split("\n")]
+    return "\n".join(line for line in lines if line).strip()
+
+
+def html_to_text(value: str) -> str:
+    parser = _HTMLTextExtractor()
+    parser.feed(value)
+    parser.close()
+    return " ".join(parser.parts).strip()
+
+
+def extract_url_text(url: str) -> tuple[str, str]:
+    request = urlrequest.Request(
+        url,
+        headers={"User-Agent": "AIOCRM/1.0 (+local-first brain ingest)"},
+        method="GET",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=20) as response:
+            content_type = response.headers.get("Content-Type", "")
+            charset = response.headers.get_content_charset() or "utf-8"
+            body = response.read()
+    except (urlerror.HTTPError, urlerror.URLError, TimeoutError, OSError) as error:
+        raise ValueError(f"Unable to fetch URL for Brain ingest: {error}") from error
+    decoded = body.decode(charset, errors="ignore")
+    text = html_to_text(unescape(decoded)) if "html" in content_type.lower() else decoded
+    cleaned = " ".join(text.split()).strip()
+    if not cleaned:
+        raise ValueError("The URL did not return readable text.")
+    return cleaned, content_type
+
+
+def extract_file_text(file_name: str | None, mime_type: str | None, content_base64: str | None) -> str:
+    if not content_base64:
+        raise ValueError("File content is required for Brain file ingest.")
+    try:
+        payload = b64decode(content_base64)
+    except Exception as error:  # pragma: no cover - invalid client payload
+        raise ValueError("Unable to decode uploaded file.") from error
+    decoded = payload.decode("utf-8", errors="ignore")
+    normalized_name = (file_name or "").lower()
+    normalized_type = (mime_type or "").lower()
+    if "html" in normalized_type or normalized_name.endswith((".html", ".htm")):
+        decoded = html_to_text(unescape(decoded))
+    cleaned = " ".join(decoded.split()).strip()
+    if not cleaned:
+        raise ValueError("The uploaded file did not contain readable text. Use text-like files for now.")
+    return cleaned
+
+
+def build_brain_assist_query(current_value: str, context: dict[str, Any], tenant: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for value in [
+        current_value,
+        context.get("subject"),
+        context.get("summary"),
+        context.get("description"),
+        context.get("label"),
+        context.get("name"),
+        context.get("company_name"),
+        context.get("company"),
+        context.get("notes"),
+        (context.get("profile") or {}).get("company_name") if isinstance(context.get("profile"), dict) else "",
+        tenant.get("name"),
+    ]:
+        text = " ".join(str(value or "").split()).strip()
+        if text and text not in parts:
+            parts.append(text)
+    return " | ".join(parts[:4]).strip()
 
 
 @asynccontextmanager
@@ -211,6 +299,22 @@ class BrainLinkRequest(BaseModel):
     to_type: str
     to_id: str
     relationship_type: str = "supports"
+
+
+class BrainIngestRequest(BaseModel):
+    source_id: str | None = None
+    label: str | None = None
+    source_type: str = "document"
+    status: str | None = None
+    location: str = ""
+    notes: str = ""
+    ingest_type: str = "text"
+    title: str | None = None
+    content: str | None = None
+    url: str | None = None
+    file_name: str | None = None
+    mime_type: str | None = None
+    file_content_base64: str | None = None
 
 
 class SystemEmailTemplateUpdateRequest(BaseModel):
@@ -578,6 +682,8 @@ async def get_brain_overview(request: Request):
     profile = provider.get_brain_profile()
     sources = provider.list_brain_sources()
     items = provider.list_brain_items()
+    all_ingests = provider.list_brain_ingests(limit=250)
+    ingests = all_ingests[:12]
     categories: dict[str, int] = {}
     status_counts: dict[str, int] = {}
     for item in items:
@@ -590,9 +696,11 @@ async def get_brain_overview(request: Request):
             "sources": sources,
             "items": items,
             "links": provider.list_brain_links(),
+            "ingests": ingests,
             "stats": {
                 "source_count": len(sources),
                 "knowledge_count": len(items),
+                "ingest_count": len(all_ingests),
                 "active_count": sum(1 for item in items if item.get("status") == "active"),
                 "draft_count": sum(1 for item in items if item.get("status") == "draft"),
             },
@@ -700,6 +808,57 @@ async def delete_brain_link(link_id: str, request: Request):
         return {"success": True}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/api/brain/ingests")
+async def list_brain_ingests(request: Request, source_id: str | None = None, limit: int = 25):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain ingest history.")
+    return {"data": provider.list_brain_ingests(source_id=source_id, limit=limit)}
+
+
+@app.post("/api/brain/ingests")
+async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest Brain sources.")
+    try:
+        resolved_ingest_type = (payload.ingest_type or "text").strip().lower()
+        extracted_text = ""
+        location = payload.location
+        if resolved_ingest_type == "url":
+            target_url = (payload.url or payload.location or "").strip()
+            if not target_url:
+                raise ValueError("A URL is required for URL ingest.")
+            extracted_text, _ = extract_url_text(target_url)
+            location = target_url
+        elif resolved_ingest_type == "file":
+            extracted_text = extract_file_text(payload.file_name, payload.mime_type, payload.file_content_base64)
+            location = payload.location or payload.file_name or ""
+        else:
+            extracted_text = normalize_ingest_text(payload.content)
+            if not extracted_text:
+                raise ValueError("Text content is required for Brain ingest.")
+        return {
+            "data": provider.ingest_brain_source(
+                {
+                    "source_id": payload.source_id,
+                    "label": payload.label,
+                    "source_type": payload.source_type,
+                    "status": payload.status or "ready",
+                    "location": location,
+                    "notes": payload.notes,
+                    "ingest_type": resolved_ingest_type,
+                    "title": payload.title or payload.label or payload.file_name or payload.url,
+                    "content": extracted_text,
+                }
+            )
+        }
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/brain/search")
+async def search_brain_memory(request: Request, query: str, limit: int = 6):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can query AIO Brain memory.")
+    return {"data": provider.search_brain_memory(query, limit=max(1, limit))}
 
 
 @app.post("/api/auth/bootstrap")
@@ -829,7 +988,19 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
     user = session.get("user") or {}
     ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
     resolved_module = (payload.module or "").strip().lower()
-    resolved_context = payload.context or {}
+    resolved_context = dict(payload.context or {})
+    brain_query = build_brain_assist_query(payload.current_value, resolved_context, tenant)
+    if brain_query:
+        brain_results = provider.search_brain_memory(brain_query, limit=5)
+        if brain_results:
+            resolved_context["brain_memory"] = brain_results
+            resolved_context["brain_memory_summary"] = "\n".join(
+                [
+                    f"{entry.get('title')}: {entry.get('excerpt')}"
+                    for entry in brain_results
+                ]
+            )
+            resolved_context["brain_memory_query"] = brain_query
     result = ai_assist_service.assist(
         module=payload.module,
         surface=payload.surface,

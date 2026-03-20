@@ -68,6 +68,10 @@ const ICON_MAP = {
   Rocket,
 };
 
+const MODULE_SUBTITLE_MAP = {
+  chat: 'Thread-first Comms with AI-guided actions and report logging.'
+};
+
 // ============ MAIN APP COMPONENT ============
 const App = () => {
   const [session, setSession] = useState(null);
@@ -112,6 +116,7 @@ const App = () => {
     return {
       label,
       icon: item?.icon || parent?.icon || null,
+      subtitle: item?.description || MODULE_SUBTITLE_MAP[item?.id] || '',
       type: item?.type || 'internal',
       searchPlaceholder: item?.searchPlaceholder || `Search ${label}...`,
     };
@@ -415,6 +420,7 @@ const App = () => {
                   onLogout={handleLogout}
                   onNavigate={setCurrentPage}
                   title={currentModuleMeta.label}
+                  subtitle={currentModuleMeta.subtitle}
                   titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
                   searchPlaceholder={currentModuleMeta.searchPlaceholder}
                   showSearch={currentModuleMeta.type !== 'iframe'}
