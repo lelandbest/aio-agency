@@ -10,6 +10,7 @@ import {
   updateFormApi,
   updateFormFolderApi
 } from '../../services/backendApi';
+import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FolderTable from '../../components/FolderTable';
@@ -37,6 +38,24 @@ const createFieldName = (label, fallback = 'field') => {
   return base || fallback;
 };
 
+const defaultLabelForType = (field) => {
+  const fieldType = field?.type || 'text';
+  const byType = {
+    text: 'Full Name',
+    email: 'Email Address',
+    tel: 'Phone Number',
+    textarea: 'How can we help?',
+    select: 'Select an option',
+    radio: 'Choose one option',
+    number: 'How many seats?',
+    address: 'Business Address',
+    signature: 'Signature',
+    url: 'Website URL',
+    currency: 'Budget Range',
+  };
+  return byType[fieldType] || field?.label || 'Field Label';
+};
+
 /**
  * FormBuilderModule
  * Comprehensive form builder with folder organization and drag-and-drop field management
@@ -51,6 +70,8 @@ const FormBuilderModule = () => {
   const [draggedField, setDraggedField] = useState(null);
   const [activeTab, setActiveTab] = useState('display');
   const [selectedForms, setSelectedForms] = useState([]);
+  const [assistTarget, setAssistTarget] = useState('');
+  const [assistError, setAssistError] = useState('');
 
   // CMS Data Tab State
   const [showFormEntry, setShowFormEntry] = useState(false);
@@ -167,6 +188,108 @@ const FormBuilderModule = () => {
       setForms([]);
     }
     setLoading(false);
+  };
+
+  const buildFormAssistText = (kind, field = selectedField) => {
+    if (kind === 'form-name') {
+      const existingName = (currentForm?.name || '').trim();
+      if (existingName && existingName !== 'New Untitled Form') {
+        return existingName.includes('Form') ? existingName : `${existingName} Form`;
+      }
+      const firstSignals = (currentForm?.schema || []).slice(0, 3).map((item) => item.label).filter(Boolean);
+      if (firstSignals.length) {
+        return `${firstSignals[0]} Intake Form`;
+      }
+      return 'Lead Intake Form';
+    }
+
+    const label = field?.label || defaultLabelForType(field);
+    const normalizedName = createFieldName(label, 'field');
+    switch (kind) {
+      case 'label':
+        return defaultLabelForType(field);
+      case 'placeholder':
+        if ((field?.type || '') === 'email') return 'name@company.com';
+        if ((field?.type || '') === 'tel') return '(555) 555-5555';
+        if ((field?.type || '') === 'textarea') return 'Share the details so AIO can route this properly...';
+        if ((field?.type || '') === 'url') return 'https://example.com';
+        return `Enter ${label.toLowerCase()}...`;
+      case 'defaultValue':
+        return field?.type === 'select' ? '' : `Sample ${label}`;
+      case 'options':
+        return field?.type === 'radio' ? 'Yes, No, Need More Info' : 'Option 1, Option 2, Option 3';
+      case 'errorMessage':
+        return `${label} is required before this form can continue.`;
+      case 'fieldName':
+        return normalizedName;
+      default:
+        return '';
+    }
+  };
+
+  const applyFieldAssist = (kind) => {
+    if (!selectedField) return;
+    const value = buildFormAssistText(kind, selectedField);
+    const propertyMap = {
+      label: 'label',
+      placeholder: 'placeholder',
+      defaultValue: 'defaultValue',
+      options: 'options',
+      errorMessage: 'errorMessage',
+      fieldName: 'name',
+    };
+    const property = propertyMap[kind];
+    if (!property) return;
+    updateFieldProperty(selectedField.id, property, value);
+  };
+
+  const runFormAssist = async (kind, field = selectedField) => {
+    const propertyMap = {
+      label: 'label',
+      placeholder: 'placeholder',
+      defaultValue: 'defaultValue',
+      options: 'options',
+      errorMessage: 'errorMessage',
+      fieldName: 'name',
+    };
+    const property = propertyMap[kind];
+    if (kind !== 'form-name' && (!field || !property)) return;
+
+    setAssistError('');
+    const key = kind === 'form-name' ? 'form-name' : `${field.id}:${kind}`;
+    setAssistTarget(key);
+    try {
+      const suggestion = await requestAiSuggestion({
+        module: 'forms',
+        surface: kind === 'form-name' ? 'form-meta' : 'field-config',
+        field: kind,
+        currentValue:
+          kind === 'form-name'
+            ? currentForm?.name || ''
+            : property === 'options'
+              ? field?.options?.join(', ') || ''
+              : field?.[property] || '',
+        context: {
+          form_name: currentForm?.name || '',
+          schema_labels: (currentForm?.schema || []).map((item) => item.label).filter(Boolean),
+          label: field?.label || '',
+          type: field?.type || '',
+          required: Boolean(field?.required),
+        },
+        fallback: () => buildFormAssistText(kind, field),
+      });
+
+      if (!suggestion) return;
+      if (kind === 'form-name') {
+        setCurrentForm((prev) => prev ? { ...prev, name: suggestion } : prev);
+      } else {
+        updateFieldProperty(field.id, property, suggestion);
+      }
+    } catch (error) {
+      setAssistError(error.message || 'Unable to generate AI copy right now.');
+    } finally {
+      setAssistTarget('');
+    }
   };
 
   const createNewForm = async () => {
@@ -575,8 +698,9 @@ const FormBuilderModule = () => {
           </div>
           <div className="flex gap-2">
             <AIAssistButton
-              onAssist={() => console.log('AI Assist: Forms')}
-              tooltip="AI Assist"
+              onAssist={() => runFormAssist('form-name')}
+              loading={assistTarget === 'form-name'}
+              tooltip="Draft form name"
               iconType="crosshair"
             />
             <button className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-2">
@@ -599,6 +723,11 @@ const FormBuilderModule = () => {
                 <p className="text-xs mt-2">Add fields from the left menu to start building!</p>
               </div>
             )}
+            {assistError ? (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                {assistError}
+              </div>
+            ) : null}
             {currentForm?.schema?.map((field, index) => (
               <div
                 key={field.id}
@@ -673,11 +802,17 @@ const FormBuilderModule = () => {
               {activeTab === 'display' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Label</label>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Label</label>
+                      <AIAssistButton variant="inline" onAssist={() => runFormAssist('label')} loading={assistTarget === `${selectedField.id}:label`} tooltip="Draft field label" iconType="crosshair" />
+                    </div>
                     <input value={selectedField.label} onChange={(e) => updateFieldProperty(selectedField.id, 'label', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Placeholder</label>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Placeholder</label>
+                      <AIAssistButton variant="inline" onAssist={() => runFormAssist('placeholder')} loading={assistTarget === `${selectedField.id}:placeholder`} tooltip="Draft placeholder copy" iconType="crosshair" />
+                    </div>
                     <input value={selectedField.placeholder || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'placeholder', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
                   <div className="flex items-center gap-3">
@@ -693,7 +828,10 @@ const FormBuilderModule = () => {
               {activeTab === 'data' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Default Value</label>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Default Value</label>
+                      <AIAssistButton variant="inline" onAssist={() => runFormAssist('defaultValue')} loading={assistTarget === `${selectedField.id}:defaultValue`} tooltip="Draft default value" iconType="crosshair" />
+                    </div>
                     <input
                       value={selectedField.defaultValue || ''}
                       onChange={(e) => updateFieldProperty(selectedField.id, 'defaultValue', e.target.value)}
@@ -703,7 +841,10 @@ const FormBuilderModule = () => {
                   </div>
                   {(selectedField.type === 'select' || selectedField.type === 'radio') && (
                     <div>
-                      <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Options (comma-separated)</label>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Options (comma-separated)</label>
+                        <AIAssistButton variant="inline" onAssist={() => runFormAssist('options')} loading={assistTarget === `${selectedField.id}:options`} tooltip="Draft field options" iconType="crosshair" />
+                      </div>
                       <input
                         value={selectedField.options?.join(', ') || ''}
                         onChange={(e) => updateFieldProperty(selectedField.id, 'options', e.target.value)}
@@ -753,9 +894,12 @@ const FormBuilderModule = () => {
                       </div>
                     </>
                   )}
-                  <div>
-                    <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Error Message</label>
-                    <textarea
+                      <div>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Error Message</label>
+                          <AIAssistButton variant="inline" onAssist={() => runFormAssist('errorMessage')} loading={assistTarget === `${selectedField.id}:errorMessage`} tooltip="Draft validation message" iconType="crosshair" />
+                        </div>
+                        <textarea
                       value={selectedField.errorMessage || ''}
                       onChange={(e) => updateFieldProperty(selectedField.id, 'errorMessage', e.target.value)}
                       className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none h-20"

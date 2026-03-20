@@ -1,13 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Mail, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, CalendarDays, CheckCircle2, Mail, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import IntegrationCard from '../components/IntegrationCard';
 import IntegrationTabs from '../components/IntegrationTabs';
 import AddIntegrationPanel from '../components/AddIntegrationPanel';
-import { getAllCategories, getProviderConfig, INTEGRATION_CATEGORIES } from '../utils/integrationConfigs';
+import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES } from '../utils/integrationConfigs';
+import { getBrandIcon } from '../utils/brandIcons.jsx';
 import { mockSupabase } from '../../../lib/mockSupabase';
 import ModuleHeader from '../../../components/ModuleHeader';
 import AIAssistButton from '../../../components/AIAssistButton';
 import {
+  deleteAutomationProviderConfigApi,
+  deleteAiProviderConfigApi,
+  getAutomationProviderConfigsApi,
+  getAiProviderCatalogApi,
+  getAiProviderConfigsApi,
+  getOllamaModelsApi,
   createCalendarSourceApi,
   createMailboxApi,
   deleteMailboxApi,
@@ -23,10 +30,14 @@ import {
   importCalendarSourceApi,
   syncCalendarSourceApi,
   syncMailboxApi,
+  testAutomationProviderConfigApi,
   testCalendarSourceApi,
+  testAiProviderConfigApi,
   testMailboxConnectionApi,
   updateCalendarSourceApi,
-  updateMailboxApi
+  updateMailboxApi,
+  upsertAutomationProviderConfigApi,
+  upsertAiProviderConfigApi
 } from '../../../services/backendApi';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
 
@@ -103,6 +114,51 @@ const DEFAULT_CALENDAR_PROVIDERS = [
   }
 ];
 
+const DEFAULT_AI_PROVIDER_CATALOG = [
+  {
+    key: 'ollama',
+    label: 'Ollama',
+    description: 'Local or networked Ollama runtime for private workspace AI.',
+    default_base_url: 'http://localhost:11434',
+    default_model: '',
+    fields: [
+      { key: 'base_url', label: 'Base URL' },
+      { key: 'api_key', label: 'API Key', type: 'password' },
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password', type: 'password' },
+      { key: 'model', label: 'Model' },
+      { key: 'temperature', label: 'Temperature' }
+    ]
+  },
+  { key: 'openai', label: 'OpenAI', description: 'External OpenAI models for drafting, reasoning, and operator assist.', default_base_url: 'https://api.openai.com', default_model: 'gpt-4.1-mini', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
+  { key: 'openrouter', label: 'OpenRouter', description: 'Broker multi-model access through OpenRouter.', default_base_url: 'https://openrouter.ai/api', default_model: 'openai/gpt-4.1-mini', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }, { key: 'site_url', label: 'Site URL' }, { key: 'app_name', label: 'App Name' }] },
+  { key: 'anthropic', label: 'Anthropic', description: 'Claude models for longer-form reasoning and writing.', default_base_url: 'https://api.anthropic.com', default_model: 'claude-sonnet-4-20250514', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
+  { key: 'google-ai', label: 'Google AI', description: 'Gemini models via Google AI Studio.', default_base_url: 'https://generativelanguage.googleapis.com', default_model: 'gemini-2.5-flash', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
+  { key: 'perplexity', label: 'Perplexity', description: 'Perplexity models for research-driven drafting and answers.', default_base_url: 'https://api.perplexity.ai', default_model: 'sonar', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
+];
+
+const createAiProviderDraft = (provider) => ({
+  label: provider?.label || '',
+  base_url: provider?.default_base_url || '',
+  model: provider?.default_model || '',
+  api_key: '',
+  enabled: provider?.key === 'ollama',
+  is_default: provider?.key === 'ollama',
+  config: provider?.key === 'ollama' ? { temperature: '0.2', username: '', password: '' } : {}
+});
+
+const createAutomationProviderDraft = (provider) => ({
+  label: provider?.name || '',
+  base_url: provider?.fields?.find((field) => field.name === 'baseUrl')?.default || '',
+  api_key: '',
+  enabled: true,
+  config: Object.fromEntries(
+    (provider?.fields || [])
+      .filter((field) => !['label', 'baseUrl', 'apiKey'].includes(field.name))
+      .map((field) => [field.name, field.default ?? (field.type === 'checkbox' ? false : '')])
+  )
+});
+
 const createMailboxDraft = (provider = 'local-stub') => ({
   name: '',
   address: '',
@@ -145,6 +201,33 @@ const readErrorMessage = (error) => {
   }
 };
 
+const useTransientSaveFeedback = (duration = 1400) => {
+  const [savedKey, setSavedKey] = useState('');
+  const timeoutRef = useRef(null);
+
+  useEffect(() => () => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+  }, []);
+
+  const triggerSaved = (key) => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+    setSavedKey(key);
+    timeoutRef.current = window.setTimeout(() => {
+      setSavedKey('');
+      timeoutRef.current = null;
+    }, duration);
+  };
+
+  return [savedKey, triggerSaved];
+};
+
+const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
+const SaveFeedbackNote = ({ visible, label = 'Saved' }) => visible ? <span className="save-feedback-note"><CheckCircle2 size={14} /> {label}</span> : null;
+
 const toneClass = (tone) => ({
   success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
   warning: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
@@ -154,7 +237,7 @@ const toneClass = (tone) => ({
 
 const providerStateDetail = (config = {}, fallback) => config.last_error || config.connected_identity || config.connected_calendar || fallback;
 
-const ResourceCard = ({ icon: Icon, title, subtitle, status, detail, selected, onClick, chips = [] }) => (
+const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, selected, onClick, chips = [] }) => (
   <button
     onClick={onClick}
     className={`w-full rounded-2xl border p-4 text-left transition ${
@@ -165,7 +248,7 @@ const ResourceCard = ({ icon: Icon, title, subtitle, status, detail, selected, o
   >
     <div className="flex items-start gap-3">
       <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
-        <Icon size={18} />
+        {logoId ? getBrandIcon(logoId, 30) : <Icon size={18} />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -208,6 +291,19 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [calendarSourceDraft, setCalendarSourceDraft] = useState(() => createCalendarSourceDraft());
   const [showCalendarComposer, setShowCalendarComposer] = useState(false);
 
+  const [automationProviderConfigs, setAutomationProviderConfigs] = useState([]);
+  const [selectedAutomationProviderKey, setSelectedAutomationProviderKey] = useState('n8n');
+  const [automationProviderForm, setAutomationProviderForm] = useState(() => createAutomationProviderDraft(getProviderConfig('n8n')));
+
+  const [aiProviderCatalog, setAiProviderCatalog] = useState(DEFAULT_AI_PROVIDER_CATALOG);
+  const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
+  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(DEFAULT_AI_PROVIDER_CATALOG[0].key);
+  const [aiProviderForm, setAiProviderForm] = useState(() => createAiProviderDraft(DEFAULT_AI_PROVIDER_CATALOG[0]));
+  const [ollamaModels, setOllamaModels] = useState([]);
+  const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+  const [busyAction, setBusyAction] = useState('');
+
   useEffect(() => {
     setActiveCategory(initialCategory || INTEGRATION_CATEGORIES.AUTOMATION);
   }, [initialCategory]);
@@ -227,6 +323,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     } catch {
       nextNotice = { tone: 'warning', message: 'Legacy integration catalog could not be loaded.' };
       setIntegrations([]);
+    }
+
+    try {
+      setAutomationProviderConfigs(await getAutomationProviderConfigsApi());
+    } catch (error) {
+      nextNotice = { tone: 'error', message: readErrorMessage(error) };
+      setAutomationProviderConfigs([]);
     }
 
     try {
@@ -257,6 +360,20 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setCalendarProviders(DEFAULT_CALENDAR_PROVIDERS);
     }
 
+    try {
+      const catalog = await getAiProviderCatalogApi();
+      setAiProviderCatalog(catalog?.length ? catalog : DEFAULT_AI_PROVIDER_CATALOG);
+    } catch {
+      setAiProviderCatalog(DEFAULT_AI_PROVIDER_CATALOG);
+    }
+
+    try {
+      setAiProviderConfigs(await getAiProviderConfigsApi());
+    } catch (error) {
+      nextNotice = { tone: 'error', message: readErrorMessage(error) };
+      setAiProviderConfigs([]);
+    }
+
     setNotice(nextNotice);
     setLoading(false);
   };
@@ -285,6 +402,21 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
   }, [calendarSources, selectedCalendarSourceId]);
 
+  useEffect(() => {
+    const automationProviders = getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION);
+    if (!automationProviders.length) return;
+    if (!automationProviders.some((provider) => provider.id === selectedAutomationProviderKey)) {
+      setSelectedAutomationProviderKey(automationProviders[0].id);
+    }
+  }, [selectedAutomationProviderKey]);
+
+  useEffect(() => {
+    if (!aiProviderCatalog.length) return;
+    if (!aiProviderCatalog.some((provider) => provider.key === selectedAiProviderKey)) {
+      setSelectedAiProviderKey(aiProviderCatalog[0].key);
+    }
+  }, [aiProviderCatalog, selectedAiProviderKey]);
+
   const selectedMailbox = useMemo(
     () => mailboxes.find((mailbox) => mailbox.id === selectedMailboxId) || null,
     [mailboxes, selectedMailboxId]
@@ -293,6 +425,31 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const selectedCalendarSource = useMemo(
     () => calendarSources.find((source) => source.id === selectedCalendarSourceId) || null,
     [calendarSources, selectedCalendarSourceId]
+  );
+
+  const selectedAiProviderCatalog = useMemo(
+    () => aiProviderCatalog.find((provider) => provider.key === selectedAiProviderKey) || DEFAULT_AI_PROVIDER_CATALOG[0],
+    [aiProviderCatalog, selectedAiProviderKey]
+  );
+
+  const selectedAiProviderConfig = useMemo(
+    () => aiProviderConfigs.find((provider) => provider.provider_key === selectedAiProviderKey) || null,
+    [aiProviderConfigs, selectedAiProviderKey]
+  );
+
+  const automationProviderCatalog = useMemo(
+    () => getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION),
+    []
+  );
+
+  const selectedAutomationProviderCatalog = useMemo(
+    () => automationProviderCatalog.find((provider) => provider.id === selectedAutomationProviderKey) || automationProviderCatalog[0] || null,
+    [automationProviderCatalog, selectedAutomationProviderKey]
+  );
+
+  const selectedAutomationProviderConfig = useMemo(
+    () => automationProviderConfigs.find((provider) => provider.provider_key === selectedAutomationProviderKey) || null,
+    [automationProviderConfigs, selectedAutomationProviderKey]
   );
 
   useEffect(() => {
@@ -328,6 +485,107 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     });
   }, [selectedCalendarSource]);
 
+  useEffect(() => {
+    const catalogEntry = selectedAiProviderCatalog || DEFAULT_AI_PROVIDER_CATALOG[0];
+    const existing = selectedAiProviderConfig;
+    if (!existing) {
+      setAiProviderForm(createAiProviderDraft(catalogEntry));
+      return;
+    }
+    setAiProviderForm({
+      label: existing.label || catalogEntry.label,
+      base_url: existing.base_url || catalogEntry.default_base_url || '',
+      model: existing.model || catalogEntry.default_model || '',
+      api_key: '',
+      enabled: existing.enabled,
+      is_default: existing.is_default,
+      config: existing.config || {},
+    });
+  }, [selectedAiProviderCatalog, selectedAiProviderConfig]);
+
+  useEffect(() => {
+    const catalogEntry = selectedAutomationProviderCatalog;
+    if (!catalogEntry) return;
+    const existing = selectedAutomationProviderConfig;
+    if (!existing) {
+      setAutomationProviderForm(createAutomationProviderDraft(catalogEntry));
+      return;
+    }
+    setAutomationProviderForm({
+      label: existing.label || catalogEntry.name,
+      base_url: existing.base_url || catalogEntry.fields?.find((field) => field.name === 'baseUrl')?.default || '',
+      api_key: '',
+      enabled: existing.enabled,
+      config: {
+        ...(existing.config || {}),
+        inboundWebhookUrl: existing.config?.inboundWebhookUrl || existing.config?.inbound_webhook_url || '',
+        outboundWebhookUrl: existing.config?.outboundWebhookUrl || existing.config?.outbound_webhook_url || '',
+        signingSecret: existing.config?.signingSecret || existing.config?.signing_secret || '',
+        projectId: existing.config?.projectId || existing.config?.project_id || '',
+        teamId: existing.config?.teamId || existing.config?.team_id || '',
+      },
+    });
+  }, [selectedAutomationProviderCatalog, selectedAutomationProviderConfig]);
+
+  const refreshOllamaModels = async (preferredBaseUrl) => {
+    setOllamaModelsLoading(true);
+    try {
+      const models = await getOllamaModelsApi({
+        base_url: preferredBaseUrl || aiProviderForm.base_url || selectedAiProviderCatalog.default_base_url,
+        api_key: aiProviderForm.api_key || '',
+        username: aiProviderForm.config?.username || '',
+        password: aiProviderForm.config?.password || ''
+      });
+      setOllamaModels(models);
+      if ((!aiProviderForm.model || !models.includes(aiProviderForm.model)) && models.length) {
+        setAiProviderForm((current) => ({ ...current, model: current.model && models.includes(current.model) ? current.model : models[0] }));
+      }
+    } catch {
+      setOllamaModels([]);
+    } finally {
+      setOllamaModelsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedAiProviderKey !== 'ollama') {
+      setOllamaModels([]);
+      setOllamaModelsLoading(false);
+      return;
+    }
+
+      let cancelled = false;
+      const loadModels = async () => {
+        setOllamaModelsLoading(true);
+        try {
+          const models = await getOllamaModelsApi({
+            base_url: aiProviderForm.base_url || selectedAiProviderCatalog.default_base_url,
+            api_key: aiProviderForm.api_key || '',
+            username: aiProviderForm.config?.username || '',
+            password: aiProviderForm.config?.password || ''
+          });
+          if (cancelled) return;
+          setOllamaModels(models);
+          if ((!aiProviderForm.model || !models.includes(aiProviderForm.model)) && models.length) {
+            setAiProviderForm((current) => ({ ...current, model: current.model && models.includes(current.model) ? current.model : models[0] }));
+          }
+        } catch {
+          if (!cancelled) {
+            setOllamaModels([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setOllamaModelsLoading(false);
+          }
+        }
+      };
+
+    loadModels();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAiProviderKey, aiProviderForm.base_url, aiProviderForm.api_key, aiProviderForm.config?.username, aiProviderForm.config?.password, selectedAiProviderCatalog.default_base_url]);
+
   const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === mailboxForm.provider) || DEFAULT_MAILBOX_PROVIDERS[0];
   const selectedCalendarProvider = calendarProviders.find((provider) => provider.id === calendarSourceForm.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
   const mailboxDraftProvider = mailboxProviders.find((provider) => provider.id === mailboxDraft.provider) || DEFAULT_MAILBOX_PROVIDERS[0];
@@ -348,16 +606,20 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const categoryCounts = useMemo(() => {
     const counts = {};
     categories.forEach((category) => {
-      if (category.id === INTEGRATION_CATEGORIES.EMAIL) {
+      if (category.id === INTEGRATION_CATEGORIES.AUTOMATION) {
+        counts[category.id] = automationProviderConfigs.length;
+      } else if (category.id === INTEGRATION_CATEGORIES.EMAIL) {
         counts[category.id] = mailboxes.length;
       } else if (category.id === INTEGRATION_CATEGORIES.CALENDAR) {
         counts[category.id] = calendarSources.length;
+      } else if (category.id === INTEGRATION_CATEGORIES.LLMS) {
+        counts[category.id] = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
       } else {
         counts[category.id] = integrations.filter((integration) => integration.category === category.id).length;
       }
     });
     return counts;
-  }, [calendarSources.length, categories, integrations, mailboxes.length]);
+  }, [aiProviderConfigs, automationProviderConfigs.length, calendarSources.length, categories, integrations, mailboxes.length]);
 
   const currentCategory = categories.find((category) => category.id === activeCategory);
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
@@ -392,6 +654,68 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   };
 
   const handleAddIntegration = async (data) => {
+    if (data.category === INTEGRATION_CATEGORIES.AUTOMATION) {
+      const providerKey = data.providerId;
+      const config = data.config || {};
+      const providerCatalogEntry = getProviderConfig(providerKey);
+      const payload = {
+        label: (config.label || providerCatalogEntry?.name || providerKey).trim(),
+        base_url: (config.baseUrl || '').trim(),
+        api_key: config.apiKey || undefined,
+        enabled: true,
+        config: {
+          inbound_webhook_url: config.inboundWebhookUrl || '',
+          outbound_webhook_url: config.outboundWebhookUrl || '',
+          signing_secret: config.signingSecret || '',
+          project_id: config.projectId || '',
+          team_id: config.teamId || '',
+        },
+      };
+
+      try {
+        await upsertAutomationProviderConfigApi(providerKey, payload);
+        setSelectedAutomationProviderKey(providerKey);
+        setNotice({ tone: 'success', message: `${payload.label || providerKey} added to this workspace.` });
+        await loadAll();
+        return true;
+      } catch (error) {
+        setNotice({ tone: 'error', message: readErrorMessage(error) });
+        throw error;
+      }
+    }
+
+    if (data.category === INTEGRATION_CATEGORIES.LLMS) {
+      const providerKey = data.providerId;
+      const config = data.config || {};
+      const providerCatalogEntry = aiProviderCatalog.find((provider) => provider.key === providerKey);
+        const payload = {
+          label: (config.label || providerCatalogEntry?.label || providerKey).trim(),
+          base_url: (config.base_url || providerCatalogEntry?.default_base_url || '').trim(),
+          model: (config.model || providerCatalogEntry?.default_model || '').trim(),
+          api_key: config.apiKey || undefined,
+        enabled: true,
+          is_default: !aiProviderConfigs.some((provider) => provider.is_default),
+          config: {
+            ...(providerKey === 'ollama' && config.temperature ? { temperature: config.temperature } : {}),
+            ...(providerKey === 'ollama' && config.username ? { username: config.username } : {}),
+            ...(providerKey === 'ollama' && config.password ? { password: config.password } : {}),
+            ...(providerKey === 'openrouter' && config.site_url ? { site_url: config.site_url } : {}),
+            ...(providerKey === 'openrouter' && config.app_name ? { app_name: config.app_name } : {}),
+          },
+        };
+
+      try {
+        await upsertAiProviderConfigApi(providerKey, payload);
+        setSelectedAiProviderKey(providerKey);
+        setNotice({ tone: 'success', message: `${payload.label || providerKey} added to this workspace.` });
+        await loadAll();
+        return true;
+      } catch (error) {
+        setNotice({ tone: 'error', message: readErrorMessage(error) });
+        throw error;
+      }
+    }
+
     try {
       const newIntegration = {
         id: Date.now().toString(),
@@ -408,10 +732,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         throw new Error(error);
       }
       setIntegrations((current) => [...current, newIntegration]);
-      setPanelOpen(false);
       setNotice({ tone: 'success', message: 'Integration added.' });
+      return true;
     } catch (error) {
       setNotice({ tone: 'error', message: `Failed to add integration: ${readErrorMessage(error)}` });
+      throw error;
     }
   };
 
@@ -420,6 +745,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
       setNotice({ tone: 'success', message: 'Mailbox saved.' });
+      triggerSavedAction('mailbox-save');
       loadAll();
     } catch (error) {
       setNotice({ tone: 'error', message: readErrorMessage(error) });
@@ -458,13 +784,17 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleTestMailbox = async () => {
     if (!selectedMailbox?.id) return;
+    setBusyAction('mailbox-test');
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
       const response = await testMailboxConnectionApi(selectedMailbox.id);
       setNotice({ tone: response?.result?.status === 'ok' ? 'success' : 'warning', message: response?.result?.message || 'Mailbox test completed.' });
+      triggerSavedAction('mailbox-test');
       loadAll();
     } catch (error) {
       setNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
     }
   };
 
@@ -519,6 +849,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     try {
       await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
       setNotice({ tone: 'success', message: 'Calendar source saved.' });
+      triggerSavedAction('calendar-save');
       loadAll();
     } catch (error) {
       setNotice({ tone: 'error', message: readErrorMessage(error) });
@@ -553,13 +884,17 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleTestCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
+    setBusyAction('calendar-test');
     try {
       await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
       const response = await testCalendarSourceApi(selectedCalendarSource.id);
       setNotice({ tone: 'success', message: response?.result?.message || 'Calendar source tested.' });
+      triggerSavedAction('calendar-test');
       loadAll();
     } catch (error) {
       setNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
     }
   };
 
@@ -622,6 +957,206 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
   };
 
+  const handleSaveAiProvider = async () => {
+    if (!selectedAiProviderCatalog?.key) return;
+    try {
+      await upsertAiProviderConfigApi(selectedAiProviderCatalog.key, {
+        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.label,
+        base_url: aiProviderForm.base_url.trim(),
+        model: aiProviderForm.model.trim(),
+        api_key: aiProviderForm.api_key || undefined,
+        enabled: aiProviderForm.enabled,
+        is_default: aiProviderForm.is_default,
+        config: aiProviderForm.config || {},
+      });
+      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.label} saved.` });
+      triggerSavedAction('ai-provider-save');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleTestAiProvider = async () => {
+    setBusyAction('ai-provider-test');
+    try {
+      const saved = await upsertAiProviderConfigApi(selectedAiProviderCatalog.key, {
+        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.label,
+        base_url: aiProviderForm.base_url.trim(),
+        model: aiProviderForm.model.trim(),
+        api_key: aiProviderForm.api_key || undefined,
+        enabled: aiProviderForm.enabled,
+        is_default: aiProviderForm.is_default,
+        config: aiProviderForm.config || {},
+      });
+      const response = await testAiProviderConfigApi(saved.id);
+      setNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
+      triggerSavedAction('ai-provider-test');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
+    }
+  };
+
+  const handleDeleteAiProvider = async () => {
+    if (!selectedAiProviderConfig?.id) return;
+    if (!window.confirm(`Disconnect ${selectedAiProviderCatalog.label}? Saved credentials and runtime preference will be removed for this workspace.`)) return;
+    try {
+      await deleteAiProviderConfigApi(selectedAiProviderConfig.id);
+      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.label} removed from this workspace.` });
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleSaveAutomationProvider = async () => {
+    if (!selectedAutomationProviderCatalog?.id) return;
+    try {
+      await upsertAutomationProviderConfigApi(selectedAutomationProviderCatalog.id, {
+        label: (automationProviderForm.label || selectedAutomationProviderCatalog.name).trim(),
+        base_url: (automationProviderForm.base_url || '').trim(),
+        api_key: automationProviderForm.api_key || undefined,
+        enabled: !!automationProviderForm.enabled,
+        status: selectedAutomationProviderConfig?.status,
+        config: automationProviderForm.config || {},
+      });
+      setNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog.name} saved.` });
+      triggerSavedAction('automation-save');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleTestAutomationProvider = async () => {
+    if (!selectedAutomationProviderCatalog?.id) return;
+    setBusyAction('automation-test');
+    try {
+      const saved = await upsertAutomationProviderConfigApi(selectedAutomationProviderCatalog.id, {
+        label: (automationProviderForm.label || selectedAutomationProviderCatalog.name).trim(),
+        base_url: (automationProviderForm.base_url || '').trim(),
+        api_key: automationProviderForm.api_key || undefined,
+        enabled: !!automationProviderForm.enabled,
+        status: selectedAutomationProviderConfig?.status || 'configured',
+        config: automationProviderForm.config || {},
+      });
+      const response = await testAutomationProviderConfigApi(saved.id);
+      setNotice({ tone: 'success', message: response?.result?.message || 'Automation provider test completed.' });
+      triggerSavedAction('automation-test');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
+    }
+  };
+
+  const handleDeleteAutomationProvider = async () => {
+    if (!selectedAutomationProviderConfig?.id) return;
+    if (!window.confirm(`Disconnect ${selectedAutomationProviderCatalog?.name || 'this automation provider'} from this workspace?`)) return;
+    try {
+      await deleteAutomationProviderConfigApi(selectedAutomationProviderConfig.id);
+      setNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog?.name || 'Automation provider'} removed from this workspace.` });
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const renderAutomationAdmin = () => (
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="space-y-3 overflow-auto">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Automation Providers</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Hub-and-spoke automation systems with webhook ingress and egress.</div>
+        </div>
+        {automationProviderCatalog.map((provider) => {
+          const config = automationProviderConfigs.find((item) => item.provider_key === provider.id);
+          return (
+            <ResourceCard
+              key={provider.id}
+              icon={Zap}
+              logoId={provider.id}
+              title={config?.label || provider.name}
+              subtitle={provider.id}
+              status={config?.status || 'not configured'}
+              detail={config?.last_error || provider.description}
+              selected={selectedAutomationProviderKey === provider.id}
+              onClick={() => setSelectedAutomationProviderKey(provider.id)}
+              chips={[
+                config?.enabled ? 'enabled' : 'disabled',
+                config?.config?.outboundWebhookUrl || config?.config?.outbound_webhook_url ? 'outbound webhook' : 'no outbound hook',
+                config?.config?.inboundWebhookUrl || config?.config?.inbound_webhook_url ? 'inbound webhook' : 'no inbound hook',
+              ]}
+            />
+          );
+        })}
+      </div>
+
+      <div className="overflow-auto rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5">
+        {selectedAutomationProviderCatalog ? (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Automation Control Plane</div>
+                <h3 className="mt-2 text-3xl font-semibold text-[var(--color-text-primary)]">{automationProviderForm.label || selectedAutomationProviderCatalog.name}</h3>
+                <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedAutomationProviderCatalog.description}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleTestAutomationProvider} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)]", savedAction === 'automation-test')}>
+                  {busyAction === 'automation-test' ? 'Testing...' : savedAction === 'automation-test' ? 'Tested' : 'Test'}
+                </button>
+                <button onClick={handleSaveAutomationProvider} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]", savedAction === 'automation-save')}>
+                  {savedAction === 'automation-save' ? 'Saved' : 'Save'}
+                </button>
+                {selectedAutomationProviderConfig ? <button onClick={handleDeleteAutomationProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Delete</button> : null}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-2 text-lg font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.status || 'standby'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-2 text-lg font-semibold text-[var(--color-text-primary)]">{automationProviderForm.enabled ? 'Enabled' : 'Disabled'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.last_tested_at ? new Date(selectedAutomationProviderConfig.last_tested_at).toLocaleString() : 'Never'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Delivery</div><div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.config?.last_delivery_at ? new Date(selectedAutomationProviderConfig.config.last_delivery_at).toLocaleString() : 'No delivery yet'}</div></div>
+            </div>
+
+            {selectedAutomationProviderConfig?.last_error ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAutomationProviderConfig.last_error}</div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={automationProviderForm.label} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, label: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={automationProviderForm.base_url} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, base_url: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+            </div>
+
+            {selectedAutomationProviderCatalog.fields?.some((field) => field.name === 'apiKey') ? (
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={automationProviderForm.api_key} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, api_key: event.target.value }))} placeholder={selectedAutomationProviderConfig?.api_key_present ? 'Saved in workspace config' : ''} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {selectedAutomationProviderCatalog.fields?.filter((field) => !['label', 'baseUrl', 'apiKey'].includes(field.name)).map((field) => (
+                <label key={field.name} className="space-y-1">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                  <input type={field.type === 'password' ? 'password' : 'text'} autoComplete={field.type === 'password' ? 'new-password' : undefined} value={automationProviderForm.config?.[field.name] || ''} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" />
+                </label>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-[var(--color-text-primary)]"><input type="checkbox" checked={!!automationProviderForm.enabled} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this workspace</label>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Keep automation systems as spokes around AIO CRM. Outbound tests will POST a sample event to the outbound webhook when present, otherwise they probe the base URL directly.</div>
+            <div className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+              <SaveFeedbackNote visible={savedAction === 'automation-save'} label="Saved" />
+              <SaveFeedbackNote visible={savedAction === 'automation-test'} label="Connection OK" />
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
   const renderEmailAdmin = () => (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
       <div className="space-y-3">
@@ -660,11 +1195,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         ) : null}
         <div className="space-y-3">
           {mailboxes.map((mailbox) => (
-            <ResourceCard
-              key={mailbox.id}
-              icon={Mail}
-              title={mailbox.name}
-              subtitle={mailbox.provider}
+              <ResourceCard
+                key={mailbox.id}
+                icon={Mail}
+                logoId={mailbox.provider}
+                title={mailbox.name}
+                subtitle={mailbox.provider}
               status={mailbox.health?.label || mailbox.status || 'Unknown'}
               detail={providerStateDetail(mailbox.config, mailbox.address || 'No address')}
               selected={selectedMailboxId === mailbox.id}
@@ -684,12 +1220,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">Connect OAuth</button> : null}
                 {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200">Disconnect</button> : null}
-                <button onClick={handleTestMailbox} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Test</button>
+                <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'Test'}</button>
+                <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
                 <button onClick={handleSyncMailbox} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Sync</button>
-                <button onClick={handleSaveMailbox} className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]">Save</button>
+                <button onClick={handleSaveMailbox} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
+                <SaveFeedbackNote visible={savedAction === 'mailbox-save'} />
                 <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />Delete</button>
               </div>
             </div>
@@ -754,6 +1292,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <ResourceCard
               key={source.id}
               icon={CalendarDays}
+              logoId={source.provider}
               title={source.name}
               subtitle={source.provider}
               status={source.health?.label || source.status || 'Unknown'}
@@ -775,13 +1314,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">Connect OAuth</button> : null}
                 {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200">Disconnect</button> : null}
-                <button onClick={handleTestCalendarSource} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Test</button>
+                <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'Test'}</button>
+                <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
                 <button onClick={handleSyncCalendarSource} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Sync</button>
                 <button onClick={handleImportCalendarSource} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Import</button>
-                <button onClick={handleSaveCalendarSource} className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]">Save</button>
+                <button onClick={handleSaveCalendarSource} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
+                <SaveFeedbackNote visible={savedAction === 'calendar-save'} />
                 <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Delete</button>
               </div>
             </div>
@@ -814,6 +1355,123 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     </div>
   );
 
+  const renderAiAdmin = () => (
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="space-y-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Providers</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Keep one local runtime active for private AI work, and stage external providers here for overflow, experiments, or model-specific tasks.</div>
+        </div>
+        <div className="space-y-3">
+          {aiProviderCatalog.map((provider) => {
+            const existing = aiProviderConfigs.find((item) => item.provider_key === provider.key);
+            return (
+              <ResourceCard
+                key={provider.key}
+                icon={Bot}
+                logoId={provider.key}
+                title={provider.label}
+                subtitle={provider.key}
+                status={existing?.status || (provider.key === 'ollama' ? 'Local Ready' : 'Not Configured')}
+                detail={existing?.last_error || existing?.config?.connected_identity || provider.description}
+                selected={selectedAiProviderKey === provider.key}
+                onClick={() => setSelectedAiProviderKey(provider.key)}
+                chips={[
+                  existing?.is_default ? 'Active Runtime' : 'Standby',
+                  existing?.enabled ? 'Enabled' : 'Disabled',
+                  existing?.model || provider.default_model || 'No model',
+                ]}
+              />
+            );
+          })}
+        </div>
+      </div>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">LLM Control Plane</div>
+                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedAiProviderCatalog.label}</h3>
+                <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{selectedAiProviderCatalog.description}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={handleTestAiProvider} disabled={busyAction === 'ai-provider-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'ai-provider-test')}>{busyAction === 'ai-provider-test' ? 'Testing...' : savedAction === 'ai-provider-test' ? 'Tested' : 'Test'}</button>
+                <SaveFeedbackNote visible={savedAction === 'ai-provider-test'} label="Provider OK" />
+                <button onClick={handleSaveAiProvider} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : 'Save'}</button>
+                <SaveFeedbackNote visible={savedAction === 'ai-provider-save'} />
+                {selectedAiProviderConfig ? <button onClick={handleDeleteAiProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Delete</button> : null}
+              </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.status || 'Not configured'}</div></div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.is_default ? 'Active' : 'Standby'}</div></div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.model || selectedAiProviderCatalog.default_model || 'Unset'}</div></div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.last_tested_at ? new Date(selectedAiProviderConfig.last_tested_at).toLocaleString() : 'Never'}</div></div>
+          </div>
+          {selectedAiProviderConfig?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.last_error}</div> : null}
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
+            <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={aiProviderForm.label} onChange={(event) => setAiProviderForm((current) => ({ ...current, label: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+            <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={aiProviderForm.base_url} onChange={(event) => setAiProviderForm((current) => ({ ...current, base_url: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+            <label className="space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div>
+                {selectedAiProviderKey === 'ollama' ? (
+                  <button
+                    type="button"
+                    onClick={() => refreshOllamaModels(aiProviderForm.base_url)}
+                    className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  >
+                    {ollamaModelsLoading ? 'Refreshing…' : 'Refresh Models'}
+                  </button>
+                ) : null}
+              </div>
+              {selectedAiProviderKey === 'ollama' ? (
+                <select
+                  value={aiProviderForm.model}
+                  onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
+                >
+                  {ollamaModelsLoading ? <option value="">Loading Ollama models...</option> : null}
+                  {!ollamaModelsLoading && !ollamaModels.length ? <option value="">No models found at this Ollama URL</option> : null}
+                  {ollamaModels.map((model) => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
+              ) : (
+                <input value={aiProviderForm.model} onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" />
+              )}
+            </label>
+            {selectedAiProviderCatalog.fields?.some((field) => field.key === 'api_key') ? (
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={aiProviderForm.api_key} onChange={(event) => setAiProviderForm((current) => ({ ...current, api_key: event.target.value }))} placeholder={selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : ''} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+            ) : null}
+          </div>
+          {selectedAiProviderCatalog.fields?.some((field) => !['base_url', 'model', 'api_key'].includes(field.key)) ? (
+            <div className="grid gap-3 sm:grid-cols-2 text-sm">
+              {selectedAiProviderCatalog.fields.filter((field) => !['base_url', 'model', 'api_key'].includes(field.key)).map((field) => (
+                <label key={field.key} className="space-y-1">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                  <input type={field.type === 'password' ? 'password' : 'text'} autoComplete={field.type === 'password' ? 'new-password' : undefined} value={aiProviderForm.config?.[field.key] || ''} onChange={(event) => setAiProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" />
+                </label>
+              ))}
+            </div>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]"><input type="checkbox" checked={!!aiProviderForm.enabled} onChange={(event) => setAiProviderForm((current) => ({ ...current, enabled: event.target.checked, is_default: event.target.checked ? current.is_default : false }))} /> Enable provider for this workspace</label>
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]"><input type="checkbox" checked={!!aiProviderForm.is_default} onChange={(event) => setAiProviderForm((current) => ({ ...current, is_default: event.target.checked, enabled: event.target.checked ? true : current.enabled }))} /> Use as the active AI runtime</label>
+          </div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+              Bullseye assists across CRM, Forms, Calendar, Flows, and Comms will use the active runtime first, then fall back safely if this provider is unavailable.
+            </div>
+            {selectedAiProviderKey === 'ollama' ? (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                Use the raw Ollama daemon URL, like <span className="font-medium text-[var(--color-text-primary)]">http://localhost:11434</span> or <span className="font-medium text-[var(--color-text-primary)]">http://LAN-IP:11434</span>. If your Ollama host sits behind a proxy, enter the API key or username/password here so model refresh and test use the same credentials.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+  );
+
   const renderLegacyCategory = () => (
     <div className="flex-1 overflow-auto">
       {loading ? (
@@ -840,8 +1498,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     </div>
   );
 
-  const totalConnected = integrations.length + mailboxes.length + calendarSources.length;
-  const activeConnected = integrations.filter((integration) => integration.enabled).length + mailboxes.filter((mailbox) => mailbox.status !== 'disconnected').length + calendarSources.filter((source) => source.status !== 'disconnected').length;
+  const totalConnected = automationProviderConfigs.length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION).length + mailboxes.length + calendarSources.length + aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
+  const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length + mailboxes.filter((mailbox) => mailbox.status !== 'disconnected').length + calendarSources.filter((source) => source.status !== 'disconnected').length + aiProviderConfigs.filter((provider) => provider.enabled).length;
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg-primary)]">
@@ -850,13 +1508,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         showTitle={false}
         actions={[
           {
-            label: activeCategory === INTEGRATION_CATEGORIES.EMAIL ? 'New Mailbox' : activeCategory === INTEGRATION_CATEGORIES.CALENDAR ? 'New Source' : 'Add Integration',
+            label: activeCategory === INTEGRATION_CATEGORIES.EMAIL ? 'New Mailbox' : activeCategory === INTEGRATION_CATEGORIES.CALENDAR ? 'New Source' : activeCategory === INTEGRATION_CATEGORIES.LLMS ? 'Add Provider' : 'Add Integration',
             icon: Plus,
             onClick: () => {
               if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
                 setShowMailboxComposer(true);
               } else if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR) {
                 setShowCalendarComposer(true);
+              } else if (activeCategory === INTEGRATION_CATEGORIES.LLMS) {
+                setPanelOpen(true);
               } else {
                 setPanelOpen(true);
               }
@@ -878,7 +1538,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         {notice ? <div className={`rounded-lg border p-4 ${toneClass(notice.tone)}`}>{notice.message}</div> : null}
         <IntegrationTabs categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} counts={categoryCounts} />
         <div className="flex-1 overflow-hidden">
-          {activeCategory === INTEGRATION_CATEGORIES.EMAIL ? renderEmailAdmin() : activeCategory === INTEGRATION_CATEGORIES.CALENDAR ? renderCalendarAdmin() : renderLegacyCategory()}
+          {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
+            ? renderAutomationAdmin()
+            : activeCategory === INTEGRATION_CATEGORIES.EMAIL
+            ? renderEmailAdmin()
+            : activeCategory === INTEGRATION_CATEGORIES.CALENDAR
+              ? renderCalendarAdmin()
+              : activeCategory === INTEGRATION_CATEGORIES.LLMS
+                ? renderAiAdmin()
+                : renderLegacyCategory()}
         </div>
         <AddIntegrationPanel isOpen={panelOpen} category={activeCategory} onClose={() => setPanelOpen(false)} onSave={handleAddIntegration} onCategoryChange={setActiveCategory} categories={categories} />
       </div>

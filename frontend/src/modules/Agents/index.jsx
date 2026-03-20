@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow } from 'lucide-react';
 import { mockSupabase } from '../../services/mockSupabase';
+import { getAiRunsApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import flowDraftRepository from '../Flows/utils/flowDraftRepository';
 import { SPECIALIST_REGISTRY } from './data/agentRegistry';
@@ -14,10 +15,15 @@ const AIOAgentsModule = () => {
   ]);
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
+  const [aiRuns, setAiRuns] = useState([]);
+  const [aiRunsError, setAiRunsError] = useState('');
 
   useEffect(() => {
     // Fetch agents from mock DB
     mockSupabase.from('aio_agents').select().then(({ data }) => setAgents(data));
+    getAiRunsApi(12)
+      .then((data) => setAiRuns(Array.isArray(data) ? data : []))
+      .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
   }, []);
 
   const handleSendMessage = () => {
@@ -76,6 +82,50 @@ const AIOAgentsModule = () => {
         {/* BARRACKS VIEW (Agent List) */}
         {view === 'barracks' && (
           <div className="flex-1 p-8 overflow-y-auto">
+             <div className="mb-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">AI Activity</p>
+                    <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Recent AI Runs</h3>
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">
+                    {aiRuns.length} recent run{aiRuns.length === 1 ? '' : 's'}
+                  </div>
+                </div>
+                {aiRunsError ? (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                    {aiRunsError}
+                  </div>
+                ) : aiRuns.length ? (
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                    {aiRuns.slice(0, 6).map((run) => (
+                      <div key={run.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                            {run.module}
+                          </span>
+                          <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                            {run.intent}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                          {run.surface} / {run.field}
+                        </p>
+                        <p className="mt-2 line-clamp-3 text-sm text-[var(--color-text-secondary)]">
+                          {run.result}
+                        </p>
+                        <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                          {new Date(run.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-6 text-sm text-[var(--color-text-secondary)]">
+                    No AI runs yet. Use the bullseye helpers in CRM, Forms, Calendar, or Flows to start generating activity.
+                  </div>
+                )}
+             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {agents.map(agent => (
                   <div 

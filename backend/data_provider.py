@@ -153,6 +153,58 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_brain_profile(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_brain_profile(self, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_sources(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_brain_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_brain_source(self, source_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_items(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_brain_item(self, item_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_brain_item(self, item_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_links(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_brain_link(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_brain_link(self, link_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
         raise NotImplementedError
 
@@ -607,6 +659,16 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def apply_thread_ai_result(
+        self,
+        thread_id: str,
+        mode: str,
+        suggestion: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -715,6 +777,90 @@ class MockProvider(BaseProvider):
                 "created_at": now,
                 "updated_at": now,
             }
+        ]
+        self.brain_profile = {
+            "id": "brain-profile-primary",
+            "tenant_id": DEFAULT_TENANT_ID,
+            "company_name": "AIO CRM Workspace",
+            "website": "https://aiocrm.local",
+            "industry": "AI operations",
+            "overview": "Central memory layer for company context, operating procedures, and AI-ready knowledge.",
+            "mission": "Turn daily operations into a reusable intelligence system.",
+            "brand_voice": "Direct, pragmatic, and operator-friendly.",
+            "ideal_customer": "Owner-operators and lean teams using AI to run service businesses.",
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.brain_sources = [
+            {
+                "id": "brain-source-profile",
+                "tenant_id": DEFAULT_TENANT_ID,
+                "label": "Company Profile Intake",
+                "source_type": "profile",
+                "status": "ready",
+                "location": "Internal workspace memory",
+                "notes": "Core business identity and positioning.",
+                "graph_x": 28.0,
+                "graph_y": 24.0,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "brain-source-ops",
+                "tenant_id": DEFAULT_TENANT_ID,
+                "label": "Ops Playbook",
+                "source_type": "document",
+                "status": "draft",
+                "location": "Upload or author internally",
+                "notes": "Planned SOP source for agents and flows.",
+                "graph_x": 24.0,
+                "graph_y": 58.0,
+                "created_at": now,
+                "updated_at": now,
+            },
+        ]
+        self.brain_items = [
+            {
+                "id": "brain-item-positioning",
+                "tenant_id": DEFAULT_TENANT_ID,
+                "title": "Core positioning",
+                "category": "strategy",
+                "content": "AIO CRM is the local-first operator console where CRM, Comms, workflows, and AI agents share one memory layer.",
+                "source_id": "brain-source-profile",
+                "status": "active",
+                "tags": ["positioning", "ai", "local-first"],
+                "graph_x": 72.0,
+                "graph_y": 26.0,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "brain-item-agent-rule",
+                "tenant_id": DEFAULT_TENANT_ID,
+                "title": "Agent guidance",
+                "category": "operations",
+                "content": "Named agents should pull from workspace memory before drafting, summarizing, or recommending next steps.",
+                "source_id": "brain-source-ops",
+                "status": "draft",
+                "tags": ["agents", "memory", "rules"],
+                "graph_x": 76.0,
+                "graph_y": 58.0,
+                "created_at": now,
+                "updated_at": now,
+            },
+        ]
+        self.brain_links = [
+            {
+                "id": "brain-link-positioning-agents",
+                "tenant_id": DEFAULT_TENANT_ID,
+                "from_type": "item",
+                "from_id": "brain-item-positioning",
+                "to_type": "item",
+                "to_id": "brain-item-agent-rule",
+                "relationship_type": "supports",
+                "created_at": now,
+                "updated_at": now,
+            },
         ]
         self.form_folders = [
             {"id": "form-folder-default", "name": "My Forms", "user_id": "1", "created_at": now, "expanded": True}
@@ -911,6 +1057,147 @@ class MockProvider(BaseProvider):
 
     def list_tags(self) -> list[dict[str, Any]]:
         return self.tags
+
+    def get_brain_profile(self) -> dict[str, Any]:
+        return dict(self.brain_profile)
+
+    def update_brain_profile(self, updates: dict[str, Any]) -> dict[str, Any]:
+        for key in ["company_name", "website", "industry", "overview", "mission", "brand_voice", "ideal_customer"]:
+            if key in updates and updates[key] is not None:
+                self.brain_profile[key] = updates[key]
+        self.brain_profile["updated_at"] = utcnow()
+        return dict(self.brain_profile)
+
+    def list_brain_sources(self) -> list[dict[str, Any]]:
+        return sorted((dict(item) for item in self.brain_sources), key=lambda item: (item.get("label") or "").lower())
+
+    def create_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        source = {
+            "id": payload.get("id") or f"brain-source-{unique_suffix()}",
+            "tenant_id": DEFAULT_TENANT_ID,
+            "label": payload.get("label") or "New Source",
+            "source_type": payload.get("source_type") or "document",
+            "status": payload.get("status") or "draft",
+            "location": payload.get("location") or "",
+            "notes": payload.get("notes") or "",
+            "graph_x": payload.get("graph_x"),
+            "graph_y": payload.get("graph_y"),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        self.brain_sources.append(source)
+        return dict(source)
+
+    def update_brain_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        source = next((item for item in self.brain_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Brain source not found")
+        for key in ["label", "source_type", "status", "location", "notes", "graph_x", "graph_y"]:
+            if key in updates and updates[key] is not None:
+                source[key] = updates[key]
+        source["updated_at"] = utcnow()
+        return dict(source)
+
+    def delete_brain_source(self, source_id: str) -> None:
+        self.brain_sources = [item for item in self.brain_sources if item["id"] != source_id]
+        for item in self.brain_items:
+            if item.get("source_id") == source_id:
+                item["source_id"] = None
+                item["updated_at"] = utcnow()
+        self.brain_links = [
+            link
+            for link in self.brain_links
+            if not (
+                (link["from_type"] == "source" and link["from_id"] == source_id)
+                or (link["to_type"] == "source" and link["to_id"] == source_id)
+            )
+        ]
+
+    def list_brain_items(self) -> list[dict[str, Any]]:
+        return sorted((dict(item) for item in self.brain_items), key=lambda item: item.get("updated_at") or "", reverse=True)
+
+    def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        item = {
+            "id": payload.get("id") or f"brain-item-{unique_suffix()}",
+            "tenant_id": DEFAULT_TENANT_ID,
+            "title": payload.get("title") or "New Knowledge Item",
+            "category": payload.get("category") or "note",
+            "content": payload.get("content") or "",
+            "source_id": payload.get("source_id"),
+            "status": payload.get("status") or "draft",
+            "tags": payload.get("tags") or [],
+            "graph_x": payload.get("graph_x"),
+            "graph_y": payload.get("graph_y"),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        self.brain_items.append(item)
+        return dict(item)
+
+    def update_brain_item(self, item_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        item = next((entry for entry in self.brain_items if entry["id"] == item_id), None)
+        if not item:
+            raise ValueError("Brain item not found")
+        for key in ["title", "category", "content", "source_id", "status", "tags", "graph_x", "graph_y"]:
+            if key in updates and updates[key] is not None:
+                item[key] = updates[key]
+        item["updated_at"] = utcnow()
+        return dict(item)
+
+    def delete_brain_item(self, item_id: str) -> None:
+        self.brain_items = [entry for entry in self.brain_items if entry["id"] != item_id]
+        self.brain_links = [
+            link
+            for link in self.brain_links
+            if not (
+                (link["from_type"] == "item" and link["from_id"] == item_id)
+                or (link["to_type"] == "item" and link["to_id"] == item_id)
+            )
+        ]
+
+    def list_brain_links(self) -> list[dict[str, Any]]:
+        return sorted((dict(link) for link in self.brain_links), key=lambda item: item.get("updated_at") or "", reverse=True)
+
+    def create_brain_link(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from_type = payload.get("from_type") or "item"
+        to_type = payload.get("to_type") or "item"
+        from_id = payload.get("from_id")
+        to_id = payload.get("to_id")
+        if not from_id or not to_id:
+            raise ValueError("Brain link endpoints are required")
+        if from_type == to_type and from_id == to_id:
+            raise ValueError("Brain links cannot point to the same node")
+        existing = next(
+            (
+                link for link in self.brain_links
+                if link["from_type"] == from_type
+                and link["from_id"] == from_id
+                and link["to_type"] == to_type
+                and link["to_id"] == to_id
+            ),
+            None,
+        )
+        if existing:
+            return dict(existing)
+        now = utcnow()
+        link = {
+            "id": payload.get("id") or f"brain-link-{unique_suffix()}",
+            "tenant_id": DEFAULT_TENANT_ID,
+            "from_type": from_type,
+            "from_id": from_id,
+            "to_type": to_type,
+            "to_id": to_id,
+            "relationship_type": payload.get("relationship_type") or "supports",
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.brain_links.append(link)
+        return dict(link)
+
+    def delete_brain_link(self, link_id: str) -> None:
+        self.brain_links = [link for link in self.brain_links if link["id"] != link_id]
 
     def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
         return next((form for form in self.forms if form["slug"] == slug or form["id"] == slug), None)
@@ -2027,6 +2314,49 @@ class MockProvider(BaseProvider):
             draft = f"Hi {first_name},\n\nI reviewed your message. {summary}\n\nNext step from our side: {thread['brief'].get('recommended_next_step', 'I will get this moving and send the next update shortly.')}\n\nBest,\n{thread.get('assignee') or 'ECHO'}"
         return {"draft": draft}
 
+    def apply_thread_ai_result(
+        self,
+        thread_id: str,
+        mode: str,
+        suggestion: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        brief = self.thread_ai_briefs.setdefault(thread_id, {})
+        details = metadata or {}
+        action_labels = {
+            "summary": "AI Brief Refreshed",
+            "reply": "Reply Drafted",
+            "rewrite": "Rewrite Drafted",
+            "extract": "Tasks Extracted",
+        }
+        if mode == "summary":
+            brief["summary"] = suggestion
+        if details.get("recommended_next_step"):
+            brief["recommended_next_step"] = details["recommended_next_step"]
+        if details.get("disposition"):
+            brief["disposition"] = details["disposition"]
+        if details.get("confidence") is not None:
+            brief["confidence"] = details["confidence"]
+        if details.get("unresolved_questions"):
+            brief["unresolved_questions"] = details["unresolved_questions"]
+        if details.get("crm_implications"):
+            brief["crm_implications"] = details["crm_implications"]
+        if details.get("reasoning_cues"):
+            brief["reasoning_cues"] = details["reasoning_cues"]
+        self.thread_actions.setdefault(thread_id, []).append({
+            "label": action_labels.get(mode, "AI Updated"),
+            "action_type": f"ai-{mode}",
+            "source": "ai",
+            "status": "completed",
+            "created_at": utcnow(),
+            "updated_at": utcnow(),
+        })
+        refreshed = next(item for item in self._hydrate_threads() if item["id"] == thread_id)
+        return {"thread": refreshed, "draft": suggestion}
+
     def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
         thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
         if not thread:
@@ -2167,6 +2497,10 @@ class SQLiteProvider(BaseProvider):
             "contacts",
             "companies",
             "tags",
+            "brain_profiles",
+            "brain_sources",
+            "brain_items",
+            "brain_links",
             "forms",
             "form_folders",
             "form_submissions",
@@ -2230,6 +2564,61 @@ class SQLiteProvider(BaseProvider):
                     type TEXT,
                     usage_count INTEGER,
                     created_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_profiles (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    company_name TEXT,
+                    website TEXT,
+                    industry TEXT,
+                    overview TEXT,
+                    mission TEXT,
+                    brand_voice TEXT,
+                    ideal_customer TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_sources (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    label TEXT NOT NULL,
+                    source_type TEXT,
+                    status TEXT,
+                    location TEXT,
+                    notes TEXT,
+                    graph_x REAL,
+                    graph_y REAL,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_items (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    title TEXT NOT NULL,
+                    category TEXT,
+                    content TEXT,
+                    source_id TEXT,
+                    status TEXT,
+                    tags_json TEXT,
+                    graph_x REAL,
+                    graph_y REAL,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_links (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    from_type TEXT NOT NULL,
+                    from_id TEXT NOT NULL,
+                    to_type TEXT NOT NULL,
+                    to_id TEXT NOT NULL,
+                    relationship_type TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS forms (
@@ -2440,6 +2829,14 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "contacts", "tenant_id", "TEXT")
             self._ensure_column(conn, "companies", "tenant_id", "TEXT")
             self._ensure_column(conn, "tags", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_sources", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_items", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_links", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_sources", "graph_x", "REAL")
+            self._ensure_column(conn, "brain_sources", "graph_y", "REAL")
+            self._ensure_column(conn, "brain_items", "graph_x", "REAL")
+            self._ensure_column(conn, "brain_items", "graph_y", "REAL")
             self._ensure_column(conn, "contacts", "website", "TEXT")
             self._ensure_column(conn, "contacts", "dob", "TEXT")
             self._ensure_column(conn, "contacts", "owner_id", "TEXT")
@@ -2575,6 +2972,129 @@ class SQLiteProvider(BaseProvider):
                     "INSERT INTO calendar_sources (id, tenant_id, name, provider, status, sync_direction, config_json, last_synced_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     [
                         ("calendar-source-local", self._default_tenant_id(), "Local Command Calendar", "local-stub", "connected", "two-way", json.dumps({"adapter": "local-stub", "authority_mode": "local-first", "import_policy": "review"}), seeded_now, seeded_now, seeded_now),
+                    ],
+                )
+            existing_brain_profiles = conn.execute("SELECT COUNT(*) AS count FROM brain_profiles").fetchone()["count"]
+            if not existing_brain_profiles:
+                conn.execute(
+                    """
+                    INSERT INTO brain_profiles (
+                        id, tenant_id, company_name, website, industry, overview, mission, brand_voice, ideal_customer, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "brain-profile-primary",
+                        self._default_tenant_id(),
+                        "AIO CRM Workspace",
+                        "https://aiocrm.local",
+                        "AI operations",
+                        "Central memory layer for company context, operating procedures, and AI-ready knowledge.",
+                        "Turn daily operations into a reusable intelligence system.",
+                        "Direct, pragmatic, and operator-friendly.",
+                        "Owner-operators and lean teams using AI to run service businesses.",
+                        utcnow(),
+                        utcnow(),
+                    ),
+                )
+            existing_brain_sources = conn.execute("SELECT COUNT(*) AS count FROM brain_sources").fetchone()["count"]
+            if not existing_brain_sources:
+                seeded_now = utcnow()
+                conn.executemany(
+                    """
+                    INSERT INTO brain_sources (
+                        id, tenant_id, label, source_type, status, location, notes, graph_x, graph_y, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            "brain-source-profile",
+                            self._default_tenant_id(),
+                            "Company Profile Intake",
+                            "profile",
+                            "ready",
+                            "Internal workspace memory",
+                            "Core business identity and positioning.",
+                            28.0,
+                            24.0,
+                            seeded_now,
+                            seeded_now,
+                        ),
+                        (
+                            "brain-source-ops",
+                            self._default_tenant_id(),
+                            "Ops Playbook",
+                            "document",
+                            "draft",
+                            "Upload or author internally",
+                            "Planned SOP source for agents and flows.",
+                            24.0,
+                            58.0,
+                            seeded_now,
+                            seeded_now,
+                        ),
+                    ],
+                )
+            existing_brain_items = conn.execute("SELECT COUNT(*) AS count FROM brain_items").fetchone()["count"]
+            if not existing_brain_items:
+                seeded_now = utcnow()
+                conn.executemany(
+                    """
+                    INSERT INTO brain_items (
+                        id, tenant_id, title, category, content, source_id, status, tags_json, graph_x, graph_y, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            "brain-item-positioning",
+                            self._default_tenant_id(),
+                            "Core positioning",
+                            "strategy",
+                            "AIO CRM is the local-first operator console where CRM, Comms, workflows, and AI agents share one memory layer.",
+                            "brain-source-profile",
+                            "active",
+                            json.dumps(["positioning", "ai", "local-first"]),
+                            72.0,
+                            26.0,
+                            seeded_now,
+                            seeded_now,
+                        ),
+                        (
+                            "brain-item-agent-rule",
+                            self._default_tenant_id(),
+                            "Agent guidance",
+                            "operations",
+                            "Named agents should pull from workspace memory before drafting, summarizing, or recommending next steps.",
+                            "brain-source-ops",
+                            "draft",
+                            json.dumps(["agents", "memory", "rules"]),
+                            76.0,
+                            58.0,
+                            seeded_now,
+                            seeded_now,
+                        ),
+                    ],
+                )
+            existing_brain_links = conn.execute("SELECT COUNT(*) AS count FROM brain_links").fetchone()["count"]
+            if not existing_brain_links:
+                seeded_now = utcnow()
+                conn.executemany(
+                    """
+                    INSERT INTO brain_links (
+                        id, tenant_id, from_type, from_id, to_type, to_id, relationship_type, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            "brain-link-positioning-agents",
+                            self._default_tenant_id(),
+                            "item",
+                            "brain-item-positioning",
+                            "item",
+                            "brain-item-agent-rule",
+                            "supports",
+                            seeded_now,
+                            seeded_now,
+                        ),
                     ],
                 )
 
@@ -3029,6 +3549,318 @@ class SQLiteProvider(BaseProvider):
 
     def list_tags(self) -> list[dict[str, Any]]:
         return self._tenant_rows("SELECT * FROM tags WHERE tenant_id = ? ORDER BY name ASC")
+
+    def get_brain_profile(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM brain_profiles WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT 1",
+                (self._tenant_id(),),
+            ).fetchone()
+        if row:
+            return dict(row)
+        now = utcnow()
+        profile = {
+            "id": f"brain-profile-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "company_name": "",
+            "website": "",
+            "industry": "",
+            "overview": "",
+            "mission": "",
+            "brand_voice": "",
+            "ideal_customer": "",
+            "created_at": now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO brain_profiles (
+                    id, tenant_id, company_name, website, industry, overview, mission, brand_voice, ideal_customer, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    profile["id"],
+                    profile["tenant_id"],
+                    profile["company_name"],
+                    profile["website"],
+                    profile["industry"],
+                    profile["overview"],
+                    profile["mission"],
+                    profile["brand_voice"],
+                    profile["ideal_customer"],
+                    profile["created_at"],
+                    profile["updated_at"],
+                ),
+            )
+            conn.commit()
+        return profile
+
+    def update_brain_profile(self, updates: dict[str, Any]) -> dict[str, Any]:
+        existing = self.get_brain_profile()
+        payload = {}
+        for key in ["company_name", "website", "industry", "overview", "mission", "brand_voice", "ideal_customer"]:
+            if key in updates and updates[key] is not None:
+                payload[key] = updates[key]
+        if not payload:
+            return existing
+        payload["updated_at"] = utcnow()
+        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE brain_profiles SET {assignments} WHERE id = ? AND tenant_id = ?",
+                (*payload.values(), existing["id"], self._tenant_id()),
+            )
+            conn.commit()
+            refreshed = conn.execute(
+                "SELECT * FROM brain_profiles WHERE id = ? AND tenant_id = ?",
+                (existing["id"], self._tenant_id()),
+            ).fetchone()
+        return dict(refreshed)
+
+    def list_brain_sources(self) -> list[dict[str, Any]]:
+        return self._tenant_rows("SELECT * FROM brain_sources WHERE tenant_id = ? ORDER BY updated_at DESC")
+
+    def create_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": payload.get("id") or f"brain-source-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "label": payload.get("label") or "New Source",
+            "source_type": payload.get("source_type") or "document",
+            "status": payload.get("status") or "draft",
+            "location": payload.get("location") or "",
+            "notes": payload.get("notes") or "",
+            "graph_x": payload.get("graph_x"),
+            "graph_y": payload.get("graph_y"),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO brain_sources (
+                    id, tenant_id, label, source_type, status, location, notes, graph_x, graph_y, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["label"],
+                    record["source_type"],
+                    record["status"],
+                    record["location"],
+                    record["notes"],
+                    record["graph_x"],
+                    record["graph_y"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return record
+
+    def update_brain_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {}
+        for key in ["label", "source_type", "status", "location", "notes", "graph_x", "graph_y"]:
+            if key in updates:
+                payload[key] = updates[key]
+        if not payload:
+            existing = next((item for item in self.list_brain_sources() if item["id"] == source_id), None)
+            if not existing:
+                raise ValueError("Brain source not found")
+            return existing
+        payload["updated_at"] = utcnow()
+        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM brain_sources WHERE id = ? AND tenant_id = ?",
+                (source_id, self._tenant_id()),
+            ).fetchone()
+            if not row:
+                raise ValueError("Brain source not found")
+            conn.execute(
+                f"UPDATE brain_sources SET {assignments} WHERE id = ? AND tenant_id = ?",
+                (*payload.values(), source_id, self._tenant_id()),
+            )
+            conn.commit()
+            refreshed = conn.execute(
+                "SELECT * FROM brain_sources WHERE id = ? AND tenant_id = ?",
+                (source_id, self._tenant_id()),
+            ).fetchone()
+        return dict(refreshed)
+
+    def delete_brain_source(self, source_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE brain_items SET source_id = NULL, updated_at = ? WHERE tenant_id = ? AND source_id = ?",
+                (utcnow(), self._tenant_id(), source_id),
+            )
+            conn.execute(
+                "DELETE FROM brain_links WHERE tenant_id = ? AND ((from_type = 'source' AND from_id = ?) OR (to_type = 'source' AND to_id = ?))",
+                (self._tenant_id(), source_id, source_id),
+            )
+            conn.execute(
+                "DELETE FROM brain_sources WHERE id = ? AND tenant_id = ?",
+                (source_id, self._tenant_id()),
+            )
+            conn.commit()
+
+    def list_brain_items(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM brain_items WHERE tenant_id = ? ORDER BY updated_at DESC")
+        return [{**row, "tags": json_loads(row.pop("tags_json"), [])} for row in rows]
+
+    def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": payload.get("id") or f"brain-item-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "title": payload.get("title") or "New Knowledge Item",
+            "category": payload.get("category") or "note",
+            "content": payload.get("content") or "",
+            "source_id": payload.get("source_id"),
+            "status": payload.get("status") or "draft",
+            "tags_json": json.dumps(payload.get("tags") or []),
+            "graph_x": payload.get("graph_x"),
+            "graph_y": payload.get("graph_y"),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO brain_items (
+                    id, tenant_id, title, category, content, source_id, status, tags_json, graph_x, graph_y, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["title"],
+                    record["category"],
+                    record["content"],
+                    record["source_id"],
+                    record["status"],
+                    record["tags_json"],
+                    record["graph_x"],
+                    record["graph_y"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return {**record, "tags": json_loads(record.pop("tags_json"), [])}
+
+    def update_brain_item(self, item_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {}
+        for key in ["title", "category", "content", "source_id", "status", "graph_x", "graph_y"]:
+            if key in updates:
+                payload[key] = updates[key]
+        if "tags" in updates:
+            payload["tags_json"] = json.dumps(updates.get("tags") or [])
+        if not payload:
+            existing = next((item for item in self.list_brain_items() if item["id"] == item_id), None)
+            if not existing:
+                raise ValueError("Brain item not found")
+            return existing
+        payload["updated_at"] = utcnow()
+        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM brain_items WHERE id = ? AND tenant_id = ?",
+                (item_id, self._tenant_id()),
+            ).fetchone()
+            if not row:
+                raise ValueError("Brain item not found")
+            conn.execute(
+                f"UPDATE brain_items SET {assignments} WHERE id = ? AND tenant_id = ?",
+                (*payload.values(), item_id, self._tenant_id()),
+            )
+            conn.commit()
+            refreshed = conn.execute(
+                "SELECT * FROM brain_items WHERE id = ? AND tenant_id = ?",
+                (item_id, self._tenant_id()),
+            ).fetchone()
+        item = dict(refreshed)
+        item["tags"] = json_loads(item.pop("tags_json"), [])
+        return item
+
+    def delete_brain_item(self, item_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM brain_links WHERE tenant_id = ? AND ((from_type = 'item' AND from_id = ?) OR (to_type = 'item' AND to_id = ?))",
+                (self._tenant_id(), item_id, item_id),
+            )
+            conn.execute(
+                "DELETE FROM brain_items WHERE id = ? AND tenant_id = ?",
+                (item_id, self._tenant_id()),
+            )
+            conn.commit()
+
+    def list_brain_links(self) -> list[dict[str, Any]]:
+        return self._tenant_rows("SELECT * FROM brain_links WHERE tenant_id = ? ORDER BY updated_at DESC")
+
+    def create_brain_link(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from_type = payload.get("from_type") or "item"
+        from_id = payload.get("from_id")
+        to_type = payload.get("to_type") or "item"
+        to_id = payload.get("to_id")
+        relationship_type = payload.get("relationship_type") or "supports"
+        if not from_id or not to_id:
+            raise ValueError("Brain link endpoints are required")
+        if from_type == to_type and from_id == to_id:
+            raise ValueError("Brain links cannot point to the same node")
+        with self._connect() as conn:
+            existing = conn.execute(
+                """
+                SELECT * FROM brain_links
+                WHERE tenant_id = ? AND from_type = ? AND from_id = ? AND to_type = ? AND to_id = ?
+                LIMIT 1
+                """,
+                (self._tenant_id(), from_type, from_id, to_type, to_id),
+            ).fetchone()
+            if existing:
+                return dict(existing)
+            now = utcnow()
+            record = {
+                "id": payload.get("id") or f"brain-link-{unique_suffix()}",
+                "tenant_id": self._tenant_id(),
+                "from_type": from_type,
+                "from_id": from_id,
+                "to_type": to_type,
+                "to_id": to_id,
+                "relationship_type": relationship_type,
+                "created_at": now,
+                "updated_at": now,
+            }
+            conn.execute(
+                """
+                INSERT INTO brain_links (
+                    id, tenant_id, from_type, from_id, to_type, to_id, relationship_type, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["from_type"],
+                    record["from_id"],
+                    record["to_type"],
+                    record["to_id"],
+                    record["relationship_type"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return record
+
+    def delete_brain_link(self, link_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM brain_links WHERE id = ? AND tenant_id = ?",
+                (link_id, self._tenant_id()),
+            )
+            conn.commit()
 
     def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -4674,6 +5506,74 @@ class SQLiteProvider(BaseProvider):
         else:
             draft = f"Hi {first_name},\n\nI reviewed your message. {summary}\n\nNext step from our side: {thread['brief'].get('recommended_next_step', 'I will get this moving and send the next update shortly.')}\n\nBest,\n{thread.get('assignee') or 'ECHO'}"
         return {"draft": draft}
+
+    def apply_thread_ai_result(
+        self,
+        thread_id: str,
+        mode: str,
+        suggestion: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        details = metadata or {}
+        brief = thread.get("brief") or {}
+        now = utcnow()
+        action_labels = {
+            "summary": "AI Brief Refreshed",
+            "reply": "Reply Drafted",
+            "rewrite": "Rewrite Drafted",
+            "extract": "Tasks Extracted",
+        }
+        next_step = details.get("recommended_next_step") or brief.get("recommended_next_step") or "Review the active thread and send the clearest next move."
+        disposition = details.get("disposition") or brief.get("disposition") or "Active relationship signal"
+        confidence = details.get("confidence")
+        if confidence is None:
+            confidence = brief.get("confidence", 0.82)
+        unresolved_questions = details.get("unresolved_questions") or brief.get("unresolved_questions") or []
+        crm_implications = details.get("crm_implications") or brief.get("crm_implications") or []
+        reasoning_cues = details.get("reasoning_cues") or brief.get("reasoning_cues") or ["AI assist applied to this thread."]
+        summary = suggestion if mode == "summary" else (brief.get("summary") or thread.get("preview") or "AI summary is being refined from the active thread.")
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE thread_ai_briefs
+                SET summary = ?, disposition = ?, recommended_next_step = ?, confidence = ?,
+                    unresolved_questions_json = ?, crm_implications_json = ?, reasoning_cues_json = ?, updated_at = ?
+                WHERE thread_id = ? AND tenant_id = ?
+                """,
+                (
+                    summary,
+                    disposition,
+                    next_step,
+                    confidence,
+                    json.dumps(unresolved_questions),
+                    json.dumps(crm_implications),
+                    json.dumps(reasoning_cues),
+                    now,
+                    thread_id,
+                    self._tenant_id(),
+                ),
+            )
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    f"thread-action-{thread_id}-ai-{unique_suffix()}",
+                    self._tenant_id(),
+                    thread_id,
+                    action_labels.get(mode, "AI Updated"),
+                    f"ai-{mode}",
+                    "ai",
+                    "completed",
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+        refreshed = next(item for item in self._get_thread_context() if item["id"] == thread_id)
+        return {"thread": refreshed, "draft": suggestion}
 
     def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
         thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)

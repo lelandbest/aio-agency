@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import sqlite3
@@ -91,12 +92,101 @@ class AuthStore:
                     updated_at TEXT NOT NULL,
                     UNIQUE(user_id, tenant_id)
                 );
+
+                CREATE TABLE IF NOT EXISTS ai_runs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    user_id TEXT NOT NULL,
+                    module TEXT NOT NULL,
+                    surface TEXT NOT NULL,
+                    field TEXT NOT NULL,
+                    intent TEXT NOT NULL,
+                    prompt TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    metadata_json TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ai_provider_configs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    provider_key TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    base_url TEXT,
+                    model TEXT,
+                    api_key TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'disconnected',
+                    config_json TEXT,
+                    last_tested_at TEXT,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(tenant_id, provider_key)
+                );
+
+                CREATE TABLE IF NOT EXISTS automation_provider_configs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    provider_key TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    base_url TEXT,
+                    api_key TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'disconnected',
+                    config_json TEXT,
+                    last_tested_at TEXT,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(tenant_id, provider_key)
+                );
+
+                CREATE TABLE IF NOT EXISTS global_variables (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    description TEXT,
+                    is_secret INTEGER NOT NULL DEFAULT 0,
+                    is_system INTEGER NOT NULL DEFAULT 0,
+                    created_by_user_id TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(tenant_id, key)
+                );
+
+                CREATE TABLE IF NOT EXISTS system_email_templates (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    template_key TEXT NOT NULL,
+                    email_type TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    send_to TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    body_html TEXT,
+                    body_text TEXT,
+                    edited_by_user_id TEXT,
+                    edited_by_name TEXT,
+                    edited_at TEXT,
+                    config_json TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(tenant_id, template_key)
+                );
                 """
             )
             self._ensure_column(conn, "app_users", "username", "TEXT")
+            self._ensure_column(conn, "app_users", "phone", "TEXT")
+            self._ensure_column(conn, "app_users", "locale", "TEXT")
+            self._ensure_column(conn, "app_users", "timezone", "TEXT")
+            self._ensure_column(conn, "app_users", "email_signature", "TEXT")
             self._ensure_column(conn, "app_sessions", "current_tenant_id", "TEXT")
+            self._ensure_column(conn, "app_sessions", "user_agent", "TEXT")
             self._backfill_usernames(conn)
             self._backfill_default_workspace(conn)
+            self._seed_default_system_email_templates(conn)
             conn.commit()
 
     @staticmethod
@@ -152,6 +242,64 @@ class AuthStore:
                     (default_membership["tenant_id"], session["id"]),
                 )
 
+    def _seed_default_system_email_templates(self, conn: sqlite3.Connection) -> None:
+        tenants = conn.execute("SELECT id FROM tenants").fetchall()
+        if not tenants:
+            return
+        defaults = [
+            ("upcoming-payment-reminder", "Upcoming Payment Reminder", "Upcoming Payment Reminder", "Customer"),
+            ("negative-balance-alert", "Negative Balance Alert", "Negative Balance Alert", "System Owner"),
+            ("new-voicemail", "New Voicemail", "New Voicemail", "Voicemail Owner"),
+            ("new-system-user-welcome", "New System User Welcome", "New System User Welcome", "New CRM User"),
+            ("new-membership-user-welcome", "New Membership User Welcome", "New Membership User Welcome", "New Membership User"),
+            ("new-meeting", "New Meeting", "New Meeting", "Meeting Link Owner"),
+            ("missed-call", "Missed Call", "Missed Call", "Phone Number Owner"),
+            ("new-form-submission", "New Form Submission", "New Form Submission", "Form Owner"),
+            ("forgot-password", "Forgot Password", "Forgot Password", "Requestor"),
+            ("email-verification", "Email Verification", "Email Verification", "Requestor"),
+            ("domain-connection-failed", "Domain Connection Failed", "Domain Connection Failed", "Domain Owner"),
+            ("domain-connected-successfully", "Domain Connected Successfully", "Domain Connected Successfully", "Domain Owner"),
+            ("chat-new-message", "Chat New Message", "{contact.first_name} you have a missed chat message", "Conversation Assignee"),
+            ("successfully-charged", "Successfully Charged", "Successfully Charged", "Charged Contact"),
+            ("failed-to-charge", "Failed to Charge", "Failed to Charge", "Charged Contact"),
+            ("auto-recharge-failed", "Auto Recharge Failed", "Auto Recharge Failed", "System Owner"),
+            ("auto-recharge", "Auto Recharge", "Auto Recharge", "System Owner"),
+            ("auto-charge-enabled", "Auto Charge Enabled", "Auto Charge Enabled", "System Owner"),
+        ]
+        now = utcnow_iso()
+        for tenant in tenants:
+            tenant_id = tenant["id"]
+            for template_key, email_type, subject, send_to in defaults:
+                existing = conn.execute(
+                    "SELECT id FROM system_email_templates WHERE tenant_id = ? AND template_key = ? LIMIT 1",
+                    (tenant_id, template_key),
+                ).fetchone()
+                if existing:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO system_email_templates (
+                        id, tenant_id, template_key, email_type, subject, send_to, enabled,
+                        body_html, body_text, edited_by_name, edited_at, config_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        f"sysmail-{secrets.token_hex(8)}",
+                        tenant_id,
+                        template_key,
+                        email_type,
+                        subject,
+                        send_to,
+                        None,
+                        f"{subject}\n\nThis system email is ready to be customized.",
+                        "AIO Flow\u2122",
+                        now,
+                        json.dumps({}),
+                        now,
+                        now,
+                    ),
+                )
+
     def _username_exists(self, conn: sqlite3.Connection, username: str, exclude_user_id: str | None = None) -> bool:
         query = "SELECT id FROM app_users WHERE lower(username) = lower(?)"
         params: list[Any] = [username]
@@ -203,6 +351,10 @@ class AuthStore:
             "role": record["role"],
             "provider": record["auth_provider"],
             "avatar_url": record["avatar_url"],
+            "phone": record["phone"] if "phone" in record.keys() else None,
+            "locale": record["locale"] if "locale" in record.keys() else None,
+            "timezone": record["timezone"] if "timezone" in record.keys() else None,
+            "email_signature": record["email_signature"] if "email_signature" in record.keys() else None,
         }
 
     def _public_tenant(self, membership: sqlite3.Row | dict[str, Any], selected: bool = False) -> dict[str, Any]:
@@ -253,6 +405,50 @@ class AuthStore:
             "updated_at": record["updated_at"],
         }
 
+    def _ai_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
+        config = json.loads(record["config_json"]) if record["config_json"] else {}
+        payload = {
+            "id": record["id"],
+            "tenant_id": record["tenant_id"],
+            "provider_key": record["provider_key"],
+            "label": record["label"],
+            "base_url": record["base_url"],
+            "model": record["model"],
+            "enabled": bool(record["enabled"]),
+            "is_default": bool(record["is_default"]),
+            "status": record["status"],
+            "last_tested_at": record["last_tested_at"],
+            "last_error": record["last_error"],
+            "config": config,
+            "api_key_present": bool(record["api_key"]),
+            "created_at": record["created_at"],
+            "updated_at": record["updated_at"],
+        }
+        if include_secret:
+            payload["api_key"] = record["api_key"]
+        return payload
+
+    def _automation_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
+        config = json.loads(record["config_json"]) if record["config_json"] else {}
+        payload = {
+            "id": record["id"],
+            "tenant_id": record["tenant_id"],
+            "provider_key": record["provider_key"],
+            "label": record["label"],
+            "base_url": record["base_url"],
+            "enabled": bool(record["enabled"]),
+            "status": record["status"],
+            "last_tested_at": record["last_tested_at"],
+            "last_error": record["last_error"],
+            "config": config,
+            "api_key_present": bool(record["api_key"]),
+            "created_at": record["created_at"],
+            "updated_at": record["updated_at"],
+        }
+        if include_secret:
+            payload["api_key"] = record["api_key"]
+        return payload
+
     def _require_workspace_role(self, conn: sqlite3.Connection, user_id: str, tenant_id: str, allowed_roles: set[str]) -> sqlite3.Row:
         membership = conn.execute(
             "SELECT * FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
@@ -277,7 +473,42 @@ class AuthStore:
             "tenants": tenants,
         }
 
-    def _create_session(self, conn: sqlite3.Connection, user_id: str, provider: str) -> dict[str, Any]:
+    def list_ai_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM ai_provider_configs
+                WHERE tenant_id = ?
+                ORDER BY is_default DESC, enabled DESC, label ASC, provider_key ASC
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [self._ai_provider_record(row) for row in rows]
+
+    def get_default_ai_provider_config_for_tenant(self, tenant_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM ai_provider_configs
+                WHERE tenant_id = ? AND enabled = 1
+                ORDER BY is_default DESC, updated_at DESC
+                LIMIT 1
+                """,
+                (tenant_id,),
+            ).fetchone()
+        return self._ai_provider_record(row, include_secret=True) if row else None
+
+    def get_ai_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM ai_provider_configs WHERE tenant_id = ? AND id = ? LIMIT 1",
+                (tenant_id, config_id),
+            ).fetchone()
+        return self._ai_provider_record(row, include_secret=True) if row else None
+
+    def _create_session(self, conn: sqlite3.Connection, user_id: str, provider: str, user_agent: str | None = None) -> dict[str, Any]:
         session_id = f"session-{secrets.token_hex(10)}"
         token = secrets.token_urlsafe(32)
         created_at = utcnow_iso()
@@ -289,10 +520,10 @@ class AuthStore:
         current_tenant_id = tenant_row["tenant_id"] if tenant_row else None
         conn.execute(
             """
-            INSERT INTO app_sessions (id, user_id, token, provider, current_tenant_id, created_at, expires_at, last_seen_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO app_sessions (id, user_id, token, provider, current_tenant_id, created_at, expires_at, last_seen_at, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (session_id, user_id, token, provider, current_tenant_id, created_at, expires_at, created_at),
+            (session_id, user_id, token, provider, current_tenant_id, created_at, expires_at, created_at, user_agent),
         )
         record = conn.execute(
             """
@@ -313,7 +544,7 @@ class AuthStore:
             "providers": ["local-password", "google-oauth"],
         }
 
-    def bootstrap_owner(self, name: str, email: str, password: str) -> dict[str, Any]:
+    def bootstrap_owner(self, name: str, email: str, password: str, user_agent: str | None = None) -> dict[str, Any]:
         normalized = normalize_email(email)
         if self._user_count() > 0:
             raise ValueError("Owner account already exists.")
@@ -339,11 +570,11 @@ class AuthStore:
                 """,
                 (f"membership-{secrets.token_hex(8)}", user_id, tenant_id, now, now),
             )
-            session = self._create_session(conn, user_id, "local-password")
+            session = self._create_session(conn, user_id, "local-password", user_agent=user_agent)
             conn.commit()
         return session
 
-    def login_with_password(self, email: str, password: str) -> dict[str, Any]:
+    def login_with_password(self, email: str, password: str, user_agent: str | None = None) -> dict[str, Any]:
         normalized = normalize_email(email)
         with self._connect() as conn:
             record = conn.execute(
@@ -356,11 +587,11 @@ class AuthStore:
                 raise ValueError("Invalid email or password.")
             now = utcnow_iso()
             conn.execute("UPDATE app_users SET last_login_at = ?, updated_at = ? WHERE id = ?", (now, now, record["id"]))
-            session = self._create_session(conn, record["id"], "local-password")
+            session = self._create_session(conn, record["id"], "local-password", user_agent=user_agent)
             conn.commit()
         return session
 
-    def login_with_google(self, email: str, name: str | None = None, avatar_url: str | None = None) -> dict[str, Any]:
+    def login_with_google(self, email: str, name: str | None = None, avatar_url: str | None = None, user_agent: str | None = None) -> dict[str, Any]:
         normalized = normalize_email(email)
         with self._connect() as conn:
             existing = conn.execute("SELECT * FROM app_users WHERE email = ? LIMIT 1", (normalized,)).fetchone()
@@ -406,7 +637,7 @@ class AuthStore:
             else:
                 raise ValueError("No AIO CRM account exists for this Google identity. Use the owner account or create a local login first.")
 
-            session = self._create_session(conn, user_id, "google-oauth")
+            session = self._create_session(conn, user_id, "google-oauth", user_agent=user_agent)
             conn.commit()
         return session
 
@@ -489,6 +720,7 @@ class AuthStore:
             ).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], session["current_tenant_id"], {"owner", "admin"})
             user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
@@ -773,6 +1005,7 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], session["current_tenant_id"], {"owner", "admin", "staff"})
             user = conn.execute("SELECT * FROM app_users WHERE email = ? LIMIT 1", (normalized_email,)).fetchone()
             if not user:
                 return None
@@ -811,6 +1044,722 @@ class AuthStore:
         with self._connect() as conn:
             conn.execute("DELETE FROM app_sessions WHERE token = ?", (token,))
             conn.commit()
+
+    def get_profile(self, token: str | None) -> dict[str, Any]:
+        session = self.get_session(token)
+        if not session:
+            raise ValueError("Session not found or expired.")
+        return session.get("user") or {}
+
+    def update_profile(self, token: str | None, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+
+            display_name = (payload.get("display_name") or user["display_name"] or user["email"]).strip()
+            if not display_name:
+                raise ValueError("Display name is required.")
+
+            phone = (payload.get("phone") or "").strip() or None
+            locale = (payload.get("locale") or "").strip() or user["locale"] or "en-US"
+            timezone_value = (payload.get("timezone") or "").strip() or user["timezone"] or "America/New_York"
+            email_signature = payload.get("email_signature")
+            if email_signature is not None:
+                email_signature = str(email_signature).strip()
+            else:
+                email_signature = user["email_signature"]
+
+            conn.execute(
+                """
+                UPDATE app_users
+                SET display_name = ?, phone = ?, locale = ?, timezone = ?, email_signature = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (display_name, phone, locale, timezone_value, email_signature, utcnow_iso(), user["id"]),
+            )
+            conn.commit()
+        updated = self.get_session(token)
+        if not updated:
+            raise ValueError("Unable to refresh session after profile update.")
+        return updated.get("user") or {}
+
+    def change_password(self, token: str | None, current_password: str, new_password: str) -> None:
+        if not token:
+            raise ValueError("Session token is required.")
+        if len(new_password or "") < 8:
+            raise ValueError("New password must be at least 8 characters.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+            if not user["password_hash"] or not user["password_salt"]:
+                raise ValueError("This account does not have a local password yet.")
+            if not verify_password(current_password or "", user["password_hash"], user["password_salt"]):
+                raise ValueError("Current password is incorrect.")
+            password_hash, password_salt = hash_password(new_password)
+            conn.execute(
+                "UPDATE app_users SET password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?",
+                (password_hash, password_salt, utcnow_iso(), user["id"]),
+            )
+            conn.commit()
+
+    def list_sessions(self, token: str | None) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            current = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not current:
+                raise ValueError("Session not found or expired.")
+            rows = conn.execute(
+                """
+                SELECT id, provider, user_agent, created_at, expires_at, last_seen_at
+                FROM app_sessions
+                WHERE user_id = ?
+                ORDER BY last_seen_at DESC, created_at DESC
+                """,
+                (current["user_id"],),
+            ).fetchall()
+        sessions = []
+        for row in rows:
+            provider_label = (row["provider"] or "session").replace("-", " ").title()
+            user_agent = (row["user_agent"] or "").strip()
+            sessions.append(
+                {
+                    "id": row["id"],
+                    "provider": row["provider"],
+                    "label": user_agent or provider_label,
+                    "created_at": row["created_at"],
+                    "expires_at": row["expires_at"],
+                    "last_seen_at": row["last_seen_at"],
+                    "is_current": row["id"] == current["id"],
+                }
+            )
+        return sessions
+
+    def revoke_session(self, token: str | None, session_id: str) -> None:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            current = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not current:
+                raise ValueError("Session not found or expired.")
+            target = conn.execute(
+                "SELECT * FROM app_sessions WHERE id = ? AND user_id = ? LIMIT 1",
+                (session_id, current["user_id"]),
+            ).fetchone()
+            if not target:
+                raise ValueError("Session not found.")
+            conn.execute("DELETE FROM app_sessions WHERE id = ?", (session_id,))
+            conn.commit()
+
+    def logout_other_sessions(self, token: str | None) -> None:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            current = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not current:
+                raise ValueError("Session not found or expired.")
+            conn.execute("DELETE FROM app_sessions WHERE user_id = ? AND id != ?", (current["user_id"], current["id"]))
+            conn.commit()
+
+    def list_global_variables(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM global_variables
+                WHERE tenant_id = ?
+                ORDER BY is_system DESC, key ASC
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "key": row["key"],
+                "value": row["value"],
+                "description": row["description"],
+                "is_secret": bool(row["is_secret"]),
+                "is_system": bool(row["is_system"]),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+
+    def upsert_global_variable(self, token: str | None, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        key = (payload.get("key") or "").strip()
+        value = payload.get("value")
+        if not key or value is None or str(value) == "":
+            raise ValueError("Key and value are required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
+            existing = conn.execute(
+                "SELECT * FROM global_variables WHERE tenant_id = ? AND key = ? LIMIT 1",
+                (tenant_id, key),
+            ).fetchone()
+            now = utcnow_iso()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE global_variables
+                    SET value = ?, description = ?, is_secret = ?, is_system = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        str(value),
+                        (payload.get("description") or "").strip() or None,
+                        1 if payload.get("is_secret") else 0,
+                        1 if payload.get("is_system") else 0,
+                        now,
+                        existing["id"],
+                    ),
+                )
+                variable_id = existing["id"]
+            else:
+                variable_id = f"gvar-{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO global_variables (id, tenant_id, key, value, description, is_secret, is_system, created_by_user_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        variable_id,
+                        tenant_id,
+                        key,
+                        str(value),
+                        (payload.get("description") or "").strip() or None,
+                        1 if payload.get("is_secret") else 0,
+                        1 if payload.get("is_system") else 0,
+                        session["user_id"],
+                        now,
+                        now,
+                    ),
+                )
+            conn.commit()
+            row = conn.execute("SELECT * FROM global_variables WHERE id = ? LIMIT 1", (variable_id,)).fetchone()
+        return {
+            "id": row["id"],
+            "key": row["key"],
+            "value": row["value"],
+            "description": row["description"],
+            "is_secret": bool(row["is_secret"]),
+            "is_system": bool(row["is_system"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def delete_global_variable(self, token: str | None, tenant_id: str, variable_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
+            row = conn.execute(
+                "SELECT * FROM global_variables WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (variable_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Variable not found.")
+            conn.execute("DELETE FROM global_variables WHERE id = ?", (variable_id,))
+            conn.commit()
+        return {"deleted_id": variable_id}
+
+    def list_system_email_templates(self, token: str | None, tenant_id: str, search: str | None = None) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            query = """
+                SELECT *
+                FROM system_email_templates
+                WHERE tenant_id = ?
+            """
+            params: list[Any] = [tenant_id]
+            search_value = (search or "").strip().lower()
+            if search_value:
+                query += " AND (lower(email_type) LIKE ? OR lower(subject) LIKE ? OR lower(send_to) LIKE ?)"
+                like = f"%{search_value}%"
+                params.extend([like, like, like])
+            query += " ORDER BY email_type ASC"
+            rows = conn.execute(query, params).fetchall()
+        templates = []
+        for row in rows:
+            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            templates.append(
+                {
+                    "id": row["id"],
+                    "template_key": row["template_key"],
+                    "email_type": row["email_type"],
+                    "subject": row["subject"],
+                    "send_to": row["send_to"],
+                    "enabled": bool(row["enabled"]),
+                    "body_html": row["body_html"],
+                    "body_text": row["body_text"],
+                    "edited_by_name": row["edited_by_name"],
+                    "edited_at": row["edited_at"],
+                    "config": config,
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+        return templates
+
+    def update_system_email_template(self, token: str | None, tenant_id: str, template_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
+            row = conn.execute(
+                "SELECT * FROM system_email_templates WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (template_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("System email template not found.")
+            existing_config = json.loads(row["config_json"]) if row["config_json"] else {}
+            next_config = payload.get("config") if payload.get("config") is not None else existing_config
+            now = utcnow_iso()
+            conn.execute(
+                """
+                UPDATE system_email_templates
+                SET subject = ?, send_to = ?, enabled = ?, body_html = ?, body_text = ?,
+                    edited_by_user_id = ?, edited_by_name = ?, edited_at = ?, config_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    (payload.get("subject") or row["subject"]).strip(),
+                    (payload.get("send_to") or row["send_to"]).strip(),
+                    1 if payload.get("enabled", bool(row["enabled"])) else 0,
+                    payload.get("body_html") if payload.get("body_html") is not None else row["body_html"],
+                    payload.get("body_text") if payload.get("body_text") is not None else row["body_text"],
+                    user["id"],
+                    user["display_name"] or user["email"],
+                    now,
+                    json.dumps(next_config or {}),
+                    now,
+                    template_id,
+                ),
+            )
+            conn.commit()
+        return next((item for item in self.list_system_email_templates(token, tenant_id) if item["id"] == template_id), None)
+
+    def record_ai_run(
+        self,
+        *,
+        user_id: str,
+        tenant_id: str | None,
+        module: str,
+        surface: str,
+        field: str,
+        intent: str,
+        prompt: str,
+        result: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        run_id = f"airun-{secrets.token_hex(8)}"
+        created_at = utcnow_iso()
+        metadata_json = json.dumps(metadata or {})
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO ai_runs (id, tenant_id, user_id, module, surface, field, intent, prompt, result, metadata_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (run_id, tenant_id, user_id, module, surface, field, intent, prompt, result, metadata_json, created_at),
+            )
+            conn.commit()
+        return {
+            "id": run_id,
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "module": module,
+            "surface": surface,
+            "field": field,
+            "intent": intent,
+            "prompt": prompt,
+            "result": result,
+            "metadata": metadata or {},
+            "created_at": created_at,
+        }
+
+    def list_ai_runs(self, token: str | None, limit: int = 50) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            tenant_id = session["current_tenant_id"]
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM ai_runs
+                WHERE tenant_id IS NULL OR tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (tenant_id, max(1, min(limit, 200))),
+            ).fetchall()
+        runs = []
+        for row in rows:
+            try:
+                metadata = json.loads(row["metadata_json"] or "{}")
+            except json.JSONDecodeError:
+                metadata = {}
+            runs.append(
+                {
+                    "id": row["id"],
+                    "tenant_id": row["tenant_id"],
+                    "user_id": row["user_id"],
+                    "module": row["module"],
+                    "surface": row["surface"],
+                    "field": row["field"],
+                    "intent": row["intent"],
+                    "prompt": row["prompt"],
+                    "result": row["result"],
+                    "metadata": metadata,
+                    "created_at": row["created_at"],
+                }
+            )
+        return runs
+
+    def list_ai_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+        return self.list_ai_provider_configs_for_tenant(tenant_id)
+
+    def list_automation_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM automation_provider_configs
+                WHERE tenant_id = ?
+                ORDER BY updated_at DESC, created_at DESC
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [self._automation_provider_record(row) for row in rows]
+
+    def get_automation_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM automation_provider_configs WHERE tenant_id = ? AND id = ? LIMIT 1",
+                (tenant_id, config_id),
+            ).fetchone()
+        return self._automation_provider_record(row, include_secret=True) if row else None
+
+    def list_automation_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+        return self.list_automation_provider_configs_for_tenant(tenant_id)
+
+    def upsert_automation_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        normalized_provider = (provider_key or "").strip().lower()
+        if not normalized_provider:
+            raise ValueError("Provider key is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            existing = conn.execute(
+                "SELECT * FROM automation_provider_configs WHERE tenant_id = ? AND provider_key = ? LIMIT 1",
+                (tenant_id, normalized_provider),
+            ).fetchone()
+            now = utcnow_iso()
+            label = (payload.get("label") or normalized_provider.replace("-", " ").title()).strip()
+            config = payload.get("config") or {}
+            base_url = (payload.get("base_url") or "").strip() or None
+            api_key = payload.get("api_key")
+            if api_key is not None:
+                api_key = api_key.strip() or None
+            enabled = 1 if payload.get("enabled") else 0
+            status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
+            last_error = payload.get("last_error")
+            if existing:
+                resolved_api_key = api_key if api_key is not None else existing["api_key"]
+                resolved_last_tested_at = payload.get("last_tested_at", existing["last_tested_at"])
+                conn.execute(
+                    """
+                    UPDATE automation_provider_configs
+                    SET label = ?, base_url = ?, api_key = ?, enabled = ?, status = ?, config_json = ?,
+                        last_tested_at = ?, last_error = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        label,
+                        base_url,
+                        resolved_api_key,
+                        enabled,
+                        status,
+                        json.dumps(config),
+                        resolved_last_tested_at,
+                        last_error,
+                        now,
+                        existing["id"],
+                    ),
+                )
+                config_id = existing["id"]
+            else:
+                config_id = f"automation-provider-{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO automation_provider_configs (
+                        id, tenant_id, provider_key, label, base_url, api_key, enabled, status,
+                        config_json, last_tested_at, last_error, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        config_id,
+                        tenant_id,
+                        normalized_provider,
+                        label,
+                        base_url,
+                        api_key,
+                        enabled,
+                        status,
+                        json.dumps(config),
+                        payload.get("last_tested_at"),
+                        last_error,
+                        now,
+                        now,
+                    ),
+                )
+            conn.commit()
+        return next((item for item in self.list_automation_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def delete_automation_provider_config(self, token: str | None, tenant_id: str, config_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            row = conn.execute(
+                "SELECT * FROM automation_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Automation provider config not found.")
+            conn.execute("DELETE FROM automation_provider_configs WHERE id = ?", (config_id,))
+            conn.commit()
+        return {"deleted_id": config_id, "provider_key": row["provider_key"]}
+
+    def save_automation_provider_test_result(
+        self,
+        tenant_id: str,
+        config_id: str,
+        *,
+        status: str,
+        last_error: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM automation_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Automation provider config not found.")
+            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            if details:
+                config.update(details)
+            now = utcnow_iso()
+            conn.execute(
+                """
+                UPDATE automation_provider_configs
+                SET status = ?, last_tested_at = ?, last_error = ?, config_json = ?, updated_at = ?
+                WHERE id = ? AND tenant_id = ?
+                """,
+                (status, now, last_error, json.dumps(config), now, config_id, tenant_id),
+            )
+            conn.commit()
+        return next((item for item in self.list_automation_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def upsert_ai_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        normalized_provider = (provider_key or "").strip().lower()
+        if not normalized_provider:
+            raise ValueError("Provider key is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            existing = conn.execute(
+                "SELECT * FROM ai_provider_configs WHERE tenant_id = ? AND provider_key = ? LIMIT 1",
+                (tenant_id, normalized_provider),
+            ).fetchone()
+            now = utcnow_iso()
+            label = (payload.get("label") or normalized_provider.replace("-", " ").title()).strip()
+            config = payload.get("config") or {}
+            base_url = (payload.get("base_url") or "").strip() or None
+            model = (payload.get("model") or "").strip() or None
+            api_key = payload.get("api_key")
+            if api_key is not None:
+                api_key = api_key.strip() or None
+            enabled = 1 if payload.get("enabled") else 0
+            is_default = 1 if payload.get("is_default") else 0
+            status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
+            last_error = payload.get("last_error")
+            if existing:
+                resolved_api_key = api_key if api_key is not None else existing["api_key"]
+                resolved_last_tested_at = payload.get("last_tested_at", existing["last_tested_at"])
+                conn.execute(
+                    """
+                    UPDATE ai_provider_configs
+                    SET label = ?, base_url = ?, model = ?, api_key = ?, enabled = ?, is_default = ?, status = ?,
+                        config_json = ?, last_tested_at = ?, last_error = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        label,
+                        base_url,
+                        model,
+                        resolved_api_key,
+                        enabled,
+                        is_default,
+                        status,
+                        json.dumps(config),
+                        resolved_last_tested_at,
+                        last_error,
+                        now,
+                        existing["id"],
+                    ),
+                )
+                config_id = existing["id"]
+            else:
+                config_id = f"ai-provider-{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO ai_provider_configs (
+                        id, tenant_id, provider_key, label, base_url, model, api_key, enabled, is_default, status,
+                        config_json, last_tested_at, last_error, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        config_id,
+                        tenant_id,
+                        normalized_provider,
+                        label,
+                        base_url,
+                        model,
+                        api_key,
+                        enabled,
+                        is_default,
+                        status,
+                        json.dumps(config),
+                        payload.get("last_tested_at"),
+                        last_error,
+                        now,
+                        now,
+                    ),
+                )
+
+            if is_default:
+                conn.execute(
+                    "UPDATE ai_provider_configs SET is_default = 0 WHERE tenant_id = ? AND id != ?",
+                    (tenant_id, config_id),
+                )
+            conn.commit()
+        return next((item for item in self.list_ai_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def delete_ai_provider_config(self, token: str | None, tenant_id: str, config_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            row = conn.execute(
+                "SELECT * FROM ai_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("AI provider config not found.")
+            conn.execute("DELETE FROM ai_provider_configs WHERE id = ?", (config_id,))
+            conn.commit()
+        return {"deleted_id": config_id, "provider_key": row["provider_key"]}
+
+    def save_ai_provider_test_result(
+        self,
+        tenant_id: str,
+        config_id: str,
+        *,
+        status: str,
+        last_error: str | None = None,
+        connected_identity: str | None = None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM ai_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("AI provider config not found.")
+            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            if connected_identity:
+                config["connected_identity"] = connected_identity
+            elif last_error:
+                config.pop("connected_identity", None)
+            now = utcnow_iso()
+            conn.execute(
+                """
+                UPDATE ai_provider_configs
+                SET status = ?, last_tested_at = ?, last_error = ?, config_json = ?, updated_at = ?
+                WHERE id = ? AND tenant_id = ?
+                """,
+                (status, now, last_error, json.dumps(config), now, config_id, tenant_id),
+            )
+            conn.commit()
+        return next((item for item in self.list_ai_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
 
 
 def default_auth_db_path() -> str:

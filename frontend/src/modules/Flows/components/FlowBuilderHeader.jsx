@@ -17,6 +17,7 @@ const FlowBuilderHeader = ({
   onOpenHistory,
   onBreadcrumbClick,
   breadcrumbs = [],
+  aiAssistSlot = null,
 }) => {
   return (
     <div className="bg-[var(--color-bg-primary)] dark:bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
@@ -37,6 +38,7 @@ const FlowBuilderHeader = ({
 
         {/* Right: Details + History */}
         <div className="flex items-center gap-2">
+          {aiAssistSlot}
           {onToggleDetails && (
             <button
               onClick={onToggleDetails}

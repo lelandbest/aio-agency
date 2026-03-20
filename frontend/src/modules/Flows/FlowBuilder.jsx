@@ -17,7 +17,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { Crosshair } from 'lucide-react';
+import AIAssistButton from '../../components/AIAssistButton';
+import { requestAiSuggestion } from '../../services/aiAssist';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
 import FlowInfoPanel from './components/FlowInfoPanel';
@@ -161,6 +162,168 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   const [nodeConfigDraft, setNodeConfigDraft] = useState({});
   const [nodeConfigRaw, setNodeConfigRaw] = useState('');
   const [nodeConfigRawError, setNodeConfigRawError] = useState('');
+  const [assistTarget, setAssistTarget] = useState('');
+  const [assistError, setAssistError] = useState('');
+
+  const buildFlowAssistText = useCallback((kind, overrides = {}) => {
+    const flowName = flow?.name || 'Untitled Flow';
+    const selectedLabel = overrides.label || selectedNode?.data?.label || 'this node';
+    switch (kind) {
+      case 'node-description':
+        return `${selectedLabel} handles one clean step inside ${flowName}. Document the trigger, the payload it expects, and the exact output it should hand to the next node.`;
+      case 'trigger-description':
+        return `When ${(overrides.event || nodeConfigDraft.event || 'the selected event')} fires, normalize the important fields, score urgency, and push forward only the context the next action needs.`;
+      case 'action-configuration': {
+        const actionType = overrides.actionType || nodeConfigDraft.actionType || 'send_email';
+        const configByAction = {
+          send_email: { channel: 'email', objective: 'Deliver a concise follow-up', tone: 'helpful and direct', required_fields: ['subject', 'body', 'owner'] },
+          send_sms: { channel: 'sms', objective: 'Send a short action-first reminder', tone: 'brief and clear', required_fields: ['message', 'owner'] },
+          store_data: { channel: 'storage', objective: 'Persist normalized payload', required_fields: ['target_table', 'fields'] },
+          create_task: { channel: 'task', objective: 'Create a follow-up task', required_fields: ['title', 'owner', 'due_in_hours'] },
+        };
+        return JSON.stringify(configByAction[actionType] || configByAction.send_email, null, 2);
+      }
+      case 'logic-condition': {
+        const logicType = overrides.logicType || nodeConfigDraft.logicType || 'if_then';
+        if (logicType === 'delay') return 'Wait 30 minutes before continuing, unless the contact has replied or the stage has already advanced.';
+        if (logicType === 'filter') return 'Continue only if lead_score >= 70, a valid email is present, and the contact is not closed-lost.';
+        return 'If intent contains "demo" or lead_score >= 75, route to sales. Otherwise send to nurture and create a review task.';
+      }
+      case 'payload-map':
+        return JSON.stringify({ contact_email: '{{trigger.payload.email}}', contact_name: '{{trigger.payload.name}}', stage: '{{crm.contact.pipeline_stage}}', owner: '{{crm.contact.owner}}' }, null, 2);
+      case 'headers':
+        return JSON.stringify({ 'Content-Type': 'application/json', 'X-AIO-Flow': flowName, Authorization: 'Bearer {{global.API_TOKEN}}' }, null, 2);
+      case 'general':
+        return 'Objective: explain what this node should accomplish.\nInput: note the incoming data.\nDecision: define the logic or transformation.\nOutput: describe the payload or side effect expected next.';
+      case 'raw-config':
+        return JSON.stringify({ summary: `AI scaffold for ${selectedLabel}`, objective: 'Capture the intended node behavior before finalizing config.', notes: ['confirm payload shape', 'confirm owner routing', 'confirm retries'] }, null, 2);
+      case 'note':
+        return { label: 'AI Brief', note: `Goal: ${flowName}\nSignal: define the operator intent.\nRisk: capture where this automation can fail.\nNext step: record the next action or dependency.` };
+      case 'edge-filter':
+        return 'lead_score >= 70 AND pipeline_stage != "Closed Lost" AND contact_email != ""';
+      default:
+        return '';
+    }
+  }, [flow?.name, nodeConfigDraft.actionType, nodeConfigDraft.event, nodeConfigDraft.logicType, selectedNode?.data?.label]);
+
+  const requestFlowAssist = useCallback(async (kind, overrides = {}) => {
+    const keyByKind = {
+      'node-description': { surface: 'flow-node', field: 'node-description', currentValue: selectedNode?.data?.description || '' },
+      'trigger-description': { surface: 'flow-node', field: 'description', currentValue: nodeConfigDraft.description || '' },
+      'action-configuration': { surface: 'flow-node', field: 'configuration', currentValue: nodeConfigDraft.configuration || '' },
+      'logic-condition': { surface: 'flow-node', field: 'condition', currentValue: nodeConfigDraft.condition || '' },
+      'payload-map': { surface: 'flow-node', field: 'payloadMap', currentValue: nodeConfigDraft.payloadMap || '' },
+      headers: { surface: 'flow-node', field: 'headers', currentValue: nodeConfigDraft.headers || '' },
+      general: { surface: 'flow-node', field: 'general', currentValue: nodeConfigDraft.general || '' },
+      'raw-config': { surface: 'flow-node', field: 'raw-config', currentValue: nodeConfigRaw || '' },
+      note: { surface: 'flow-note', field: 'note', currentValue: noteDraft.note || noteEditDraft.note || '' },
+      'edge-filter': { surface: 'edge-filter', field: 'filters', currentValue: edgeFilterModal?.data?.filters || '' },
+    };
+    const mapped = keyByKind[kind] || { surface: 'flow-node', field: kind, currentValue: '' };
+    const context = {
+      flow_name: flow?.name || 'Untitled Flow',
+      selected_label: overrides.label || selectedNode?.data?.label || 'this node',
+      action_type: overrides.actionType || nodeConfigDraft.actionType || 'send_email',
+      logic_type: overrides.logicType || nodeConfigDraft.logicType || 'if_then',
+      trigger_event: overrides.event || nodeConfigDraft.event || 'the selected event',
+    };
+    return requestAiSuggestion({
+      module: 'flows',
+      surface: mapped.surface,
+      field: mapped.field,
+      currentValue: mapped.currentValue,
+      context,
+      fallback: () => buildFlowAssistText(kind, overrides),
+    });
+  }, [buildFlowAssistText, edgeFilterModal?.data?.filters, flow?.name, nodeConfigDraft.actionType, nodeConfigDraft.condition, nodeConfigDraft.configuration, nodeConfigDraft.description, nodeConfigDraft.event, nodeConfigDraft.general, nodeConfigDraft.headers, nodeConfigDraft.logicType, nodeConfigDraft.payloadMap, nodeConfigRaw, noteDraft.note, noteEditDraft.note, selectedNode?.data?.description, selectedNode?.data?.label]);
+
+  const applyNodeAssist = useCallback(async (field) => {
+    setAssistError('');
+    setAssistTarget(`node:${field}`);
+    if (field === 'node-description') {
+      try {
+        const suggestion = await requestFlowAssist('node-description');
+        setSelectedNode((prev) => ({ ...prev, data: { ...prev.data, description: suggestion } }));
+        return;
+      } catch (error) {
+        setAssistError(error.message || 'Unable to draft flow content right now.');
+        return;
+      } finally {
+        setAssistTarget('');
+      }
+    }
+    if (field === 'raw-config') {
+      try {
+        const suggestion = await requestFlowAssist('raw-config');
+        setNodeConfigRaw(suggestion);
+        setNodeConfigRawError('');
+        setNodeModalTab('advanced');
+        return;
+      } catch (error) {
+        setAssistError(error.message || 'Unable to draft flow content right now.');
+        return;
+      } finally {
+        setAssistTarget('');
+      }
+    }
+    const assistMap = {
+      description: 'trigger-description',
+      configuration: 'action-configuration',
+      condition: 'logic-condition',
+      payloadMap: 'payload-map',
+      headers: 'headers',
+      general: 'general',
+    };
+    const kind = assistMap[field];
+    if (!kind) {
+      setAssistTarget('');
+      return;
+    }
+    try {
+      const suggestion = await requestFlowAssist(kind);
+      setNodeConfigDraft((prev) => ({ ...prev, [field]: suggestion }));
+    } catch (error) {
+      setAssistError(error.message || 'Unable to draft flow content right now.');
+    } finally {
+      setAssistTarget('');
+    }
+  }, [requestFlowAssist]);
+
+  const applyFlowHelper = useCallback(() => {
+    setAssistError('');
+    setAssistTarget('header');
+    if (selectedNode) {
+      setShowNodeModal(true);
+      setNodeModalTab('config');
+      if (selectedNode.type === 'trigger') applyNodeAssist('description');
+      else if (selectedNode.type === 'action') applyNodeAssist('configuration');
+      else if (selectedNode.type === 'logic') applyNodeAssist('condition');
+      else if (selectedNode.type === 'webhook' || selectedNode.data?.isSocket) applyNodeAssist('payloadMap');
+      else applyNodeAssist('general');
+      return;
+    }
+    setShowDetails(false);
+    setLibraryMode('ai');
+    setShowLibrary(true);
+    setAssistTarget('');
+  }, [applyNodeAssist, selectedNode]);
+
+  const applyNoteAssist = useCallback(async (mode = 'new') => {
+    setAssistError('');
+    setAssistTarget(`note:${mode}`);
+    try {
+      const suggestion = await requestFlowAssist('note');
+      if (mode === 'edit') {
+        setNoteEditDraft((prev) => ({ ...prev, label: prev.label || 'AI Brief', note: suggestion }));
+        return;
+      }
+      setNoteDraft((prev) => ({ ...prev, label: prev.label || 'AI Brief', note: suggestion }));
+    } catch (error) {
+      setAssistError(error.message || 'Unable to draft flow note right now.');
+    } finally {
+      setAssistTarget('');
+    }
+  }, [requestFlowAssist]);
 
   // Initialize flow on mount
   useEffect(() => {
@@ -699,7 +862,14 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
         breadcrumbs={[
           { id: 'editor', label: 'Editor' },
         ]}
+        aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
       />
+
+      {assistError ? (
+        <div className="mx-4 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {assistError}
+        </div>
+      ) : null}
 
       {/* Main Canvas Area */}
       <div className="flex flex-1 overflow-hidden">
@@ -863,12 +1033,6 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             Delete node
           </button>
 
-          <button className="flow-toolbar-btn">
-            <span className="inline-flex items-center gap-2">
-              <Crosshair className="w-4 h-4" />
-              AI Helper
-            </span>
-          </button>
         </div>
         <div className="mt-2 text-[10px] text-[var(--color-text-tertiary)] text-center">
           Scenario: {flow?.name || 'Untitled Flow'} | v{flow?.metadata?.version || 1} | {flow?.status || 'Draft'}
@@ -930,7 +1094,10 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Description</label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Description</label>
+                    <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('node-description')} loading={assistTarget === 'node:node-description'} tooltip="Draft node description" iconType="crosshair" />
+                  </div>
                   <textarea
                     value={selectedNode.data?.description || ''}
                     onChange={(e) =>
@@ -973,9 +1140,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                            Description
-                          </label>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                              Description
+                            </label>
+                            <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('description')} loading={assistTarget === 'node:description'} tooltip="Draft trigger behavior" iconType="crosshair" />
+                          </div>
                           <textarea
                             value={nodeConfigDraft.description || ''}
                             onChange={(e) => updateField('description', e.target.value)}
@@ -1007,9 +1177,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                            Configuration
-                          </label>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                              Configuration
+                            </label>
+                            <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('configuration')} loading={assistTarget === 'node:configuration'} tooltip="Draft action configuration" iconType="crosshair" />
+                          </div>
                           <textarea
                             value={nodeConfigDraft.configuration || ''}
                             onChange={(e) => updateField('configuration', e.target.value)}
@@ -1040,9 +1213,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                            Condition
-                          </label>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                              Condition
+                            </label>
+                            <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('condition')} loading={assistTarget === 'node:condition'} tooltip="Draft logic condition" iconType="crosshair" />
+                          </div>
                           <textarea
                             value={nodeConfigDraft.condition || ''}
                             onChange={(e) => updateField('condition', e.target.value)}
@@ -1084,9 +1260,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                                Payload Mapping (JSON)
-                              </label>
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                                  Payload Mapping (JSON)
+                                </label>
+                                <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('payloadMap')} loading={assistTarget === 'node:payloadMap'} tooltip="Draft payload mapping" iconType="crosshair" />
+                              </div>
                               <textarea
                                 value={nodeConfigDraft.payloadMap || ''}
                                 onChange={(e) => updateField('payloadMap', e.target.value)}
@@ -1148,9 +1327,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                            Headers (JSON)
-                          </label>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                              Headers (JSON)
+                            </label>
+                            <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('headers')} loading={assistTarget === 'node:headers'} tooltip="Draft headers JSON" iconType="crosshair" />
+                          </div>
                           <textarea
                             value={nodeConfigDraft.headers || ''}
                             onChange={(e) => updateField('headers', e.target.value)}
@@ -1164,9 +1346,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
 
                   return (
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                        General Configuration
-                      </label>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <label className="block text-sm font-medium text-[var(--color-text-primary)]">
+                          General Configuration
+                        </label>
+                        <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('general')} loading={assistTarget === 'node:general'} tooltip="Draft node configuration" iconType="crosshair" />
+                      </div>
                       <textarea
                         value={nodeConfigDraft.general || ''}
                         onChange={(e) => updateField('general', e.target.value)}
@@ -1181,9 +1366,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
 
             {nodeModalTab === 'advanced' && (
               <div className="space-y-3">
-                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">
-                  Raw Config (JSON)
-                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">
+                    Raw Config (JSON)
+                  </label>
+                  <AIAssistButton variant="inline" onAssist={() => applyNodeAssist('raw-config')} loading={assistTarget === 'node:raw-config'} tooltip="Draft raw config JSON" iconType="crosshair" />
+                </div>
                 <textarea
                   value={nodeConfigRaw}
                   onChange={(e) => {
@@ -1436,7 +1624,10 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Note</label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Note</label>
+            <AIAssistButton variant="inline" onAssist={() => applyNoteAssist('new')} loading={assistTarget === 'note:new'} tooltip="Draft note with AI" iconType="crosshair" />
+          </div>
           <textarea
             value={noteDraft.note}
             onChange={(e) => setNoteDraft((prev) => ({ ...prev, note: e.target.value }))}
@@ -1504,7 +1695,10 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Note</label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Note</label>
+            <AIAssistButton variant="inline" onAssist={() => applyNoteAssist('edit')} loading={assistTarget === 'note:edit'} tooltip="Redraft note with AI" iconType="crosshair" />
+          </div>
           <textarea
             value={noteEditDraft.note}
             onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, note: e.target.value }))}
@@ -1583,6 +1777,26 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             <p className="text-xs text-[var(--color-text-tertiary)] mb-4">
               Add filter logic for this connection.
             </p>
+            <div className="mb-2 flex justify-end">
+              <AIAssistButton
+                variant="inline"
+                onAssist={async () => {
+                  setAssistError('');
+                  setAssistTarget('edge-filter');
+                  try {
+                    const suggestion = await requestFlowAssist('edge-filter');
+                    setEdgeFilterModal((prev) => ({ ...prev, data: { ...prev.data, filters: suggestion } }));
+                  } catch (error) {
+                    setAssistError(error.message || 'Unable to draft edge filters right now.');
+                  } finally {
+                    setAssistTarget('');
+                  }
+                }}
+                loading={assistTarget === 'edge-filter'}
+                tooltip="Draft edge filters"
+                iconType="crosshair"
+              />
+            </div>
             <textarea
               value={edgeFilterModal.data?.filters || ''}
               onChange={(e) =>

@@ -1,6 +1,16 @@
 import { getStoredSessionToken } from './authStorage';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001').replace(/\/$/, '');
+function resolveDefaultApiBaseUrl() {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:8001';
+  }
+
+  const currentHost = window.location.hostname || 'localhost';
+  const normalizedHost = currentHost === '0.0.0.0' ? 'localhost' : currentHost;
+  return `http://${normalizedHost}:8001`;
+}
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || resolveDefaultApiBaseUrl()).replace(/\/$/, '');
 const BACKEND_ENABLED = import.meta.env.VITE_USE_BACKEND !== 'false';
 
 export function getApiBaseUrl() {
@@ -69,6 +79,42 @@ export async function getCurrentSessionApi() {
   return response.session || null;
 }
 
+export async function getProfileApi() {
+  const response = await request('/api/auth/profile');
+  return response.data || null;
+}
+
+export async function updateProfileApi(payload) {
+  return request('/api/auth/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function changePasswordApi(payload) {
+  return request('/api/auth/password', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getAuthSessionsApi() {
+  const response = await request('/api/auth/sessions');
+  return response.data || [];
+}
+
+export async function revokeAuthSessionApi(sessionId) {
+  return request(`/api/auth/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function logoutOtherSessionsApi() {
+  return request('/api/auth/sessions/logout-others', {
+    method: 'POST'
+  });
+}
+
 export async function logoutApi() {
   return request('/api/auth/session', {
     method: 'DELETE'
@@ -81,6 +127,82 @@ export async function switchTenantSessionApi(tenantId) {
     body: JSON.stringify({ tenant_id: tenantId })
   });
   return response.session || null;
+}
+
+export async function assistAiApi(payload) {
+  const response = await request('/api/ai/assist', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function getAiRunsApi(limit = 50) {
+  const response = await request(`/api/ai/runs?limit=${encodeURIComponent(limit)}`);
+  return response.data || [];
+}
+
+export async function getAiProviderCatalogApi() {
+  const response = await request('/api/ai/providers/catalog');
+  return response.data || [];
+}
+
+export async function getOllamaModelsApi(payload = {}) {
+  const response = await request('/api/ai/providers/ollama/models', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || [];
+}
+
+export async function getAiProviderConfigsApi() {
+  const response = await request('/api/ai/providers');
+  return response.data || [];
+}
+
+export async function upsertAiProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/ai/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteAiProviderConfigApi(configId) {
+  return request(`/api/ai/providers/${encodeURIComponent(configId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function testAiProviderConfigApi(configId) {
+  return request(`/api/ai/providers/${encodeURIComponent(configId)}/test`, {
+    method: 'POST'
+  });
+}
+
+export async function getAutomationProviderConfigsApi() {
+  const response = await request('/api/automation/providers');
+  return response.data || [];
+}
+
+export async function upsertAutomationProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/automation/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteAutomationProviderConfigApi(configId) {
+  return request(`/api/automation/providers/${encodeURIComponent(configId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function testAutomationProviderConfigApi(configId) {
+  return request(`/api/automation/providers/${encodeURIComponent(configId)}/test`, {
+    method: 'POST'
+  });
 }
 
 export async function getWorkspacesApi() {
@@ -140,6 +262,130 @@ export async function removeWorkspaceMemberApi(workspaceId, membershipId) {
   return request(`/api/workspaces/${encodeURIComponent(workspaceId)}/memberships/${encodeURIComponent(membershipId)}`, {
     method: 'DELETE'
   });
+}
+
+export async function getGlobalVariablesApi() {
+  const response = await request('/api/settings/variables');
+  return response.data || [];
+}
+
+export async function getBrainOverviewApi() {
+  const response = await request('/api/brain/overview');
+  return response.data || null;
+}
+
+export async function getBrainProfileApi() {
+  const response = await request('/api/brain/profile');
+  return response.data || null;
+}
+
+export async function updateBrainProfileApi(payload) {
+  const response = await request('/api/brain/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function getBrainSourcesApi() {
+  const response = await request('/api/brain/sources');
+  return response.data || [];
+}
+
+export async function createBrainSourceApi(payload) {
+  const response = await request('/api/brain/sources', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function updateBrainSourceApi(sourceId, payload) {
+  const response = await request(`/api/brain/sources/${encodeURIComponent(sourceId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteBrainSourceApi(sourceId) {
+  return request(`/api/brain/sources/${encodeURIComponent(sourceId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function getBrainItemsApi() {
+  const response = await request('/api/brain/items');
+  return response.data || [];
+}
+
+export async function createBrainItemApi(payload) {
+  const response = await request('/api/brain/items', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function updateBrainItemApi(itemId, payload) {
+  const response = await request(`/api/brain/items/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteBrainItemApi(itemId) {
+  return request(`/api/brain/items/${encodeURIComponent(itemId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function getBrainLinksApi() {
+  const response = await request('/api/brain/links');
+  return response.data || [];
+}
+
+export async function createBrainLinkApi(payload) {
+  const response = await request('/api/brain/links', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteBrainLinkApi(linkId) {
+  return request(`/api/brain/links/${encodeURIComponent(linkId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function upsertGlobalVariableApi(payload) {
+  const response = await request('/api/settings/variables', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteGlobalVariableApi(variableId) {
+  return request(`/api/settings/variables/${encodeURIComponent(variableId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function getSystemEmailTemplatesApi(search = '') {
+  const suffix = search ? `?search=${encodeURIComponent(search)}` : '';
+  const response = await request(`/api/settings/system-emails${suffix}`);
+  return response.data || [];
+}
+
+export async function updateSystemEmailTemplateApi(templateId, payload) {
+  const response = await request(`/api/settings/system-emails/${encodeURIComponent(templateId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
 }
 
 export function getGoogleAppAuthorizeUrl() {

@@ -1,10 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers } from 'lucide-react';
-import { mockSupabase } from '../../services/mockSupabase';
+import React, { useState, useEffect, useRef } from 'react';
+import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers, Search, Monitor, LogOut, Sparkles } from 'lucide-react';
 import { useTheme } from '../../lib/ThemeContext';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAuth } from '../../contexts/AuthContext';
-import { addWorkspaceMemberApi, createWorkspaceApi, getWorkspaceMembershipsApi, removeWorkspaceMemberApi, updateWorkspaceApi, updateWorkspaceMemberApi } from '../../services/backendApi';
+import {
+  addWorkspaceMemberApi,
+  changePasswordApi,
+  createWorkspaceApi,
+  deleteGlobalVariableApi,
+  getAuthSessionsApi,
+  getGlobalVariablesApi,
+  getProfileApi,
+  getSystemEmailTemplatesApi,
+  getWorkspaceMembershipsApi,
+  logoutOtherSessionsApi,
+  removeWorkspaceMemberApi,
+  revokeAuthSessionApi,
+  updateProfileApi,
+  updateSystemEmailTemplateApi,
+  updateWorkspaceApi,
+  updateWorkspaceMemberApi,
+  upsertGlobalVariableApi
+} from '../../services/backendApi';
+
+const useTransientSaveFeedback = (duration = 1400) => {
+  const [savedKey, setSavedKey] = useState('');
+  const timeoutRef = useRef(null);
+
+  useEffect(() => () => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+  }, []);
+
+  const triggerSaved = (key) => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+    setSavedKey(key);
+    timeoutRef.current = window.setTimeout(() => {
+      setSavedKey('');
+      timeoutRef.current = null;
+    }, duration);
+  };
+
+  return [savedKey, triggerSaved];
+};
+
+const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
 
 // ============ GLOBAL VARIABLES MANAGER ============
 const GlobalVarsManager = () => {
@@ -15,17 +58,28 @@ const GlobalVarsManager = () => {
   const [newDesc, setNewDesc] = useState('');
   const [isSecret, setIsSecret] = useState(false);
   const [error, setError] = useState('');
+  const [isSystem, setIsSystem] = useState(false);
+  const [status, setStatus] = useState('');
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
 
   useEffect(() => { fetchVars(); }, []);
 
   const fetchVars = async () => {
-    const { data } = await mockSupabase.from('global_variables').select('*');
-    if (data) setVars(data);
-    setLoading(false);
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getGlobalVariablesApi();
+      setVars(data);
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load variables.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addVar = async () => {
     setError('');
+    setStatus('');
     let finalKey = newKey.trim();
     if (!finalKey || !newValue) {
       setError("Key and Value are required.");
@@ -38,18 +92,38 @@ const GlobalVarsManager = () => {
       finalKey = `{{${finalKey}}}`;
     }
 
-    const { error } = await mockSupabase.from('global_variables').insert([{
-      key: finalKey,
-      value: newValue,
-      description: newDesc,
-      is_secret: isSecret,
-      is_system: isValidSystemKey
-    }]);
-    if (error) setError(error.message);
-    else { setNewKey(''); setNewValue(''); setNewDesc(''); setIsSecret(false); fetchVars(); }
+    try {
+      await upsertGlobalVariableApi({
+        key: finalKey,
+        value: newValue,
+        description: newDesc,
+        is_secret: isSecret,
+        is_system: isSystem || isValidSystemKey
+      });
+      setNewKey('');
+      setNewValue('');
+      setNewDesc('');
+      setIsSecret(false);
+      setIsSystem(false);
+      setStatus('Variable saved.');
+      triggerSavedAction('add-variable');
+      await fetchVars();
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save variable.');
+    }
   };
 
-  const deleteVar = async (id) => { await mockSupabase.from('global_variables').delete().eq('id', id); fetchVars(); };
+  const deleteVar = async (id) => {
+    setError('');
+    setStatus('');
+    try {
+      await deleteGlobalVariableApi(id);
+      setVars(current => current.filter(item => item.id !== id));
+      setStatus('Variable removed.');
+    } catch (deleteError) {
+      setError(deleteError.message || 'Unable to remove variable.');
+    }
+  };
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
@@ -63,9 +137,14 @@ const GlobalVarsManager = () => {
             <div className="col-span-3"><input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="Key (e.g. userEmail)" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
             <div className="col-span-4"><input value={newValue} onChange={e => setNewValue(e.target.value)} type={isSecret ? "password" : "text"} placeholder="Value" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
             <div className="col-span-3"><input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
-            <div className="col-span-2 flex gap-2"><button onClick={() => setIsSecret(!isSecret)} className={`p-2 rounded ${isSecret ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`}><Lock size={16} /></button><button onClick={addVar} className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] text-sm font-medium py-2 rounded">Add</button></div>
+            <div className="col-span-2 flex gap-2">
+              <button onClick={() => setIsSecret(!isSecret)} className={`p-2 rounded ${isSecret ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`} title="Secret"><Lock size={16} /></button>
+              <button onClick={() => setIsSystem(!isSystem)} className={`p-2 rounded ${isSystem ? 'bg-blue-500/20 text-blue-300' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`} title="System Variable"><Cog size={16} /></button>
+              <button onClick={addVar} className={saveButtonClassName("flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] text-sm font-medium py-2 rounded", savedAction === 'add-variable')}>{savedAction === 'add-variable' ? 'Saved' : 'Add'}</button>
+            </div>
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
+          {status && <p className="text-xs text-emerald-400">{status}</p>}
         </div>
         <div className="space-y-2">
           <div className="grid grid-cols-12 px-4 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider"><div className="col-span-3">Key</div><div className="col-span-4">Value</div><div className="col-span-4">Description</div><div className="col-span-1 text-right">Action</div></div>
@@ -788,8 +867,10 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
           </div>
         )}
 
+        {activeTab === 'emails' && <SystemEmailsSettings />}
+
         {/* OTHER TABS - Placeholder */}
-        {['styles', 'package', 'emails', 'blueprints'].includes(activeTab) && (
+        {['styles', 'package', 'blueprints'].includes(activeTab) && (
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-8 text-center">
             <p className="text-[var(--color-text-secondary)] text-sm">This section is under development</p>
             <p className="text-xs text-[var(--color-text-secondary)] mt-2">Check back soon for more customization options</p>
@@ -958,119 +1039,323 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   );
 };
 
+const SystemEmailsSettings = () => {
+  const [templates, setTemplates] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState({ subject: '', send_to: '', enabled: true, body_text: '' });
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+
+  const loadTemplates = async (nextSearch = search) => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getSystemEmailTemplatesApi(nextSearch);
+      setTemplates(data);
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load system email templates.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTemplates('');
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      loadTemplates(search);
+    }, 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
+
+  const handleToggle = async (template) => {
+    setError('');
+    setStatus('');
+    try {
+      const updated = await updateSystemEmailTemplateApi(template.id, { enabled: !template.enabled });
+      setTemplates(current => current.map(item => item.id === updated.id ? updated : item));
+      setStatus(`${updated.email_type} updated.`);
+    } catch (toggleError) {
+      setError(toggleError.message || 'Unable to update template state.');
+    }
+  };
+
+  const openEditor = (template) => {
+    setEditing(template);
+    setDraft({
+      subject: template.subject || '',
+      send_to: template.send_to || '',
+      enabled: !!template.enabled,
+      body_text: template.body_text || ''
+    });
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!editing) {
+      return;
+    }
+    setError('');
+    setStatus('');
+    try {
+      const updated = await updateSystemEmailTemplateApi(editing.id, draft);
+      setTemplates(current => current.map(item => item.id === updated.id ? updated : item));
+      setEditing(null);
+      setStatus(`${updated.email_type} saved.`);
+      triggerSavedAction('save-template');
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save system email template.');
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
+      {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
+      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-wrap items-center justify-between gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search templates" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+          </div>
+          <div className="text-xs text-[var(--color-text-secondary)]">Tenant-scoped system notices and workflow emails.</div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] uppercase text-xs tracking-wide">
+              <tr>
+                <th className="text-left px-5 py-4">Email Type</th>
+                <th className="text-left px-5 py-4">Subject</th>
+                <th className="text-left px-5 py-4">Send To</th>
+                <th className="text-left px-5 py-4">Enabled</th>
+                <th className="text-left px-5 py-4">Edited By</th>
+                <th className="text-left px-5 py-4">Edited At</th>
+                <th className="text-left px-5 py-4">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border)]">
+              {loading && (
+                <tr>
+                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">Loading templates...</td>
+                </tr>
+              )}
+              {!loading && templates.map(template => (
+                <tr key={template.id} className="bg-[var(--color-bg-secondary)]">
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium">{template.email_type}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] max-w-[260px] truncate">{template.subject}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.send_to}</td>
+                  <td className="px-5 py-4">
+                    <button onClick={() => handleToggle(template)} className={`w-12 h-6 rounded-full border transition relative ${template.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${template.enabled ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                  </td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.edited_by_name || 'AIO Flow\u2122'}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-secondary)]">{template.edited_at || template.updated_at}</td>
+                  <td className="px-5 py-4">
+                    <button onClick={() => openEditor(template)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)] text-[var(--color-text-primary)]">
+                      <Edit2 size={14} /> Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!loading && templates.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">No system emails matched that search.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {editing && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setEditing(null)} />
+          <div className="fixed right-0 top-0 bottom-0 w-[520px] bg-[var(--color-bg-primary)] border-l border-[var(--color-border)] shadow-xl z-50 flex flex-col">
+            <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+              <div className="flex items-center gap-3">
+                <Inbox size={18} className="text-[var(--color-primary)]" />
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{editing.email_type}</h3>
+                  <p className="text-xs text-[var(--color-text-secondary)]">Edit recipient target, subject, and default message copy.</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Subject</label>
+                <input value={draft.subject} onChange={(event) => setDraft(current => ({ ...current, subject: event.target.value }))} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Send To</label>
+                <input value={draft.send_to} onChange={(event) => setDraft(current => ({ ...current, send_to: event.target.value }))} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+                <div>
+                  <div className="text-sm font-medium text-[var(--color-text-primary)]">Template Enabled</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">Disable the notice without deleting its content.</div>
+                </div>
+                <button onClick={() => setDraft(current => ({ ...current, enabled: !current.enabled }))} className={`w-12 h-6 rounded-full border transition relative ${draft.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${draft.enabled ? 'left-6' : 'left-0.5'}`} />
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Default Message Copy</label>
+                <textarea value={draft.body_text} onChange={(event) => setDraft(current => ({ ...current, body_text: event.target.value }))} className="w-full min-h-[220px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+              </div>
+            </div>
+            <div className="p-6 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-end gap-3">
+              <button onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Close</button>
+              <button onClick={handleSaveTemplate} className={saveButtonClassName("px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] font-medium", savedAction === 'save-template')}>{savedAction === 'save-template' ? 'Saved' : 'Save Template'}</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 // ============ PERSONAL SETTINGS ============
 const PersonalSettings = () => {
+  const { user, refreshSession } = useAuth();
+  const [form, setForm] = useState({
+    display_name: '',
+    email: '',
+    phone: '',
+    locale: 'en-US',
+    timezone: 'America/New_York',
+    email_signature: ''
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const profile = await getProfileApi();
+        setForm({
+          display_name: profile?.name || '',
+          email: profile?.email || '',
+          phone: profile?.phone || '',
+          locale: profile?.locale || 'en-US',
+          timezone: profile?.timezone || 'America/New_York',
+          email_signature: profile?.email_signature || ''
+        });
+      } catch (loadError) {
+        setError(loadError.message || 'Unable to load your profile.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  const initials = (form.display_name || user?.name || 'A').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'A';
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setStatus('');
+    try {
+      await updateProfileApi({
+        display_name: form.display_name,
+        phone: form.phone,
+        locale: form.locale,
+        timezone: form.timezone,
+        email_signature: form.email_signature
+      });
+      await refreshSession?.();
+      setStatus('Profile updated.');
+      triggerSavedAction('save-profile');
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save profile changes.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><User size={20} className="text-[var(--color-primary)]" /> Personal Profile</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Manage your account information and preferences.</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">Manage your account information, locale defaults, and signature.</p>
       </div>
-
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
-
-        {/* Profile Card */}
+        {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
+        {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
         <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 flex flex-col md:flex-row gap-8">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-blue-600 flex items-center justify-center text-4xl font-bold text-[var(--color-text-primary)] border-4 border-[var(--color-border)] shadow-lg">
-              A
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-cyan-500 flex items-center justify-center text-3xl font-bold text-[var(--color-text-primary)] border-4 border-[var(--color-border)] shadow-lg">
+              {initials}
             </div>
-            <button className="text-xs text-[var(--color-accent)] hover:text-[var(--color-text-primary)] underline">Change Avatar</button>
+            <div className="text-xs text-[var(--color-text-secondary)]">Avatar uploads are staged for a later pass.</div>
           </div>
-
-          <div className="flex-1 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">First Name</label>
-                <input type="text" defaultValue="Aaron" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Last Name</label>
-                <input type="text" defaultValue="Riggs" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Email</label>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                  <input type="email" defaultValue="aaron@aioflow.com" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-                  <span className="absolute right-3 top-2.5 text-[10px] bg-green-500/10 text-green-500 border border-green-500/20 px-1.5 rounded">Verified</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Phone</label>
-                <div className="relative">
-                  <Smartphone size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                  <input type="tel" defaultValue="+1 (555) 123-4567" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-                </div>
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Display Name</label>
+              <input value={form.display_name} onChange={(event) => setForm(current => ({ ...current, display_name: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Phone</label>
+              <div className="relative">
+                <Smartphone size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+                <input value={form.phone} onChange={(event) => setForm(current => ({ ...current, phone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Security Settings */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Shield size={16} className="text-blue-500" /> Security</h3>
-            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-medium text-[var(--color-text-primary)]">Password</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">Last changed 3 months ago</div>
-                </div>
-                <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-white hover:text-black text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
-              </div>
-              <div className="w-full h-px bg-[var(--color-bg-tertiary)]"></div>
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-medium text-[var(--color-text-primary)]">Two-Factor Auth</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">Secure your account with 2FA</div>
-                </div>
-                <div className="w-10 h-5 bg-[var(--color-bg-tertiary)] rounded-full relative cursor-pointer"><div className="w-3 h-3 bg-gray-500 rounded-full absolute left-1 top-1"></div></div>
+            <div>
+              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Email</label>
+              <div className="relative">
+                <Mail size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+                <input value={form.email} disabled className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-20 py-2 text-sm text-[var(--color-text-primary)] opacity-80" />
+                <span className="absolute right-3 top-2.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 rounded">Verified</span>
               </div>
             </div>
-          </div>
-
-          {/* Preferences */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Globe size={16} className="text-green-500" /> Preferences</h3>
-            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Language</label>
-                <select className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                  <option>English (US)</option>
-                  <option>Spanish</option>
-                  <option>French</option>
+            <div>
+              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Language / Locale</label>
+              <select value={form.locale} onChange={(event) => setForm(current => ({ ...current, locale: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                <option value="en-US">English (US)</option>
+                <option value="es-US">Spanish (US)</option>
+                <option value="fr-FR">French</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Timezone</label>
+              <div className="relative">
+                <Clock size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
+                <select value={form.timezone} onChange={(event) => setForm(current => ({ ...current, timezone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <option value="America/New_York">Eastern Time</option>
+                  <option value="America/Chicago">Central Time</option>
+                  <option value="America/Denver">Mountain Time</option>
+                  <option value="America/Los_Angeles">Pacific Time</option>
+                  <option value="UTC">UTC</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Timezone</label>
-                <div className="relative">
-                  <Clock size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                  <select className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                    <option>(GMT-05:00) Eastern Time</option>
-                    <option>(GMT-08:00) Pacific Time</option>
-                    <option>(GMT+00:00) UTC</option>
-                  </select>
-                </div>
-              </div>
             </div>
           </div>
         </div>
-
-        {/* Email Signature */}
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><PenTool size={16} className="text-orange-500" /> Email Signature</h3>
+          <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><PenTool size={16} className="text-[var(--color-primary)]" /> Email Signature</h3>
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4">
             <textarea
-              className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4 text-sm text-[var(--color-text-primary)] min-h-[120px] focus:outline-none focus:border-[var(--color-primary)] font-mono"
-              defaultValue={`Best regards,\n\nAaron Riggs\nOwner | AIO Flow\n(555) 123-4567 | aaron@aioflow.com`}
+              className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4 text-sm text-[var(--color-text-primary)] min-h-[140px] focus:outline-none focus:border-[var(--color-primary)]"
+              value={form.email_signature}
+              onChange={(event) => setForm(current => ({ ...current, email_signature: event.target.value }))}
+              placeholder={`Best regards,\n\n${form.display_name || user?.name || 'AIO CRM Operator'}`}
             />
             <div className="flex justify-end mt-4">
-              <button className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Save size={16} /> Save Changes</button>
+              <button onClick={handleSave} disabled={saving || loading} className={saveButtonClassName("bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60 disabled:cursor-not-allowed text-[var(--color-text-primary)] px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2", savedAction === 'save-profile')}><Save size={16} /> {saving ? 'Saving...' : savedAction === 'save-profile' ? 'Saved' : 'Save Changes'}</button>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
@@ -1155,7 +1440,66 @@ const BillingSettings = () => {
 // ============ SECURITY SETTINGS ============
 const SecuritySettings = () => {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [passwordLastChanged, setPasswordLastChanged] = useState('2025-12-15');
+  const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '' });
+  const [sessions, setSessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+
+  const loadSessions = async () => {
+    setLoadingSessions(true);
+    setError('');
+    try {
+      const data = await getAuthSessionsApi();
+      setSessions(data);
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load active sessions.');
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const handleChangePassword = async () => {
+    setError('');
+    setStatus('');
+    try {
+      await changePasswordApi(passwordForm);
+      setPasswordForm({ current_password: '', new_password: '' });
+      setStatus('Password updated.');
+      triggerSavedAction('update-password');
+    } catch (passwordError) {
+      setError(passwordError.message || 'Unable to update password.');
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    setError('');
+    setStatus('');
+    try {
+      await revokeAuthSessionApi(sessionId);
+      setSessions(current => current.filter(item => item.id !== sessionId));
+      setStatus('Session revoked.');
+    } catch (revokeError) {
+      setError(revokeError.message || 'Unable to revoke session.');
+    }
+  };
+
+  const handleLogoutOthers = async () => {
+    setError('');
+    setStatus('');
+    try {
+      await logoutOtherSessionsApi();
+      await loadSessions();
+      setStatus('All other sessions were logged out.');
+    } catch (logoutError) {
+      setError(logoutError.message || 'Unable to log out other sessions.');
+    }
+  };
 
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
@@ -1164,16 +1508,24 @@ const SecuritySettings = () => {
         <p className="text-sm text-[var(--color-text-secondary)]">Manage your account security and access permissions.</p>
       </div>
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
+        {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
         {/* Password Management */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Password</h3>
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <div className="text-sm font-medium text-[var(--color-text-primary)]">Change Password</div>
-                <div className="text-xs text-[var(--color-text-secondary)]">Last changed {passwordLastChanged}</div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Current Password</label>
+                <input type="password" value={passwordForm.current_password} onChange={(event) => setPasswordForm(current => ({ ...current, current_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
-              <button className="text-xs bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
+              <div>
+                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">New Password</label>
+                <input type="password" value={passwordForm.new_password} onChange={(event) => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button onClick={handleChangePassword} className={saveButtonClassName("text-xs bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-3 py-1.5 rounded transition", savedAction === 'update-password')}>{savedAction === 'update-password' ? 'Saved' : 'Update Password'}</button>
             </div>
           </div>
         </div>
@@ -1191,7 +1543,7 @@ const SecuritySettings = () => {
             </div>
             {twoFactorEnabled && (
               <div className="p-3 bg-[var(--color-bg-primary)] border border-[var(--color-primary)]/30 rounded text-sm text-[var(--color-text-primary)]">
-                Authenticator App: Synced ✓
+                Authenticator app enrollment is staged for the post-beta security pass.
               </div>
             )}
           </div>
@@ -1202,34 +1554,34 @@ const SecuritySettings = () => {
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Active Sessions</h3>
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
             <div className="divide-y divide-[var(--color-border)]">
-              <div className="p-4 flex justify-between items-center">
-                <div>
-                  <div className="text-[var(--color-text-primary)] font-medium">Chrome on macOS</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">Last active: Today at 2:30 PM</div>
+              {loadingSessions && <div className="p-4 text-sm text-[var(--color-text-secondary)]">Loading sessions...</div>}
+              {!loadingSessions && sessions.map(session => (
+                <div key={session.id} className="p-4 flex justify-between items-center">
+                  <div>
+                    <div className="text-[var(--color-text-primary)] font-medium flex items-center gap-2">
+                      <Monitor size={14} className="text-[var(--color-text-secondary)]" />
+                      {session.label}
+                      {session.is_current && <span className="text-[10px] border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-full">Current</span>}
+                    </div>
+                    <div className="text-xs text-[var(--color-text-secondary)]">Last active: {session.last_seen_at}</div>
+                  </div>
+                  {!session.is_current && <button onClick={() => handleRevokeSession(session.id)} className="text-xs text-[var(--color-text-secondary)] hover:text-red-400">Revoke</button>}
                 </div>
-                <button className="text-xs text-[var(--color-text-secondary)] hover:text-red-400">Revoke</button>
-              </div>
-              <div className="p-4 flex justify-between items-center">
-                <div>
-                  <div className="text-[var(--color-text-primary)] font-medium">Safari on iPhone</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">Last active: Yesterday at 10:15 AM</div>
-                </div>
-                <button className="text-xs text-[var(--color-text-secondary)] hover:text-red-400">Revoke</button>
-              </div>
+              ))}
             </div>
           </div>
-          <button className="w-full px-4 py-2 rounded font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition text-sm">Logout All Other Sessions</button>
+          <button onClick={handleLogoutOthers} className="w-full px-4 py-2 rounded font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition text-sm flex items-center justify-center gap-2"><LogOut size={14} /> Logout All Other Sessions</button>
         </div>
 
         {/* Data & Privacy */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Data & Privacy</h3>
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-            <button className="w-full text-left px-4 py-2 rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-sm font-medium transition">
+            <button onClick={() => setStatus('Data export will be packaged during the tenancy/commercial pass.')} className="w-full text-left px-4 py-2 rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-sm font-medium transition">
               Download Your Data
             </button>
             <button className="w-full text-left px-4 py-2 rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-red-500/50 text-red-400 text-sm font-medium transition">
-              Delete Account (Permanent)
+              Delete Account (Staged)
             </button>
           </div>
         </div>
@@ -1249,6 +1601,7 @@ const WorkspaceSettings = () => {
   const [newMemberRole, setNewMemberRole] = useState('staff');
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
 
   useEffect(() => {
     setSelectedWorkspaceId(tenant?.id || '');
@@ -1278,7 +1631,12 @@ const WorkspaceSettings = () => {
 
   const selectedWorkspace = tenants.find(item => item.id === selectedWorkspaceId) || tenant;
   const currentMembership = memberships.find(item => item.user_email === user?.email);
-  const canManageWorkspace = ['owner', 'admin'].includes(currentMembership?.role || tenant?.role);
+  const currentRole = (currentMembership?.role || selectedWorkspace?.role || tenant?.role || 'viewer').toLowerCase();
+  const canManageWorkspace = ['owner', 'admin'].includes(currentRole);
+  const canCreateWorkspace = ['owner', 'admin'].includes(currentRole);
+  const availableRoleOptions = currentRole === 'owner'
+    ? ['owner', 'admin', 'staff', 'viewer']
+    : ['admin', 'staff', 'viewer'];
 
   const handleWorkspaceSelect = async (workspaceId) => {
     setSelectedWorkspaceId(workspaceId);
@@ -1295,6 +1653,7 @@ const WorkspaceSettings = () => {
       await updateWorkspaceApi(selectedWorkspaceId, { name: workspaceName.trim() });
       await refreshSession?.();
       setStatusMessage('Workspace updated.');
+      triggerSavedAction('save-workspace-name');
     } catch (renameError) {
       setError(renameError.message || 'Unable to update workspace.');
     }
@@ -1313,6 +1672,7 @@ const WorkspaceSettings = () => {
         setSelectedWorkspaceId(nextWorkspaceId);
       }
       setStatusMessage('Workspace created and selected.');
+      triggerSavedAction('create-workspace');
     } catch (createError) {
       setError(createError.message || 'Unable to create workspace.');
     }
@@ -1331,6 +1691,7 @@ const WorkspaceSettings = () => {
       setNewMemberEmail('');
       setNewMemberRole('staff');
       setStatusMessage('Workspace member saved.');
+      triggerSavedAction('add-member');
     } catch (memberError) {
       setError(memberError.message || 'Unable to add workspace member.');
     }
@@ -1405,9 +1766,9 @@ const WorkspaceSettings = () => {
               <button
                 onClick={handleRenameWorkspace}
                 disabled={!canManageWorkspace}
-                className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition"
+                className={saveButtonClassName("px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'save-workspace-name')}
               >
-                Save Name
+                {savedAction === 'save-workspace-name' ? 'Saved' : 'Save Name'}
               </button>
             </div>
           </div>
@@ -1426,11 +1787,17 @@ const WorkspaceSettings = () => {
               />
               <button
                 onClick={handleCreateWorkspace}
-                className="px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition"
+                disabled={!canCreateWorkspace}
+                className={saveButtonClassName("px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed", savedAction === 'create-workspace')}
               >
-                Create Workspace
+                {savedAction === 'create-workspace' ? 'Created' : 'Create Workspace'}
               </button>
             </div>
+            {!canCreateWorkspace && (
+              <div className="text-xs text-[var(--color-text-secondary)]">
+                Workspace creation is limited to owners and admins.
+              </div>
+            )}
           </div>
         </div>
 
@@ -1468,18 +1835,19 @@ const WorkspaceSettings = () => {
           <select
             value={newMemberRole}
             onChange={(event) => setNewMemberRole(event.target.value)}
+            disabled={!canManageWorkspace}
             className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
           >
-            <option value="admin">admin</option>
-            <option value="staff">staff</option>
-            <option value="viewer">viewer</option>
+            {availableRoleOptions.filter(role => role !== 'owner').map(role => (
+              <option key={role} value={role}>{role}</option>
+            ))}
           </select>
           <button
             onClick={handleAddMember}
             disabled={!canManageWorkspace}
-            className="px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition"
+            className={saveButtonClassName("px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'add-member')}
           >
-            Add Member
+            {savedAction === 'add-member' ? 'Added' : 'Add Member'}
           </button>
         </div>
 
@@ -1497,10 +1865,9 @@ const WorkspaceSettings = () => {
                 onChange={(event) => handleRoleChange(member.id, event.target.value)}
                 className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
               >
-                <option value="owner">owner</option>
-                <option value="admin">admin</option>
-                <option value="staff">staff</option>
-                <option value="viewer">viewer</option>
+                {availableRoleOptions.map(role => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
               </select>
               <button
                 onClick={() => handleRemoveMember(member.id)}
@@ -1537,6 +1904,15 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
     { id: 'variables', label: 'Variables', icon: Key }
   ];
 
+  const tabMeta = {
+    personal: { eyebrow: 'Account', description: 'Identity, contact defaults, and operator-level preferences.', status: 'Live' },
+    billing: { eyebrow: 'Commerce', description: 'Billing and package surfaces stay visible for the later tenancy/commercial pass.', status: 'Staged' },
+    security: { eyebrow: 'Access', description: 'Password, session, and security posture for the active app user.', status: 'Mixed' },
+    workspace: { eyebrow: 'Workspace', description: 'Switch, rename, and manage members for the active workspace.', status: 'Live' },
+    whitelabel: { eyebrow: 'Branding', description: 'Brand, menu, and presentation controls that shape the app shell.', status: 'Mixed' },
+    variables: { eyebrow: 'Automation', description: 'Global variables and tokens available to builders and workflows.', status: 'Legacy' }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'personal': return <PersonalSettings />;
@@ -1552,17 +1928,25 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   return (
     <div className="h-full flex flex-col bg-[var(--color-bg-primary)]">
       <ModuleHeader title="Settings" titleIcon={Settings} showTitle={false} showActions={false} />
-      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <div className="flex overflow-x-auto">
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-6 py-5 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{tabMeta[activeTab]?.eyebrow || 'Settings'}</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{tabs.find((tab) => tab.id === activeTab)?.label || 'Settings'}</div>
+            <div className="mt-2 max-w-2xl text-sm text-[var(--color-text-secondary)]">{tabMeta[activeTab]?.description}</div>
+          </div>
+          <div className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">{tabMeta[activeTab]?.status || 'Live'}</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 flex items-center gap-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${activeTab === tab.id
-                  ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]'
-                  : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
+                className={`px-4 py-2.5 flex items-center gap-2 text-sm font-medium rounded-xl border transition whitespace-nowrap ${activeTab === tab.id
+                  ? 'text-[var(--color-text-primary)] border-[var(--color-primary)] bg-[var(--color-primary)]/10'
+                  : 'text-[var(--color-text-secondary)] border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
                   }`}
               >
                 <Icon size={16} />

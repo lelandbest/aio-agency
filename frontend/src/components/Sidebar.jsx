@@ -32,23 +32,23 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
             <div className={`
         fixed lg:static inset-y-0 left-0 bg-[var(--color-sidebar-bg)] border-r border-[var(--color-border)] 
         flex flex-col overflow-hidden z-50 transform transition-all lg:transform-none
-        ${isCollapsed ? 'w-20' : 'w-64'}
+        ${isCollapsed ? 'w-18' : 'w-52'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `} style={{ color: 'var(--color-sidebar-text)' }}>
                 {/* Logo */}
-                <div className="h-16 border-b border-[var(--color-border)] flex items-center justify-between px-4 flex-shrink-0">
-                    <div className={`flex items-center gap-3 ${isCollapsed ? 'hidden' : ''}`}>
+                <div className="h-14 border-b border-[var(--color-border)] flex items-center justify-between px-3 flex-shrink-0">
+                    <div className={`flex items-center gap-2.5 ${isCollapsed ? 'hidden' : ''}`}>
                         <img
                             src="/aio-button-192px.png"
                             alt="AIO CRM"
-                            className="w-8 h-8 rounded-lg"
+                            className="w-7 h-7 rounded-lg"
                         />
                         <span className="font-bold text-[var(--color-text-primary)] text-sm">AIO CRM</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={() => setIsCollapsed(!isCollapsed)}
-                            className="p-2 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+                            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
                             title={isCollapsed ? 'Expand menu' : 'Collapse menu'}
                             aria-label={isCollapsed ? 'Expand sidebar menu' : 'Collapse sidebar menu'}
                             aria-expanded={!isCollapsed}
@@ -57,7 +57,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                         </button>
                         <button
                             onClick={() => setIsMobileOpen(false)}
-                            className="lg:hidden p-2 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)]"
+                            className="lg:hidden p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)]"
                             aria-label="Close mobile menu"
                         >
                             <X size={18} />
@@ -66,7 +66,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                 </div>
 
                 {/* Menu Items */}
-                <nav className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-[var(--color-border)] scrollbar-track-transparent">
+                <nav className="flex-1 overflow-y-auto no-scrollbar px-1.5 py-2">
                     {menuStructure.map((category, idx) => {
                         const visibleItems = category.category === 'Systems'
                             ? []
@@ -80,9 +80,9 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                         }
 
                         return (
-                        <div key={idx} className="mb-6">
-                            {!isCollapsed && (
-                                <h3 className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider px-3 mb-3">
+                        <div key={idx} className="mb-4">
+                            {!isCollapsed && category.category !== 'Main' && (
+                                <h3 className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider px-2.5 mb-2">
                                     {category.category}
                                 </h3>
                             )}
@@ -96,8 +96,8 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                 <button
                                                     onClick={() => setExpandedGroup(expandedGroup === item.id ? null : item.id)}
                                                     className={`w-full flex items-center justify-between rounded transition font-bold ${isCollapsed
-                                                        ? 'px-2 py-2 justify-center'
-                                                        : 'px-3 py-2 text-sm'
+                                                        ? 'px-2 py-1.5 justify-center'
+                                                        : 'px-2.5 py-1.5 text-sm'
                                                         } text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]`}
                                                     title={isCollapsed ? item.label : ''}
                                                 >
@@ -113,7 +113,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                     )}
                                                 </button>
                                                 {!isCollapsed && expandedGroup === item.id && (
-                                                    <div className="ml-4 mt-1 space-y-1 bg-[var(--color-bg-secondary)] rounded p-1">
+                                                    <div className="ml-3 mt-1 space-y-1 bg-[var(--color-bg-secondary)] rounded p-1">
                                                         {sortByLabel(item.children).map(child => {
                                                             // Handle iframe links - embed in app
                                                             if (child.type === 'iframe' && child.url) {
@@ -124,7 +124,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                                             onSelectModule(child.id);
                                                                             setIsMobileOpen(false);
                                                                         }}
-                                                                        className={`w-full text-left px-3 py-2 text-xs rounded transition ${activeModule === child.id
+                                                                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded transition ${activeModule === child.id
                                                                             ? 'bg-[var(--color-primary)]/10 text-[var(--color-accent)] border-l-2 border-[var(--color-primary)]'
                                                                             : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
                                                                             }`}
@@ -142,7 +142,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                                         href={child.url}
                                                                         target="_blank"
                                                                         rel="noopener noreferrer"
-                                                                        className="w-full text-left px-3 py-2 text-xs rounded transition text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] flex items-center justify-between group"
+                                                                        className="w-full text-left px-2.5 py-1.5 text-xs rounded transition text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] flex items-center justify-between group"
                                                                     >
                                                                         <span>{normalizeDisplayText(child.label)}</span>
                                                                         <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition" />
@@ -158,7 +158,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                                         onSelectModule(child.id);
                                                                         setIsMobileOpen(false);
                                                                     }}
-                                                                    className={`w-full text-left px-3 py-2 text-xs rounded transition ${activeModule === child.id
+                                                                    className={`w-full text-left px-2.5 py-1.5 text-xs rounded transition ${activeModule === child.id
                                                                         ? 'bg-[var(--color-primary)]/10 text-[var(--color-accent)] border-l-2 border-[var(--color-primary)]'
                                                                         : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
                                                                         }`}
@@ -182,8 +182,8 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className={`w-full flex items-center rounded transition text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] ${isCollapsed
-                                                    ? 'px-2 py-2 justify-center'
-                                                    : 'px-3 py-2 text-sm gap-2'
+                                                    ? 'px-2 py-1.5 justify-center'
+                                                    : 'px-2.5 py-1.5 text-sm gap-2'
                                                     }`}
                                                 title={isCollapsed ? item.label : ''}
                                             >
@@ -206,8 +206,8 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                 setIsMobileOpen(false);
                                             }}
                                             className={`w-full flex items-center rounded transition font-bold ${isCollapsed
-                                                ? 'px-2 py-2 justify-center'
-                                                : 'px-3 py-2 text-sm gap-2'
+                                                ? 'px-2 py-1.5 justify-center'
+                                                : 'px-2.5 py-1.5 text-sm gap-2'
                                                 } ${isItemActive
                                                     ? 'bg-[var(--color-primary)] text-white'
                                                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
@@ -225,13 +225,13 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                 </nav>
 
                 {/* Help Docs Link */}
-                <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-4'}`}>
+                <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-3'}`}>
                     {!isCollapsed && <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase">Resources</span>}
                     <a
                         href="https://help.aioflow.com"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`p-2 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
+                        className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
                         title="Help Documentation"
                     >
                         <HelpCircle size={16} />

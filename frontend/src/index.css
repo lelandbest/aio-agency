@@ -275,6 +275,39 @@ html.dark {
 :root {
   --note-default-color: #111827;
   --shadow-note: 0 12px 30px rgba(0, 0, 0, 0.35);
+  --calendar-surface: var(--color-bg-secondary);
+  --calendar-panel: var(--color-bg-primary);
+  --calendar-panel-soft: var(--color-bg-secondary);
+  --calendar-cell: var(--color-bg-secondary);
+  --calendar-cell-hover: var(--color-hover);
+}
+
+html.dark {
+  --calendar-surface: linear-gradient(180deg, #162030 0%, #101723 100%);
+  --calendar-panel: #1a2434;
+  --calendar-panel-soft: #212d40;
+  --calendar-cell: #283346;
+  --calendar-cell-hover: #36435b;
+}
+
+.calendar-surface {
+  background: var(--calendar-surface);
+}
+
+.calendar-panel {
+  background: var(--calendar-panel);
+}
+
+.calendar-panel-soft {
+  background: var(--calendar-panel-soft);
+}
+
+.calendar-cell {
+  background: var(--calendar-cell);
+}
+
+.calendar-cell-hover:hover {
+  background: var(--calendar-cell-hover);
 }
 
 
@@ -311,6 +344,35 @@ html.dark {
   border-color: transparent;
 }
 
+.save-feedback-btn {
+    position: relative;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, background-color 180ms ease, color 180ms ease;
+  }
+  
+.save-feedback-btn.is-saved {
+    border-color: var(--color-success) !important;
+    background: color-mix(in srgb, var(--color-success) 24%, var(--color-bg-secondary)) !important;
+    color: #ECFDF5 !important;
+    box-shadow: 0 0 0 2px var(--color-success), 0 10px 24px color-mix(in srgb, var(--color-success) 24%, transparent);
+    transform: translateY(-1px);
+  }
+  
+.save-feedback-btn.is-saved:hover {
+    border-color: var(--color-success) !important;
+    background: color-mix(in srgb, var(--color-success) 28%, var(--color-bg-secondary)) !important;
+  }
+  
+.save-feedback-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-success);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
 .flow-toolbar-btn--ghost {
   background: var(--color-bg-tertiary);
 }
@@ -331,4 +393,13 @@ html.dark {
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);
   border-color: var(--color-border);
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

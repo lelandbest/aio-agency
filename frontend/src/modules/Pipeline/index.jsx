@@ -1,252 +1,301 @@
-import React, { useEffect, useState } from 'react';
-import { GitMerge, Plus, Trash2, Calendar, AlertCircle, Edit2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  GitMerge,
+  Plus,
+  Calendar,
+  AlertCircle,
+  Edit2,
+  X,
+  Mail,
+  MessageCircle,
+  ExternalLink,
+  Building2
+} from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
-/**
- * PipelineModule
- * Kanban board for pipeline/project management
- */
+const STORAGE_KEY = 'aio_pipeline_layout_v2';
+const DEFAULT_COLUMNS = [
+  { id: 'new', title: 'New' },
+  { id: 'qualified', title: 'Qualified' },
+  { id: 'discovery', title: 'Discovery' },
+  { id: 'negotiating', title: 'Negotiating' },
+  { id: 'closed-won', title: 'Closed Won' },
+  { id: 'closed-lost', title: 'Closed Lost' }
+];
+
+const normalizeStageId = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'new';
+
+const ownerInitials = (owner) =>
+  String(owner || 'AI')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'AI';
+
+const shellPanelClass = 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-[0_14px_34px_rgba(0,0,0,0.14)]';
+const innerPanelClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]';
+const softActionClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]';
+
 const PipelineModule = () => {
-  const INITIAL_PIPELINE = {
-    planning: [
-      { id: 'PROJ-101', title: 'Ep 144: Future of AI', type: 'Story', priority: 'High', client: 'TechDaily', date: 'Oct 24', tags: ['Research', 'Guest'], assignees: ['AR'] },
-      { id: 'PROJ-102', title: 'Ep 145: Automation Tools', type: 'Task', priority: 'Medium', client: 'TechDaily', date: 'Oct 31', tags: ['Scripting'], assignees: [] },
-    ],
-    booking: [
-      { id: 'PROJ-103', title: 'Ep 143: Robotics', type: 'Task', priority: 'Low', client: 'TechDaily', date: 'Oct 17', tags: ['Waiting'], assignees: ['AC'] },
-    ],
-    production: [
-      { id: 'PROJ-104', title: 'Ep 142: The AI Revolution', type: 'Bug', priority: 'High', client: 'TechDaily', date: 'Today', tags: ['Recording'], assignees: ['MS', 'JS'] },
-    ],
-    post: [
-      { id: 'PROJ-105', title: 'Ep 141: Cyber Security', type: 'Story', priority: 'Medium', client: 'TechDaily', date: 'Oct 03', tags: ['Editing', 'Urgent'], assignees: [] },
-    ]
-  };
-
-  const STORAGE_KEY = 'aio_pipeline_board_v1';
-  const DEFAULT_ORDER = ['planning', 'booking', 'production', 'post'];
-  const DEFAULT_TITLES = {
-    planning: 'Planning',
-    booking: 'Booking',
-    production: 'Production',
-    post: 'Post',
-  };
-  const [columns, setColumns] = useState(INITIAL_PIPELINE);
-  const [columnOrder, setColumnOrder] = useState(DEFAULT_ORDER);
-  const [columnTitles, setColumnTitles] = useState(DEFAULT_TITLES);
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [draggedCard, setDraggedCard] = useState(null);
-  const [editingCard, setEditingCard] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [modalColumn, setModalColumn] = useState('planning');
+  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [editingColumnId, setEditingColumnId] = useState(null);
   const [newColumnName, setNewColumnName] = useState('');
-  const [formData, setFormData] = useState({
-    id: '',
-    title: '',
-    type: 'Task',
-    priority: 'Medium',
-    client: '',
-    date: '',
-    tags: '',
-    assignees: '',
-  });
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [showCreateStage, setShowCreateStage] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') {
-          if (parsed.columns) {
-            setColumns(parsed.columns);
-            setColumnOrder(parsed.columnOrder || Object.keys(parsed.columns));
-            setColumnTitles(parsed.columnTitles || DEFAULT_TITLES);
-          } else {
-            setColumns(parsed);
-            setColumnOrder(Object.keys(parsed));
-            setColumnTitles(DEFAULT_TITLES);
-          }
+        if (Array.isArray(parsed) && parsed.length) {
+          setColumns(parsed);
         }
-      } catch {
-        // ignore malformed
-      }
+      } catch {}
     }
+    loadContacts();
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      columns,
-      columnOrder,
-      columnTitles,
-    }));
-  }, [columns, columnOrder, columnTitles]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
+  }, [columns]);
 
-  const PRIORITY_COLORS = {
-    High: 'bg-red-900/20 text-red-400',
-    Medium: 'bg-yellow-900/20 text-yellow-400',
-    Low: 'bg-blue-900/20 text-blue-400'
+  const loadContacts = async () => {
+    setLoading(true);
+    try {
+      const data = await getContactsApi();
+      setContacts((data || []).filter((contact) => !contact.deleted_at));
+    } catch (error) {
+      console.error('Error loading pipeline contacts:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDragStart = (e, columnId, cardId) => {
-    setDraggedCard({ columnId, cardId });
-    e.dataTransfer.effectAllowed = 'move';
+  const cardsByColumn = useMemo(() => {
+    const columnMap = new Map(columns.map((column) => [column.id, []]));
+    const dynamicColumns = [];
+
+    contacts.forEach((contact) => {
+      const stageId = normalizeStageId(contact.pipeline_stage);
+      if (!columnMap.has(stageId)) {
+        const title = contact.pipeline_stage || 'New';
+        columnMap.set(stageId, []);
+        dynamicColumns.push({ id: stageId, title });
+      }
+      columnMap.get(stageId).push(contact);
+    });
+
+    const resolvedColumns = [...columns];
+    dynamicColumns.forEach((column) => {
+      if (!resolvedColumns.find((entry) => entry.id === column.id)) {
+        resolvedColumns.push(column);
+      }
+    });
+
+    return {
+      columns: resolvedColumns,
+      cards: columnMap
+    };
+  }, [columns, contacts]);
+
+  const pipelineStats = useMemo(() => {
+    const total = contacts.length;
+    const open = contacts.filter((contact) => !['Closed Won', 'Closed Lost'].includes(contact.pipeline_stage)).length;
+    const highValue = contacts.filter((contact) => (contact.lead_score || 0) >= 80).length;
+    const noOwner = contacts.filter((contact) => !contact.owner).length;
+    return { total, open, highValue, noOwner };
+  }, [contacts]);
+
+  const handleDragStart = (event, contactId, columnId) => {
+    setDraggedCard({ contactId, columnId });
+    event.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e, targetColumnId) => {
-    e.preventDefault();
+  const handleDrop = async (event, targetColumn) => {
+    event.preventDefault();
     if (!draggedCard) return;
-
-    const { columnId, cardId } = draggedCard;
-
-    const sourceCards = [...columns[columnId]];
-    const targetCards = [...columns[targetColumnId]];
-
-    const cardIndex = sourceCards.findIndex(card => card.id === cardId);
-    if (cardIndex === -1) return;
-
-    const [card] = sourceCards.splice(cardIndex, 1);
-
-    setColumns({
-      ...columns,
-      [columnId]: sourceCards,
-      [targetColumnId]: [...targetCards, card]
-    });
-
+    const contact = contacts.find((entry) => entry.id === draggedCard.contactId);
+    if (!contact) return;
+    const nextStage = targetColumn.title;
+    if (contact.pipeline_stage === nextStage) {
+      setDraggedCard(null);
+      return;
+    }
+    await updateContactApi(contact.id, { pipeline_stage: nextStage, updated_at: new Date().toISOString() });
+    await loadContacts();
     setDraggedCard(null);
   };
 
-  const handleDropOnCard = (e, targetColumnId, targetIndex) => {
-    e.preventDefault();
-    if (!draggedCard) return;
-    const { columnId, cardId } = draggedCard;
-
-    const sourceCards = [...columns[columnId]];
-    const targetCards = columnId === targetColumnId ? sourceCards : [...columns[targetColumnId]];
-    const cardIndex = sourceCards.findIndex(card => card.id === cardId);
-    if (cardIndex === -1) return;
-
-    const [card] = sourceCards.splice(cardIndex, 1);
-    targetCards.splice(targetIndex, 0, card);
-
-    setColumns({
-      ...columns,
-      [columnId]: sourceCards,
-      [targetColumnId]: targetCards,
-    });
-    setDraggedCard(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedCard(null);
-  };
-
-  const deleteCard = (columnId, cardId) => {
-    const updated = columns[columnId].filter(card => card.id !== cardId);
-    setColumns({
-      ...columns,
-      [columnId]: updated
-    });
-  };
-
-  const openNewCard = (columnId) => {
-    setEditingCard(null);
-    setModalColumn(columnId);
-    setFormData({
-      id: `PROJ-${Math.floor(100 + Math.random() * 900)}`,
-      title: '',
-      type: 'Task',
-      priority: 'Medium',
-      client: '',
-      date: '',
-      tags: '',
-      assignees: '',
-    });
-    setShowModal(true);
-  };
-
-  const openNewColumn = () => {
-    setEditingColumnId('new');
-    setNewColumnName('');
-  };
+  const handleDragEnd = () => setDraggedCard(null);
 
   const saveNewColumn = () => {
     const trimmed = newColumnName.trim();
     if (!trimmed) return;
-    const idBase = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const columnId = idBase || `stage-${Math.floor(Math.random() * 1000)}`;
-    if (columns[columnId]) return;
-    setColumns({ ...columns, [columnId]: [] });
-    setColumnOrder([...columnOrder, columnId]);
-    setColumnTitles({ ...columnTitles, [columnId]: trimmed });
-    setEditingColumnId(null);
+    const id = normalizeStageId(trimmed);
+    if (columns.find((column) => column.id === id)) {
+      setShowCreateStage(false);
+      setNewColumnName('');
+      return;
+    }
+    setColumns((current) => [...current, { id, title: trimmed }]);
+    setShowCreateStage(false);
     setNewColumnName('');
   };
 
-  const startRenameColumn = (columnId) => {
-    setEditingColumnId(columnId);
-    setNewColumnName(columnTitles[columnId] || columnId);
-  };
-
-  const saveRenameColumn = () => {
+  const saveRenameColumn = (columnId) => {
     const trimmed = newColumnName.trim();
-    if (!trimmed || !editingColumnId || editingColumnId === 'new') return;
-    setColumnTitles({ ...columnTitles, [editingColumnId]: trimmed });
+    if (!trimmed) return;
+    setColumns((current) =>
+      current.map((column) => (column.id === columnId ? { ...column, title: trimmed } : column))
+    );
     setEditingColumnId(null);
     setNewColumnName('');
   };
 
-  const openEditCard = (columnId, card) => {
-    setEditingCard({ columnId, cardId: card.id });
-    setModalColumn(columnId);
-    setFormData({
-      id: card.id,
-      title: card.title || '',
-      type: card.type || 'Task',
-      priority: card.priority || 'Medium',
-      client: card.client || '',
-      date: card.date || '',
-      tags: (card.tags || []).join(', '),
-      assignees: (card.assignees || []).join(', '),
-    });
-    setShowModal(true);
+  const startRenameColumn = (column) => {
+    setEditingColumnId(column.id);
+    setNewColumnName(column.title);
   };
 
-  const saveCard = () => {
-    const normalized = {
-      id: formData.id.trim() || `PROJ-${Math.floor(100 + Math.random() * 900)}`,
-      title: formData.title.trim() || 'Untitled',
-      type: formData.type,
-      priority: formData.priority,
-      client: formData.client.trim() || '',
-      date: formData.date.trim() || '',
-      tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-      assignees: formData.assignees.split(',').map(a => a.trim()).filter(Boolean),
-    };
+  const openCrmRecord = (contactId) => {
+    window.dispatchEvent(
+      new CustomEvent('aio:navigate', {
+        detail: {
+          module: 'crm',
+          contactId
+        }
+      })
+    );
+  };
 
-    setColumns((prev) => {
-      const updated = { ...prev };
-      if (editingCard) {
-        updated[editingCard.columnId] = updated[editingCard.columnId].map((card) =>
-          card.id === editingCard.cardId ? { ...card, ...normalized } : card
-        );
-      } else {
-        updated[modalColumn] = [...updated[modalColumn], normalized];
-      }
-      return updated;
+  const openCommsThread = async (contact, channelType = 'email') => {
+    const thread = await openThreadForContactApi({
+      contact_id: contact.id,
+      channel_type: channelType,
+      subject: `${channelType.toUpperCase()} follow-up for ${contact.first_name} ${contact.last_name}`.trim()
     });
-    setShowModal(false);
+    window.dispatchEvent(
+      new CustomEvent('aio:navigate', {
+        detail: {
+          module: channelType === 'sms' ? 'sms-voip' : 'chat',
+          threadId: thread.id
+        }
+      })
+    );
+  };
+
+  const runPipelineAssist = async () => {
+    const highestSignal = [...contacts].sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))[0];
+    if (!highestSignal) return;
+    await openCommsThread(highestSignal, 'email');
+  };
+
+  const getColumnHighlight = (cards) => [...cards].sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))[0] || null;
+
+  const renderCard = (contact) => {
+    const score = contact.lead_score || 0;
+    const priorityTone =
+      score >= 85 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' :
+      score >= 65 ? 'border-sky-500/30 bg-sky-500/10 text-sky-200' :
+      'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]';
+
+    return (
+      <div
+        key={contact.id}
+        draggable
+        onDragStart={(event) => handleDragStart(event, contact.id, normalizeStageId(contact.pipeline_stage))}
+        onDragEnd={handleDragEnd}
+        onDoubleClick={() => openCrmRecord(contact.id)}
+        className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 transition hover:border-[var(--color-primary)]/45 hover:shadow-[0_16px_40px_rgba(0,0,0,0.22)]"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
+              {contact.contact_id || contact.id}
+            </div>
+            <h3 className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">
+              {contact.first_name} {contact.last_name}
+            </h3>
+            <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+              <Building2 size={12} />
+              <span>{contact.company || 'Unassigned company'}</span>
+            </div>
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-[11px] font-bold">
+            {ownerInitials(contact.owner)}
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${priorityTone}`}>
+            Score {score}
+          </span>
+          {(contact.tags || []).slice(0, 2).map((tag) => (
+            <span key={tag} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[10px] text-[var(--color-text-secondary)]">
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--color-text-secondary)]">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Owner</div>
+            <div className="mt-1 text-[var(--color-text-primary)]">{contact.owner || 'Unassigned'}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Updated</div>
+            <div className="mt-1 text-[var(--color-text-primary)]">
+              {contact.updated_at ? new Date(contact.updated_at).toLocaleDateString() : '--'}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
+          <button
+            onClick={() => openCrmRecord(contact.id)}
+            className="flex-1 rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+          >
+            <ExternalLink size={12} className="mr-1 inline" />
+            Open CRM
+          </button>
+          <button
+            onClick={() => openCommsThread(contact, 'email')}
+            className="rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+          >
+            <Mail size={12} />
+          </button>
+          <button
+            onClick={() => openCommsThread(contact, 'sms')}
+            className="rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+          >
+            <MessageCircle size={12} />
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
       <ModuleHeader
-        title="Pipeline"
+        title="Pipelines"
         titleIcon={GitMerge}
         showTitle={false}
         showActions={true}
@@ -254,278 +303,183 @@ const PipelineModule = () => {
           {
             label: 'Add Stage',
             icon: Plus,
-            onClick: openNewColumn,
+            onClick: () => {
+              setShowCreateStage(true);
+              setEditingColumnId(null);
+              setNewColumnName('');
+            },
             variant: 'secondary',
           },
         ]}
         aiAssistSlot={(
           <AIAssistButton
-            onAssist={() => console.log('AI Assist: Pipeline')}
-            tooltip="AI Assist"
+            onAssist={runPipelineAssist}
+            tooltip="Pipeline Assist"
             iconType="crosshair"
           />
         )}
       />
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto p-6">
-        <div className="flex gap-6 min-w-min">
-          {columnOrder.map((columnId) => {
-            const cards = columns[columnId] || [];
-            return (
-            <div
-              key={columnId}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, columnId)}
-              className="flex-shrink-0 w-80 bg-[var(--color-bg-primary)] rounded-xl p-4 border border-[var(--color-border)]"
-            >
-              <div className="flex items-center justify-between mb-4">
-                {editingColumnId === columnId ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={newColumnName}
-                      onChange={(e) => setNewColumnName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveRenameColumn();
-                        if (e.key === 'Escape') setEditingColumnId(null);
-                      }}
-                      className="w-40 px-2 py-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)]"
-                      autoFocus
-                    />
-                    <button onClick={saveRenameColumn} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                      Save
-                    </button>
-                  </div>
-                ) : (
-                  <h2
-                    onDoubleClick={() => startRenameColumn(columnId)}
-                    className="font-bold text-[var(--color-text-primary)] flex items-center gap-2 cursor-pointer"
-                  >
-                    {columnTitles[columnId] || columnId}
-                    <span className="bg-[var(--color-hover)] text-[var(--color-text-secondary)] px-2 py-0.5 rounded text-xs font-normal">
-                    {cards.length}
-                  </span>
-                  </h2>
-                )}
-                <button
-                  onClick={() => openNewCard(columnId)}
-                  className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {cards.map(card => (
-                  <div
-                    key={card.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, columnId, card.id)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDropOnCard(e, columnId, cards.findIndex(c => c.id === card.id))}
-                    onDragEnd={handleDragEnd}
-                    onDoubleClick={() => openEditCard(columnId, card)}
-                    className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4 cursor-move hover:border-[var(--color-primary)]/50 transition group"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="text-xs font-bold text-[var(--color-accent)]">{card.id}</span>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                        <button
-                          onClick={() => openEditCard(columnId, card)}
-                          className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => deleteCard(columnId, card.id)}
-                          className="text-[var(--color-text-tertiary)] hover:text-red-500"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">{card.title}</h3>
-
-                    <div className="space-y-2 text-xs">
-                      <div className="text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-                        {card.type}
-                        {card.client ? ` · ${card.client}` : ''}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${PRIORITY_COLORS[card.priority]}`}>
-                          {card.priority}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
-                        <Calendar size={12} />
-                        <span>{card.date}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {card.tags?.map(tag => (
-                          <span key={tag} className="bg-[var(--color-hover)] text-[var(--color-text-secondary)] px-2 py-0.5 rounded text-[10px]">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-
-                      {card.assignees?.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          {card.assignees.map(assignee => (
-                            <div
-                              key={assignee}
-                              className="w-6 h-6 bg-[var(--color-primary)] rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                            >
-                              {assignee}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {cards.length === 0 && (
-                  <div className="text-center py-8 text-[var(--color-text-tertiary)] border-2 border-dashed border-[var(--color-border)] rounded-lg">
-                    <AlertCircle size={24} className="mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">Drop items here</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );})}
-
-          {editingColumnId === 'new' && (
-            <div className="flex-shrink-0 w-80 bg-[var(--color-bg-primary)] rounded-xl p-4 border border-[var(--color-border)]">
-              <div className="flex items-center gap-2">
-                <input
-                  value={newColumnName}
-                  onChange={(e) => setNewColumnName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveNewColumn();
-                    if (e.key === 'Escape') setEditingColumnId(null);
-                  }}
-                  placeholder="Stage name"
-                  className="flex-1 px-2 py-1 rounded bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)]"
-                  autoFocus
-                />
-                <button onClick={saveNewColumn} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                  Add
-                </button>
-              </div>
-            </div>
-          )}
+      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-6 py-5">
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className={innerPanelClass + ' p-4'}>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Open Deals</div>
+            <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{pipelineStats.open}</div>
+          </div>
+          <div className={innerPanelClass + ' p-4'}>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Tracked Contacts</div>
+            <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{pipelineStats.total}</div>
+          </div>
+          <div className={innerPanelClass + ' p-4'}>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">High Signal</div>
+            <div className="mt-2 text-2xl font-semibold text-emerald-300">{pipelineStats.highValue}</div>
+          </div>
+          <div className={innerPanelClass + ' p-4'}>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Needs Owner</div>
+            <div className="mt-2 text-2xl font-semibold text-amber-300">{pipelineStats.noOwner}</div>
+          </div>
         </div>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                {editingCard ? 'Edit Card' : 'New Card'}
-              </h3>
-              <button onClick={() => setShowModal(false)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
+        {loading ? (
+          <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
+            Loading pipeline...
+          </div>
+        ) : (
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] items-start">
+            {cardsByColumn.columns.map((column) => {
+              const cards = cardsByColumn.cards.get(column.id) || [];
+              return (
+                <div
+                  key={column.id}
+                  onDragOver={handleDragOver}
+                  onDrop={(event) => handleDrop(event, column)}
+                  className={shellPanelClass + ' min-w-0 p-3'}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    {editingColumnId === column.id ? (
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          value={newColumnName}
+                          onChange={(event) => setNewColumnName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') saveRenameColumn(column.id);
+                            if (event.key === 'Escape') setEditingColumnId(null);
+                          }}
+                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                          autoFocus
+                        />
+                        <button onClick={() => saveRenameColumn(column.id)} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <button onDoubleClick={() => startRenameColumn(column)} className="text-left">
+                          <div className="text-sm font-semibold text-[var(--color-text-primary)]">{column.title}</div>
+                        </button>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{cards.length} record{cards.length === 1 ? '' : 's'}</div>
+                      </div>
+                    )}
+                    {getColumnHighlight(cards) ? (
+                      <button
+                        onClick={() => setSelectedCard(getColumnHighlight(cards))}
+                        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]"
+                      >
+                        Top Signal
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {cards.map(renderCard)}
+                    {cards.length === 0 ? (
+                      <div className="rounded-xl border-2 border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-8 text-center text-[var(--color-text-tertiary)]">
+                        <AlertCircle size={22} className="mx-auto mb-2 opacity-60" />
+                        <p className="text-xs">Drop CRM records here</p>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+
+            {showCreateStage ? (
+              <div className={shellPanelClass + ' min-w-0 p-3'}>
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">New Stage</div>
+                  <input
+                    value={newColumnName}
+                    onChange={(event) => setNewColumnName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') saveNewColumn();
+                      if (event.key === 'Escape') setShowCreateStage(false);
+                    }}
+                    placeholder="Stage name"
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowCreateStage(false)} className="flex-1 rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]">
+                      Cancel
+                    </button>
+                    <button onClick={saveNewColumn} className="flex-1 rounded-xl bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]">
+                      Add Stage
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {selectedCard ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className={shellPanelClass + ' w-full max-w-lg'}>
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Relationship Record</div>
+                <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
+                  {selectedCard.first_name} {selectedCard.last_name}
+                </h3>
+              </div>
+              <button onClick={() => setSelectedCard(null)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
                 <X size={18} />
               </button>
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Title</label>
-                <input
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Type</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                  >
-                    <option>Task</option>
-                    <option>Story</option>
-                    <option>Bug</option>
-                  </select>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className={innerPanelClass + ' p-4'}>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Company</div>
+                  <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{selectedCard.company || 'No company linked'}</div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Priority</label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                  </select>
+                <div className={innerPanelClass + ' p-4'}>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Stage</div>
+                  <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{selectedCard.pipeline_stage || 'New'}</div>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Client</label>
-                <input
-                  value={formData.client}
-                  onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Date</label>
-                  <input
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">ID</label>
-                  <input
-                    value={formData.id}
-                    onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Tags (comma)</label>
-                <input
-                  value={formData.tags}
-                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1">Assignees (comma)</label>
-                <input
-                  value={formData.assignees}
-                  onChange={(e) => setFormData({ ...formData, assignees: e.target.value })}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]"
-                />
+              <div className={innerPanelClass + ' p-4 text-sm text-[var(--color-text-secondary)]'}>
+                <div>Email: <span className="text-[var(--color-text-primary)]">{selectedCard.email || '--'}</span></div>
+                <div className="mt-2">Owner: <span className="text-[var(--color-text-primary)]">{selectedCard.owner || 'Unassigned'}</span></div>
+                <div className="mt-2">Lead Score: <span className="text-[var(--color-text-primary)]">{selectedCard.lead_score || 0}</span></div>
               </div>
             </div>
-            <div className="mt-5 flex gap-2">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
-              >
-                Cancel
+            <div className="flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-5 py-4">
+              <button onClick={() => openCrmRecord(selectedCard.id)} className="flex-1 rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]">
+                Open CRM
               </button>
-              <button
-                onClick={saveCard}
-                className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
-              >
-                Save
+              <button onClick={() => openCommsThread(selectedCard, 'email')} className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]">
+                Email
+              </button>
+              <button onClick={() => openCommsThread(selectedCard, 'sms')} className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]">
+                SMS
               </button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

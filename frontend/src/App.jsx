@@ -12,6 +12,7 @@ import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './servi
 
 // Lazy load modules for code splitting
 const DashboardModule = lazy(() => import('./modules/Dashboard'));
+const BrainModule = lazy(() => import('./modules/Brain'));
 const CRMModule = lazy(() => import('./modules/CRM'));
 const FormBuilderModule = lazy(() => import('./modules/Forms'));
 const PipelineModule = lazy(() => import('./modules/Pipeline'));
@@ -23,6 +24,7 @@ const IntegrationsManager = lazy(() => import('./modules/Integrations'));
 const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
 const CommsModule = lazy(() => import('./modules/Comms'));
+const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 
 // Lazy load policy pages
@@ -79,6 +81,7 @@ const App = () => {
   const [flowId, setFlowId] = useState(null);
   const [commsThreadId, setCommsThreadId] = useState(null);
   const [integrationCategory, setIntegrationCategory] = useState('automation');
+  const [crmContactId, setCrmContactId] = useState(null);
 
   const fullscreenModules = ['flows'];
   const isFullscreen = fullscreenModules.includes(activeModule);
@@ -176,6 +179,9 @@ const App = () => {
       }
       if (detail.threadId !== undefined) {
         setCommsThreadId(detail.threadId);
+      }
+      if (detail.contactId !== undefined) {
+        setCrmContactId(detail.contactId);
       }
       if (detail.integrationCategory !== undefined) {
         setIntegrationCategory(detail.integrationCategory);
@@ -338,6 +344,8 @@ const App = () => {
     switch (activeModule) {
       case 'dashboard':
         return <DashboardModule />;
+      case 'aio-brain':
+        return <BrainModule />;
       case 'aio-systems':
         return (
           <SystemsModule
@@ -347,7 +355,7 @@ const App = () => {
           />
         );
       case 'crm':
-        return <CRMModule />;
+        return <CRMModule initialContactId={crmContactId} />;
       case 'forms':
         return <FormBuilderModule />;
       case 'pipelines':
@@ -369,7 +377,7 @@ const App = () => {
       case 'marketplace':
         return <PlaceholderModule name="Marketplace" />;
       case 'sms-voip':
-        return <CommsModule initialChannel="sms" initialThreadId={commsThreadId} />;
+        return <SmsVoipModule />;
       case 'settings':
         return <SettingsModule menuStructure={MENU_STRUCTURE} />;
       default:
@@ -386,7 +394,12 @@ const App = () => {
             {!isFullscreen && (
               <Sidebar
                 activeModule={activeModule}
-                onSelectModule={setActiveModule}
+                onSelectModule={(moduleId) => {
+                  setActiveModule(moduleId);
+                  if (moduleId !== 'crm') {
+                    setCrmContactId(null);
+                  }
+                }}
                 onLogout={handleLogout}
                 isMobileOpen={isMobileOpen}
                 setIsMobileOpen={setIsMobileOpen}

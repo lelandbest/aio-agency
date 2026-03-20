@@ -24,10 +24,10 @@ import AIAssistButton from '../../components/AIAssistButton';
 import {
   advanceThreadStageApi,
   assignThreadApi,
+  assistAiApi,
   createDealFromThreadApi,
   createMailboxApi,
   createThreadApi,
-  createThreadDraftApi,
   getMailboxAuthorizeUrl,
   getCommsSnapshotApi,
   getMailboxEventsApi,
@@ -40,7 +40,6 @@ import {
   sendThreadMessageApi,
   scheduleThreadMeetingApi,
   syncMailboxApi,
-  summarizeThreadApi,
   testMailboxConnectionApi,
   updateCalendarEventApi,
   updateMailboxApi,
@@ -138,6 +137,31 @@ const formatDateTime = (value) => {
     hour: 'numeric',
     minute: '2-digit'
   });
+};
+
+const decodeHtmlEntities = (value) => {
+  if (typeof window === 'undefined') return value;
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = value;
+  return textarea.value;
+};
+
+const looksLikeMarkup = (value) => /<!doctype|<html|<body|<meta|<style|<div|<\/[a-z]+>|xmlns=|mso-|office:office/i.test(value || '');
+
+const normalizeAiText = (value, fallback = '') => {
+  const source = `${value || ''}`.trim();
+  if (!source) return fallback;
+  if (!looksLikeMarkup(source)) return source;
+
+  const cleaned = decodeHtmlEntities(source)
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned || fallback;
 };
 
 const matchesThreadFilters = (thread, { queueId = 'all', channel = 'all', mailboxId = 'all', search = '' }) => {
@@ -344,7 +368,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
       });
     } catch (error) {
       setSnapshot(EMPTY_SNAPSHOT);
-      setActionNotice({ tone: 'error', message: 'Comms requires the local backend. Backend snapshot could not be loaded.' });
+      setActionNotice({ tone: 'error', message: 'Comm requires the local backend. Backend snapshot could not be loaded.' });
     }
   };
 
@@ -519,7 +543,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     if (!subject) return;
     await runAction('Creating', async () => {
       const mailboxId = activeMailbox?.id || selectedMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
-      const thread = await createThreadApi({ subject, channel_type: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailbox_id: mailboxId });
+      const thread = await createThreadApi({ subject, channel_type: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comm mission control.', mailbox_id: mailboxId });
       setSelectedThreadId(thread?.id || null);
     });
   };
@@ -547,12 +571,46 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   const handleAiAction = async (mode) => {
     if (!selectedThread) return;
     await runAction(mode, async () => {
-      if (mode === 'summarize') {
-        await summarizeThreadApi(selectedThread.id);
-      } else {
-        const response = await createThreadDraftApi(selectedThread.id, mode);
-        setComposer(response.draft || '');
+      const field = mode === 'summarize' ? 'summary' : mode;
+      const latestMessage = selectedThread.messages?.[selectedThread.messages.length - 1] || null;
+      const response = await assistAiApi({
+        module: 'comms',
+        surface: 'thread',
+        field,
+        intent: field === 'summary' ? 'summarize' : 'draft',
+        current_value: field === 'rewrite' ? composer || selectedThread.preview || '' : selectedThread.brief?.summary || selectedThread.preview || '',
+        context: {
+          thread_id: selectedThread.id,
+          subject: selectedThread.subject,
+          preview: selectedThread.preview,
+          summary: selectedThread.brief?.summary,
+          recommended_next_step: selectedThread.brief?.recommended_next_step,
+          disposition: selectedThread.brief?.disposition,
+          unresolved_questions: selectedThread.brief?.unresolved_questions || [],
+          reasoning_cues: selectedThread.brief?.reasoning_cues || [],
+          ai_flags: Object.keys(selectedThread.aiFlags || {}).filter((key) => selectedThread.aiFlags[key]),
+          priority: selectedThread.ai_priority,
+          contact_name: selectedThread.contact ? `${selectedThread.contact.first_name} ${selectedThread.contact.last_name}`.trim() : '',
+          company_name: selectedThread.company?.name || '',
+          assignee: selectedThread.assignee,
+          latest_message: latestMessage?.plain_text || latestMessage?.body || '',
+          latest_direction: latestMessage?.direction || '',
+        }
+      });
+      if (field !== 'summary') {
+        setComposer(response?.draft || response?.suggestion || '');
       }
+      if (response?.thread?.id) {
+        setSelectedThreadId(response.thread.id);
+      }
+      setActionNotice({
+        tone: 'success',
+        message: field === 'summary'
+          ? 'AI brief refreshed from the active thread context.'
+          : field === 'extract'
+            ? 'AI extracted the next operational tasks into the composer.'
+            : 'AI draft staged in the composer.'
+      });
     });
   };
 
@@ -715,11 +773,19 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     () => (snapshot.agents || EMPTY_SNAPSHOT.agents).map((agent) => agent.name),
     [snapshot.agents]
   );
+  const briefSummary = normalizeAiText(
+    selectedThread?.brief?.summary,
+    selectedThread?.preview || 'AI summary is being refined from the latest thread context.'
+  );
+  const briefNextStep = normalizeAiText(
+    selectedThread?.brief?.recommended_next_step,
+    'Review the latest inbound signal and send the next decisive response.'
+  );
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
       <ModuleHeader
-        title="Comms"
+        title="Comm"
         titleIcon={Radio}
         showTitle={false}
         actions={[
@@ -816,8 +882,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
       ) : null}
 
       <div className="flex-1 overflow-hidden">
-        <div className="h-full grid grid-cols-1 xl:grid-cols-12">
-          <aside className="xl:col-span-3 border-b xl:border-b-0 xl:border-r border-[var(--color-border)] bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_50%)] flex flex-col min-h-0">
+        <div className="h-full min-h-0 grid grid-cols-1 xl:grid-cols-12">
+          <aside className="xl:col-span-3 min-w-0 border-b xl:border-b-0 xl:border-r border-[var(--color-border)] bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_50%)] flex flex-col min-h-0">
             <div className="p-4 border-b border-[var(--color-border)] space-y-3">
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-3 text-[var(--color-text-secondary)]" />
@@ -919,25 +985,26 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
               })}
             </div>
           </aside>
-          <main className="xl:col-span-5 border-b xl:border-b-0 xl:border-r border-[var(--color-border)] flex flex-col min-h-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.22),transparent_35%)]">
+          <main className="xl:col-span-5 min-w-0 border-b xl:border-b-0 xl:border-r border-[var(--color-border)] flex flex-col min-h-0 overflow-hidden bg-[linear-gradient(180deg,rgba(15,23,42,0.22),transparent_35%)]">
             {selectedThread ? (
               <>
                 <div className="p-5 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
+                  <div className="flex flex-wrap items-start justify-between gap-4 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">{selectedThread.subject}</h2>
+                        <h2 className="min-w-0 break-words text-xl font-semibold text-[var(--color-text-primary)] [overflow-wrap:anywhere]">{selectedThread.subject}</h2>
                         <span className={`px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] ${statusTone[selectedThread.status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>{selectedThread.status.replace(/_/g, ' ')}</span>
                         <div className="relative">
                           <button
                             onClick={() => setIsAssigneeMenuOpen((current) => !current)}
-                            className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                            className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                           >
-                            <span>Assignee {selectedThread.assignee || 'Unassigned'}</span>
+                            <span className="text-[var(--color-text-tertiary)]">Agent</span>
+                            <span className="max-w-[8rem] truncate text-[var(--color-text-primary)]">{selectedThread.assignee || 'Unassigned'}</span>
                             <ChevronDown size={14} className={`transition-transform ${isAssigneeMenuOpen ? 'rotate-180' : ''}`} />
                           </button>
                           {isAssigneeMenuOpen ? (
-                            <div className="absolute left-0 top-full z-20 mt-2 w-72 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-2 shadow-2xl">
+                            <div className="absolute left-0 top-full z-20 mt-2 w-60 max-w-[calc(100vw-6rem)] rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-2 shadow-2xl">
                               {availableAgents.map((agentName) => (
                                 <button
                                   key={agentName}
@@ -955,7 +1022,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                           ) : null}
                         </div>
                       </div>
-                      <p className="text-sm text-[var(--color-text-secondary)] max-w-2xl">{selectedThread.generated_title}</p>
+                      <p className="max-w-2xl text-sm text-[var(--color-text-secondary)] break-words [overflow-wrap:anywhere]">{selectedThread.generated_title}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => handleAiAction('summarize')} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Summarize</button>
@@ -990,9 +1057,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   ) : null}
                 </div>
 
-                <div className="flex-1 overflow-auto px-4 py-5 space-y-4">
+                <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 py-5 space-y-4">
                   {selectedThread.messages.map((message) => (
-                    <div key={message.id} className={`max-w-[92%] rounded-2xl border p-4 ${message.direction === 'outbound' ? 'ml-auto bg-[var(--color-primary)]/12 border-[var(--color-primary)]/30' : message.direction === 'system' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
+                    <div key={message.id} className={`max-w-[92%] min-w-0 rounded-2xl border p-4 ${message.direction === 'outbound' ? 'ml-auto bg-[var(--color-primary)]/12 border-[var(--color-primary)]/30' : message.direction === 'system' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
                       <div className="flex items-center justify-between gap-3 mb-2 text-xs text-[var(--color-text-secondary)]">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-[var(--color-text-primary)]">{message.sender_name}</span>
@@ -1002,9 +1069,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                         </div>
                         <span>{formatRelative(message.created_at)}</span>
                       </div>
-                      <div className="text-sm leading-6 text-[var(--color-text-primary)] whitespace-pre-wrap">{message.plain_text}</div>
+                      <div className="text-sm leading-6 text-[var(--color-text-primary)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                        {normalizeAiText(message.plain_text, message.body || '')}
+                      </div>
                       {message.recipients?.length ? (
-                        <div className="mt-3 text-[11px] text-[var(--color-text-tertiary)]">Recipients: {message.recipients.join(', ')}</div>
+                        <div className="mt-3 text-[11px] text-[var(--color-text-tertiary)] break-words [overflow-wrap:anywhere]">Recipients: {message.recipients.join(', ')}</div>
                       ) : null}
                     </div>
                   ))}
@@ -1034,7 +1103,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   </div>
                   <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={5} placeholder="Draft the next move, log an internal note, or send a precise follow-up..." className="w-full rounded-2xl bg-[var(--color-bg-primary)] border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs text-[var(--color-text-tertiary)]">{busyLabel ? `${busyLabel}...` : 'Thread-first comms with AI-guided actions.'}</div>
+                    <div className="text-xs text-[var(--color-text-tertiary)]">{busyLabel ? `${busyLabel}...` : 'Thread-first comm with AI-guided actions.'}</div>
                     <button onClick={handleSend} disabled={!composer.trim()} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium flex items-center gap-2">
                       <Send size={14} />
                       Send
@@ -1047,18 +1116,18 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
             )}
           </main>
 
-          <aside className="xl:col-span-4 flex flex-col min-h-0 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),transparent_35%)]">
+          <aside className="xl:col-span-4 min-w-0 flex flex-col min-h-0 overflow-hidden bg-[linear-gradient(180deg,rgba(16,185,129,0.12),transparent_35%)]">
             {selectedThread ? (
-              <div className="flex-1 overflow-auto p-5 space-y-5">
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+              <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-5 space-y-5">
+                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> AI Brief</div>
                     <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.ai_priority} priority</span>
                   </div>
-                  <p className="text-sm text-[var(--color-text-primary)]">{selectedThread.brief?.summary}</p>
+                  <p className="text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefSummary}</p>
                   <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3">
                     <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">Recommended Next Step</div>
-                    <div className="text-sm text-[var(--color-text-primary)]">{selectedThread.brief?.recommended_next_step}</div>
+                    <div className="text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefNextStep}</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {threadFlags.map((flag) => (
@@ -1067,7 +1136,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
                   <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><User size={16} /> Relationship Context</div>
                   <div className="grid sm:grid-cols-2 gap-3 text-sm">
                     <div className="rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] p-3">
@@ -1116,9 +1185,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Workflow size={16} /> Tracks</div>
                   <div className="space-y-2">
                     {threadCalendarEvents.map((event) => (
-                      <div key={event.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                      <div key={event.id} className="min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium text-[var(--color-text-primary)]">{event.title}</div>
+                          <div className="min-w-0 text-sm font-medium text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{event.title}</div>
                           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar</span>
                         </div>
                         <div className="mt-1 text-sm text-[var(--color-text-secondary)]">{event.description || 'Calendar artifact created from Comms.'}</div>
@@ -1185,9 +1254,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                       </div>
                     ))}
                     {completedThreadActions.map((action) => (
-                      <div key={action.id || `${action.action_type}-${action.label}`} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                      <div key={action.id || `${action.action_type}-${action.label}`} className="min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium text-[var(--color-text-primary)]">{action.label}</div>
+                          <div className="min-w-0 text-sm font-medium text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{action.label}</div>
                           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{action.source || 'system'}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
@@ -1276,7 +1345,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   </section>
                 ) : null}
 
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailbox Admin</div>
                     <div className="flex items-center gap-2">
@@ -1331,7 +1400,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   ) : null}
                 </section>
 
-                <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                <section className="min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
                   <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><AlertTriangle size={16} /> Mail Events</div>
                   <div className="space-y-2">
                     {mailboxEvents.length > 0 ? mailboxEvents.slice(0, 6).map((event) => {

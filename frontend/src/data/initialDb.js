@@ -119,6 +119,7 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Main",
     items: [
       { id: "aio-agents", label: "AIO Agents\u2122", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-brain", label: "AIO Brain", icon: "Cpu", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search AIO Brain..." },
       { id: "dashboard", label: "AIO Dashboard", icon: "LayoutDashboard", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-systems", label: "AIO Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full AIO system stack and launch each workspace inside the embedded app frame." }
     ]
@@ -136,7 +137,7 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Operations",
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "chat", label: "Comms", icon: "MessageSquare", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "chat", label: "Comm", icon: "Radio", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "flows", label: "Flows", icon: "Zap", type: "internal", visible: true, iconColor: "#9ca3af" },
@@ -163,22 +164,7 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Admin",
     items: [
       { id: "integrations", label: "Integrations", icon: "Link", type: "internal", visible: true, iconColor: "#9ca3af" },
-      {
-        id: "settings",
-        label: "Settings",
-        icon: "Settings",
-        type: "group",
-        visible: true,
-        iconColor: "#9ca3af",
-        children: [
-          { id: "set-billing", label: "Billing", type: "internal" },
-          { id: "set-personal", label: "Personal", type: "internal" },
-          { id: "set-security", label: "Security", type: "internal" },
-          { id: "set-workspace", label: "Workspace", type: "internal" },
-          { id: "set-whitelabel", label: "White Label", type: "internal" },
-          { id: "set-vars", label: "Variables", type: "internal" }
-        ]
-      }
+      { id: "settings", label: "Settings", icon: "Settings", type: "internal", visible: true, iconColor: "#9ca3af" }
     ]
   }
 ];

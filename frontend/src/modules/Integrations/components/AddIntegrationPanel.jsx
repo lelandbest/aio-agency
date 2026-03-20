@@ -18,12 +18,15 @@ export const AddIntegrationPanel = ({
   const [formData, setFormData] = useState({});
   const [customLogo, setCustomLogo] = useState(null);
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const providers = getProvidersByCategory(category);
   const provider = selectedProvider ? getProviderConfig(selectedProvider) : null;
 
   // Handle form input changes
   const handleInputChange = (fieldName, value) => {
+    setSubmitError('');
     setFormData((prev) => ({
       ...prev,
       [fieldName]: value,
@@ -72,21 +75,33 @@ export const AddIntegrationPanel = ({
   };
 
   // Handle save
-  const handleSave = () => {
-    if (validateForm()) {
-      onSave({
+  const handleSave = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    setSaving(true);
+    setSubmitError('');
+    try {
+      const result = await onSave({
         providerId: selectedProvider,
         category,
         config: formData,
         customLogo,
       });
+      if (result === false) {
+        return;
+      }
 
-      // Reset form
       setSelectedProvider(null);
       setFormData({});
       setCustomLogo(null);
       setErrors({});
       onClose();
+    } catch (error) {
+      setSubmitError(error?.message || 'Unable to add integration.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -96,6 +111,8 @@ export const AddIntegrationPanel = ({
     setFormData({});
     setCustomLogo(null);
     setErrors({});
+    setSubmitError('');
+    setSaving(false);
     onClose();
   };
 
@@ -288,6 +305,7 @@ export const AddIntegrationPanel = ({
                   </div>
                 </div>
               </form>
+              {submitError ? <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-300">{submitError}</div> : null}
             </div>
           )}
         </div>
@@ -302,10 +320,11 @@ export const AddIntegrationPanel = ({
           </button>
           {selectedProvider && (
             <button 
-              className="flex-1 px-4 py-2.5 border-none rounded text-sm font-semibold cursor-pointer transition-all bg-purple-500 text-white hover:bg-purple-600"
+              className="flex-1 px-4 py-2.5 border-none rounded text-sm font-semibold cursor-pointer transition-all bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={handleSave}
+              disabled={saving}
             >
-              Add Integration
+              {saving ? 'Adding...' : 'Add Integration'}
             </button>
           )}
         </div>

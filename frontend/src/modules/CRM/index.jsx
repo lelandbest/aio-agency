@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  assistAiApi,
   createWorkspaceUserApi,
   createContactApi,
   getCompaniesApi,
@@ -21,7 +22,7 @@ import {
   Edit, Clipboard, FileInput, User, Building2, KeyRound, Shield, ExternalLink
 } from 'lucide-react';
 
-const CRMModule = () => {
+const CRMModule = ({ initialContactId = null }) => {
   const { tenant, tenants = [], switchTenant } = useAuth();
   const importInputRef = useRef(null);
   // State Management
@@ -59,6 +60,7 @@ const CRMModule = () => {
   const [billingModal, setBillingModal] = useState(null);
   const [bulkActionModal, setBulkActionModal] = useState({ open: false, action: '', value: '' });
   const [bulkActionSubmitting, setBulkActionSubmitting] = useState(false);
+  const [bulkActionAssistLoading, setBulkActionAssistLoading] = useState(false);
   const [bulkActionError, setBulkActionError] = useState('');
 
   const currentWorkspace = tenant || tenants[0] || null;
@@ -109,10 +111,24 @@ const CRMModule = () => {
     form_submission_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year']
   };
 
+  const shellPanelClass = 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-[0_14px_34px_rgba(0,0,0,0.14)]';
+  const innerPanelClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]';
+  const softActionClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]';
+  const destructiveActionClass = 'rounded-xl border border-red-500/30 bg-red-500/12 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/18';
+  const primaryActionClass = 'rounded-xl bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-on-primary)] transition hover:bg-[var(--color-primary-hover)]';
+
   // Load data from database
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!initialContactId || !contacts.length) return;
+    const contact = contacts.find((entry) => entry.id === initialContactId);
+    if (contact) {
+      setSelectedContact(contact);
+    }
+  }, [initialContactId, contacts]);
 
   // Load contact activities when a contact is selected
   useEffect(() => {
@@ -395,6 +411,16 @@ const CRMModule = () => {
     return filtered;
   }, [contacts, searchTerm, filters, sortField, sortDirection]);
 
+  const crmStats = useMemo(() => {
+    const activeContacts = contacts.filter((contact) => !contact.deleted_at);
+    return {
+      total: activeContacts.length,
+      highSignal: activeContacts.filter((contact) => (contact.lead_score || 0) >= 80).length,
+      needsOwner: activeContacts.filter((contact) => !contact.owner).length,
+      formDriven: activeContacts.filter((contact) => normalizeText(contact.source).includes('form')).length
+    };
+  }, [contacts]);
+
   // Selection handlers
   const toggleSelectAll = () => {
     if (selectedContacts.size === filteredAndSortedContacts.length) {
@@ -631,6 +657,23 @@ const CRMModule = () => {
     phone: contact?.phone || ''
   });
 
+  const requestCrmAiAssist = async ({ surface, field, currentValue = '', context = {}, intent = 'draft' }) => {
+    const response = await assistAiApi({
+      module: 'crm',
+      surface,
+      field,
+      intent,
+      current_value: currentValue || '',
+      context: {
+        workspaceName: currentWorkspace?.name || '',
+        selectedContactId: selectedContact?.id || '',
+        selectedContactEmail: selectedContact?.email || '',
+        ...context
+      }
+    });
+    return response?.suggestion || '';
+  };
+
   const openCreateUserModal = (contact = null) => {
     if (contact) {
       setSelectedContact(contact);
@@ -643,6 +686,30 @@ const CRMModule = () => {
     setBulkActionModal({ open: false, action: '', value: '' });
     setBulkActionError('');
     setBulkActionSubmitting(false);
+    setBulkActionAssistLoading(false);
+  };
+
+  const applyBulkActionAssist = async () => {
+    setBulkActionError('');
+    setBulkActionAssistLoading(true);
+    try {
+      const suggestion = await requestCrmAiAssist({
+        surface: 'bulk-action',
+        field: 'value',
+        currentValue: bulkActionModal.value,
+        context: {
+          action: bulkActionModal.action,
+          selectedCount: selectedContacts.size
+        }
+      });
+      if (suggestion) {
+        setBulkActionModal((current) => ({ ...current, value: suggestion }));
+      }
+    } catch (error) {
+      setBulkActionError(error.message || 'Unable to draft a bulk action value.');
+    } finally {
+      setBulkActionAssistLoading(false);
+    }
   };
 
   const applyBulkAction = async () => {
@@ -836,78 +903,97 @@ const CRMModule = () => {
       return renderContactDetailView();
     }
 
+    const selectedCount = selectedContacts.size;
+    const bulkActions = [
+      { action: 'add_tag', label: 'Add Tag', className: softActionClass },
+      { action: 'remove_tag', label: 'Remove Tag', className: destructiveActionClass },
+      { action: 'add_flow', label: 'Add Flow', className: softActionClass },
+      { action: 'remove_flow', label: 'Remove Flow', className: destructiveActionClass },
+      { action: 'set_owner', label: 'Set Owner', className: softActionClass },
+      { action: 'set_department', label: 'Set Dept', className: softActionClass },
+      { action: 'assign_ai', label: 'Assign AI', className: primaryActionClass },
+      { action: 'send_email', label: 'Send Email', className: softActionClass, icon: Mail },
+      { action: 'send_sms', label: 'Send SMS', className: softActionClass, icon: MessageCircle },
+      { action: 'export', label: 'Export', className: softActionClass, icon: Download },
+      { action: 'send_api', label: 'Send API', className: softActionClass },
+      { action: 'delete', label: 'Delete', className: destructiveActionClass, icon: Trash2 }
+    ];
+
     return (
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden bg-[var(--color-bg-secondary)]">
         {/* LEFT: Contact Table */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Search Bar */}
-          <div className="p-4 border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-3 text-[var(--color-text-secondary)]" />
-              <input
-                type="text"
-                placeholder="Search contacts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-4 py-2 pl-10 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] text-sm"
-              />
+          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-5">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className={innerPanelClass + ' p-4'}>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Tracked Contacts</div>
+                <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{crmStats.total}</div>
+              </div>
+              <div className={innerPanelClass + ' p-4'}>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">High Signal</div>
+                <div className="mt-2 text-2xl font-semibold text-emerald-300">{crmStats.highSignal}</div>
+              </div>
+              <div className={innerPanelClass + ' p-4'}>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Needs Owner</div>
+                <div className="mt-2 text-2xl font-semibold text-amber-300">{crmStats.needsOwner}</div>
+              </div>
+              <div className={innerPanelClass + ' p-4'}>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Form Driven</div>
+                <div className="mt-2 text-2xl font-semibold text-cyan-300">{crmStats.formDriven}</div>
+              </div>
             </div>
           </div>
 
-          {/* Bulk Actions */}
-          <div className="px-4 py-3 bg-[var(--color-bg-primary)] border-b border-[var(--color-border)] flex gap-2 flex-wrap">
-            <button onClick={() => handleBulkAction('add_tag')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
-              Add Tag
-            </button>
-            <button onClick={() => handleBulkAction('remove_tag')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
-              Remove Tag
-            </button>
-            <button onClick={() => handleBulkAction('add_flow')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
-              Add Flow
-            </button>
-            <button onClick={() => handleBulkAction('remove_flow')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
-              Remove Flow
-            </button>
-            <button onClick={() => handleBulkAction('export')} className="px-3 py-1.5 rounded text-xs font-medium bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]">
-              <Download size={12} className="inline mr-1" /> Export
-            </button>
-            <button onClick={() => handleBulkAction('set_owner')} className="px-3 py-1.5 rounded text-xs font-medium bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]">
-              Set Owner
-            </button>
-            <button onClick={() => handleBulkAction('delete')} className="px-3 py-1.5 rounded text-xs font-medium bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={12} className="inline mr-1" /> Delete
-            </button>
-            <button onClick={() => handleBulkAction('send_email')} className="px-3 py-1.5 rounded text-xs font-medium bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]">
-              <Mail size={12} className="inline mr-1" /> Send Email
-            </button>
-            <button onClick={() => handleBulkAction('send_sms')} className="px-3 py-1.5 rounded text-xs font-medium bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]">
-              <MessageCircle size={12} className="inline mr-1" /> Send SMS
-            </button>
-            <button onClick={() => handleBulkAction('send_api')} className="px-3 py-1.5 rounded text-xs font-medium bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]">
-              Send API
-            </button>
-            <button onClick={() => handleBulkAction('assign_ai')} className="px-3 py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white">
-              Assign AI
-            </button>
-            <button onClick={() => handleBulkAction('set_department')} className="px-3 py-1.5 rounded text-xs font-medium bg-yellow-600 hover:bg-yellow-700 text-black">
-              Set Dept
-            </button>
+          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative flex-1 max-w-2xl">
+                <Search size={16} className="absolute left-3 top-3 text-[var(--color-text-secondary)]" />
+                <input
+                  type="text"
+                  placeholder="Filter visible records by name, email, company, or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2.5 pl-10 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={() => setShowFilters((current) => !current)}
+                className={showFilters ? primaryActionClass : softActionClass}
+              >
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+              </button>
+            </div>
           </div>
 
-          {/* Selection Info */}
-          <div className="px-4 py-2 bg-[var(--color-bg-secondary)] text-sm text-[var(--color-text-secondary)]">
-            {selectedContacts.size} of {filteredAndSortedContacts.length} contacts selected
+          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Operator Actions</div>
+                <div className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                  {selectedCount} of {filteredAndSortedContacts.length} visible contact{filteredAndSortedContacts.length === 1 ? '' : 's'} selected.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 xl:justify-end">
+                {bulkActions.map(({ action, label, className, icon: ActionIcon }) => (
+                  <button key={action} onClick={() => handleBulkAction(action)} className={className}>
+                    {ActionIcon ? <ActionIcon size={12} className="mr-1.5 inline" /> : null}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Contact Table */}
-          <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)]">
+          <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)] px-5 py-5">
             {loading ? (
-              <div className="flex items-center justify-center h-full">
+              <div className={shellPanelClass + ' flex h-full items-center justify-center'}>
                 <div className="text-[var(--color-text-secondary)]">Loading contacts...</div>
               </div>
             ) : (
+              <div className={shellPanelClass + ' overflow-hidden'}>
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-[var(--color-bg-primary)] border-b border-[var(--color-border)]">
+                <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)]">
                   <tr>
                     <th className="px-4 py-3 text-left w-12">
                       <input 
@@ -917,30 +1003,30 @@ const CRMModule = () => {
                         className="w-4 h-4" 
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-white" onClick={() => handleSort('first_name')}>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('first_name')}>
                       <div className="flex items-center gap-2">
                         NAME {renderSortIcon('first_name')}
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-white" onClick={() => handleSort('company')}>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
                       <div className="flex items-center gap-2">
                         COMPANY {renderSortIcon('company')}
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-white" onClick={() => handleSort('lead_score')}>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('lead_score')}>
                       <div className="flex items-center gap-2">
                         SCORE {renderSortIcon('lead_score')}
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
                       TAGS
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-white" onClick={() => handleSort('created_at')}>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('created_at')}>
                       <div className="flex items-center gap-2">
                         CREATED AT {renderSortIcon('created_at')}
                       </div>
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-white" onClick={() => handleSort('updated_at')}>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updated_at')}>
                       <div className="flex items-center gap-2">
                         UPDATED AT {renderSortIcon('updated_at')}
                       </div>
@@ -951,7 +1037,7 @@ const CRMModule = () => {
                   {filteredAndSortedContacts.map(contact => (
                     <tr 
                       key={contact.id} 
-                      className="border-b border-[var(--color-border)] hover:bg-[color:var(--color-border)/0.2] transition cursor-pointer"
+                      className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer"
                     >
                       <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
                         <input 
@@ -961,15 +1047,22 @@ const CRMModule = () => {
                           className="w-4 h-4"
                         />
                       </td>
-                      <td className="px-4 py-3 text-[var(--color-primary)] font-medium hover:text-[var(--color-primary-hover)]" onClick={() => setSelectedContact(contact)}>
-                        {contact.first_name} {contact.last_name}
+                      <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
+                        <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
+                          {contact.first_name} {contact.last_name}
+                        </div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
                       </td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
-                      <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.lead_score || '--'}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)]">
+                          {contact.lead_score || '--'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1 flex-wrap">
                           {contact.tags?.map((tag, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-[var(--color-primary)]/15 text-[var(--color-primary)] rounded text-xs">
+                            <span key={idx} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)]">
                               {tag}
                             </span>
                           ))}
@@ -985,6 +1078,7 @@ const CRMModule = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
@@ -992,22 +1086,25 @@ const CRMModule = () => {
         {/* RIGHT: Filters */}
         {showFilters && (
           <div className="w-80 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
-              <h3 className="text-sm font-bold text-white">Filters</h3>
-              <button onClick={() => setShowFilters(false)} className="text-[var(--color-text-secondary)] hover:text-white">
+            <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-4 flex justify-between items-center">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Refine Records</div>
+                <h3 className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Filters</h3>
+              </div>
+              <button onClick={() => setShowFilters(false)} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
                 <X size={16} />
               </button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {Object.entries(filterOptions).map(([filterKey, options]) => (
-                <div key={filterKey} className="border-b border-[var(--color-border)] pb-3">
+                <div key={filterKey} className={innerPanelClass + ' p-3'}>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-[var(--color-text-primary)] uppercase">
+                    <label className="text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
                       {filterKey.replace('_', ' ')}
                     </label>
                     {filters[filterKey].active && (
-                      <button onClick={() => clearFilter(filterKey)} className="text-xs text-red-400 hover:text-red-300">
+                      <button onClick={() => clearFilter(filterKey)} className="text-xs text-red-300 hover:text-red-200">
                         Clear
                       </button>
                     )}
@@ -1017,7 +1114,7 @@ const CRMModule = () => {
                   <select
                     value={filters[filterKey].operator}
                     onChange={(e) => updateFilter(filterKey, 'operator', e.target.value)}
-                    className="w-full mb-2 px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-sm text-white focus:outline-none focus:border-[var(--color-primary)]"
+                    className="w-full mb-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                   >
                     {filterOperators.map(op => (
                       <option key={op} value={op}>{op}</option>
@@ -1029,7 +1126,7 @@ const CRMModule = () => {
                     <select
                       value={filters[filterKey].value}
                       onChange={(e) => updateFilter(filterKey, 'value', e.target.value)}
-                      className="w-full px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-sm text-white focus:outline-none focus:border-[var(--color-primary)]"
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                     >
                       <option value="">Select...</option>
                       {options.map(opt => (
@@ -1182,15 +1279,15 @@ const CRMModule = () => {
     };
 
     const renderSideSection = (panelId, title, content, badge = null) => (
-      <div className="bg-[var(--color-bg-primary)] rounded p-3">
+      <div className={shellPanelClass + ' p-3'}>
         <button
           onClick={() => toggleDetailPanel(panelId)}
           className="w-full flex items-center justify-between gap-3 text-left"
         >
-          <span className="text-sm font-bold text-white">{title}</span>
+          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</span>
           <div className="flex items-center gap-2">
             {badge}
-            <ChevronDown size={14} className={`transition-transform ${detailPanels[panelId] ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`text-[var(--color-text-tertiary)] transition-transform ${detailPanels[panelId] ? 'rotate-180' : ''}`} />
           </div>
         </button>
         {detailPanels[panelId] ? <div className="mt-3">{content}</div> : null}
@@ -1259,31 +1356,45 @@ const CRMModule = () => {
     const currentContact = isEditingContact ? editedContact : selectedContact;
 
     return (
-      <div className="flex-1 flex bg-[var(--color-bg-secondary)] overflow-hidden">
-        <button 
-          onClick={() => setSelectedContact(null)}
-          className="absolute top-4 left-4 z-10 flex items-center gap-2 text-[var(--color-text-secondary)] hover:text-white bg-[var(--color-bg-secondary)] px-3 py-2 rounded-lg"
-        >
-          <ChevronLeft size={16} /> Back to Contacts
-        </button>
-        
+      <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)] overflow-hidden">
+        <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <button 
+              onClick={() => setSelectedContact(null)}
+              className="inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
+            >
+              <ChevronLeft size={16} /> Back to Contacts
+            </button>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                Stage {currentContact.pipeline_stage || 'New'}
+              </span>
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                Owner {currentContact.owner || 'Unassigned'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
         {/* LEFT PANEL: Detailed Contact Info */}
-        <div className="w-80 flex flex-col gap-4 overflow-y-auto p-4 mt-12">
+        <div className="w-80 flex flex-col gap-4 overflow-y-auto p-4">
           {/* Detail Card */}
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4 space-y-3">
+          <div className={shellPanelClass + ' p-4 space-y-4'}>
             <div className="flex justify-between items-start">
               <div>
-                <h2 className="text-lg font-bold text-white">{currentContact.first_name} {currentContact.last_name}</h2>
-                <button onClick={handleDeleteContact} className="text-red-500 text-xs mt-1 hover:text-red-400">Delete Contact</button>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Relationship Dossier</div>
+                <h2 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{currentContact.first_name} {currentContact.last_name}</h2>
+                <button onClick={handleDeleteContact} className="mt-1 text-xs text-red-300 transition hover:text-red-200">Delete Contact</button>
               </div>
               {!isEditingContact ? (
-                <button onClick={handleEditContact} className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1">
+                <button onClick={handleEditContact} className="inline-flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]">
                   <Edit size={12} /> Edit
                 </button>
               ) : (
                 <div className="flex gap-2">
-                  <button onClick={handleSaveContact} className="text-green-400 hover:text-green-300 text-xs">Save</button>
-                  <button onClick={handleCancelEdit} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-xs">Cancel</button>
+                  <button onClick={handleSaveContact} className={primaryActionClass}>Save</button>
+                  <button onClick={handleCancelEdit} className={softActionClass}>Cancel</button>
                 </div>
               )}
             </div>
@@ -1291,22 +1402,22 @@ const CRMModule = () => {
             {/* Editable Key Fields */}
             {['quality', 'engagement', 'owner', 'company', 'dob', 'department', 'title', 'ai_employee'].map(field => (
               <div key={field}>
-                <label className="text-xs text-[var(--color-text-secondary)] font-bold uppercase">{field.replace('_', ' ')}</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.replace('_', ' ')}</label>
                 {isEditingContact ? (
                   <input
                     type="text"
                     value={currentContact[field] || ''}
                     onChange={(e) => handleFieldChange(field, e.target.value)}
-                    className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm"
+                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
-                  <p className="text-[var(--color-text-primary)]">{currentContact[field] || '--'}</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">{currentContact[field] || '--'}</p>
                 )}
               </div>
             ))}
 
             {/* Quick Action Buttons */}
-            <div className="flex gap-2 py-3 border-t border-[var(--color-border)]">
+            <div className="grid grid-cols-5 gap-2 border-t border-[var(--color-border)] pt-3">
               {[
                 { icon: Clipboard, label: 'Note' },
                 { icon: Mail, label: 'Email' },
@@ -1314,7 +1425,7 @@ const CRMModule = () => {
                 { icon: Calendar, label: 'Meet' },
                 { icon: FileInput, label: 'Form' }
               ].map((action, idx) => (
-                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex-1 flex flex-col items-center gap-1 p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs">
+                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex flex-col items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-2 text-[11px] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]">
                   <action.icon size={16} />
                   <span className="text-xs">{action.label}</span>
                 </button>
@@ -1322,59 +1433,59 @@ const CRMModule = () => {
             </div>
 
             {/* Contact Info */}
-            <div className="space-y-2 text-sm border-t border-[var(--color-border)] pt-3">
+            <div className="space-y-3 border-t border-[var(--color-border)] pt-3">
               <div>
-                <label className="text-xs text-[var(--color-text-secondary)]">Email</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Email</label>
                 {isEditingContact ? (
                   <input
                     type="email"
                     value={currentContact.email || ''}
                     onChange={(e) => handleFieldChange('email', e.target.value)}
-                      className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-primary)] text-sm"
+                      className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-primary)]"
                   />
                 ) : (
-                    <p className="text-[var(--color-primary)] flex items-center gap-1">
+                    <p className="mt-1 flex items-center gap-1 text-sm text-[var(--color-primary)]">
                     <Mail size={14} /> {currentContact.email}
                   </p>
                 )}
               </div>
               <div>
-                <label className="text-xs text-[var(--color-text-secondary)]">Phone</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Phone</label>
                 {isEditingContact ? (
                   <input
                     type="tel"
                     value={currentContact.phone || ''}
                     onChange={(e) => handleFieldChange('phone', e.target.value)}
-                    className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm"
+                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
-                  <p className="text-[var(--color-text-primary)]">{currentContact.phone || '--'}</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">{currentContact.phone || '--'}</p>
                 )}
               </div>
               <div>
-                <label className="text-xs text-[var(--color-text-secondary)]">Website</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Website</label>
                 {isEditingContact ? (
                   <input
                     type="url"
                     value={currentContact.website || ''}
                     onChange={(e) => handleFieldChange('website', e.target.value)}
-                    className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm"
+                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
-                  <p className="text-[var(--color-text-primary)]">{currentContact.website || '--'}</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">{currentContact.website || '--'}</p>
                 )}
               </div>
               <div>
-                <label className="text-xs text-[var(--color-text-secondary)]">Address</label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Address</label>
                 {isEditingContact ? (
                   <textarea
                     value={typeof currentContact.address === 'object' ? JSON.stringify(currentContact.address) : (currentContact.address || '')}
                     onChange={(e) => handleFieldChange('address', e.target.value)}
-                    className="w-full px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm"
+                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                     rows="2"
                   />
                 ) : (
-                  <p className="text-[var(--color-text-primary)]">
+                  <p className="mt-1 text-sm text-[var(--color-text-primary)]">
                     {currentContact.address ? 
                       (typeof currentContact.address === 'object' ? 
                         `${currentContact.address.street || ''}, ${currentContact.address.city || ''}, ${currentContact.address.state || ''} ${currentContact.address.zip || ''}` 
@@ -1386,19 +1497,19 @@ const CRMModule = () => {
             </div>
 
             <div className="grid grid-cols-3 gap-2 border-t border-[var(--color-border)] pt-3">
-              <div className="rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3">
+              <div className={innerPanelClass + ' p-3'}>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Meetings</div>
-                <div className="mt-1 text-lg font-semibold text-white">{meetingActivities.length}</div>
+                <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{meetingActivities.length}</div>
                 <div className="text-[11px] text-[var(--color-text-secondary)]">{upcomingMeeting ? `Next ${new Date(upcomingMeeting.created_at).toLocaleDateString()}` : 'No upcoming'}</div>
               </div>
-              <div className="rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3">
+              <div className={innerPanelClass + ' p-3'}>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Workflows</div>
-                <div className="mt-1 text-lg font-semibold text-white">{workflowActivities.length}</div>
+                <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{workflowActivities.length}</div>
                 <div className="text-[11px] text-[var(--color-text-secondary)]">{workflowActivities[0] ? 'Recently touched' : 'No actions yet'}</div>
               </div>
-              <div className="rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3">
+              <div className={innerPanelClass + ' p-3'}>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Forms</div>
-                <div className="mt-1 text-lg font-semibold text-white">{formsSubmitted.length}</div>
+                <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{formsSubmitted.length}</div>
                 <div className="text-[11px] text-[var(--color-text-secondary)]">{formsSubmitted[0] ? 'Captured' : 'No submissions'}</div>
               </div>
             </div>
@@ -1406,14 +1517,14 @@ const CRMModule = () => {
             {/* Additional Details Dropdown */}
             <button 
               onClick={() => setShowAdditionalDetails(!showAdditionalDetails)}
-              className="w-full flex justify-between items-center p-3 bg-[var(--color-bg-primary)] rounded text-[var(--color-text-primary)] hover:text-white text-sm"
+              className="w-full flex justify-between items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 text-sm text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/45"
             >
               <span>Additional Details</span>
               <ChevronDown size={16} className={showAdditionalDetails ? 'rotate-180' : ''} />
             </button>
 
             {showAdditionalDetails && (
-              <div className="bg-[var(--color-bg-primary)] rounded p-3 space-y-2 text-sm">
+              <div className={innerPanelClass + ' p-3 space-y-2 text-sm'}>
                 {[
                   { label: 'External Reference ID', value: selectedContact.external_reference_id },
                   { label: 'Validation Status', value: selectedContact.validation_status },
@@ -1469,7 +1580,7 @@ const CRMModule = () => {
             )}
 
             {/* User Access */}
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+            <div className={innerPanelClass + ' p-4 space-y-3'}>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">User Access</div>
@@ -1492,7 +1603,7 @@ const CRMModule = () => {
                   <div className="grid gap-2">
                     <button
                       onClick={openUserAccessModal}
-                      className="w-full rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
+                      className="w-full rounded-xl bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
                     >
                       User Account Details
                     </button>
@@ -1503,7 +1614,7 @@ const CRMModule = () => {
                           handleAdminWorkspaceSwitch(preferredMembership.tenant_id);
                         }
                       }}
-                      className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                      className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
                     >
                       Login As Admin
                     </button>
@@ -1516,7 +1627,7 @@ const CRMModule = () => {
                   </p>
                   <button
                     onClick={() => openCreateUserModal(selectedContact)}
-                    className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                    className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
                   >
                     Create User Login
                   </button>
@@ -1527,22 +1638,24 @@ const CRMModule = () => {
         </div>
 
         {/* CENTER: Activity Timeline */}
-        <div className="flex-1 bg-[var(--color-bg-secondary)] border-x border-[var(--color-border)] flex flex-col overflow-hidden mt-12">
+        <div className="flex-1 bg-[var(--color-bg-secondary)] border-x border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Activity Tabs */}
-          <div className="flex gap-2 p-3 border-b border-[var(--color-border)] overflow-x-auto">
+          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3">
+            <div className="flex gap-2 overflow-x-auto">
             {['Activity', 'Notes', 'Forms', 'Flow Emails', 'Flow SMS', 'Call Logs', 'Flow Activity'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActivityTab(tab)}
-                className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
                   activityTab === tab 
                     ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' 
-                    : 'bg-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white'
+                    : 'border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
                 {tab}
               </button>
             ))}
+            </div>
           </div>
 
           {/* Timeline */}
@@ -1559,7 +1672,7 @@ const CRMModule = () => {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-white font-medium text-sm">{activity.title}</h4>
+                      <h4 className="text-[var(--color-text-primary)] font-medium text-sm">{activity.title}</h4>
                       <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
                         {activity.activity_type}
                       </span>
@@ -1577,10 +1690,10 @@ const CRMModule = () => {
         </div>
 
         {/* RIGHT: Relationship Assets */}
-        <div className="w-80 bg-[var(--color-bg-secondary)] border-l border-[var(--color-border)] overflow-y-auto p-4 space-y-4 mt-12">
+        <div className="w-80 bg-[var(--color-bg-secondary)] border-l border-[var(--color-border)] overflow-y-auto p-4 space-y-4">
           {/* Forms Submitted */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <button onClick={() => toggleDetailPanel('forms')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
+            <button onClick={() => toggleDetailPanel('forms')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
               <span>Forms Submitted ({formsSubmitted.length})</span>
               <ChevronDown size={14} className={detailPanels.forms ? 'rotate-180' : ''} />
             </button>
@@ -1602,7 +1715,7 @@ const CRMModule = () => {
 
           {/* Flows */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <button onClick={() => toggleDetailPanel('flows')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
+            <button onClick={() => toggleDetailPanel('flows')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
               <span>Flows</span>
               <ChevronDown size={14} className={detailPanels.flows ? 'rotate-180' : ''} />
             </button>
@@ -1614,7 +1727,7 @@ const CRMModule = () => {
                   {[...workflowActivities, ...flowEmailActivities].slice(0, 6).map((activity) => (
                     <div key={activity.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs border border-[var(--color-border)]">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-white font-medium">{activity.title}</p>
+                        <p className="text-[var(--color-text-primary)] font-medium">{activity.title}</p>
                         <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activity.activity_type}</span>
                       </div>
                       <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
@@ -1627,7 +1740,7 @@ const CRMModule = () => {
 
           {/* Booking */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <button onClick={() => toggleDetailPanel('bookings')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
+            <button onClick={() => toggleDetailPanel('bookings')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
               <span>Bookings</span>
               <ChevronDown size={14} className={detailPanels.bookings ? 'rotate-180' : ''} />
             </button>
@@ -1638,7 +1751,7 @@ const CRMModule = () => {
                 <div className="space-y-2">
                   {meetingActivities.slice(0, 6).map((activity) => (
                     <div key={activity.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs border border-[var(--color-border)]">
-                      <p className="text-white font-medium">{activity.title}</p>
+                      <p className="text-[var(--color-text-primary)] font-medium">{activity.title}</p>
                       <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
                       <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{new Date(activity.created_at).toLocaleString()}</p>
                     </div>
@@ -1650,7 +1763,7 @@ const CRMModule = () => {
 
           {/* Pipelines */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <button onClick={() => toggleDetailPanel('pipelines')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
+            <button onClick={() => toggleDetailPanel('pipelines')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
               <span>Pipelines</span>
               <ChevronDown size={14} className={detailPanels.pipelines ? 'rotate-180' : ''} />
             </button>
@@ -1661,7 +1774,7 @@ const CRMModule = () => {
 
           {/* Billing */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <button onClick={() => toggleDetailPanel('billing')} className="w-full text-sm font-bold text-white mb-2 flex justify-between items-center">
+            <button onClick={() => toggleDetailPanel('billing')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
               <span>Billing</span>
               <ChevronDown size={14} className={detailPanels.billing ? 'rotate-180' : ''} />
             </button>
@@ -1670,7 +1783,7 @@ const CRMModule = () => {
                 <button
                   key={item.id}
                   onClick={() => setBillingModal(item)}
-                  className="w-full flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-left text-[var(--color-text-secondary)] hover:text-white"
+                  className="w-full flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-left text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 >
                   <span>{item.label}</span>
                   <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px]">{item.count}</span>
@@ -1680,15 +1793,17 @@ const CRMModule = () => {
           </div>
         </div>
 
+        </div>
+
         {billingModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
               <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-4">
                 <div>
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Billing Detail</div>
-                  <h3 className="mt-1 text-lg font-semibold text-white">{billingModal.label}</h3>
+                  <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{billingModal.label}</h3>
                 </div>
-                <button onClick={() => setBillingModal(null)} className="rounded-lg border border-[var(--color-border)] p-2 text-[var(--color-text-secondary)] hover:text-white">
+                <button onClick={() => setBillingModal(null)} className="rounded-lg border border-[var(--color-border)] p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
                   <X size={16} />
                 </button>
               </div>
@@ -1721,7 +1836,7 @@ const CRMModule = () => {
             <input
               type="text"
               placeholder="Search companies..."
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-4 py-2 pl-10 text-white focus:outline-none focus:border-[var(--color-primary)] text-sm"
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-4 py-2 pl-10 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] text-sm"
             />
           </div>
         </div>
@@ -1806,6 +1921,15 @@ const CRMModule = () => {
       }
     }, [createModalTab, selectedContact]);
 
+    const createFieldLabel = (label) => (
+      <div className="mb-1">
+        <label className="block text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">{label}</label>
+      </div>
+    );
+
+    const modalInputClass = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]";
+    const modalSelectClass = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]";
+
     const handleSubmit = async (e) => {
       e.preventDefault();
       if (createModalTab === 'Contact') {
@@ -1870,13 +1994,13 @@ const CRMModule = () => {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="flex max-h-[90vh] w-full max-w-[1080px] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
           {/* Modal Header with Tabs */}
           <div className="flex border-b border-[var(--color-border)]">
             <button
               onClick={() => setCreateModalTab('Contact')}
-              className={`flex-1 px-6 py-3 font-medium text-sm border-b-2 ${
+              className={`flex-1 border-b-2 px-4 py-2.5 font-medium text-sm ${
                 createModalTab === 'Contact'
                   ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]'
                   : 'text-[var(--color-text-tertiary)] border-transparent hover:text-[var(--color-text-primary)]'
@@ -1886,7 +2010,7 @@ const CRMModule = () => {
             </button>
             <button
               onClick={() => setCreateModalTab('Create User')}
-              className={`flex-1 px-6 py-3 font-medium text-sm border-b-2 ${
+              className={`flex-1 border-b-2 px-4 py-2.5 font-medium text-sm ${
                 createModalTab === 'Create User'
                   ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]'
                   : 'text-[var(--color-text-tertiary)] border-transparent hover:text-[var(--color-text-primary)]'
@@ -1899,81 +2023,89 @@ const CRMModule = () => {
             </button>
           </div>
           
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3.5 space-y-2.5">
             {createModalTab === 'Contact' ? (
               // CONTACT FORM
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">First Name *</label>
+                {createFieldLabel('First Name *')}
                 <input 
                   type="text" 
                   required
                   value={formData.firstName}
                   onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Last Name *</label>
+                {createFieldLabel('Last Name *')}
                 <input 
                   type="text" 
                   required
                   value={formData.lastName}
                   onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Email *</label>
-              <input 
-                type="email" 
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Phone</label>
+                {createFieldLabel('Email *')}
+                <input 
+                  type="email" 
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className={modalInputClass} 
+                />
+              </div>
+              <div>
+                {createFieldLabel('Phone')}
                 <input 
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Company</label>
+                {createFieldLabel('Website')}
                 <input 
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) => setFormData({...formData, company: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  type="url"
+                  value={formData.website}
+                  onChange={(e) => setFormData({...formData, website: e.target.value})}
+                  className={modalInputClass} 
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Title</label>
+                {createFieldLabel('Company')}
+                <input 
+                  type="text"
+                  value={formData.company}
+                  onChange={(e) => setFormData({...formData, company: e.target.value})}
+                  className={modalInputClass} 
+                />
+              </div>
+              <div>
+                {createFieldLabel('Title')}
                 <input 
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Department</label>
+                {createFieldLabel('Department')}
                 <select
                   value={formData.department}
                   onChange={(e) => setFormData({...formData, department: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                  className={modalSelectClass}
                 >
                   <option value="">Select...</option>
                   {filterOptions.department.map(d => <option key={d} value={d}>{d}</option>)}
@@ -1982,53 +2114,67 @@ const CRMModule = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Street Address</label>
+              {createFieldLabel('Street Address')}
               <input 
                 type="text"
                 value={formData.street}
                 onChange={(e) => setFormData({...formData, street: e.target.value})}
-                className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                className={modalInputClass} 
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">City</label>
+                {createFieldLabel('City')}
                 <input 
                   type="text"
                   value={formData.city}
                   onChange={(e) => setFormData({...formData, city: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">State</label>
+                {createFieldLabel('State')}
                 <input 
                   type="text"
                   value={formData.state}
                   onChange={(e) => setFormData({...formData, state: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">ZIP</label>
+                {createFieldLabel('ZIP')}
                 <input 
                   type="text"
                   value={formData.zip}
                   onChange={(e) => setFormData({...formData, zip: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Date of Birth</label>
-              <input 
-                type="date"
-                value={formData.dob}
-                onChange={(e) => setFormData({...formData, dob: e.target.value})}
-                className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                {createFieldLabel('Date of Birth')}
+                <input 
+                  type="date"
+                  value={formData.dob}
+                  onChange={(e) => setFormData({...formData, dob: e.target.value})}
+                  className={modalInputClass} 
+                />
+              </div>
+              <div>
+                {createFieldLabel('Country')}
+                <select
+                  value={formData.country}
+                  onChange={(e) => setFormData({...formData, country: e.target.value})}
+                  className={modalSelectClass}
+                >
+                  <option value="United States">United States</option>
+                  <option value="Canada">Canada</option>
+                  <option value="Mexico">Mexico</option>
+                </select>
+              </div>
             </div>
             </>
           ) : (
@@ -2040,124 +2186,142 @@ const CRMModule = () => {
                 </div>
               ) : null}
 
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Which Site Will This User Login On?</label>
-                <select
-                  value={userFormData.site}
-                  onChange={(e) => setUserFormData({...userFormData, site: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
-                >
-                  <option>{currentWorkspace?.name || 'Current Site'}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Username *</label>
-                <input 
-                  type="text"
-                  required
-                  value={userFormData.username}
-                  onChange={(e) => setUserFormData({...userFormData, username: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">First Name *</label>
+                  {createFieldLabel('Which Site Will This User Login On?')}
+                  <select
+                    value={userFormData.site}
+                    onChange={(e) => setUserFormData({...userFormData, site: e.target.value})}
+                    className={modalSelectClass}
+                  >
+                    <option>{currentWorkspace?.name || 'Current Site'}</option>
+                  </select>
+                </div>
+
+                <div>
+                  {createFieldLabel('Username *')}
+                  <input 
+                    type="text"
+                    required
+                    value={userFormData.username}
+                    onChange={(e) => setUserFormData({...userFormData, username: e.target.value})}
+                    className={modalInputClass} 
+                  />
+                </div>
+              </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    {createFieldLabel('First Name *')}
                   <input 
                     type="text"
                     required
                     value={userFormData.firstName}
                     onChange={(e) => setUserFormData({...userFormData, firstName: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                      className={modalInputClass} 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Last Name *</label>
+                    {createFieldLabel('Last Name *')}
                   <input 
                     type="text"
                     required
                     value={userFormData.lastName}
                     onChange={(e) => setUserFormData({...userFormData, lastName: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                      className={modalInputClass} 
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Email *</label>
+                  {createFieldLabel('Email *')}
                   <input 
                     type="email"
                     required
                     value={userFormData.email}
                     onChange={(e) => setUserFormData({...userFormData, email: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                    className={modalInputClass} 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">DOB</label>
+                  {createFieldLabel('DOB')}
                   <input 
                     type="date"
                     value={userFormData.dob}
                     onChange={(e) => setUserFormData({...userFormData, dob: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                    className={modalInputClass} 
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Password *</label>
-                <input 
-                  type="password"
-                  required
-                  value={userFormData.password}
-                  onChange={(e) => setUserFormData({...userFormData, password: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Confirm Password *</label>
-                <input 
-                  type="password"
-                  required
-                  value={userFormData.confirmPassword}
-                  onChange={(e) => setUserFormData({...userFormData, confirmPassword: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
-                />
-              </div>
-
-              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded p-3 text-xs text-[var(--color-text-secondary)]">
-                <p className="font-bold mb-1">ℹ️ What is a New System? [Systems]</p>
-                <p>(also known as [Sub-Accounts]) are isolated Systems that don't share any data. If you want to create an account for a Client or Customer and you don't want them to see any of your contacts or other data you would select "Create New System".</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Which System Can This User Access?</label>
-                <select
-                  value={userFormData.system}
-                  onChange={(e) => setUserFormData({...userFormData, system: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
-                >
-                  <option>Create New System</option>
-                  <option>Current System</option>
-                </select>
-              </div>
-
-              {userFormData.system === 'Create New System' ? (
                 <div>
-                  <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">New System Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={userFormData.systemName || ''}
-                    onChange={(e) => setUserFormData({...userFormData, systemName: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                  {createFieldLabel('Phone')}
+                  <input 
+                    type="tel"
+                    value={userFormData.phone}
+                    onChange={(e) => setUserFormData({...userFormData, phone: e.target.value})}
+                    className={modalInputClass} 
                   />
                 </div>
-              ) : null}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  {createFieldLabel('Password *')}
+                  <input 
+                    type="password"
+                    required
+                    value={userFormData.password}
+                    onChange={(e) => setUserFormData({...userFormData, password: e.target.value})}
+                    className={modalInputClass} 
+                  />
+                </div>
+
+                <div>
+                  {createFieldLabel('Confirm Password *')}
+                  <input 
+                    type="password"
+                    required
+                    value={userFormData.confirmPassword}
+                    onChange={(e) => setUserFormData({...userFormData, confirmPassword: e.target.value})}
+                    className={modalInputClass} 
+                  />
+                </div>
+              </div>
+
+              <div className="rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 text-xs text-[var(--color-text-secondary)]">
+                <p className="mb-1 font-bold text-[var(--color-text-primary)]">What is a New System?</p>
+                <p>
+                  New Systems act like isolated sub-accounts. Use one when a client or customer should have their own
+                  workspace without seeing the rest of your CRM data.
+                </p>
+              </div>
+
+              <div className={`grid gap-3 ${userFormData.system === 'Create New System' ? 'grid-cols-[1.1fr_0.9fr]' : 'grid-cols-1'}`}>
+                <div>
+                  {createFieldLabel('Which System Can This User Access?')}
+                  <select
+                    value={userFormData.system}
+                    onChange={(e) => setUserFormData({...userFormData, system: e.target.value})}
+                    className={modalSelectClass}
+                  >
+                    <option>Create New System</option>
+                    <option>Current System</option>
+                  </select>
+                </div>
+
+                {userFormData.system === 'Create New System' ? (
+                  <div>
+                    {createFieldLabel('New System Name *')}
+                    <input
+                      type="text"
+                      required
+                      value={userFormData.systemName || ''}
+                      onChange={(e) => setUserFormData({...userFormData, systemName: e.target.value})}
+                      className={modalInputClass}
+                    />
+                  </div>
+                ) : null}
+              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -2189,7 +2353,7 @@ const CRMModule = () => {
                 <select
                   value={userFormData.package}
                   onChange={(e) => setUserFormData({...userFormData, package: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                  className={modalSelectClass}
                 >
                   <option value="">Select Package</option>
                   <option>Starter</option>
@@ -2208,7 +2372,7 @@ const CRMModule = () => {
                   type="text"
                   value={userFormData.street}
                   onChange={(e) => setUserFormData({...userFormData, street: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
 
@@ -2218,7 +2382,7 @@ const CRMModule = () => {
                   type="text"
                   value={userFormData.apartment}
                   onChange={(e) => setUserFormData({...userFormData, apartment: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
 
@@ -2228,17 +2392,17 @@ const CRMModule = () => {
                   type="text"
                   value={userFormData.city}
                   onChange={(e) => setUserFormData({...userFormData, city: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                  className={modalInputClass} 
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Country/Region</label>
                   <select
                     value={userFormData.country}
                     onChange={(e) => setUserFormData({...userFormData, country: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                    className={modalSelectClass}
                   >
                     <option>United States</option>
                     <option>Canada</option>
@@ -2251,7 +2415,7 @@ const CRMModule = () => {
                     type="text"
                     value={userFormData.state}
                     onChange={(e) => setUserFormData({...userFormData, state: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                      className={modalInputClass} 
                   />
                 </div>
                 <div>
@@ -2260,7 +2424,7 @@ const CRMModule = () => {
                     type="text"
                     value={userFormData.zip}
                     onChange={(e) => setUserFormData({...userFormData, zip: e.target.value})}
-                    className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                      className={modalInputClass} 
                   />
                 </div>
               </div>
@@ -2268,14 +2432,14 @@ const CRMModule = () => {
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Phone</label>
                 <div className="flex gap-2">
-                  <select className="px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)]">
+                    <select className={modalSelectClass}>
                     <option>🇺🇸 +1</option>
                   </select>
                   <input 
                     type="tel"
                     value={userFormData.phone}
                     onChange={(e) => setUserFormData({...userFormData, phone: e.target.value})}
-                    className="flex-1 px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
+                    className={`flex-1 ${modalInputClass}`} 
                   />
                 </div>
               </div>
@@ -2283,7 +2447,7 @@ const CRMModule = () => {
           )}
           </form>
 
-          <div className="border-t p-6 flex justify-end gap-3 bg-[var(--color-bg-tertiary)]">
+          <div className="flex justify-end gap-3 border-t bg-[var(--color-bg-tertiary)] p-4">
             <button 
               type="button"
               onClick={() => setShowCreateModal(false)} 
@@ -2427,6 +2591,18 @@ const CRMModule = () => {
                 {bulkActionError}
               </div>
             ) : null}
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                Value
+              </div>
+              <AIAssistButton
+                variant="inline"
+                onAssist={applyBulkActionAssist}
+                loading={bulkActionAssistLoading}
+                tooltip="Draft bulk action value"
+                iconType="crosshair"
+              />
+            </div>
             {options ? (
               <select
                 value={bulkActionModal.value}
