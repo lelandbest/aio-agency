@@ -943,6 +943,7 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                   logic: 'var(--node-logic)',
                   webhook: 'var(--node-webhook)',
                   socket: 'var(--node-socket)',
+                  input: 'var(--node-input)',
                 };
                 return colorMap[node.type] || 'var(--color-border)';
               }}

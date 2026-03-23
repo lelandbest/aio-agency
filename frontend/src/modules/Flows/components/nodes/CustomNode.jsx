@@ -14,6 +14,7 @@ const nodeColorTokens = {
   logic: 'var(--node-logic)',
   webhook: 'var(--node-webhook)',
   socket: 'var(--node-socket)',
+  input: 'var(--node-input)',
 };
 
 const CustomNode = ({ data, selected, isConnectable }) => {

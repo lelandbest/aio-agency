@@ -142,26 +142,97 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
               `}
             >
               <option value="">Select logic...</option>
-              <option value="if_then">If/Then</option>
-              <option value="delay">Delay/Wait</option>
-              <option value="filter">Filter</option>
+              <option value="if_then">If/Then Condition</option>
+              <option value="switch">Switch/Branch</option>
+              <option value="filter">Filter Data</option>
             </select>
           </div>
+        </div>
+      );
+    }
 
+    if (nodeType === 'input') {
+      const isAiBuilder = node.data.id === 'ai-form-builder';
+      
+      return (
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-              Condition
+              {isAiBuilder ? 'AI Form Description' : 'Form Fields'}
             </label>
             <textarea
-              value={config.condition || ''}
-              onChange={(e) => handleInputChange('condition', e.target.value)}
-              placeholder="Define logic condition..."
+              value={config.fields || config.prompt || ''}
+              onChange={(e) => handleInputChange(isAiBuilder ? 'prompt' : 'fields', e.target.value)}
+              placeholder={isAiBuilder 
+                ? 'Describe the form you want to create. Example: "Lead capture form with name, email, phone, company, and message fields"' 
+                : 'Enter field definitions (JSON)...'}
               className={`
                 w-full px-3 py-2 rounded-lg
                 bg-[var(--color-bg-primary)] border border-[var(--color-border)]
                 text-[var(--color-text-primary)]
                 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                min-h-[100px]
+                min-h-[120px]
+              `}
+            />
+          </div>
+          
+          {isAiBuilder && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                  Form Name
+                </label>
+                <input
+                  type="text"
+                  value={config.formName || ''}
+                  onChange={(e) => handleInputChange('formName', e.target.value)}
+                  placeholder="My AI Generated Form"
+                  className={`
+                    w-full px-3 py-2 rounded-lg
+                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
+                    text-[var(--color-text-primary)]
+                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
+                  `}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                  Target Module
+                </label>
+                <select
+                  value={config.targetModule || ''}
+                  onChange={(e) => handleInputChange('targetModule', e.target.value)}
+                  className={`
+                    w-full px-3 py-2 rounded-lg
+                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
+                    text-[var(--color-text-primary)]
+                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
+                  `}
+                >
+                  <option value="">Select module...</option>
+                  <option value="crm">CRM (Create Contact)</option>
+                  <option value="pipeline">Pipeline (Create Deal)</option>
+                  <option value="comms">Comms (Send Message)</option>
+                  <option value="brain">Brain (Save to Memory)</option>
+                </select>
+              </div>
+            </>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+              Output Variable Name
+            </label>
+            <input
+              type="text"
+              value={config.outputVar || ''}
+              onChange={(e) => handleInputChange('outputVar', e.target.value)}
+              placeholder="formData"
+              className={`
+                w-full px-3 py-2 rounded-lg
+                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
+                text-[var(--color-text-primary)]
+                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
               `}
             />
           </div>
@@ -169,170 +240,64 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
       );
     }
 
-    if (nodeType === 'webhook' || node.data?.isSocket) {
+    if (node.data?.isSocket) {
       return (
         <div className="space-y-4">
-          {node.data?.isSocket && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  Workflow / Scenario ID or URL
-                </label>
-                <input
-                  type="text"
-                  value={config.workflowRef || ''}
-                  onChange={(e) => handleInputChange('workflowRef', e.target.value)}
-                  placeholder="workflow-id or https://..."
-                  className={`
-                    w-full px-3 py-2 rounded-lg
-                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                    text-[var(--color-text-primary)]
-                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                  `}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  Credential Reference
-                </label>
-                <input
-                  type="text"
-                  value={config.authRef || ''}
-                  onChange={(e) => handleInputChange('authRef', e.target.value)}
-                  placeholder="authRef"
-                  className={`
-                    w-full px-3 py-2 rounded-lg
-                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                    text-[var(--color-text-primary)]
-                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                  `}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  Payload Mapping (JSON)
-                </label>
-                <textarea
-                  value={config.payloadMap || ''}
-                  onChange={(e) => handleInputChange('payloadMap', e.target.value)}
-                  placeholder='{"inputKey": "node.output"}'
-                  className={`
-                    w-full px-3 py-2 rounded-lg
-                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                    text-[var(--color-text-primary)]
-                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                    min-h-[80px] font-mono text-xs
-                  `}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                    Timeout (ms)
-                  </label>
-                  <input
-                    type="number"
-                    value={config.timeout || 30000}
-                    onChange={(e) => handleInputChange('timeout', Number(e.target.value))}
-                    className={`
-                      w-full px-3 py-2 rounded-lg
-                      bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                      text-[var(--color-text-primary)]
-                      focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                    `}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                    Retry Count
-                  </label>
-                  <input
-                    type="number"
-                    value={config.retryCount || 1}
-                    onChange={(e) => handleInputChange('retryCount', Number(e.target.value))}
-                    className={`
-                      w-full px-3 py-2 rounded-lg
-                      bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                      text-[var(--color-text-primary)]
-                      focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                    `}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-              Webhook URL
+              Workflow / Scenario ID or URL
             </label>
             <input
-              type="url"
-              value={config.url || ''}
-              onChange={(e) => handleInputChange('url', e.target.value)}
-              placeholder="https://api.example.com/endpoint"
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-              `}
+              type="text"
+              value={config.workflowRef || ''}
+              onChange={(e) => handleInputChange('workflowRef', e.target.value)}
+              placeholder="workflow-id or https://..."
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-              Method
+              Credential Reference
             </label>
-            <select
-              value={config.method || 'POST'}
-              onChange={(e) => handleInputChange('method', e.target.value)}
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-              `}
-            >
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="DELETE">DELETE</option>
-            </select>
+            <input
+              type="text"
+              value={config.authRef || ''}
+              onChange={(e) => handleInputChange('authRef', e.target.value)}
+              placeholder="authRef"
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+            />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-              Headers (JSON)
+              Payload Mapping (JSON)
             </label>
             <textarea
-              value={config.headers || ''}
-              onChange={(e) => handleInputChange('headers', e.target.value)}
-              placeholder='{"Content-Type": "application/json"}'
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                min-h-[80px] font-mono text-xs
-              `}
+              value={config.payloadMap || ''}
+              onChange={(e) => handleInputChange('payloadMap', e.target.value)}
+              placeholder='{"inputKey": "node.output"}'
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[80px] font-mono text-xs"
             />
           </div>
-
-          {node.data?.isSocket && (
-            <div className="p-3 rounded-lg bg-[var(--color-primary)]10 border border-[var(--node-socket)]">
-              <p className="text-xs text-[var(--color-text-primary)]">
-                <strong>Tip:</strong> This is an external platform socket. You can open the
-                platform site from the dropdown above.
-              </p>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
-                Outputs: result (JSON), status, error.
-              </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">Timeout (ms)</label>
+              <input
+                type="number"
+                value={config.timeout || 30000}
+                onChange={(e) => handleInputChange('timeout', Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">Retry Count</label>
+              <input
+                type="number"
+                value={config.retryCount || 1}
+                onChange={(e) => handleInputChange('retryCount', Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+            </div>
+          </div>
         </div>
       );
     }
