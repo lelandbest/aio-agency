@@ -37,7 +37,10 @@ import {
   updateCalendarSourceApi,
   updateMailboxApi,
   upsertAutomationProviderConfigApi,
-  upsertAiProviderConfigApi
+  upsertAiProviderConfigApi,
+  getPaymentProviderConfigsApi,
+  upsertPaymentProviderConfigApi,
+  deletePaymentProviderConfigApi
 } from '../../../services/backendApi';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
 
@@ -155,6 +158,19 @@ const createAutomationProviderDraft = (provider) => ({
   config: Object.fromEntries(
     (provider?.fields || [])
       .filter((field) => !['label', 'baseUrl', 'apiKey'].includes(field.name))
+      .map((field) => [field.name, field.default ?? (field.type === 'checkbox' ? false : '')])
+  )
+});
+
+const createPaymentProviderDraft = (provider) => ({
+  label: provider?.name || '',
+  publishable_key: provider?.fields?.find((field) => field.name === 'publishableKey')?.default || '',
+  secret_key: '',
+  webhook_secret: '',
+  enabled: true,
+  config: Object.fromEntries(
+    (provider?.fields || [])
+      .filter((field) => !['label', 'publishableKey', 'secretKey', 'webhookSecret'].includes(field.name))
       .map((field) => [field.name, field.default ?? (field.type === 'checkbox' ? false : '')])
   )
 });
@@ -295,6 +311,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [selectedAutomationProviderKey, setSelectedAutomationProviderKey] = useState('n8n');
   const [automationProviderForm, setAutomationProviderForm] = useState(() => createAutomationProviderDraft(getProviderConfig('n8n')));
 
+  const [paymentProviderConfigs, setPaymentProviderConfigs] = useState([]);
+  const [selectedPaymentProviderKey, setSelectedPaymentProviderKey] = useState('stripe');
+  const [paymentProviderForm, setPaymentProviderForm] = useState(() => createPaymentProviderDraft(getProviderConfig('stripe')));
+
   const [aiProviderCatalog, setAiProviderCatalog] = useState(DEFAULT_AI_PROVIDER_CATALOG);
   const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
   const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => localStorage.getItem('aio_active_provider_id') || DEFAULT_AI_PROVIDER_CATALOG[0].key);
@@ -303,6 +323,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
   const [busyAction, setBusyAction] = useState('');
+
+  const selectedAiProviderConfig = useMemo(
+    () => aiProviderConfigs.find((provider) => provider.provider_key === selectedAiProviderKey) || null,
+    [aiProviderConfigs, selectedAiProviderKey]
+  );
 
   useEffect(() => {
     setActiveCategory(initialCategory || INTEGRATION_CATEGORIES.AUTOMATION);
@@ -372,6 +397,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
       setAiProviderConfigs([]);
+    }
+
+    try {
+      setPaymentProviderConfigs(await getPaymentProviderConfigsApi());
+    } catch (error) {
+      setPaymentProviderConfigs([]);
     }
 
     setNotice(nextNotice);
@@ -464,11 +495,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     [aiProviderCatalog, selectedAiProviderKey]
   );
 
-  const selectedAiProviderConfig = useMemo(
-    () => aiProviderConfigs.find((provider) => provider.provider_key === selectedAiProviderKey) || null,
-    [aiProviderConfigs, selectedAiProviderKey]
-  );
-
   const automationProviderCatalog = useMemo(
     () => getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION),
     []
@@ -483,6 +509,49 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     () => automationProviderConfigs.find((provider) => provider.provider_key === selectedAutomationProviderKey) || null,
     [automationProviderConfigs, selectedAutomationProviderKey]
   );
+
+  const paymentProviderCatalog = useMemo(
+    () => getProvidersByCategory(INTEGRATION_CATEGORIES.PAYMENTS),
+    []
+  );
+
+  const selectedPaymentProviderCatalog = useMemo(
+    () => paymentProviderCatalog.find((provider) => provider.id === selectedPaymentProviderKey) || paymentProviderCatalog[0] || null,
+    [paymentProviderCatalog, selectedPaymentProviderKey]
+  );
+
+  const selectedPaymentProviderConfig = useMemo(
+    () => paymentProviderConfigs.find((provider) => provider.provider_key === selectedPaymentProviderKey) || null,
+    [paymentProviderConfigs, selectedPaymentProviderKey]
+  );
+
+  useEffect(() => {
+    const paymentProviders = getProvidersByCategory(INTEGRATION_CATEGORIES.PAYMENTS);
+    if (!paymentProviders.length) return;
+    if (!paymentProviders.some((provider) => provider.id === selectedPaymentProviderKey)) {
+      setSelectedPaymentProviderKey(paymentProviders[0].id);
+    }
+  }, [selectedPaymentProviderKey]);
+
+  useEffect(() => {
+    if (!selectedPaymentProviderCatalog) {
+      setPaymentProviderForm(createPaymentProviderDraft());
+      return;
+    }
+    const existing = selectedPaymentProviderConfig;
+    if (!existing) {
+      setPaymentProviderForm(createPaymentProviderDraft(selectedPaymentProviderCatalog));
+      return;
+    }
+    setPaymentProviderForm({
+      label: existing.label || selectedPaymentProviderCatalog.name,
+      publishable_key: existing.publishable_key || selectedPaymentProviderCatalog.fields?.find((field) => field.name === 'publishableKey')?.default || '',
+      secret_key: '',
+      webhook_secret: existing.config?.webhook_secret || '',
+      enabled: existing.enabled,
+      config: existing.config || {},
+    });
+  }, [selectedPaymentProviderCatalog, selectedPaymentProviderConfig]);
 
   useEffect(() => {
     if (!selectedMailbox) {
@@ -646,12 +715,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         counts[category.id] = calendarSources.length;
       } else if (category.id === INTEGRATION_CATEGORIES.LLMS) {
         counts[category.id] = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
+      } else if (category.id === INTEGRATION_CATEGORIES.PAYMENTS) {
+        counts[category.id] = paymentProviderConfigs.length;
       } else {
         counts[category.id] = integrations.filter((integration) => integration.category === category.id).length;
       }
     });
     return counts;
-  }, [aiProviderConfigs, automationProviderConfigs.length, calendarSources.length, categories, integrations, mailboxes.length]);
+  }, [aiProviderConfigs, automationProviderConfigs.length, calendarSources.length, categories, integrations, mailboxes.length, paymentProviderConfigs.length]);
 
   const currentCategory = categories.find((category) => category.id === activeCategory);
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
@@ -1098,6 +1169,38 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
   };
 
+  const handleSavePaymentProvider = async () => {
+    if (!selectedPaymentProviderCatalog?.id) return;
+    try {
+      const payload = {
+        label: (paymentProviderForm.label || selectedPaymentProviderCatalog.name).trim(),
+        publishable_key: (paymentProviderForm.publishable_key || '').trim(),
+        secret_key: paymentProviderForm.secret_key || undefined,
+        webhook_secret: (paymentProviderForm.webhook_secret || '').trim(),
+        enabled: !!paymentProviderForm.enabled,
+        config: paymentProviderForm.config || {},
+      };
+      await upsertPaymentProviderConfigApi(selectedPaymentProviderCatalog.id, payload);
+      setNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog.name} payment settings saved.` });
+      triggerSavedAction('payment-save');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleDeletePaymentProvider = async () => {
+    if (!selectedPaymentProviderConfig?.id) return;
+    if (!window.confirm(`Disconnect ${selectedPaymentProviderCatalog?.name || 'this payment provider'} from this workspace?`)) return;
+    try {
+      await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
+      setNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
   const renderAutomationAdmin = () => (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
       <div className="space-y-3 overflow-auto">
@@ -1530,8 +1633,101 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     </div>
   );
 
-  const totalConnected = automationProviderConfigs.length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION).length + mailboxes.length + calendarSources.length + aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
-  const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length + mailboxes.filter((mailbox) => mailbox.status !== 'disconnected').length + calendarSources.filter((source) => source.status !== 'disconnected').length + aiProviderConfigs.filter((provider) => provider.enabled).length;
+  const totalConnected = automationProviderConfigs.length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION).length + mailboxes.length + calendarSources.length + aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length + paymentProviderConfigs.length;
+  const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length + mailboxes.filter((mailbox) => mailbox.status !== 'disconnected').length + calendarSources.filter((source) => source.status !== 'disconnected').length + aiProviderConfigs.filter((provider) => provider.enabled).length + paymentProviderConfigs.filter((provider) => provider.enabled).length;
+
+  const renderPaymentsAdmin = () => (
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="space-y-3 overflow-auto">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Payment Providers</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Collect payments via Stripe, PayPal, and other processors.</div>
+        </div>
+        {paymentProviderCatalog.map((provider) => {
+          const config = paymentProviderConfigs.find((item) => item.provider_key === provider.id);
+          return (
+            <ResourceCard
+              key={provider.id}
+              icon={Zap}
+              logoId={provider.id}
+              title={config?.label || provider.name}
+              subtitle={provider.id}
+              status={config ? 'configured' : 'not configured'}
+              detail={provider.description}
+              selected={selectedPaymentProviderKey === provider.id}
+              onClick={() => setSelectedPaymentProviderKey(provider.id)}
+              chips={[
+                config?.enabled ? 'enabled' : 'disabled',
+              ]}
+            />
+          );
+        })}
+      </div>
+
+      <div className="overflow-auto rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5">
+        {selectedPaymentProviderCatalog ? (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Payment Control Plane</div>
+                <h3 className="mt-2 text-3xl font-semibold text-[var(--color-text-primary)]">{paymentProviderForm.label || selectedPaymentProviderCatalog.name}</h3>
+                <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedPaymentProviderCatalog.description}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleSavePaymentProvider} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]", savedAction === 'payment-save')}>
+                  {savedAction === 'payment-save' ? 'Saved' : 'Save'}
+                </button>
+                {selectedPaymentProviderConfig ? <button onClick={handleDeletePaymentProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Remove</button> : null}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-2 text-lg font-semibold text-[var(--color-text-primary)]">{selectedPaymentProviderConfig ? 'Connected' : 'Standby'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mode</div><div className="mt-2 text-lg font-semibold text-[var(--color-text-primary)]">{paymentProviderForm.config?.mode || 'sandbox'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Currency</div><div className="mt-2 text-lg font-semibold text-[var(--color-text-primary)]">{(paymentProviderForm.config?.currency || 'USD').toUpperCase()}</div></div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {selectedPaymentProviderCatalog.fields?.filter((field) => !['label', 'mode', 'currency'].includes(field.name)).map((field) => (
+                <label key={field.name} className="space-y-1">
+                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                  {field.type === 'select' ? (
+                    <select
+                      value={paymentProviderForm.config?.[field.name] || field.default || ''}
+                      onChange={(event) => setPaymentProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))}
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                    >
+                      {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type === 'password' ? 'password' : 'text'}
+                      autoComplete={field.type === 'password' ? 'new-password' : undefined}
+                      value={paymentProviderForm.config?.[field.name] || ''}
+                      onChange={(event) => setPaymentProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))}
+                      placeholder={field.default || ''}
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-[var(--color-text-primary)]">
+              <input type="checkbox" checked={!!paymentProviderForm.enabled} onChange={(event) => setPaymentProviderForm((current) => ({ ...current, enabled: event.target.checked }))} />
+              Enable payment provider for this workspace
+            </label>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+              Configure your payment processor credentials here. Use sandbox mode for testing and switch to live when ready to accept real payments.
+            </div>
+            <div className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+              <SaveFeedbackNote visible={savedAction === 'payment-save'} label="Saved" />
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg-primary)]">
@@ -1578,7 +1774,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               ? renderCalendarAdmin()
               : activeCategory === INTEGRATION_CATEGORIES.LLMS
                 ? renderAiAdmin()
-                : renderLegacyCategory()}
+                : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS
+                  ? renderPaymentsAdmin()
+                  : renderLegacyCategory()}
         </div>
         <AddIntegrationPanel isOpen={panelOpen} category={activeCategory} onClose={() => setPanelOpen(false)} onSave={handleAddIntegration} onCategoryChange={setActiveCategory} categories={categories} />
       </div>
