@@ -32,7 +32,7 @@ Current pushed baseline: `main` @ `9e10d29`
 - FastAPI + SQLite is the real runtime for migrated modules.
 - Real auth, sessions, workspaces, and role-aware protections exist.
 - `Integrations` is the real control plane for provider setup.
-- `Comm` is the renamed messaging module.
+- `Comms` is the active messaging module name.
 - `SMS/VoIP` is now an honest placeholder, not a hidden `Comm` mount.
 
 ### AI / Providers
@@ -63,10 +63,39 @@ Implemented:
 - saved graph node positions
 - draggable graph nodes
 - right-click node modal
+- text, URL, and file ingest
+- Brain retrieval history and search
 - MCP server registry
+- MCP runtime probe and live query bridge
+- Brain search that can merge persisted memory with live MCP results
+- shared AI assist enrichment that can carry Brain + MCP retrieval into current assists
+- richer AI run records with status, agent role, linked entities, provider/model, steps, and artifacts
 - Brain-focused AI workbench actions
+- runtime agent registry aligned to the visible AIO Agents roster plus hidden `OMEGA`
+- owner-only Omega governance controls in `Settings`
 
 Current Brain graph behavior is closer to Obsidian than to a list pretending to be a graph, but it is still an early pass.
+
+## AI Hierarchy
+
+The live runtime hierarchy is now aligned to the AIO Agents block, not the old temporary 3-agent shortcut.
+
+Visible agents:
+
+- `ALPHA`, `BRAVO`, `CHARLIE`, `DELTA`, `ECHO`, `FORGE`, `APEX`, `ARCHER`, `ATLAS`, `RANGER`, `SCOUT`, `STRIKER`, `VECTOR`
+
+Hidden governance role:
+
+- `OMEGA`
+
+Key rules:
+
+- `CHARLIE` is the intake/front-door assistant
+- `ALPHA` is the dispatcher and authority layer
+- `ATLAS` owns logistics and systems mapping
+- `APEX` no longer owns logistics
+- Brain and MCP are shared infrastructure, not `ECHO`-owned
+- dangerous natural-language requests are blocked and redirected to the Omega admin controls
 
 ## Critical Protocols
 
@@ -84,8 +113,8 @@ Current Brain graph behavior is closer to Obsidian than to a list pretending to 
 
 ## User Preferences That Matter
 
-- Use `Comm`, not `Comms`.
-- Use the radio/beacon icon for `Comm`.
+- Use `Comms`.
+- Use the radio/beacon icon for `Comms`.
 - Keep `AIO Brain` at the top of the menu and alphabetized.
 - Favor premium, intentional UI over generic CRM patterns.
 - Brain should be the serious AI interaction surface:
@@ -100,31 +129,27 @@ Current Brain graph behavior is closer to Obsidian than to a list pretending to 
 
 ### Phase 10
 
-1. Implement `AIO Brain` ingest end-to-end.
-   - file upload
-   - URL ingest
-   - extracted text storage
-   - ingest records and history
-2. Feed Brain retrieval into the shared AI service.
-   - let bullseyes and AIO Agents query Brain memory
-3. Move MCP from registry to actual usable runtime/tool integration.
-4. Add a fuller AI run surface.
-   - provider
-   - module
-   - action
-   - result
-   - status
+1. Extend shared command execution beyond `Agents` and current bullseyes.
+2. Add multi-step execution and structured action parsing on top of `/api/ai/command`.
+3. Promote richer run artifacts and delegate chains into more module activity surfaces.
+4. Harden side-effect gates for send/delete/automation actions.
 
-This is the current highest-value path. Brain ingest and retrieval are the next steps that materially change the whole product.
+Items already in place:
+
+- Brain ingest and retrieval
+- MCP runtime probe/query for HTTP(S) endpoints
+- runtime agent registry aligned to the visible AIO Agents block
+- shared AI run envelope with intake, dispatch, execution, delegate chain, and permission tier
+- owner-only Omega arm/cancel/execute controls
 
 ## Known Cleanup
 
-- There is old dead graph code still inside:
-  - [frontend/src/modules/Brain/index.jsx](D:/AIOCRM/frontend/src/modules/Brain/index.jsx)
 - The live graph is:
   - [frontend/src/modules/Brain/BrainGraphPanel.jsx](D:/AIOCRM/frontend/src/modules/Brain/BrainGraphPanel.jsx)
-- Safe cleanup soon:
-  - remove the unused old graph block from `index.jsx`
+- The old inline graph block in [frontend/src/modules/Brain/index.jsx](D:/AIOCRM/frontend/src/modules/Brain/index.jsx) has been removed.
+- MCP runtime is HTTP-first for now.
+  - current support is probe/query against `http(s)` MCP endpoints
+  - non-HTTP transports still need the fuller runtime/orchestration layer
 
 ## Verification Protocol
 
@@ -157,4 +182,4 @@ C:\Users\besta\AppData\Local\Programs\Python\Python313\python.exe D:\AIOCRM\back
 
 ## Short Version
 
-The product is through the foundational platform phases. The next real frontier is making `AIO Brain` ingest documents, URLs, and structured sources, then feeding that memory into the shared AI layer and eventually AIO Agents. That is the next step that turns the app from a capable local CRM into a real AI operating system.
+The product is through the foundational platform phases. `AIO Brain` now ingests documents, URLs, and text, retrieves persisted memory, and can probe/query connected MCP servers at runtime. The AI layer is now re-aligned to the full AIO Agents hierarchy with `CHARLIE` intake, `ALPHA` dispatch, visible specialist routing, and owner-only Omega governance. The next frontier is multi-step command execution and deeper autonomous action flows across modules.
