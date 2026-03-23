@@ -4,7 +4,6 @@ import {
     Folder, FolderOpen, ChevronRight, Search, Plus,
     MoreHorizontal, ChevronDown, Edit2, Trash2, FolderPlus
 } from 'lucide-react';
-import ModuleHeader from './ModuleHeader';
 
 /**
  * FolderTable Component
@@ -78,44 +77,46 @@ const FolderTable = ({
     return (
         <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
             {/* Header */}
-            <ModuleHeader
-                title={title}
-                titleIcon={FolderPlus}
-                actions={headerActions}
-                showActions={headerActions.length > 0}
-                className="border-b-0"
-            />
-            <div className="px-6 pb-4 bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)]">
-                {description && (
-                    <p className="text-xs text-[var(--color-text-secondary)]">{description}</p>
-                )}
-                {/* Search Bar */}
-                <div className={`flex items-center gap-4 ${description ? 'mt-4' : ''}`}>
-                    <div className="relative flex-1 max-w-md">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+            <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-lg font-bold text-[var(--color-text-primary)]">{title}</h2>
+                    {description && <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{description}</p>}
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="relative w-48">
+                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
                         <input
                             type="text"
                             placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm focus:border-purple-500 focus:outline-none"
+                            className="w-full pl-8 pr-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-xs focus:border-purple-500 focus:outline-none"
                         />
                     </div>
                     {actions}
+                    {headerActions.map((action, idx) => (
+                        <button
+                            key={idx}
+                            onClick={action.onClick}
+                            className={`${action.variant === 'primary' ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white' : 'bg-[var(--color-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-border)]'} px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2 transition`}
+                        >
+                            {action.icon && <action.icon size={16} />}
+                            {action.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto px-4">
                 <table className="w-full">
-                    <thead className="bg-[var(--color-bg-tertiary)] sticky top-0 z-10">
+                    <thead className="rounded-lg mb-2">
                         <tr className="border-b border-[var(--color-border)]">
-                            <th className="px-4 py-3 text-left w-12">
+                            <th className="px-3 py-2 text-left w-12">
                                 <input type="checkbox" className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]" />
                             </th>
-                            <th className="px-4 py-3 text-left w-12"></th>
                             {columns.map((col, idx) => (
-                                <th key={idx} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                                <th key={idx} className={`px-3 py-2 text-left text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider ${col.width || ''}`}>
                                     {col.header}
                                 </th>
                             ))}
@@ -172,8 +173,8 @@ const FolderTable = ({
 
                                 {/* Items in Folder */}
                                 {folder.expanded && filteredItems.filter(f => f[folderProperty] === folder.id).map(item => (
-                                    <tr key={item.id} className="hover:bg-[var(--color-hover)]">
-                                        <td className="px-4 py-3">
+                                    <tr key={item.id} className="hover:bg-[var(--color-hover)] group">
+                                        <td className="px-3 py-2">
                                             <input
                                                 type="checkbox"
                                                 checked={selectedItems.includes(item.id)}
@@ -181,15 +182,8 @@ const FolderTable = ({
                                                 className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]"
                                             />
                                         </td>
-                                        <td className="px-4 py-3 pl-12">
-                                            {/* Placeholder for item icon, maybe passed in? For now default link */}
-                                            <div className="text-blue-400 opacity-70">
-                                                {/* We could add logic here for different icons */}
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                                            </div>
-                                        </td>
                                         {columns.map((col, idx) => (
-                                            <td key={idx} className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                                            <td key={idx} className={`px-3 py-2 text-sm text-[var(--color-text-secondary)] ${col.width || ''}`}>
                                                 {col.render ? col.render(item) : item[col.key] || '-'}
                                             </td>
                                         ))}
@@ -202,13 +196,13 @@ const FolderTable = ({
                         {filteredItems.filter(f => !f[folderProperty] || !folders.find(fol => fol.id === f[folderProperty])).length > 0 && (
                             <>
                                 <tr className="bg-[var(--color-bg-tertiary)]/50">
-                                    <td colSpan={columns.length + 2} className="px-4 py-2 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                                    <td colSpan={columns.length + 1} className="px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
                                         Uncategorized
                                     </td>
                                 </tr>
                                 {filteredItems.filter(f => !f[folderProperty] || !folders.find(fol => fol.id === f[folderProperty])).map(item => (
-                                    <tr key={item.id} className="hover:bg-[var(--color-hover)]">
-                                        <td className="px-4 py-3">
+                                    <tr key={item.id} className="hover:bg-[var(--color-hover)] group">
+                                        <td className="px-3 py-2">
                                             <input
                                                 type="checkbox"
                                                 checked={selectedItems.includes(item.id)}
@@ -216,11 +210,8 @@ const FolderTable = ({
                                                 className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]"
                                             />
                                         </td>
-                                        <td className="px-4 py-3 pl-12 text-blue-400 opacity-70">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                                        </td>
                                         {columns.map((col, idx) => (
-                                            <td key={idx} className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                                            <td key={idx} className={`px-3 py-2 text-sm text-[var(--color-text-secondary)] ${col.width || ''}`}>
                                                 {col.render ? col.render(item) : item[col.key] || '-'}
                                             </td>
                                         ))}

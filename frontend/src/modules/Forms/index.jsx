@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import CMSView from '../../components/CMS/CMSView';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
+import ShareFormModal from '../../components/Modals/ShareFormModal';
 import AIAssistButton from '../../components/AIAssistButton';
 
 const createFieldName = (label, fallback = 'field') => {
@@ -80,6 +81,17 @@ const FormBuilderModule = () => {
   const [selectedCmsTable, setSelectedCmsTable] = useState(null);
   const [cmsTableData, setCmsTableData] = useState([]);
   const [cmsDataLoading, setCmsDataLoading] = useState(false);
+
+  // Share Modal State
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareForm, setShareForm] = useState(null);
+
+  // Sidebar Category State
+  const [expandedCategories, setExpandedCategories] = useState({ 0: true });
+
+  const toggleCategory = (idx) => {
+    setExpandedCategories(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
 
   const FORM_TOOLS = [
     {
@@ -515,64 +527,93 @@ const FormBuilderModule = () => {
   if (view === 'list') {
     const tableColumns = [
       {
+        header: "",
+        key: "share",
+        width: "40px",
+        render: (form) => (
+          <button
+            onClick={() => { setShareForm(form); setShowShareModal(true); }}
+            className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+            title="Share Form"
+          >
+            <Link size={16} />
+          </button>
+        )
+      },
+      {
         header: "Form Name",
         key: "name",
         render: (form) => (
-          <span className="text-sm text-[var(--color-text-primary)] font-medium">
+          <button
+            onClick={() => { setCurrentForm(form); setView('editor'); }}
+            className="text-sm text-[var(--color-text-primary)] font-medium hover:text-[var(--color-primary)] text-left"
+          >
             {form.name}
-          </span>
+          </button>
         )
       },
-      { header: "Triggers", key: "triggers" },
       {
         header: "Automation",
         key: "automation",
-        render: (form) => (
-          <div className={`w-10 h-5 rounded-full relative transition-colors ${form.automation
-            ? 'bg-[var(--color-primary)]'
-            : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)]'
-            }`}>
-            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${form.automation ? 'left-5.5' : 'left-0.5'
-              }`} />
-          </div>
-        )
+        width: "100px",
+        render: (form) => {
+          const flowCount = form.flow_ids?.length || 0;
+          return (
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              {flowCount} {flowCount === 1 ? 'flow' : 'flows'}
+            </span>
+          );
+        }
       },
       {
         header: "Status",
         key: "status",
+        width: "100px",
         render: (form) => (
-          <span className={`px-2 py-1 rounded text-xs font-medium ${form.is_active
-            ? 'bg-green-500/20 text-green-400'
-            : 'bg-gray-500/20 text-[var(--color-text-tertiary)]'
-            }`}>
-            {form.status}
-          </span>
+          <button
+            onClick={async () => {
+              const newStatus = form.is_active ? 'Draft' : 'Live';
+              await updateFormApi(form.id, { status: newStatus, is_active: !form.is_active });
+              fetchForms();
+            }}
+            className={`w-12 h-6 rounded-full relative transition-colors ${
+              form.is_active
+                ? 'bg-green-500'
+                : 'bg-gray-600'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                form.is_active ? 'left-7' : 'left-1'
+              }`}
+            />
+          </button>
         )
       },
-      { header: "Last Modified By", key: "last_modified_by" },
       {
-        header: "Last Modified At",
+        header: "Last Modified",
         key: "last_modified_at",
-        render: (form) => new Date(form.last_modified_at).toLocaleDateString('en-US', {
-          month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
-        })
-      },
-      { header: "Creator", key: "creator" },
-      {
-        header: "Action",
-        key: "actions",
+        width: "160px",
         render: (form) => (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleOpenPublicLink(form)}
-              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
-              title="Open Public Link"
-            >
-              <ExternalLink size={16} />
-            </button>
+          <div className="text-xs text-[var(--color-text-secondary)]">
+            <div>By {form.last_modified_by || '-'}</div>
+            <div className="text-[var(--color-text-tertiary)]">
+              {form.last_modified_at ? new Date(form.last_modified_at).toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+              }) : '-'}
+            </div>
+          </div>
+        )
+      },
+      {
+        header: "",
+        key: "actions",
+        width: "160px",
+        render: (form) => (
+          <div className="flex items-center gap-1">
             <button
               onClick={() => handleOpenFormEntry(form)}
-              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)]"
               title="Fill Form (Data Entry)"
             >
               <FileText size={16} />
@@ -582,17 +623,24 @@ const FormBuilderModule = () => {
                 setCurrentForm(form);
                 setView('editor');
               }}
-              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)]"
               title="Edit"
             >
               <Edit2 size={16} />
             </button>
             <button
               onClick={() => deleteForm(form.id)}
-              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-red-400"
+              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)]"
               title="Delete"
             >
               <Trash2 size={16} />
+            </button>
+            <button
+              onClick={() => handleOpenPublicLink(form)}
+              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+              title="Open in Tab"
+            >
+              <ExternalLink size={16} />
             </button>
           </div>
         )
@@ -619,7 +667,7 @@ const FormBuilderModule = () => {
           onFolderToggle={toggleFolder}
           onFolderCreate={handleCreateFolder}
           onFolderRename={handleRenameFolder}
-          onItemSelect={() => { }} // Disable row selection action if not needed
+          onItemSelect={() => { }}
           selectedItems={selectedForms}
           onCreateItem={createNewForm}
           createItemLabel="Create Form"
@@ -637,6 +685,15 @@ const FormBuilderModule = () => {
             />
           )
         }
+        {showShareModal && shareForm && (
+          <ShareFormModal
+            form={shareForm}
+            onClose={() => {
+              setShowShareModal(false);
+              setShareForm(null);
+            }}
+          />
+        )}
       </>
     );
   }
@@ -650,31 +707,38 @@ const FormBuilderModule = () => {
   return (
     <div className="h-full flex bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] overflow-hidden">
       {/* Left Sidebar - Field Tools */}
-      <div className="w-64 border-r border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-[var(--color-border)] flex items-center gap-2 sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
+      <div className="w-56 border-r border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto">
+        <div className="p-3 border-b border-[var(--color-border)] flex items-center gap-2 sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
           <button onClick={() => setView('list')} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
             <ArrowRight size={16} className="rotate-180" />
           </button>
-          <span className="text-sm font-bold text-[var(--color-text-primary)]">Back to List</span>
+          <span className="text-xs font-bold text-[var(--color-text-primary)]">Back to List</span>
         </div>
-        <div className="p-2 space-y-6">
+        <div className="p-2 space-y-1">
           {FORM_TOOLS.map((category, idx) => (
-            <div key={idx} className="px-2">
-              <h3 className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 px-2">
+            <div key={idx}>
+              <button
+                onClick={() => toggleCategory(idx)}
+                className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider hover:text-[var(--color-text-secondary)]"
+              >
                 {category.category}
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {category.items.map((tool, tIdx) => (
-                  <button
-                    key={tIdx}
-                    onClick={() => handleAddField(tool)}
-                    className="flex flex-col items-center justify-center gap-2 p-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded-lg text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition group h-20"
-                  >
-                    <tool.icon size={20} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-center leading-tight">{tool.label}</span>
-                  </button>
-                ))}
-              </div>
+                <ChevronDown size={12} className={`transition-transform ${expandedCategories[idx] ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedCategories[idx] && (
+                <div className="flex flex-wrap gap-1 px-1 pb-2">
+                  {category.items.map((tool, tIdx) => (
+                    <button
+                      key={tIdx}
+                      onClick={() => handleAddField(tool)}
+                      className="flex items-center gap-1.5 px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+                      title={tool.label}
+                    >
+                      <tool.icon size={14} />
+                      <span>{tool.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -905,6 +969,164 @@ const FormBuilderModule = () => {
                       className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none h-20"
                       placeholder="Custom error message"
                     />
+                  </div>
+                </div>
+              )}
+              {activeTab === 'purchase' && selectedField.type === 'purchase' && (
+                <div className="space-y-4">
+                  <div className="border-b border-[var(--color-border)] pb-4">
+                    <h4 className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Products</h4>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.allowMultipleProducts || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'allowMultipleProducts', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Allow Multiple Products
+                    </label>
+                  </div>
+
+                  <div className="border-b border-[var(--color-border)] pb-4">
+                    <h4 className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Pricing</h4>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.showProductPrices !== false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'showProductPrices', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Show Product Prices
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.showTotalPrice || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'showTotalPrice', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Show Total Price
+                    </label>
+                  </div>
+
+                  <div className="border-b border-[var(--color-border)] pb-4">
+                    <h4 className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Payment</h4>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.showCouponCode || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'showCouponCode', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Show Coupon Code
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.showCreditCardInput || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'showCreditCardInput', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Show Credit Card Input
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.collectCardHolderName || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'collectCardHolderName', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Collect Cardholder Name
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.showCvv || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'showCvv', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Show CVV
+                    </label>
+                  </div>
+
+                  <div className="border-b border-[var(--color-border)] pb-4">
+                    <h4 className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Customer Info</h4>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.collectEmail || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'collectEmail', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Collect Email
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.collectPhone || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'collectPhone', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Collect Phone
+                    </label>
+                    <div>
+                      <label className="block text-xs text-[var(--color-text-tertiary)] uppercase mb-2">Billing Address</label>
+                      <select
+                        value={selectedField.collectBillingAddress || 'none'}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'collectBillingAddress', e.target.value)}
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      >
+                        <option value="none">None</option>
+                        <option value="zip">Zip Only</option>
+                        <option value="full">Full Address</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-[var(--color-border)] pb-4">
+                    <h4 className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Confirmation</h4>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.addBillingConfirmation || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'addBillingConfirmation', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Add Billing Confirmation
+                    </label>
+                    {selectedField.addBillingConfirmation && (
+                      <div>
+                        <label className="block text-xs text-[var(--color-text-tertiary)] uppercase mb-2">Confirmation Text</label>
+                        <textarea
+                          value={selectedField.billingConfirmationText || 'I agree to {offer_price} starting today until cancelled online.'}
+                          onChange={(e) => updateFieldProperty(selectedField.id, 'billingConfirmationText', e.target.value)}
+                          className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] resize-none h-20"
+                          placeholder="Use {offer_price} as a token"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Notifications</h4>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.disableDefaultWelcomeEmail || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'disableDefaultWelcomeEmail', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Disable Welcome Email
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.disableDefaultPaymentConfirmation || false}
+                        onChange={(e) => updateFieldProperty(selectedField.id, 'disableDefaultPaymentConfirmation', e.target.checked)}
+                        className="w-4 h-4 rounded bg-[var(--color-bg-primary)] border-gray-600 text-[var(--color-primary)]"
+                      />
+                      Disable Payment Confirmation
+                    </label>
                   </div>
                 </div>
               )}

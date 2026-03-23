@@ -1369,8 +1369,8 @@ async def get_brain_overview(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain.")
     profile = provider.get_brain_profile()
     sources = provider.list_brain_sources()
-    items = provider.list_brain_items()
-    all_ingests = provider.list_brain_ingests(limit=250)
+    items = provider.list_brain_items(limit=100)  # Limit initial load
+    all_ingests = provider.list_brain_ingests(limit=50)
     ingests = all_ingests[:12]
     categories: dict[str, int] = {}
     status_counts: dict[str, int] = {}
@@ -1381,9 +1381,9 @@ async def get_brain_overview(request: Request):
     return {
         "data": {
             "profile": profile,
-            "sources": sources,
+            "sources": sources[:20],  # Limit sources
             "items": items,
-            "links": provider.list_brain_links(),
+            "links": provider.list_brain_links(limit=50),  # Limit links
             "ingests": ingests,
             "stats": {
                 "source_count": len(sources),
@@ -2788,7 +2788,9 @@ async def update_form_folder(folder_id: str, request: Request, payload: dict[str
 
 
 @app.get("/api/forms")
-async def list_forms():
+async def list_forms(summary: bool = False):
+    if summary:
+        return {"data": provider.list_forms_summary()}
     return {"data": provider.list_forms()}
 
 

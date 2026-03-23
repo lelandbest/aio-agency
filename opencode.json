@@ -1,0 +1,116 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "provider": {
+    "ollama_local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama Local",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1",
+        "apiKey": "ollama",
+        "timeout": 600000,
+        "chunkTimeout": 45000
+      },
+      "models": {
+        "qwen3_8b": {
+          "name": "qwen3:8b"
+        },
+        "qwen3_claude": {
+          "name": "qwen3-claude:latest"
+        },
+        "gpt_oss_local": {
+          "name": "gpt-oss:latest"
+        }
+      }
+    }
+  },
+
+  "model": "ollama_local/qwen3_8b",
+  "small_model": "ollama_local/qwen3_8b",
+  "default_agent": "plan",
+  "share": "disabled",
+
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 12000
+  },
+
+  "watcher": {
+    "ignore": [
+      ".git/**",
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      ".next/**",
+      "coverage/**",
+      "*.log"
+    ]
+  },
+
+  "permission": {
+    "edit": "ask",
+    "write": "ask",
+    "bash": {
+      "*": "ask",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git grep*": "allow",
+      "rg *": "allow",
+      "grep *": "allow",
+      "ls *": "allow",
+      "dir *": "allow",
+      "pwd": "allow",
+      "cat *": "allow",
+      "type *": "allow",
+      "git commit *": "ask",
+      "git push *": "allow",
+      "rm *": "deny",
+      "del *": "deny",
+      "rd *": "deny",
+      "rmdir *": "deny"
+    }
+  },
+
+  "agent": {
+    "plan": {
+      "model": "ollama_local/gpt_oss_local",
+      "permission": {
+        "edit": "deny",
+        "write": "deny",
+        "bash": "ask"
+      }
+    },
+    "build": {
+      "model": "ollama_local/qwen3_8b",
+      "permission": {
+        "edit": "ask",
+        "write": "ask",
+        "bash": {
+          "*": "ask",
+          "git status*": "allow",
+          "git diff*": "allow",
+          "git log*": "allow",
+          "git grep*": "allow",
+          "rg *": "allow",
+          "grep *": "allow",
+          "ls *": "allow",
+          "dir *": "allow",
+          "pwd": "allow",
+          "cat *": "allow",
+          "type *": "allow",
+          "npm test*": "ask",
+          "pnpm test*": "ask",
+          "pytest *": "ask",
+          "git commit *": "ask",
+          "git push *": "allow",
+          "rm *": "deny",
+          "del *": "deny",
+          "rd *": "deny",
+          "rmdir *": "deny"
+        }
+      }
+    }
+  }
+}

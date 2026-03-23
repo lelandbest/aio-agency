@@ -460,7 +460,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
   };
 
   return (
-    <div className={COMMS_SUBPANEL + " flex flex-col h-[480px] overflow-hidden relative z-40"}>
+    <div className={COMMS_SUBPANEL + " flex flex-col h-[400px] overflow-hidden relative z-40"}>
       <div className="p-1 border-b border-white/5 bg-black/20 flex gap-1.5 justify-center">
         {['files', 'web', 'mcp'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`${activeTab === tab ? COMMS_TOOLBAR_PRIMARY : COMMS_TOOLBAR_GHOST} h-9 px-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center whitespace-nowrap min-w-[80px]`}>
@@ -471,7 +471,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
 
       <div className="flex-1 overflow-y-auto no-scrollbar p-2">
         {activeTab === 'files' && (
-          <div className="h-full flex flex-col p-4">
+          <div className="h-full flex flex-col">
             <div 
               className={`flex-1 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-6 transition-all cursor-pointer group relative overflow-hidden ${dragCategory ? 'bg-sky-500/15 border-sky-400 shadow-[0_0_40px_rgba(56,189,248,0.15)]' : 'border-slate-800 bg-black/40 hover:border-sky-500/40 hover:bg-white/[0.02]'}`}
               onDragOver={handleDragOver}
@@ -524,11 +524,6 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
                     <label htmlFor="transcribe-toggle" className="text-[10px] font-black uppercase tracking-widest text-sky-400 cursor-pointer">Transcribe & Store in Unison</label>
                   </div>
                 )}
-
-                <div className="flex items-center gap-3 mt-2">
-                  <div className="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-[8px] font-black text-green-500 uppercase tracking-widest flex items-center gap-1.5"><CheckCircle size={10} /> Compliant Surface</div>
-                  <div className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-[8px] font-black text-sky-400 uppercase tracking-widest">v1.1.0-COMMS</div>
-                </div>
               </div>
 
               {/* Background Glow */}
@@ -551,6 +546,10 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
                 }}
                 onClick={(e) => e.stopPropagation()}
               />
+            </div>
+            
+            <div className="mt-3 flex justify-center">
+              <div className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-400 uppercase tracking-widest">Extension Aware</div>
             </div>
           </div>
         )}
@@ -620,9 +619,9 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
                   : 'bg-white/[0.03] border-white/5 hover:border-sky-500/40 hover:bg-sky-500/5 shadow-lg'}
               `}
             >
-              <cat.icon size={20} className={isGhost ? 'text-slate-600' : 'text-sky-400 group-hover:scale-110 transition-transform'} />
-              <div className="mt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-slate-300 transition-colors">{cat.label} bin</div>
-              <div className="mt-0.5 text-[12px] font-black text-slate-300">{count}</div>
+              <cat.icon size={20} className={isGhost ? 'text-slate-500' : 'text-sky-300 group-hover:scale-110 transition-transform'} />
+              <div className="mt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-200 transition-colors">{cat.label} bin</div>
+              <div className="mt-0.5 text-[12px] font-black text-slate-200">{count}</div>
             </button>
           );
         })}
@@ -898,22 +897,27 @@ const Cortex = () => {
   const fetchProviders = async (profileData) => {
     try {
       const data = await getAiProviderConfigsApi();
-      setProviders(data);
+      // Normalize: convert single model to models array
+      const normalized = data.map(p => ({
+        ...p,
+        models: p.models || (p.model ? [p.model] : [])
+      }));
+      setProviders(normalized);
       
       // Prioritize profile data, then localStorage, then first available
       const savedProvider = profileData?.active_provider || localStorage.getItem('aio_active_provider_id');
-      if (savedProvider && data.find(p => p.provider_key === savedProvider)) {
+      if (savedProvider && normalized.find(p => p.provider_key === savedProvider)) {
         setActiveProviderId(savedProvider);
-        const p = data.find(p => p.provider_key === savedProvider);
+        const p = normalized.find(p => p.provider_key === savedProvider);
         const savedModel = profileData?.active_model || localStorage.getItem('aio_active_model_id');
         if (savedModel && p.models?.includes(savedModel)) {
           setActiveModelId(savedModel);
         } else if (p.models?.length > 0) {
           setActiveModelId(p.models[0]);
         }
-      } else if (data.length > 0) {
-        setActiveProviderId(data[0].provider_key);
-        if (data[0].models?.length > 0) setActiveModelId(data[0].models[0]);
+      } else if (normalized.length > 0) {
+        setActiveProviderId(normalized[0].provider_key);
+        if (normalized[0].models?.length > 0) setActiveModelId(normalized[0].models[0]);
       }
     } catch (err) { console.error(err); }
   };
@@ -965,7 +969,20 @@ const Cortex = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [activeProviderId, activeModelId]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-black"><Loader2 size={48} className="text-sky-400 animate-spin" /></div>;
+  if (loading) return (
+    <div className="flex flex-col h-screen items-center justify-center bg-black gap-4">
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-sky-500/20 to-transparent animate-pulse rounded-full" style={{ width: 64, height: 64 }} />
+        <Loader2 size={64} className="text-sky-400 animate-spin relative z-10" />
+      </div>
+      <div className="text-sky-400/60 text-xs font-bold uppercase tracking-[0.3em]">Initializing Neural Engine</div>
+      <div className="flex gap-1 mt-2">
+        <div className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+        <div className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+        <div className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+  );
 
   const cortexWindowStyle = COMMS_WORKSPACE_SCALE < 1
     ? {

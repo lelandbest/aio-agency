@@ -51,17 +51,17 @@ const AIAssistButton = ({
         className={`
           p-2 rounded-lg transition-all relative
           ${loading
-            ? 'bg-[var(--color-primary)]/30 text-[var(--color-primary)] animate-pulse'
+            ? 'bg-gray-500/20 text-gray-300 animate-pulse'
             : disabled
-            ? 'bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)] cursor-not-allowed opacity-50'
-            : 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 hover:shadow-lg hover:shadow-[var(--color-primary)]/20'
+            ? 'bg-[var(--color-bg-primary)] text-gray-500 cursor-not-allowed opacity-50'
+            : 'bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 hover:shadow-lg hover:shadow-gray-500/20'
           }
         `}
         title={tooltip}
       >
         {loading && (
           <div className="absolute inset-0 rounded-lg animate-spin">
-            <div className="absolute inset-0 border-2 border-transparent border-t-[var(--color-primary)] rounded-lg" />
+            <div className="absolute inset-0 border-2 border-transparent border-t-gray-400 rounded-lg" />
           </div>
         )}
         <div className={loading ? 'opacity-50' : ''}>

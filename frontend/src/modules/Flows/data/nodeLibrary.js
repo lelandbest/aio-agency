@@ -19,6 +19,7 @@ import {
   Bot, Building2, Headphones, CheckSquare as CheckSquareAlt,
   Pen, Send, Webhook, Globe, Workflow, SlidersHorizontal, PenLine
 } from 'lucide-react';
+import { toolNodeTemplates } from './toolTemplates';
 
 const iconRegistry = {
   'Plus': Plus,

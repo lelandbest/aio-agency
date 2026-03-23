@@ -41,13 +41,10 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 </button>
                 {TitleIcon && (
                     <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0">
-                        <TitleIcon size={20} className="text-[var(--color-primary)]" />
+                        <TitleIcon size={20} className="text-sky-400" />
                     </div>
                 )}
                 <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">
-                        Workspace
-                    </div>
                     <h1 className="text-lg font-bold text-[var(--color-text-primary)] truncate">
                         {normalizeDisplayText(title)}
                     </h1>
@@ -137,14 +134,14 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                         aria-haspopup="true"
                     >
                         <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-                            <Users size={16} />
+                            <Users size={16} className="text-blue-400" />
                         </div>
                         <div className="hidden lg:block text-left min-w-0">
                             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">
                                 Workspace
                             </div>
                             <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate max-w-[180px]">
-                                {tenant?.name || 'AIO CRM Workspace'}
+                                {tenant?.name || 'AIO CRM'}
                             </div>
                         </div>
                         <ChevronDown size={14} className="hidden lg:block text-[var(--color-text-secondary)] flex-shrink-0" />

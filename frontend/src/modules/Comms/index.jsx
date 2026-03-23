@@ -459,7 +459,7 @@ const buildThreadReport = (thread, kind = 'executive') => {
   ].join('\n');
 };
 
-const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
+const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigate }) => {
   const [queueId, setQueueId] = useState('now');
   const [threadViewMode, setThreadViewMode] = useState('latest-contact-channel');
   const [channel, setChannel] = useState(initialChannel);
@@ -1087,6 +1087,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
             { label: 'Operator Report', icon: FileText, onClick: () => handleCreateReport('operator'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_REPORT, groupStart: true },
             { label: 'Executive Report', icon: FileText, onClick: () => handleCreateReport('executive'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_REPORT },
             { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'ghost', className: COMMS_TOOLBAR_GHOST, groupStart: true },
+            { label: 'Canned Responses', icon: MessageSquare, onClick: () => onNavigate?.('canned-responses'), variant: 'ghost', className: COMMS_TOOLBAR_GHOST },
             { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary', className: COMMS_TOOLBAR_PRIMARY }
           ]}
           statusBadge={{ label: `${visibleThreads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}

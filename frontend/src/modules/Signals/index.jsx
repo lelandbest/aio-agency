@@ -1,12 +1,86 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  TrendingUp, Users, MessageSquare, Zap, Plus, X, Eye, EyeOff, 
-  BarChart3, LineChart as LineChartIcon, Activity, Clock, Mail, Play, 
-  Square, Settings, Edit2, Save, Grid3x3, Trash2, Brain, Target, Send, FileText
+  TrendingUp, Users, MessageSquare, Zap, X, 
+  BarChart3, Activity, Brain, Target, Send, 
+  Save, Grid3x3, RefreshCw, FileText
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import { assistAiApi, getAiRunsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
+
+const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false }) => {
+  const colorClass = {
+    purple: 'text-purple-400',
+    blue: 'text-blue-400',
+    green: 'text-green-400',
+    sky: 'text-sky-400',
+    cyan: 'text-cyan-400',
+    amber: 'text-amber-400',
+  }[color] || 'text-purple-400';
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-[var(--color-bg-tertiary)]/50 rounded-lg border border-[var(--color-border)]">
+      <div className={`${colorClass}`}>
+        <Icon size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">{title}</p>
+        <p className="text-lg font-bold text-[var(--color-text-primary)]">{value}</p>
+      </div>
+      {live && (
+        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" title="Live" />
+      )}
+    </div>
+  );
+};
+
+const PulseBand = ({ stats, loading }) => {
+  const [timestamp, setTimestamp] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setTimestamp(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/30">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Activity size={14} className="text-sky-400" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Pulse</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-3 animate-pulse">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-16 bg-[var(--color-bg-tertiary)] rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/30">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Activity size={14} className="text-sky-400" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Pulse</span>
+        </div>
+        <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-tertiary)]">
+          <RefreshCw size={10} />
+          <span>Updated {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} />
+        <PulseCard title="Pipeline" value={stats.pipeline} icon={Target} color="green" live={true} />
+        <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} />
+        <PulseCard title="AI Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} />
+      </div>
+    </div>
+  );
+};
 
 const BarChart = ({ title, data, color = 'var(--color-primary)' }) => {
   const maxValue = Math.max(...data.map(d => d.value), 1);
@@ -64,42 +138,10 @@ const LineChart = ({ title, data, color = 'var(--color-accent)' }) => {
   );
 };
 
-const StatCard = ({ title, value, change, icon: Icon, color = 'purple', subtitle }) => {
-  const colorClass = {
-    purple: 'bg-purple-500/20 text-purple-400',
-    blue: 'bg-blue-500/20 text-blue-400',
-    green: 'bg-green-500/20 text-green-400',
-    pink: 'bg-pink-500/20 text-pink-400',
-    cyan: 'bg-cyan-500/20 text-cyan-400',
-    amber: 'bg-amber-500/20 text-amber-400',
-  }[color] || 'bg-purple-500/20 text-purple-400';
-
-  return (
-    <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
-      <div className="flex justify-between items-start mb-3">
-        <div>
-          <p className="text-xs text-[var(--color-text-secondary)] font-medium">{title}</p>
-          <p className="text-2xl font-bold text-[var(--color-text-primary)] mt-1">{value}</p>
-          {subtitle && <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{subtitle}</p>}
-        </div>
-        <div className={`p-2 rounded ${colorClass}`}>
-          <Icon size={20} />
-        </div>
-      </div>
-      {change !== undefined && (
-        <div className={`text-xs flex items-center gap-1 ${change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-          <TrendingUp size={12} className={change < 0 ? 'rotate-180' : ''} />
-          {change > 0 ? '+' : ''}{change}% from last week
-        </div>
-      )}
-    </div>
-  );
-};
-
 const ActivityTimeline = ({ activities }) => {
   return (
     <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
-      <h3 className="text-sm font-bold text-gray-400 mb-4">Recent Activity</h3>
+      <h3 className="text-sm font-bold text-gray-400 mb-4">Recent Signals</h3>
       <div className="space-y-4">
         {activities?.length ? activities.map((activity, i) => (
           <div key={i} className="flex gap-3">
@@ -114,32 +156,20 @@ const ActivityTimeline = ({ activities }) => {
             </div>
           </div>
         )) : (
-          <p className="text-sm text-gray-500">No recent activity</p>
+          <p className="text-sm text-gray-500">No recent signals</p>
         )}
       </div>
     </div>
   );
 };
 
-const QuickActionButton = ({ id, label, icon: Icon, color, onClick }) => (
-  <button
-    onClick={() => onClick?.(id)}
-    className={`${color} hover:opacity-90 text-white rounded-lg font-bold flex flex-col items-center justify-center gap-1 transition p-3 text-[11px] uppercase tracking-wider`}
-    title={label}
-  >
-    <Icon size={18} />
-    <span>{label}</span>
-  </button>
-);
-
-const DashboardModule = () => {
+const SignalsModule = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [showCustomizePanel, setShowCustomizePanel] = useState(false);
   const [visibleComponents, setVisibleComponents] = useState({
     stats: true,
     charts: true,
     timeline: true,
-    quickActions: true,
   });
   const [customActions, setCustomActions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -162,7 +192,7 @@ const DashboardModule = () => {
   const runDashboardAssist = async () => {
     try {
       const response = await assistAiApi({
-        module: 'dashboard',
+        module: 'signals',
         surface: 'insights',
         field: 'summary',
         intent: 'analyze',
@@ -181,7 +211,7 @@ const DashboardModule = () => {
   };
 
   useEffect(() => {
-    const loadDashboardData = async () => {
+    const loadSignalsData = async () => {
       setLoading(true);
       try {
         const [contactsRes, commsRes, aiRunsRes] = await Promise.all([
@@ -226,8 +256,8 @@ const DashboardModule = () => {
         
         if (aiRuns.length) {
           recentActivities.push({
-            title: 'AI Assist',
-            description: `${aiRuns.length} AI runs this session`,
+            title: 'AI Activity',
+            description: `${aiRuns.length} runs this session`,
             time: new Date(aiRuns[0]?.created_at).toLocaleTimeString(),
             color: 'bg-cyan-500'
           });
@@ -235,7 +265,7 @@ const DashboardModule = () => {
         
         if (threads.length) {
           recentActivities.push({
-            title: 'Comms',
+            title: 'Conversations',
             description: `${threads.filter(t => t.status === 'active').length} active threads`,
             time: 'Now',
             color: 'bg-sky-500'
@@ -253,13 +283,13 @@ const DashboardModule = () => {
 
         setActivities(recentActivities);
       } catch (err) {
-        console.error('Dashboard load error:', err);
+        console.error('Signals load error:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadDashboardData();
+    loadSignalsData();
   }, []);
 
   const toggleComponent = (component) => {
@@ -273,56 +303,57 @@ const DashboardModule = () => {
     console.log('Quick action:', actionId);
   };
 
-  const handleAddCustomAction = (action) => {
-    setCustomActions([...customActions, action]);
-  };
-
-  const handleRemoveCustomAction = (id) => {
-    setCustomActions(customActions.filter(a => a.id !== id));
-  };
-
   const quickActions = [
-    { id: 'new-contact', label: 'Contact', icon: Users, color: 'bg-purple-600 hover:bg-purple-500' },
-    { id: 'send-msg', label: 'Message', icon: Send, color: 'bg-sky-600 hover:bg-sky-500' },
-    { id: 'new-deal', label: 'Deal', icon: Target, color: 'bg-green-600 hover:bg-green-500' },
-    { id: 'brain-seed', label: 'Brain', icon: Brain, color: 'bg-cyan-600 hover:bg-cyan-500' },
+    { id: 'new-contact', label: 'New Contact', icon: Users },
+    { id: 'send-msg', label: 'Send Message', icon: Send },
+    { id: 'new-deal', label: 'New Deal', icon: Target },
+    { id: 'brain-seed', label: 'Seed Brain', icon: Brain },
+    { id: 'new-form', label: 'Create Form', icon: FileText },
+    { id: 'new-flow', label: 'Create Flow', icon: Zap },
   ];
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
-      <ModuleHeader
-        title="Command Center"
-        titleIcon={Activity}
-        showTitle={false}
-        actions={[
-          {
-            label: 'Export',
-            icon: BarChart3,
-            onClick: () => console.log('Export'),
-            variant: 'secondary'
-          },
-        ]}
-        showActions={true}
-        aiAssistSlot={
-          <div className="flex items-center gap-3">
-            <AIAssistButton
-              onAssist={runDashboardAssist}
-              tooltip="Generate AI Insights"
-              iconType="crosshair"
-            />
+      <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          {quickActions.map(action => (
             <button
-              onClick={() => setIsEditMode(!isEditMode)}
-              className="p-2 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)]"
-              title={isEditMode ? 'Done' : 'Customize'}
+              key={action.id}
+              onClick={() => handleQuickAction(action.id)}
+              className="w-8 h-8 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center justify-center transition"
+              title={action.label}
             >
-              {isEditMode ? <Save size={18} /> : <Grid3x3 size={18} />}
+              <action.icon size={16} />
             </button>
-          </div>
-        }
-      />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => console.log('Export')}
+            className="px-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] rounded-lg text-sm font-medium flex items-center gap-2 transition"
+          >
+            <BarChart3 size={14} />
+            Export
+          </button>
+          <AIAssistButton
+            onAssist={runDashboardAssist}
+            tooltip="Generate AI Insights"
+            iconType="crosshair"
+          />
+          <button
+            onClick={() => setIsEditMode(!isEditMode)}
+            className="w-8 h-8 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center justify-center transition"
+            title={isEditMode ? 'Done' : 'Customize'}
+          >
+            {isEditMode ? <Save size={16} /> : <Grid3x3 size={16} />}
+          </button>
+        </div>
+      </div>
+
+      <PulseBand stats={stats} loading={loading} />
 
       {insight && (
-        <div className="mx-4 mt-2 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+        <div className="mx-6 mt-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm text-cyan-200">{insight}</p>
             <button onClick={() => setInsight('')} className="text-cyan-400 hover:text-cyan-200">
@@ -352,82 +383,43 @@ const DashboardModule = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]" />
           </div>
         ) : (
-          <>
-            {visibleComponents.stats && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <StatCard 
-                  title="Contacts" 
-                  value={stats.contacts} 
-                  icon={Users} 
-                  color="purple"
-                  subtitle="Total in CRM"
-                />
-                <StatCard 
-                  title="Pipeline" 
-                  value={stats.pipeline} 
-                  icon={Target} 
-                  color="green"
-                  subtitle="Open deals"
-                />
-                <StatCard 
-                  title="Conversations" 
-                  value={stats.comms} 
-                  icon={MessageSquare} 
-                  color="sky"
-                  subtitle="Active threads"
-                />
-                <StatCard 
-                  title="AI Activity" 
-                  value={stats.aiRuns} 
-                  icon={Brain} 
-                  color="cyan"
-                  subtitle="Runs this session"
-                />
-              </div>
-            )}
-
-            {visibleComponents.quickActions && (
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Quick Commands</h3>
-                </div>
-                <div className="grid grid-cols-4 gap-3">
-                  {quickActions.map(action => (
-                    <QuickActionButton
-                      key={action.id}
-                      {...action}
-                      onClick={handleQuickAction}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Key Signals & Charts */}
+            <div>
+              {visibleComponents.charts && chartData.pipeline.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-4">Key Signals</h2>
+                  <div className="space-y-4">
+                    <BarChart 
+                      title="Funnel Movement" 
+                      data={chartData.pipeline} 
+                      color="var(--color-primary)" 
                     />
-                  ))}
+                    <LineChart 
+                      title="AI Activity" 
+                      data={chartData.aiActivity.length ? chartData.aiActivity : [{ label: 'Mon', value: 0 }, { label: 'Tue', value: 0 }, { label: 'Wed', value: 0 }, { label: 'Thu', value: 0 }, { label: 'Fri', value: 0 }]} 
+                      color="#06b6d4" 
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {visibleComponents.charts && chartData.pipeline.length > 0 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                <BarChart 
-                  title="Pipeline Stages" 
-                  data={chartData.pipeline} 
-                  color="var(--color-primary)" 
-                />
-                <LineChart 
-                  title="AI Activity" 
-                  data={chartData.aiActivity.length ? chartData.aiActivity : [{ label: 'Mon', value: 0 }, { label: 'Tue', value: 0 }, { label: 'Wed', value: 0 }, { label: 'Thu', value: 0 }, { label: 'Fri', value: 0 }]} 
-                  color="#06b6d4" 
-                />
-              </div>
-            )}
+            </div>
 
-            {visibleComponents.timeline && (
-              <div className="mb-6">
-                <ActivityTimeline activities={activities} />
-              </div>
-            )}
-          </>
+            {/* Right Column - Recent Activity */}
+            <div>
+              {visibleComponents.timeline && (
+                <div className="mb-6">
+                  <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-4">Recent Activity</h2>
+                  <ActivityTimeline activities={activities} />
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-export default DashboardModule;
+export default SignalsModule;

@@ -778,8 +778,8 @@ export async function updateFormFolderApi(folderId, payload) {
   return response.data || null;
 }
 
-export async function getFormsApi() {
-  const response = await request('/api/forms');
+export async function getFormsApi(summary = false) {
+  const response = await request(`/api/forms?summary=${summary}`);
   return response.data || [];
 }
 
@@ -932,6 +932,32 @@ export async function deleteThreadApi(threadId) {
 
 export function isBackendEnabled() {
   return BACKEND_ENABLED;
+}
+
+export async function getPaymentProviderConfigsApi() {
+  const response = await request('/api/payments/providers');
+  return response.data || [];
+}
+
+export async function upsertPaymentProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/payments/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function deletePaymentProviderConfigApi(configId) {
+  return request(`/api/payments/providers/${encodeURIComponent(configId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function testPaymentProviderConfigApi(configId) {
+  const response = await request(`/api/payments/providers/${encodeURIComponent(configId)}/test`, {
+    method: 'POST'
+  });
+  return response.data;
 }
 
 export { API_BASE_URL };

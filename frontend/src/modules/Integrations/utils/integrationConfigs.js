@@ -10,6 +10,7 @@ export const INTEGRATION_CATEGORIES = {
   LLMS: 'llms',
   SMS: 'sms',
   TRACKING: 'tracking',
+  PAYMENTS: 'payments',
 };
 
 export const integrationConfigs = {
@@ -329,6 +330,42 @@ export const integrationConfigs = {
           { name: 'propertyId', label: 'Property ID', type: 'text', required: false },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/google-analytics.svg',
+      },
+    ],
+  },
+
+  // PAYMENTS CATEGORY
+  payments: {
+    id: 'payments',
+    category: INTEGRATION_CATEGORIES.PAYMENTS,
+    name: 'Payments',
+    description: 'Payment processing and commerce integrations',
+    providers: [
+      {
+        id: 'stripe',
+        name: 'Stripe',
+        icon: 'stripe',
+        description: 'Online payment processing for internet businesses.',
+        fields: [
+          { name: 'publishableKey', label: 'Publishable Key', type: 'text', required: true },
+          { name: 'secretKey', label: 'Secret Key', type: 'password', required: true },
+          { name: 'webhookSecret', label: 'Webhook Secret', type: 'password', required: false },
+          { name: 'currency', label: 'Default Currency', type: 'text', required: false, default: 'usd' },
+        ],
+        logo: 'https://cdn.worldvectorlogo.com/logos/stripe-2.svg',
+      },
+      {
+        id: 'paypal',
+        name: 'PayPal',
+        icon: 'paypal',
+        description: 'PayPal checkout and payment processing.',
+        fields: [
+          { name: 'clientId', label: 'Client ID', type: 'text', required: true },
+          { name: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
+          { name: 'mode', label: 'Mode', type: 'select', required: true, options: ['sandbox', 'live'], default: 'sandbox' },
+          { name: 'webhookId', label: 'Webhook ID', type: 'text', required: false },
+        ],
+        logo: 'https://cdn.worldvectorlogo.com/logos/paypal-2.svg',
       },
     ],
   },

@@ -11,7 +11,7 @@ import { clearStoredSessionToken, getStoredSessionToken } from './services/authS
 import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './services/backendApi';
 
 // Lazy load modules for code splitting
-const DashboardModule = lazy(() => import('./modules/Dashboard'));
+const SignalsModule = lazy(() => import('./modules/Signals'));
 const BrainModule = lazy(() => import('./modules/Brain'));
 const CRMModule = lazy(() => import('./modules/CRM'));
 const FormBuilderModule = lazy(() => import('./modules/Forms'));
@@ -24,6 +24,7 @@ const IntegrationsManager = lazy(() => import('./modules/Integrations'));
 const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
 const CommsModule = lazy(() => import('./modules/Comms'));
+const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
 const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 
@@ -350,7 +351,7 @@ const App = () => {
 
     switch (activeModule) {
       case 'dashboard':
-        return <DashboardModule />;
+        return <SignalsModule />;
       case 'aio-brain':
         return <BrainModule />;
       case 'aio-systems':
@@ -380,11 +381,13 @@ const App = () => {
       case 'flows':
         return <FlowsModule flowId={flowId} onExit={() => setActiveModule(lastNonFullscreen || 'dashboard')} />;
       case 'chat':
-        return <CommsModule initialChannel="all" initialThreadId={commsThreadId} />;
+        return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} />;
       case 'marketplace':
         return <PlaceholderModule name="Marketplace" />;
       case 'sms-voip':
         return <SmsVoipModule />;
+      case 'canned-responses':
+        return <CannedResponsesModule onNavigate={setActiveModule} />;
       case 'settings':
         return <SettingsModule menuStructure={MENU_STRUCTURE} />;
       default:
@@ -432,7 +435,7 @@ const App = () => {
 
               {/* Module Content */}
               <div className={`flex-1 bg-[var(--color-bg-primary)] ${isFullscreen ? 'overflow-hidden p-0' : 'overflow-auto p-6'}`}>
-                <Suspense fallback={
+                <Suspense key={activeModule} fallback={
                   <div className="h-full flex items-center justify-center">
                     <LoadingSpinner size="lg" message="Loading module..." />
                   </div>

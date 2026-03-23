@@ -3229,6 +3229,7 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "forms", "creator", "TEXT")
             self._ensure_column(conn, "forms", "triggers_json", "TEXT")
             self._ensure_column(conn, "forms", "automation_json", "TEXT")
+            self._ensure_column(conn, "forms", "pages_json", "TEXT")
             self._ensure_column(conn, "mailboxes", "tenant_id", "TEXT")
             self._ensure_column(conn, "threads", "tenant_id", "TEXT")
             self._ensure_column(conn, "messages", "tenant_id", "TEXT")
@@ -4094,8 +4095,11 @@ class SQLiteProvider(BaseProvider):
             )
             conn.commit()
 
-    def list_brain_items(self) -> list[dict[str, Any]]:
-        rows = self._tenant_rows("SELECT * FROM brain_items WHERE tenant_id = ? ORDER BY updated_at DESC")
+    def list_brain_items(self, limit: int | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM brain_items WHERE tenant_id = ? ORDER BY updated_at DESC"
+        if limit:
+            query += f" LIMIT {limit}"
+        rows = self._tenant_rows(query)
         return [{**row, "tags": json_loads(row.pop("tags_json"), [])} for row in rows]
 
     def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -4185,8 +4189,11 @@ class SQLiteProvider(BaseProvider):
             )
             conn.commit()
 
-    def list_brain_links(self) -> list[dict[str, Any]]:
-        return self._tenant_rows("SELECT * FROM brain_links WHERE tenant_id = ? ORDER BY updated_at DESC")
+    def list_brain_links(self, limit: int | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM brain_links WHERE tenant_id = ? ORDER BY updated_at DESC"
+        if limit:
+            query += f" LIMIT {limit}"
+        return self._tenant_rows(query)
 
     def create_brain_link(self, payload: dict[str, Any]) -> dict[str, Any]:
         from_type = payload.get("from_type") or "item"
@@ -4565,7 +4572,35 @@ class SQLiteProvider(BaseProvider):
         return next(folder for folder in self.list_form_folders() if folder["id"] == folder_id)
 
     def list_forms(self) -> list[dict[str, Any]]:
-        return [self._form_from_row(row) for row in self._tenant_rows("SELECT * FROM forms WHERE tenant_id = ? ORDER BY updated_at DESC")]
+        rows = self._tenant_rows("SELECT * FROM forms WHERE tenant_id = ? ORDER BY updated_at DESC")
+        return [self._form_from_row(row) for row in rows]
+
+    def list_forms_summary(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT id, name, folder_id, slug, status, is_active, responses_count, last_active, last_modified_by, creator, created_at, updated_at, schema_json, pages_json FROM forms WHERE tenant_id = ? ORDER BY updated_at DESC")
+        return [self._form_summary_from_row(row) for row in rows]
+
+    def _form_summary_from_row(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        schema = json_loads(row.get("schema_json"), [])
+        pages = json_loads(row.get("pages_json"), [])
+        field_count = len(schema) + sum(len(p.get("fields", [])) for p in pages)
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "folder_id": row.get("folder_id"),
+            "slug": row["slug"],
+            "status": row.get("status") or ("Active" if row.get("is_active") else "Draft"),
+            "is_active": bool(row["is_active"]),
+            "responses_count": row["responses_count"],
+            "last_active": row.get("last_active"),
+            "last_modified_by": row.get("last_modified_by"),
+            "creator": row.get("creator"),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "last_modified_at": row["updated_at"],
+            "field_count": field_count,
+        }
 
     def create_form(self, payload: dict[str, Any]) -> dict[str, Any]:
         now = utcnow()
@@ -4577,6 +4612,7 @@ class SQLiteProvider(BaseProvider):
             "slug": payload.get("slug") or f"form_{unique_suffix()}",
             "description": payload.get("description") or "",
             "schema_json": json.dumps(payload.get("schema") or []),
+            "pages_json": json.dumps(payload.get("pages") or [{"id": "page_1", "label": "Page 1", "fields": []}]),
             "settings_json": json.dumps(payload.get("settings") or {"create_contact": True, "update_contact": True, "webhook_url": "", "notification_email": "", "redirect_url": "", "thank_you_message": "Thank you."}),
             "status": payload.get("status") or "Draft",
             "is_active": int(bool(payload.get("is_active", False))),
@@ -4594,14 +4630,14 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO forms (
-                    id, tenant_id, name, folder_id, slug, description, schema_json, settings_json, status, is_active,
+                    id, tenant_id, name, folder_id, slug, description, schema_json, pages_json, settings_json, status, is_active,
                     responses_count, last_active, last_modified_by, creator, triggers_json, automation_json,
                     last_response_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record["id"], record["tenant_id"], record["name"], record["folder_id"], record["slug"], record["description"],
-                    record["schema_json"], record["settings_json"], record["status"], record["is_active"],
+                    record["schema_json"], record["pages_json"], record["settings_json"], record["status"], record["is_active"],
                     record["responses_count"], record["last_active"], record["last_modified_by"], record["creator"],
                     record["triggers_json"], record["automation_json"], record["last_response_at"],
                     record["created_at"], record["updated_at"],
@@ -4617,6 +4653,8 @@ class SQLiteProvider(BaseProvider):
                 payload[key] = updates[key]
         if "schema" in updates:
             payload["schema_json"] = json.dumps(updates["schema"] or [])
+        if "pages" in updates:
+            payload["pages_json"] = json.dumps(updates["pages"] or [])
         if "settings" in updates:
             payload["settings_json"] = json.dumps(updates["settings"] or {})
         if "is_active" in updates:

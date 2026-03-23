@@ -121,7 +121,7 @@ export const INITIAL_MENU_STRUCTURE = [
     items: [
       { id: "aio-agents", label: "AIO Agents\u2122", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-brain", label: `AIO Cortex${TM}`, icon: "Cpu", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: `Search AIO Cortex${TM}...` },
-      { id: "dashboard", label: "AIO Dashboard", icon: "LayoutDashboard", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "dashboard", label: "AIO Signals", icon: "Activity", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-systems", label: "AIO Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full AIO system stack and launch each workspace inside the embedded app frame." }
     ]
   },
