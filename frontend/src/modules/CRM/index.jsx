@@ -93,13 +93,15 @@ const CRMModule = ({ initialContactId = null }) => {
     form_submission_date: { operator: 'is', value: '', active: false }
   });
 
-  // Filter Options
+  // Filter Options (tags populated dynamically from API)
   const filterOperators = ['is', 'is not', 'is in', 'is not in', 'is defined', 'is not defined', 'has', 'has not'];
+  
+  const availableTags = tags.length > 0 ? tags.map(t => typeof t === 'string' ? t : t.name || t.label || '').filter(Boolean) : ['VIP', 'Hot Lead', 'Customer', 'Nurture', 'Partner', 'Prospect', 'Inactive', 'Trial', 'Enterprise', 'SMB'];
   
   const filterOptions = {
     department: ['Sales', 'Marketing', 'Support', 'Engineering', 'Operations', 'Product', 'Design', 'Analytics', 'Consulting', 'Creative', 'Administration'],
-    owner: ['AIO Flow™', 'Adam B.', 'System', 'User 1', 'User 2', 'User 3'],
-    tags: ['VIP', 'Hot Lead', 'Customer', 'Nurture', 'Partner', 'Prospect', 'Inactive', 'Trial', 'Enterprise', 'SMB'],
+    owner: ['AIO Flow', 'Adam B.', 'System', 'User 1', 'User 2', 'User 3'],
+    tags: availableTags,
     system_tags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
     flow: ['Active', 'Paused', 'Inactive', 'Completed'],
     input: ['Email', 'Phone', 'Form', 'API', 'Manual'],
