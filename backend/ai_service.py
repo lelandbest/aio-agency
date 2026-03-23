@@ -265,6 +265,8 @@ class AIAssistService:
             result = self._assist_dashboard(resolved_surface, resolved_field, current_value, resolved_context)
         elif resolved_module == "orders":
             result = self._assist_orders(resolved_surface, resolved_field, current_value, resolved_context)
+        elif resolved_module == "help":
+            result = self._assist_help(resolved_surface, resolved_field, current_value, resolved_context)
         else:
             result = self._generic_result(resolved_field, current_value, resolved_context)
 
@@ -935,6 +937,63 @@ class AIAssistService:
             "Order management overview",
             ""
         )
+
+    def _assist_help(self, surface: str, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
+        normalized_field = _clean(field).lower()
+        subject = _clean(context.get("subject"))
+        content = _clean(context.get("content"))
+        category = _clean(context.get("category"))
+        priority = _clean(context.get("priority"))
+
+        if normalized_field == "ticket-triage":
+            suggestion = (
+                f"Triage Result for '{subject}':\n\n"
+                f"Analysis: This appears to be a {category} request of {priority} priority. "
+                "Charlie recommends immediate reference to the Knowledgebase article 'System Settings' while an agent reviews the technical details.\n\n"
+                "Auto-Draft Response: Hello! Charlie here. I've logged your request and am currently analyzing the Cortex logs. "
+                "In the meantime, you might find a quick answer in our 'Support' section."
+            )
+            return AssistResult(suggestion, [suggestion], "Automated triage and initial drafting by Charlie v1.", "")
+
+        if normalized_field == "subject":
+            suggestion = current_value or "Help Request: "
+            return AssistResult(suggestion, [suggestion], "Drafts a clear, professional support subject.", "")
+
+        if normalized_field == "content":
+            suggestion = current_value or "I'm experiencing an issue with..."
+            return AssistResult(suggestion, [suggestion], "Provides a structured starter for the support request.", "")
+
+        return self._generic_result(field, current_value, context)
+
+    def service_help_ticket(self, ticket: dict[str, Any], provider_config: dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        Background servicing of a ticket by Charlie.
+        In v1, this generates an internal AI note and a draft response.
+        """
+        subject = ticket.get("subject", "No Subject")
+        content = ticket.get("content", "No Content")
+        
+        system_prompt = (
+            "You are Charlie, the AIO CRM Help Desk Assistant. "
+            "Analyze the following support ticket and provide: "
+            "1. A concise internal analysis for the team. "
+            "2. A professional, helpful draft response for the customer."
+        )
+        prompt = f"Ticket Subject: {subject}\nTicket Content: {content}"
+        
+        ai_response = self._provider_complete(provider_config, prompt, system_prompt=system_prompt)
+        
+        if ai_response and ai_response.get("suggestion"):
+            return {
+                "ai_note": ai_response.get("rationale"),
+                "ai_draft": ai_response.get("suggestion")
+            }
+        
+        # Fallback for v1 if AI is offline
+        return {
+            "ai_note": "Charlie v1 analyzed the ticket: detected category match. Recommended manual review.",
+            "ai_draft": f"Hello! Charlie has received your ticket regarding '{subject}'. An agent will be with you shortly."
+        }
 
     def _generic_result(self, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
         brain_memory = _clean(context.get("brain_memory_summary"))

@@ -752,9 +752,45 @@ export async function ingestMailboxMessageApi(mailboxId, payload) {
   });
 }
 
-export async function getTagsApi() {
-  const response = await request('/api/tags');
+export async function getTagsApi(prefix = null) {
+  const url = prefix ? `/api/tags?prefix=${encodeURIComponent(prefix)}` : '/api/tags';
+  const response = await request(url);
   return response.data || [];
+}
+
+export async function createTagApi(payload) {
+  const response = await request('/api/tags', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function updateTagApi(tagId, updates) {
+  const response = await request(`/api/tags/${tagId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates)
+  });
+  return response.data || null;
+}
+
+export async function deleteTagApi(tagId) {
+  const response = await request(`/api/tags/${tagId}`, {
+    method: 'DELETE'
+  });
+  return response.success || false;
+}
+
+// Canonical prefix list for frontend validation
+export const CANONICAL_TAG_PREFIXES = ['AI', 'AUT', 'CRM', 'CS', 'MKT', 'MKG', 'MTG', 'CP', 'CD', 'EVT', 'OPS', 'PM', 'META'];
+
+export function validateTagFormat(name) {
+  if (!name || !name.includes(':')) return { valid: false, error: 'Tag must follow PREFIX:NAME format.' };
+  const [prefix] = name.toUpperCase().split(':');
+  if (!CANONICAL_TAG_PREFIXES.includes(prefix)) {
+    return { valid: false, error: `Invalid prefix '${prefix}'. Allowed: ${CANONICAL_TAG_PREFIXES.join(', ')}` };
+  }
+  return { valid: true };
 }
 
 export async function getFormFoldersApi() {
@@ -959,5 +995,49 @@ export async function testPaymentProviderConfigApi(configId) {
   });
   return response.data;
 }
+
+// --- Help Desk APIs ---
+
+export async function getHelpTicketsApi() {
+  const response = await request('/api/help/tickets');
+  return response.data || [];
+}
+
+export async function createHelpTicketApi(payload) {
+  const response = await request('/api/help/tickets', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function updateHelpTicketApi(ticketId, payload) {
+  const response = await request(`/api/help/tickets/${encodeURIComponent(ticketId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getHelpArticlesApi() {
+  const response = await request('/api/help/articles');
+  return response.data || [];
+}
+
+
+export async function getHelpBroadcastsApi() {
+  const response = await request('/api/help/broadcasts');
+  return response.data || [];
+}
+
+export async function createHelpBroadcastApi(payload) {
+  const response = await request('/api/help/broadcasts', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+// --- End Help Desk APIs ---
 
 export { API_BASE_URL };

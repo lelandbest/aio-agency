@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow } from 'lucide-react';
+import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow, Activity } from 'lucide-react';
 import { mockSupabase } from '../../services/mockSupabase';
 import { getAiAgentsApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
@@ -96,7 +96,7 @@ const AIOAgentsModule = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50">
+     <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] rounded-2xl text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-lg border border-[var(--color-border)]">
       <ModuleHeader
         title="AIO Command Center"
         titleIcon={Bot}
@@ -122,139 +122,292 @@ const AIOAgentsModule = () => {
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* BARRACKS VIEW (Agent List) */}
-        {view === 'barracks' && (
-          <div className="flex-1 p-8 overflow-y-auto">
-             <div className="mb-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5">
-                <div className="mb-4 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">AI Activity</p>
-                    <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Recent AI Runs</h3>
-                  </div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">
-                    {aiRuns.length} recent run{aiRuns.length === 1 ? '' : 's'}
-                  </div>
-                </div>
-                {aiRunsError ? (
-                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    {aiRunsError}
-                  </div>
-                ) : aiRuns.length ? (
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-                    {aiRuns.slice(0, 6).map((run) => (
-                      <div key={run.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                            {run.module}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {run.agent_role ? (
-                              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200">
-                                {run.agent_role}
-                              </span>
-                            ) : null}
-                            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                              {run.status || run.intent}
-                            </span>
-                          </div>
+        {/* BARRACKS VIEW */}
+        {view === 'barracks' && (() => {
+          const alpha = agents.find(a => (a.registryKey || a.registry_key) === 'ALPHA');
+          const regularAgents = agents.filter(a => {
+            const key = a.registryKey || a.registry_key;
+            return key !== 'ALPHA' && key !== 'OMEGA';
+          });
+          const alphaRegistry = SPECIALIST_REGISTRY['ALPHA'];
+          
+          const userRuns = aiRuns.filter(r => !r.agent_role || r.agent_role === 'User');
+          const charlieRuns = aiRuns.filter(r => r.agent_role === 'CHARLIE');
+          const alphaRuns = aiRuns.filter(r => r.agent_role === 'ALPHA');
+          const subRuns = aiRuns.filter(r => r.agent_role && !['ALPHA', 'CHARLIE'].includes(r.agent_role));
+
+          return (
+            <div className="flex-1 flex gap-4 p-4 overflow-hidden relative">
+              <style>{`
+                @keyframes scanner-slide {
+                  0% { left: 0%; transform: translateX(0); }
+                  100% { left: 100%; transform: translateX(-100%); }
+                }
+                .agent-scanner {
+                  animation: scanner-slide ease-in-out infinite alternate;
+                }
+              `}</style>
+              {/* LEFT — Roster */}
+              <div className="flex-1 w-1/2 p-3 lg:p-4 overflow-y-auto no-scrollbar border border-[var(--color-border)] rounded-2xl bg-[var(--color-bg-secondary)] flex flex-col shadow-sm">
+
+                {/* ALPHA — Full-Width Leadership Card */}
+                {alpha && (
+                  <div
+                    onClick={() => { setActiveAgent(alpha); setView('command'); setMessages([]); }}
+                    className="group mb-3 cursor-pointer rounded-xl border border-yellow-500/30 bg-gradient-to-br from-yellow-500/5 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-yellow-500/60 transition-all duration-500 overflow-hidden shrink-0 shadow-sm"
+                  >
+                    <div className="px-3 py-2 flex items-center gap-3 border-b border-yellow-500/10">
+                      {/* Avatar */}
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-yellow-500/10 border-2 border-yellow-500/40 flex items-center justify-center text-sm font-black text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                          AL
                         </div>
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                          {run.surface} / {run.field}
-                        </p>
-                        <p className="mt-2 line-clamp-3 text-sm text-[var(--color-text-secondary)]">
-                          {run.result}
-                        </p>
-                        {run.delegate_chain?.length ? (
-                          <div className="mt-3 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
-                            {run.delegate_chain.join(' -> ')}
-                          </div>
-                        ) : null}
-                        {(run.provider_label || run.model || run.thread_id) ? (
-                          <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
-                            {run.provider_label ? <span>{run.provider_label}</span> : null}
-                            {run.model ? <span>{run.model}</span> : null}
-                            {run.thread_id ? <span>thread-linked</span> : null}
-                          </div>
-                        ) : null}
-                        <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                          {new Date(run.created_at).toLocaleString()}
-                        </p>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[var(--color-bg-secondary)] shadow-[0_0_6px_rgba(34,197,94,0.8)]" />
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-6 text-sm text-[var(--color-text-secondary)]">
-                    No AI runs yet. Use the bullseye helpers in CRM, Forms, Calendar, or Flows to start generating activity.
+
+                      {/* Identity */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h2 className="text-sm font-black text-white tracking-wide">{alpha.name || 'ALPHA'}</h2>
+                          <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                            Commander-in-Chief
+                          </span>
+                        </div>
+                        <p className="text-[8px] text-yellow-500/60 uppercase tracking-[0.22em] font-bold">AGT-CMD-001 · HQ</p>
+                      </div>
+
+                      {/* Action */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openDraftInFlowBuilder(alpha); }}
+                          className="text-[8px] px-2 py-1.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors font-bold uppercase tracking-wider"
+                        >
+                          Draft Flow
+                        </button>
+                        <div className="text-yellow-400/70 text-[8px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                          Command <ArrowRight size={8} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Subordinates */}
+                    <div className="px-3 py-1.5 bg-yellow-500/5">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[7px] uppercase tracking-[0.24em] text-yellow-500/50 flex items-center gap-1 mr-1">
+                          <Users size={8} /> Direct ({alphaRegistry?.subordinates?.length || 0}):
+                        </span>
+                        {(alphaRegistry?.subordinates || []).map(key => (
+                          <span
+                            key={key}
+                            className="px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-wider bg-[var(--color-bg-primary)] border border-yellow-500/10 text-yellow-500/70 hover:border-yellow-500/30 hover:text-yellow-400 transition-colors cursor-pointer"
+                          >
+                            {key}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {agents.map(agent => (
-                  <div 
-                    key={agent.id} 
-                    onClick={() => { setActiveAgent(agent); setView('command'); setMessages([]); }}
-                    className="group bg-[var(--color-bg-secondary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-xl p-1 relative cursor-pointer transition-all hover:shadow-[0_0_20px_rgba(147,51,234,0.1)]"
-                  >
-                     {/* "Holographic" Header */}
-                     <div className="bg-[var(--color-bg-primary)] rounded-t-lg p-4 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
-                        <div className="flex items-start justify-between mb-3">
-                           <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex items-center justify-center text-xs font-bold text-[var(--color-text-primary)]">
-                                 {agent.name?.slice(0, 2)}
-                              </div>
-                              <div>
-                                 <h3 className="text-lg font-bold text-white leading-tight">{agent.name}</h3>
-                                 <p className="text-xs text-gray-500 font-mono">{agent.model}</p>
-                              </div>
-                           </div>
-                           <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                              agent.rank === 'General' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 
-                              agent.rank === 'SpecOps' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
-                              'bg-gray-800 text-gray-400 border-gray-700'
-                           }`}>
-                              {agent.rank}
-                           </div>
-                           <div className={`w-2 h-2 rounded-full ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-[var(--color-text-tertiary)]'}`}></div>
-                        </div>
-                     </div>
-                     
-                     {/* Body */}
-                     <div className="p-4 space-y-4">
-                        <div className="flex items-center gap-3 text-sm text-gray-400">
-                           <Target size={16} className="text-purple-500" />
-                           <span>{agent.specialization}</span>
-                        </div>
-                        {agent.subordinates && agent.subordinates.length > 0 && (
-                           <div className="flex items-center gap-3 text-sm text-gray-400">
-                              <Users size={16} className="text-blue-500" />
-                              <span>{agent.subordinates.length} Sub-ordinates</span>
-                           </div>
-                        )}
-                     </div>
 
-                     {/* Footer Actions */}
-                     <div className="p-3 border-t border-[var(--color-border)] flex justify-between items-center bg-[var(--color-bg-primary)]/50 rounded-b-lg">
-                        <span className="text-[10px] text-gray-600 uppercase tracking-wider font-bold">ID: AGT-{agent.id}00X</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openDraftInFlowBuilder(agent);
-                            }}
-                            className="text-[10px] px-2 py-1 rounded bg-[var(--color-primary)] text-white hover:opacity-90"
-                          >
-                            Draft Flow
-                          </button>
-                          <div className="text-purple-400 text-xs font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                             Command <ArrowRight size={12} />
+                {/* Roster label */}
+                <div className="mb-2 flex items-center gap-2 shrink-0">
+                  <Target size={10} className="text-[var(--color-primary)]" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.28em] text-[var(--color-text-tertiary)]">
+                    Active Roster — {regularAgents.length} Specialists
+                  </span>
+                </div>
+
+                {/* Regular Agents Grid */}
+                <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
+                  {regularAgents.map(agent => {
+                    const agentKey = agent.registryKey || agent.registry_key;
+                    return (
+                    <div
+                      key={agent.id}
+                      onClick={() => { setActiveAgent(agent); setView('command'); setMessages([]); }}
+                      className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-xl p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
+                    >
+                      <div className="bg-[var(--color-bg-secondary)] rounded-t-lg p-2 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] flex items-center justify-center text-[9px] font-bold text-[var(--color-text-primary)]">
+                              {agent.name?.slice(0, 2)}
+                            </div>
+                            <div>
+                              <h3 className="text-[10px] font-bold text-white leading-tight">{agent.name}</h3>
+                              <p className="text-[8px] text-gray-500 font-mono mt-0.5">{SPECIALIST_REGISTRY[agentKey]?.role || ''}</p>
+                            </div>
+                          </div>
+                          <div className={`w-1.5 h-1.5 rounded-full mt-1 ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.7)]' : 'bg-[var(--color-text-tertiary)]'}`} />
+                        </div>
+                      </div>
+                      <div className="px-2 py-1.5 flex-1">
+                        <div className="flex items-center gap-1.5 text-[9px] text-gray-400">
+                          <Target size={9} className="text-purple-500 shrink-0" />
+                          <span className="truncate">{agent.specialization}</span>
+                        </div>
+                      </div>
+                      <div className="px-2 py-1.5 border-t border-[var(--color-border)] flex justify-between items-center bg-[var(--color-bg-secondary)]/50 rounded-b-lg">
+                        <span className="text-[8px] text-gray-600 uppercase tracking-wider font-mono font-bold">
+                          ID: {agent.id}
+                        </span>
+                        <div className="text-purple-400 text-[8px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                          Command <ArrowRight size={8} />
+                        </div>
+                      </div>
+                    </div>
+                  )})}
+                </div>
+
+                {/* OMEGA — Locked Card */}
+                <div className="relative rounded-xl border border-red-900/40 bg-gradient-to-br from-red-950/20 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] overflow-hidden select-none mt-auto shrink-0 mb-1">
+                  <div className="absolute inset-0 pointer-events-none" style={{
+                    backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.02) 2px, rgba(255,0,0,0.02) 4px)',
+                    zIndex: 1
+                  }} />
+
+                  <div className="relative z-10 px-4 py-3 flex items-center gap-4 border-b border-red-900/20">
+                    <div className="relative shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-red-950/40 border-2 border-red-800/40 flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+                        <span className="text-[9px] font-black text-red-700/80 tracking-widest">?</span>
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-600/40 border-2 border-[var(--color-bg-secondary)]" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h2 className="text-sm font-black tracking-[0.15em]" style={{ color: 'rgba(239,68,68,0.4)', textShadow: '0 0 10px rgba(239,68,68,0.3)', filter: 'blur(0.3px)' }}>
+                          ████████
+                        </h2>
+                        <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] bg-red-950/40 text-red-700/60 border border-red-800/30">
+                          CLASSIFIED
+                        </span>
+                      </div>
+                      <p className="text-[8px] text-red-800/60 uppercase tracking-[0.22em] font-bold mt-0.5">AGT-OPS-999 · REDACTED</p>
+                    </div>
+
+                    <div className="shrink-0 flex items-center gap-2">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="w-6 h-6 rounded-full bg-red-950/30 border border-red-800/30 flex items-center justify-center">
+                          <span className="text-red-700/50 text-xs">🔒</span>
+                        </div>
+                        <span className="text-[7px] text-red-800/50 uppercase tracking-widest font-bold">Locked</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative z-10 px-4 py-2 flex items-center justify-between">
+                    <p className="text-[8px] text-red-800/50 uppercase tracking-[0.24em] font-bold">
+                      ██ ██████ clearance required
+                    </p>
+                    <span className="text-[7px] text-red-900/50 font-mono">OMEGA-SYS // DO NOT ACCESS</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* RIGHT — Activity Panel (Monitors & Lightbars) */}
+              <div className="flex-1 w-1/2 flex flex-col overflow-hidden bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl shadow-sm">
+                
+                {/* TOP: COMMAND MONITORS */}
+                <div className="h-[45%] flex gap-2 p-3 border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]/30">
+                  
+                  {/* USER MONITOR */}
+                  <div className="flex-1 flex flex-col bg-[#0a0f0a] rounded-xl border border-green-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(34,197,94,0.03)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse"></div>
+                      SYS_OWNER
+                    </div>
+                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                       {userRuns.slice(0, 10).map(run => (
+                          <div key={run.id} className="text-[8px] font-mono text-green-500 border border-green-500/20 bg-green-900/10 p-1.5 rounded">
+                            <span className="text-green-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.intent || run.status} <span className="text-green-400/50">|</span> {run.surface}
+                          </div>
+                       ))}
+                       {userRuns.length === 0 && <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">AWAITING INPUT...</div>}
+                    </div>
+                  </div>
+
+                  {/* CHARLIE MONITOR */}
+                  <div className="flex-1 flex flex-col bg-[#0a0f0a] rounded-xl border border-green-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(34,197,94,0.03)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                      CHARLIE
+                    </div>
+                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                       {charlieRuns.slice(0, 10).map(run => (
+                          <div key={run.id} className="text-[8px] font-mono text-green-500 border border-green-500/20 bg-green-900/10 p-1.5 rounded">
+                             <span className="text-green-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.intent || run.status} <span className="text-green-400/50">|</span> {run.field}
+                          </div>
+                       ))}
+                       {charlieRuns.length === 0 && <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">STANDBY...</div>}
+                    </div>
+                  </div>
+
+                  {/* ALPHA MONITOR */}
+                  <div className="flex-1 flex flex-col bg-[#1a1405] rounded-xl border border-amber-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(245,158,11,0.03)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #b45309 1px, #b45309 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-amber-950/40 border-b border-amber-500/20 p-2 flex items-center justify-center gap-2 text-amber-500 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
+                      ALPHA_CMD
+                    </div>
+                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                       {alphaRuns.slice(0, 10).map(run => (
+                          <div key={run.id} className="text-[8px] font-mono text-amber-500 border border-amber-500/20 bg-amber-900/10 p-1.5 rounded">
+                             <span className="text-amber-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.result || run.intent}
+                          </div>
+                       ))}
+                       {alphaRuns.length === 0 && <div className="text-[8px] font-mono text-amber-500/40 p-2 text-center">IDLE...</div>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* BOTTOM: SPECIALIST LIGHTBARS */}
+                <div className="h-[55%] flex flex-col relative px-4 py-3">
+                  <div className="absolute inset-0 bg-gradient-to-b from-[var(--color-bg-primary)]/60 to-[var(--color-bg-primary)]/10 z-0 pointer-events-none"></div>
+                  
+                  <div className="relative z-10 flex items-center justify-between mb-2 shrink-0">
+                    <h3 className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] font-bold flex items-center gap-2">
+                      <Activity size={10} className="text-purple-500" /> Specialist Network Stream
+                    </h3>
+                  </div>
+
+                  <div className="relative z-10 flex-1 flex flex-col justify-between overflow-hidden">
+                    {regularAgents.map((agent, i) => {
+                      const agentKey = agent.registryKey || agent.registry_key || agent.name.toUpperCase();
+                      const hasActivity = subRuns.some(r => r.agent_role === agentKey);
+                      // Randomize animation duration slightly so they aren't all in sync, but only calculate once per render
+                      const animDur = 1.2 + (i % 5) * 0.3; 
+                      
+                      return (
+                        <div key={agent.id} className="flex items-center gap-3 py-0.5 group">
+                          <div className="w-16 text-[8px] font-black text-[var(--color-text-secondary)] uppercase tracking-[0.15em] text-right group-hover:text-[var(--color-text-primary)] transition-colors">
+                            {agentKey}
+                          </div>
+                          <div className="flex-1 h-1.5 bg-black/60 rounded-full relative overflow-hidden border border-white/5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]">
+                            {hasActivity ? (
+                              <div 
+                                className="absolute top-0 bottom-0 w-1/4 bg-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)] agent-scanner"
+                                style={{ animationDuration: `${animDur}s` }}
+                              />
+                            ) : (
+                              <div className="absolute left-0 bottom-0 top-0 w-full bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-50"></div>
+                            )}
+                          </div>
+                          <div className={`w-10 text-[7px] font-mono tracking-wider ${hasActivity ? 'text-purple-400' : 'text-gray-600'}`}>
+                            {hasActivity ? 'SYNCING' : 'IDLE'}
                           </div>
                         </div>
-                     </div>
+                      )
+                    })}
                   </div>
-                ))}
-             </div>
-          </div>
-        )}
+                </div>
+
+              </div>
+            </div>
+          );
+        })()}
 
         {/* COMMAND VIEW (Detail/Chat) */}
         {view === 'command' && activeAgent && (

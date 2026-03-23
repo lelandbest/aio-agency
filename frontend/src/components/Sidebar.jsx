@@ -227,16 +227,14 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                 {/* Help Docs Link */}
                 <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-3'}`}>
                     {!isCollapsed && <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase">Resources</span>}
-                    <a
-                        href="https://help.aioflow.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <button
+                        onClick={() => onSelectModule('aio-help')}
                         className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
                         title="Help Documentation"
                     >
                         <HelpCircle size={16} />
                         {!isCollapsed && <span className="text-xs">Help Docs</span>}
-                    </a>
+                    </button>
                 </div>
             </div>
         </>

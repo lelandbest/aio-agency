@@ -2810,6 +2810,11 @@ class SQLiteProvider(BaseProvider):
     def _tenant_id(self) -> str:
         return get_request_tenant_id()
 
+    def _tenant_rows(self, query: str, params: tuple = ()) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            cursor = conn.execute(query, (*params, self._tenant_id()))
+            return [dict(row) for row in cursor.fetchall()]
+
     @staticmethod
     def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
         columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -2843,6 +2848,8 @@ class SQLiteProvider(BaseProvider):
             "booking_types",
             "calendar_sources",
             "mail_events",
+            "help_tickets",
+            "broadcast_messages",
         ]:
             conn.execute(f"UPDATE {table} SET tenant_id = COALESCE(tenant_id, ?)", (tenant_id,))
 
@@ -2888,10 +2895,23 @@ class SQLiteProvider(BaseProvider):
                 CREATE TABLE IF NOT EXISTS tags (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
+                    prefix TEXT,
+                    label TEXT,
+                    description TEXT,
+                    type TEXT NOT NULL DEFAULT 'user',
+                    is_locked INTEGER NOT NULL DEFAULT 0,
                     color TEXT,
-                    type TEXT,
-                    usage_count INTEGER,
-                    created_at TEXT
+                    usage_count INTEGER DEFAULT 0,
+                    tenant_id TEXT,
+                    created_at TEXT,
+                    UNIQUE(name, tenant_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_item_tags (
+                    item_id TEXT NOT NULL,
+                    tag_id TEXT NOT NULL,
+                    tenant_id TEXT,
+                    PRIMARY KEY(item_id, tag_id, tenant_id)
                 );
 
                 CREATE TABLE IF NOT EXISTS brain_profiles (
@@ -3188,6 +3208,29 @@ class SQLiteProvider(BaseProvider):
                     payload_json TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS help_tickets (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    user_id TEXT,
+                    subject TEXT NOT NULL,
+                    content TEXT,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    priority TEXT,
+                    category TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS broadcast_messages (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    type TEXT NOT NULL DEFAULT 'info',
+                    message TEXT NOT NULL,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT,
+                    expires_at TEXT
+                );
                 """
             )
 
@@ -3198,6 +3241,11 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "mailboxes", "config_json", "TEXT")
             self._ensure_column(conn, "contacts", "tenant_id", "TEXT")
             self._ensure_column(conn, "companies", "tenant_id", "TEXT")
+            self._ensure_column(conn, "tags", "prefix", "TEXT")
+            self._ensure_column(conn, "tags", "label", "TEXT")
+            self._ensure_column(conn, "tags", "description", "TEXT")
+            self._ensure_column(conn, "tags", "type", "TEXT DEFAULT 'user'")
+            self._ensure_column(conn, "tags", "is_locked", "INTEGER DEFAULT 0")
             self._ensure_column(conn, "tags", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_profiles", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_sources", "tenant_id", "TEXT")
@@ -3448,29 +3496,7 @@ class SQLiteProvider(BaseProvider):
                         ),
                     ],
                 )
-            existing_brain_links = conn.execute("SELECT COUNT(*) AS count FROM brain_links").fetchone()["count"]
-            if not existing_brain_links:
-                seeded_now = utcnow()
-                conn.executemany(
-                    """
-                    INSERT INTO brain_links (
-                        id, tenant_id, from_type, from_id, to_type, to_id, relationship_type, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            "brain-link-positioning-agents",
-                            self._default_tenant_id(),
-                            "item",
-                            "brain-item-positioning",
-                            "item",
-                            "brain-item-agent-rule",
-                            "supports",
-                            seeded_now,
-                            seeded_now,
-                        ),
-                    ],
-                )
+            self.seed_canonical_tags(conn)
 
             existing = conn.execute("SELECT COUNT(*) AS count FROM contacts").fetchone()["count"]
             if existing:
@@ -3931,6 +3957,122 @@ class SQLiteProvider(BaseProvider):
     def list_tags(self) -> list[dict[str, Any]]:
         return self._tenant_rows("SELECT * FROM tags WHERE tenant_id = ? ORDER BY name ASC")
 
+    def get_tag_by_name(self, name: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM tags WHERE UPPER(name) = UPPER(?) AND tenant_id = ?",
+                (name, self._tenant_id()),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def create_tag(self, payload: dict[str, Any]) -> dict[str, Any]:
+        name = str(payload.get("name", "")).strip().upper()
+        if ":" not in name:
+            raise ValueError("Tag must follow PREFIX:NAME format.")
+        
+        prefix = name.split(":", 1)[0]
+        canonical_prefixes = {"AI", "AUT", "CRM", "CS", "MKT", "MKG", "MTG", "CP", "CD", "EVT", "OPS", "PM", "META", "ROLE"}
+        if prefix not in canonical_prefixes:
+            raise ValueError(f"Invalid prefix '{prefix}'. Allowed: {', '.join(sorted(canonical_prefixes))}")
+
+        if self.get_tag_by_name(name):
+            raise ValueError(f"Tag '{name}' already exists.")
+
+        now = utcnow()
+        tag_id = payload.get("id") or f"tag-{unique_suffix()}"
+        prefix = name.split(":", 1)[0]
+        tag_record = {
+            "id": tag_id,
+            "tenant_id": self._tenant_id(),
+            "name": name,
+            "prefix": prefix,
+            "label": payload.get("label") or name.split(":", 1)[-1].title(),
+            "description": payload.get("description") or "",
+            "type": payload.get("type", "user"),
+            "is_locked": 1 if payload.get("is_locked") else 0,
+            "color": payload.get("color") or "#6b7280",
+            "usage_count": 0,
+            "created_at": now,
+        }
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO tags (id, tenant_id, name, prefix, label, description, type, is_locked, color, usage_count, created_at)
+                VALUES (:id, :tenant_id, :name, :prefix, :label, :description, :type, :is_locked, :color, :usage_count, :created_at)
+                """,
+                tag_record,
+            )
+        return tag_record
+
+    def update_tag(self, tag_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        tag = self._get_tag(tag_id)
+        if not tag:
+            raise ValueError("Tag not found")
+        if tag.get("is_locked") and "name" in updates:
+            raise ValueError("Cannot rename a locked system tag.")
+
+        fields = ["label", "description", "color"]
+        payload = {k: updates[k] for k in fields if k in updates and updates[k] is not None}
+        if not payload:
+            return tag
+
+        set_clause = ", ".join([f"{k} = :{k}" for k in payload])
+        with self._connect() as conn:
+            conn.execute(f"UPDATE tags SET {set_clause} WHERE id = :id AND tenant_id = :tenant_id", {**payload, "id": tag_id, "tenant_id": self._tenant_id()})
+        return self._get_tag(tag_id)
+
+    def delete_tag(self, tag_id: str) -> None:
+        tag = self._get_tag(tag_id)
+        if not tag:
+            return
+        if tag.get("is_locked") or tag.get("type") == "system":
+            raise ValueError("System tags cannot be deleted.")
+
+        with self._connect() as conn:
+            conn.execute("DELETE FROM tags WHERE id = ? AND tenant_id = ?", (tag_id, self._tenant_id()))
+            conn.execute("DELETE FROM brain_item_tags WHERE tag_id = ? AND tenant_id = ?", (tag_id, self._tenant_id()))
+
+    def _get_tag(self, tag_id: str) -> dict[str, Any] | None:
+        # _tenant_rows appends tenant_id as last param; include it explicitly here
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM tags WHERE id = ? AND tenant_id = ?",
+                (tag_id, self._tenant_id()),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_tags_by_prefix(self, prefix: str) -> list[dict[str, Any]]:
+        return self._tenant_rows("SELECT * FROM tags WHERE prefix = ? AND tenant_id = ?", (prefix.upper(),))
+
+    def seed_canonical_tags(self, conn: sqlite3.Connection = None) -> None:
+        now = utcnow()
+        tenant_id = self._default_tenant_id()
+        seeds = [
+            ("CRM:HOT", "CRM", "Hot Lead", "High priority potential customer.", "system", 1, "#ef4444"),
+            ("CRM:COLD", "CRM", "Cold Lead", "Low priority/initial contact.", "system", 1, "#3b82f6"),
+            ("MKG:EMAIL", "MKG", "Email Marketing", "Engagement via email campaigns.", "system", 1, "#10b981"),
+            ("AI:BOT", "AI", "AI Bot", "Interaction handled by autonomous agents.", "system", 1, "#8b5cf6"),
+        ]
+        
+        def _seed(db_conn):
+            for name, prefix, label, desc, ttype, locked, color in seeds:
+                existing = db_conn.execute("SELECT id FROM tags WHERE name = ? AND tenant_id = ?", (name, tenant_id)).fetchone()
+                if not existing:
+                    db_conn.execute(
+                        """
+                        INSERT INTO tags (id, tenant_id, name, prefix, label, description, type, is_locked, color, usage_count, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (f"tag-{unique_suffix()}", tenant_id, name, prefix, label, desc, ttype, locked, color, 0, now),
+                    )
+
+        if conn:
+            _seed(conn)
+        else:
+            with self._connect() as conn:
+                _seed(conn)
+
     def get_brain_profile(self) -> dict[str, Any]:
         with self._connect() as conn:
             row = conn.execute(
@@ -4095,11 +4237,12 @@ class SQLiteProvider(BaseProvider):
             )
             conn.commit()
 
-    def list_brain_items(self, limit: int | None = None) -> list[dict[str, Any]]:
+    def list_brain_items(self, limit: int | None = None, tenant_id: str | None = None) -> list[dict[str, Any]]:
+        target_tenant = tenant_id or self._tenant_id()
         query = "SELECT * FROM brain_items WHERE tenant_id = ? ORDER BY updated_at DESC"
         if limit:
             query += f" LIMIT {limit}"
-        rows = self._tenant_rows(query)
+        rows = self._rows(query, (target_tenant,))
         return [{**row, "tags": json_loads(row.pop("tags_json"), [])} for row in rows]
 
     def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -4176,7 +4319,6 @@ class SQLiteProvider(BaseProvider):
         item = dict(refreshed)
         item["tags"] = json_loads(item.pop("tags_json"), [])
         return item
-
     def delete_brain_item(self, item_id: str) -> None:
         with self._connect() as conn:
             conn.execute(
@@ -4188,6 +4330,112 @@ class SQLiteProvider(BaseProvider):
                 (item_id, self._tenant_id()),
             )
             conn.commit()
+
+    # --- Help Desk Methods ---
+
+    def list_help_tickets(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM help_tickets WHERE tenant_id = ?"
+        params = []
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY created_at DESC"
+        return self._tenant_rows(query, tuple(params))
+
+    def create_help_ticket(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": f"ticket-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "user_id": payload.get("user_id"),
+            "subject": payload.get("subject") or "No Subject",
+            "content": payload.get("content") or "",
+            "status": payload.get("status") or "open",
+            "priority": payload.get("priority") or "normal",
+            "category": payload.get("category") or "general",
+            "created_at": now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO help_tickets (
+                    id, tenant_id, user_id, subject, content, status, priority, category, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["user_id"],
+                    record["subject"],
+                    record["content"],
+                    record["status"],
+                    record["priority"],
+                    record["category"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return record
+
+    def update_help_ticket(self, ticket_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        updates["updated_at"] = utcnow()
+        keys = [k for k in updates.keys() if k in ["subject", "content", "status", "priority", "category", "updated_at"]]
+        if not keys:
+            return next((t for t in self.list_help_tickets() if t["id"] == ticket_id), {})
+        assignments = ", ".join(f"{k} = ?" for k in keys)
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE help_tickets SET {assignments} WHERE id = ? AND tenant_id = ?",
+                (*[updates[k] for k in keys], ticket_id, self._tenant_id()),
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM help_tickets WHERE id = ? AND tenant_id = ?",
+                (ticket_id, self._tenant_id()),
+            ).fetchone()
+            return dict(row) if row else {}
+
+    def list_broadcast_messages(self, active_only: bool = True) -> list[dict[str, Any]]:
+        query = "SELECT * FROM broadcast_messages WHERE tenant_id = ?"
+        if active_only:
+            query += " AND is_active = 1"
+        query += " ORDER BY created_at DESC"
+        return self._tenant_rows(query)
+
+    def create_broadcast_message(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": f"broadcast-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "type": payload.get("type") or "info",
+            "message": payload.get("message") or "",
+            "is_active": payload.get("is_active") if "is_active" in payload else 1,
+            "created_at": now,
+            "expires_at": payload.get("expires_at"),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO broadcast_messages (
+                    id, tenant_id, type, message, is_active, created_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["type"],
+                    record["message"],
+                    record["is_active"],
+                    record["created_at"],
+                    record["expires_at"],
+                ),
+            )
+            conn.commit()
+        return record
+
+    # --- End Help Desk Methods ---
 
     def list_brain_links(self, limit: int | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM brain_links WHERE tenant_id = ? ORDER BY updated_at DESC"

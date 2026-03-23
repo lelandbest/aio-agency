@@ -27,6 +27,7 @@ const CommsModule = lazy(() => import('./modules/Comms'));
 const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
 const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
+const HelpModule = lazy(() => import('./modules/Help'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -390,6 +391,8 @@ const App = () => {
         return <CannedResponsesModule onNavigate={setActiveModule} />;
       case 'settings':
         return <SettingsModule menuStructure={MENU_STRUCTURE} />;
+      case 'aio-help':
+        return <HelpModule />;
       default:
         return <PlaceholderModule name="Module" />;
     }

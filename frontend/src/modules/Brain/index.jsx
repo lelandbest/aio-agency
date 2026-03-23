@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Globe, Link2, Search, Trash2, UploadCloud, ChevronRight, X, Zap, Activity, Rocket, 
-  Bot, Brain as BrainIcon, Workflow, FileText, Lock, Loader2, PenTool, Database, Radio, Share2, Server, 
+  Bot, Brain as BrainIcon, Workflow, FileText, Lock, Loader2, PenTool, 
+  Database, Radio, Share2, Server, GraduationCap, ExternalLink,
   Cpu, User, Shield, ChevronDown, CheckCircle, RefreshCcw, Save, Trash, Code, Table, Presentation, Image, Video,
   Plus, File, Check
 } from 'lucide-react';
@@ -13,7 +14,8 @@ const CATEGORIES = [
   { id: 'b-doc', label: 'DOC', bin: 'DOC', dbCategory: 'document', icon: FileText, types: ['.pdf', '.docx', '.doc', '.txt', '.rtf', '.odt'] },
   { id: 'b-dig', label: 'DIG', bin: 'DIG', dbCategory: 'digital', icon: Image, types: ['.jpg', '.png', '.svg', '.webp'] },
   { id: 'b-dat', label: 'DAT', bin: 'DAT', dbCategory: 'data', icon: Table, types: ['.csv', '.xls', '.xlsx', '.json'] },
-  { id: 'b-ttv', label: 'TTV', bin: 'TTV', dbCategory: 'scribe', icon: Radio, types: ['.mp4', '.mp3', '.wav', '.mov', '.avi'] }
+  { id: 'b-ttv', label: 'TTV', bin: 'TTV', dbCategory: 'scribe', icon: Radio, types: ['.mp4', '.mp3', '.wav', '.mov', '.avi'] },
+  { id: 'b-hlp', label: 'HLP', bin: 'HLP', dbCategory: 'help', icon: GraduationCap, types: ['.md', '.txt'] }
 ];
 
 const getCategoryByFile = (filename) => {
@@ -241,9 +243,95 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
   const [editingItem, setEditingItem] = useState(null);
   
   if (!isOpen) return null;
-  const filteredItems = items.filter(i => 
-    i.category?.toLowerCase() === category.dbCategory?.toLowerCase()
-  );
+
+  // Partition items into Uploads vs Internal Intel (Help Docs)
+  const allFiltered = items.filter(i => {
+    const itemCat = i.category?.toLowerCase();
+    const targetCat = category.dbCategory?.toLowerCase();
+    if (category.id === 'b-doc') {
+      return itemCat === 'document' || itemCat === 'help';
+    }
+    return itemCat === targetCat;
+  });
+
+  const uploads = allFiltered.filter(i => i.category !== 'help');
+  const internal = allFiltered.filter(i => i.category === 'help');
+
+  const handleNavigateHelp = (item) => {
+    window.dispatchEvent(new CustomEvent('aio:navigate', { 
+      detail: { module: 'aio-help' } 
+    }));
+    onClose();
+  };
+
+  const renderTableRows = (rowItems, sectionLabel = null) => {
+    if (rowItems.length === 0 && !sectionLabel) return null;
+    
+    return (
+      <>
+        {sectionLabel && rowItems.length > 0 && (
+          <tr className="bg-white/[0.02]">
+            <td colSpan="4" className="py-3 px-4 text-[9px] font-black uppercase tracking-[0.3em] text-sky-400/60 border-y border-white/5">{sectionLabel}</td>
+          </tr>
+        )}
+        {rowItems.map(item => {
+          const isInternal = item.category === 'help';
+          return (
+            <tr 
+              key={item.id} 
+              onClick={() => setSelectedItem(item)}
+              className="group hover:bg-white/[0.03] transition-all duration-300 cursor-pointer"
+            >
+              <td className="py-5 text-[14px] font-black text-slate-300 uppercase tracking-widest group-hover:text-sky-400 transition-colors">
+                <div className="flex items-center gap-3">
+                  {isInternal && <GraduationCap size={14} className="text-sky-500" />}
+                  {item.title || item.label}
+                </div>
+              </td>
+              <td className="py-5">
+                <span className={`px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest ${
+                  isInternal ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-sky-500/10 border-sky-500/20 text-sky-500'
+                }`}>
+                  {isInternal ? 'Internal Intel' : (item.category || item.type || 'Generic')}
+                </span>
+              </td>
+              <td className="py-5 text-[11px] text-slate-500 font-bold uppercase tracking-widest">{item.timestamp || 'Recent'}</td>
+              <td className="py-5 text-right">
+                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                   {isInternal ? (
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); handleNavigateHelp(item); }} 
+                       className="p-2 text-sky-400 hover:text-white transition-colors bg-sky-500/10 rounded-lg border border-sky-500/20 hover:bg-sky-500/30"
+                       title="View in Help Docs"
+                     >
+                       <ExternalLink size={16} />
+                     </button>
+                   ) : (
+                     <>
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); setEditingItem(item); }} 
+                         className="p-2 text-slate-600 hover:text-sky-400 transition-colors bg-white/5 rounded-lg border border-white/5 hover:border-sky-500/30"
+                         title="Edit Asset"
+                       >
+                         <PenTool size={16} />
+                       </button>
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} 
+                         className="p-2 text-slate-600 hover:text-red-500 transition-colors bg-white/5 rounded-lg border border-white/5 hover:border-red-500/30"
+                         title="Delete Asset"
+                       >
+                         <Trash2 size={16} />
+                       </button>
+                     </>
+                   )}
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </>
+    );
+  };
 
   return (
     <>
@@ -275,38 +363,10 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filteredItems.map(item => (
-                  <tr 
-                    key={item.id} 
-                    onClick={() => setSelectedItem(item)}
-                    className="group hover:bg-white/[0.03] transition-all duration-300 cursor-pointer"
-                  >
-                    <td className="py-5 text-[14px] font-black text-slate-300 uppercase tracking-widest group-hover:text-sky-400 transition-colors">{item.title || item.label}</td>
-                    <td className="py-5">
-                      <span className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-500 uppercase tracking-widest">{item.category || item.type || 'Generic'}</span>
-                    </td>
-                    <td className="py-5 text-[11px] text-slate-500 font-bold uppercase tracking-widest">{item.timestamp || 'Recent'}</td>
-                    <td className="py-5 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button 
-                          onClick={(e) => { e.stopPropagation(); setEditingItem(item); }} 
-                          className="p-2 text-slate-600 hover:text-sky-400 transition-colors bg-white/5 rounded-lg border border-white/5 hover:border-sky-500/30"
-                          title="Edit Asset"
-                        >
-                          <PenTool size={16} />
-                        </button>
-                         <button 
-                          onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} 
-                          className="p-2 text-slate-600 hover:text-red-500 transition-colors bg-white/5 rounded-lg border border-white/5 hover:border-red-500/30"
-                          title="Delete Asset"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredItems.length === 0 && (
+                {renderTableRows(uploads, uploads.length > 0 && internal.length > 0 ? "Operational Uploads" : null)}
+                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Intelligence" : null)}
+                
+                {allFiltered.length === 0 && (
                   <tr>
                     <td colSpan="4" className="py-24 text-center">
                       <div className="flex flex-col items-center gap-4 text-slate-600">
@@ -327,100 +387,124 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
           <div className={COMMS_PANEL + " w-full max-w-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300"} onClick={e => e.stopPropagation()}>
             <div className="p-8 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
               <div>
-                <div className="text-[12px] font-black uppercase tracking-[0.4em] text-sky-400">Database Entry</div>
+                <div className="text-[12px] font-black uppercase tracking-[0.4em] text-sky-400">
+                  {selectedItem.category === 'help' ? 'System Intelligence' : 'Database Entry'}
+                </div>
                 <div className="text-[20px] font-black text-white uppercase tracking-widest mt-1">{selectedItem.title || selectedItem.label}</div>
               </div>
               <button onClick={() => setSelectedItem(null)} className="p-3 hover:bg-white/5 rounded-full text-slate-500"><X size={24} /></button>
             </div>
             <div className="p-8 space-y-8 overflow-y-auto no-scrollbar max-h-[70vh]">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Relocate to Bin</div>
-                  <select 
-                    value={getBinByCategory(selectedItem.category || 'document')}
-                    onChange={(e) => {
-                      const newCat = CATEGORIES.find(c => c.id === e.target.value);
-                      onUpdate(selectedItem.id, { category: newCat?.dbCategory || 'document' });
-                      setSelectedItem(prev => ({ ...prev, category: newCat?.dbCategory || 'document' }));
-                    }}
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-[11px] font-black uppercase tracking-widest text-sky-400 outline-none"
-                  >
-                    {CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.bin}</option>)}
-                  </select>
-                </div>
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Internal UID</div>
-                  <div className="text-[11px] font-mono text-slate-300 truncate">{selectedItem.id}</div>
-                </div>
-              </div>
-
-              {/* Media Preview / Content Editor */}
-              <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-100">Live Intelligence Feed</div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={async () => {
-                        await onUpdate(selectedItem.id, { content: selectedItem.content });
-                      }}
-                      className="px-3 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-400 hover:bg-sky-500/20 transition-all uppercase tracking-widest"
-                    >
-                      Persist Seed
-                    </button>
+              {selectedItem.category === 'help' ? (
+                <div className="p-10 rounded-[2.5rem] bg-sky-500/5 border border-sky-500/10 flex flex-col items-center gap-8 text-center">
+                  <div className="p-8 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 shadow-[0_0_50px_rgba(56,189,248,0.1)]">
+                    <GraduationCap size={64} />
                   </div>
+                  <div className="space-y-4">
+                    <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-100">Internal Documentation Pathway</div>
+                    <div className="text-[11px] text-slate-400 max-w-sm leading-relaxed font-medium uppercase tracking-widest">
+                      This asset is part of the core AIO Help & Intelligence layer. Operational controls are managed within the Help Docs module.
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleNavigateHelp(selectedItem)}
+                    className={COMMS_TOOLBAR_PRIMARY + " !h-14 !px-12 !rounded-full !text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-3 transition-all hover:scale-105 active:scale-95"}
+                  >
+                    Enter Help Module <ExternalLink size={16} />
+                  </button>
                 </div>
-
-                <div className="space-y-4">
-                  {/* Image Preview */}
-                  {(selectedItem.content?.startsWith('data:image') || selectedItem.title?.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ? (
-                    <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden flex items-center justify-center">
-                      <img src={selectedItem.content} alt="Intelligence Asset" className="max-w-full max-h-full object-contain shadow-2xl" />
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="p-4 rounded-xl bg-black/40 border border-white/5">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Relocate to Bin</div>
+                      <select 
+                        value={getBinByCategory(selectedItem.category || 'document')}
+                        onChange={(e) => {
+                          const newCat = CATEGORIES.find(c => c.id === e.target.value);
+                          onUpdate(selectedItem.id, { category: newCat?.dbCategory || 'document' });
+                          setSelectedItem(prev => ({ ...prev, category: newCat?.dbCategory || 'document' }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-[11px] font-black uppercase tracking-widest text-sky-400 outline-none"
+                      >
+                        {CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.bin}</option>)}
+                      </select>
                     </div>
-                  ) : null}
-
-                  {/* Video Player */}
-                  {selectedItem.title?.match(/\.(mp4|mov|avi)$/i) && selectedItem.content && (
-                    <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden">
-                      <video src={selectedItem.content} controls className="w-full h-full" />
+                    <div className="p-4 rounded-xl bg-black/40 border border-white/5">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Internal UID</div>
+                      <div className="text-[11px] font-mono text-slate-300 truncate">{selectedItem.id}</div>
                     </div>
-                  )}
+                  </div>
 
-                  {/* Audio Player */}
-                  {selectedItem.title?.match(/\.(mp3|wav)$/i) && selectedItem.content && (
-                    <div className="w-full rounded-xl bg-black/40 border border-white/5 p-4">
-                      <audio src={selectedItem.content} controls className="w-full" />
-                    </div>
-                  )}
-
-                  {/* PDF Stub / AI Summary */}
-                  {selectedItem.title?.match(/\.(pdf|docx|doc|xls|xlsx|rtf|odt)$/i) && (
-                    <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-700/40">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Document Intelligence</div>
-                        <div className="text-[8px] font-black uppercase tracking-widest text-amber-500/60">Extraction Pending</div>
+                  {/* Media Preview / Content Editor */}
+                  <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-100">Live Intelligence Feed</div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={async () => {
+                            await onUpdate(selectedItem.id, { content: selectedItem.content });
+                          }}
+                          className="px-3 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-400 hover:bg-sky-500/20 transition-all uppercase tracking-widest"
+                        >
+                          Persist Seed
+                        </button>
                       </div>
-                      <div className="text-[11px] text-slate-400 font-mono leading-relaxed">
-                        {selectedItem.content || `[DOCUMENT STUB] Content from '${selectedItem.title}' - queued for AI extraction and summarization.`}
-                      </div>
                     </div>
-                  )}
 
-                  {/* Text/JSON/HTML Editor */}
-                  {selectedItem.title?.match(/\.(txt|json|html|md|csv|xml)$/i) && (
-                    <textarea 
-                      value={selectedItem.content || ''}
-                      onChange={(e) => setSelectedItem(prev => ({ ...prev, content: e.target.value }))}
-                      className="w-full h-[250px] bg-black/40 border border-white/5 rounded-xl p-4 text-[12px] font-mono text-slate-400 outline-none focus:border-sky-500/40 no-scrollbar resize-none font-medium leading-relaxed"
-                      placeholder="Intelligence content manifest..."
-                    />
-                  )}
-                </div>
-              </div>
+                    <div className="space-y-4">
+                      {/* Image Preview */}
+                      {(selectedItem.content?.startsWith('data:image') || selectedItem.title?.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ? (
+                        <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden flex items-center justify-center">
+                          <img src={selectedItem.content} alt="Intelligence Asset" className="max-w-full max-h-full object-contain shadow-2xl" />
+                        </div>
+                      ) : null}
 
-              <div className="flex items-center gap-4">
-                <div className="px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-[10px] font-black text-green-500 uppercase tracking-widest">Validated Protocol</div>
-                <div className="px-4 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[10px] font-black text-sky-400 uppercase tracking-widest">SQLite Sync Active</div>
-              </div>
+                      {/* Video Player */}
+                      {selectedItem.title?.match(/\.(mp4|mov|avi)$/i) && selectedItem.content && (
+                        <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden">
+                          <video src={selectedItem.content} controls className="w-full h-full" />
+                        </div>
+                      )}
+
+                      {/* Audio Player */}
+                      {selectedItem.title?.match(/\.(mp3|wav)$/i) && selectedItem.content && (
+                        <div className="w-full rounded-xl bg-black/40 border border-white/5 p-4">
+                          <audio src={selectedItem.content} controls className="w-full" />
+                        </div>
+                      )}
+
+                      {/* PDF Stub / AI Summary */}
+                      {selectedItem.title?.match(/\.(pdf|docx|doc|xls|xlsx|rtf|odt)$/i) && (
+                        <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-700/40">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Document Intelligence</div>
+                            <div className="text-[8px] font-black uppercase tracking-widest text-amber-500/60">Extraction Pending</div>
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono leading-relaxed">
+                            {selectedItem.content || `[DOCUMENT STUB] Content from '${selectedItem.title}' - queued for AI extraction and summarization.`}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Text/JSON/HTML Editor */}
+                      {selectedItem.title?.match(/\.(txt|json|html|md|csv|xml)$/i) && (
+                        <textarea 
+                          value={selectedItem.content || ''}
+                          onChange={(e) => setSelectedItem(prev => ({ ...prev, content: e.target.value }))}
+                          className="w-full h-[250px] bg-black/40 border border-white/5 rounded-xl p-4 text-[12px] font-mono text-slate-400 outline-none focus:border-sky-500/40 no-scrollbar resize-none font-medium leading-relaxed"
+                          placeholder="Intelligence content manifest..."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-[10px] font-black text-green-500 uppercase tracking-widest">Validated Protocol</div>
+                    <div className="px-4 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[10px] font-black text-sky-400 uppercase tracking-widest">SQLite Sync Active</div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -583,9 +667,17 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
 const SavedIntelligence = ({ items, onSelectCategory }) => {
   const getCount = (catId) => {
     const cat = CATEGORIES.find(c => c.id === catId);
-    return items.filter(i => 
-      i.category?.toLowerCase() === cat?.dbCategory?.toLowerCase()
-    ).length;
+    if (!cat) return 0;
+    
+    return items.filter(i => {
+      const itemCat = i.category?.toLowerCase();
+      const targetCat = cat.dbCategory?.toLowerCase();
+      // Combine Help docs with DOC bin count
+      if (catId === 'b-doc') {
+        return itemCat === 'document' || itemCat === 'help';
+      }
+      return itemCat === targetCat;
+    }).length;
   };
 
   const total = items.length;
@@ -605,7 +697,7 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
       <SubPanelHeader title="The Vault" icon={Lock} />
       
       <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 mt-2">
-        {CATEGORIES.map(cat => {
+        {CATEGORIES.filter(c => c.id !== 'b-hlp').map(cat => {
           const count = getCount(cat.id);
           const isGhost = count === 0;
           return (

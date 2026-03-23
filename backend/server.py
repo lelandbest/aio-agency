@@ -1152,13 +1152,46 @@ class MailIngestRequest(BaseModel):
     sender_email: str
     recipients: list[str] = []
 
+class TagCreateRequest(BaseModel):
+    name: str
+    label: str | None = None
+    description: str | None = None
+    color: str | None = None
+    type: str = "user"
+
+class TagUpdateRequest(BaseModel):
+    label: str | None = None
+    description: str | None = None
+    color: str | None = None
 
 class MailSendRequest(BaseModel):
+    mailbox_id: str
     body: str
-    mailbox_id: str | None = None
-    sender_name: str = "AIO Flow"
-    sender_email: str | None = None
+    sender_name: str
+    sender_email: str
     recipients: list[str] = []
+
+
+class HelpTicketCreateRequest(BaseModel):
+    subject: str
+    content: str | None = None
+    priority: str = "normal"
+    category: str = "general"
+
+
+class HelpTicketUpdateRequest(BaseModel):
+    subject: str | None = None
+    content: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    category: str | None = None
+
+
+class BroadcastMessageCreateRequest(BaseModel):
+    type: str = "info"
+    message: str
+    is_active: int = 1
+    expires_at: str | None = None
 
 
 def oauth_callback_url() -> str:
@@ -1369,7 +1402,9 @@ async def get_brain_overview(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain.")
     profile = provider.get_brain_profile()
     sources = provider.list_brain_sources()
-    items = provider.list_brain_items(limit=100)  # Limit initial load
+    items = provider.list_brain_items(limit=100)
+    if not items:
+        items = provider.list_brain_items(limit=100, tenant_id="tenant-primary")
     all_ingests = provider.list_brain_ingests(limit=50)
     ingests = all_ingests[:12]
     categories: dict[str, int] = {}
@@ -1567,6 +1602,67 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
 async def search_brain_memory(request: Request, query: str, limit: int = 6, include_runtime: bool = False):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can query AIO Brain memory.")
     return {"data": collect_brain_memory_results(query, limit=max(1, limit), include_runtime=include_runtime)}
+
+
+# --- Help Desk Endpoints ---
+
+@app.get("/api/help/tickets")
+async def list_help_tickets(request: Request):
+    user_id = get_current_user_id(request)
+    return {"data": provider.list_help_tickets(user_id=user_id)}
+
+
+@app.post("/api/help/tickets")
+async def create_help_ticket(request: Request, payload: HelpTicketCreateRequest):
+    user_id = get_current_user_id(request)
+    ticket_data = {**payload.dict(), "user_id": user_id}
+    ticket = provider.create_help_ticket(ticket_data)
+    
+    # Charlie Servicing (v1 Handoff)
+    try:
+        # We try to get the active AI config
+        configs = provider.list_ai_providers()
+        active_config = next((c for c in configs if c.get("is_active")), None)
+        
+        servicing = ai_assist_service.service_help_ticket(ticket, provider_config=active_config)
+        provider.update_help_ticket(ticket["id"], {
+            "ai_note": servicing.get("ai_note"),
+            "ai_draft": servicing.get("ai_draft")
+        })
+        # Update the local ticket object for the response
+        ticket.update(servicing)
+    except Exception as e:
+        logger.error(f"Charlie failed to service ticket {ticket['id']}: {e}")
+
+    return {"data": ticket}
+
+
+@app.patch("/api/help/tickets/{ticket_id}")
+async def update_help_ticket(request: Request, ticket_id: str, payload: HelpTicketUpdateRequest):
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can update tickets.")
+    ticket = provider.update_help_ticket(ticket_id, payload.dict(exclude_unset=True))
+    return {"data": ticket}
+
+
+@app.get("/api/help/articles")
+async def list_help_articles(request: Request):
+    articles = provider.list_brain_items(limit=100, tenant_id="tenant-primary")
+    return {"data": articles}
+
+
+@app.get("/api/help/broadcasts")
+async def list_help_broadcasts(request: Request):
+    return {"data": provider.list_broadcast_messages()}
+
+
+@app.post("/api/help/broadcasts")
+async def create_help_broadcast(request: Request, payload: BroadcastMessageCreateRequest):
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can create broadcasts.")
+    broadcast = provider.create_broadcast_message(payload.dict())
+    return {"data": broadcast}
+
+
+# --- End Help Desk Endpoints ---
 
 
 @app.post("/api/auth/bootstrap")
@@ -2759,9 +2855,77 @@ async def ingest_mail_message(mailbox_id: str, request: Request, payload: MailIn
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.get("/api/help/articles")
+async def list_help_articles():
+    """Returns all brain items tagged META:DOC:HELP (tag-driven, not bin-based)."""
+    all_items = provider.list_brain_items()
+    return {"data": [item for item in all_items if "META:DOC:HELP" in (item.get("tags") or [])]}
+
+
+@app.get("/api/agents")
+async def list_agents():
+    """Public agent listing — excludes hidden agents (OMEGA)."""
+    import sqlite3, json
+    from pathlib import Path
+    db_path = str(Path(__file__).resolve().parent / "data" / "aio_crm.db")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT id, registry_key, name, rank, role_code, tags_json FROM agents WHERE is_hidden = 0 ORDER BY id"
+    ).fetchall()
+    conn.close()
+    return {"data": [dict(r) for r in rows]}
+
+
+@app.get("/api/agents/internal")
+async def list_agents_internal(request: Request):
+    """Internal agent listing — includes OMEGA. Requires editor role."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Internal endpoint requires editor role.")
+    import sqlite3, json
+    from pathlib import Path
+    db_path = str(Path(__file__).resolve().parent / "data" / "aio_crm.db")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT id, registry_key, name, rank, role_code, is_hidden, tags_json FROM agents ORDER BY id"
+    ).fetchall()
+    conn.close()
+    return {"data": [dict(r) for r in rows]}
+
+
 @app.get("/api/tags")
-async def list_tags():
+async def list_tags(prefix: str | None = None):
+    if prefix:
+        return {"data": provider.get_tags_by_prefix(prefix)}
     return {"data": provider.list_tags()}
+
+
+@app.post("/api/tags")
+async def create_tag(request: Request, payload: TagCreateRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors or higher can manage tags.")
+    try:
+        return {"data": provider.create_tag(payload.dict())}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.patch("/api/tags/{tag_id}")
+async def update_tag(tag_id: str, request: Request, payload: TagUpdateRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors or higher can manage tags.")
+    try:
+        return {"data": provider.update_tag(tag_id, payload.dict(exclude_unset=True))}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/tags/{tag_id}")
+async def delete_tag(tag_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete tags.")
+    try:
+        provider.delete_tag(tag_id)
+        return {"success": True}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/form-folders")
