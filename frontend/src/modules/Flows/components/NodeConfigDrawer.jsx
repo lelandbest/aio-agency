@@ -5,14 +5,35 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
+import { getFormsApi } from '../../../services/backendApi';
 
 const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
   const [config, setConfig] = useState(node?.data?.config || {});
+  const [forms, setForms] = useState([]);
+  const [loadingForms, setLoadingForms] = useState(false);
 
   useEffect(() => {
     setConfig(node?.data?.config || {});
   }, [node]);
+
+  useEffect(() => {
+    if (isOpen && node?.data?.id === 'form-submitted-trigger') {
+      loadForms();
+    }
+  }, [isOpen, node]);
+
+  const loadForms = async () => {
+    setLoadingForms(true);
+    try {
+      const data = await getFormsApi();
+      setForms(data?.data || []);
+    } catch (err) {
+      console.error('Error loading forms:', err);
+    } finally {
+      setLoadingForms(false);
+    }
+  };
 
   if (!node || !isOpen) return null;
 
@@ -33,6 +54,8 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
     const nodeType = node.type;
 
     if (nodeType === 'trigger') {
+      const showFormSelect = config.event === 'form_submitted';
+      
       return (
         <div className="space-y-4">
           <div>
@@ -42,12 +65,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
             <select
               value={config.event || ''}
               onChange={(e) => handleInputChange('event', e.target.value)}
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-              `}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             >
               <option value="">Select event...</option>
               <option value="form_submitted">Form Submitted</option>
@@ -57,6 +75,53 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
             </select>
           </div>
 
+          {showFormSelect && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                Select Form
+              </label>
+              {loadingForms ? (
+                <div className="flex items-center gap-2 text-sm text-[var(--color-text-tertiary)]">
+                  <Loader2 size={14} className="animate-spin" /> Loading forms...
+                </div>
+              ) : forms.length > 0 ? (
+                <select
+                  value={config.formId || ''}
+                  onChange={(e) => handleInputChange('formId', e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                >
+                  <option value="">Any form</option>
+                  {forms.map(form => (
+                    <option key={form.id} value={form.id}>{form.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-[var(--color-text-tertiary)]">
+                  No forms found. Create forms in the Forms module.
+                </div>
+              )}
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
+                Flow will trigger on form submission. Captured data available as variables.
+              </p>
+            </div>
+          )}
+
+          {config.event === 'form_submitted' && config.formId && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                Captured Variables
+              </label>
+              <div className="p-3 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] font-mono text-xs space-y-1">
+                <div className="text-[var(--color-text-tertiary)]">// Available after form submission:</div>
+                <div className="text-cyan-400">form.id</div>
+                <div className="text-cyan-400">form.name</div>
+                <div className="text-cyan-400">form.submittedAt</div>
+                <div className="text-cyan-400">form.fields.<span className="text-amber-400">fieldName</span></div>
+                <div className="text-[var(--color-text-tertiary)] mt-2">// Example: form.fields.email</div>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Description
@@ -65,13 +130,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
               value={config.description || ''}
               onChange={(e) => handleInputChange('description', e.target.value)}
               placeholder="Describe trigger behavior..."
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                min-h-[100px]
-              `}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[80px]"
             />
           </div>
         </div>
@@ -153,69 +212,109 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
 
     if (nodeType === 'input') {
       const isAiBuilder = node.data.id === 'ai-form-builder';
+      const sourceMode = config.sourceMode || (config.existingFormId ? 'existing' : 'generate');
       
       return (
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-              {isAiBuilder ? 'AI Form Description' : 'Form Fields'}
-            </label>
-            <textarea
-              value={config.fields || config.prompt || ''}
-              onChange={(e) => handleInputChange(isAiBuilder ? 'prompt' : 'fields', e.target.value)}
-              placeholder={isAiBuilder 
-                ? 'Describe the form you want to create. Example: "Lead capture form with name, email, phone, company, and message fields"' 
-                : 'Enter field definitions (JSON)...'}
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                min-h-[120px]
-              `}
-            />
-          </div>
-          
           {isAiBuilder && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                Form Source
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('sourceMode', 'generate')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${sourceMode === 'generate' ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]'}`}
+                >
+                  Generate New
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('sourceMode', 'existing')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${sourceMode === 'existing' ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]'}`}
+                >
+                  Use Existing
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isAiBuilder && sourceMode === 'existing' ? (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                Select Saved Form
+              </label>
+              {loadingForms ? (
+                <div className="flex items-center gap-2 text-sm text-[var(--color-text-tertiary)]">
+                  <Loader2 size={14} className="animate-spin" /> Loading forms...
+                </div>
+              ) : forms.length > 0 ? (
+                <select
+                  value={config.existingFormId || ''}
+                  onChange={(e) => handleInputChange('existingFormId', e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                >
+                  <option value="">Select a form...</option>
+                  {forms.map(form => (
+                    <option key={form.id} value={form.id}>{form.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-[var(--color-text-tertiary)]">
+                  No forms found. Switch to "Generate New" to create one.
+                </div>
+              )}
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
+                Selected form fields will be available as variables.
+              </p>
+            </div>
+          ) : (
             <>
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  Form Name
+                  {isAiBuilder ? 'AI Form Description' : 'Form Fields'}
                 </label>
-                <input
-                  type="text"
-                  value={config.formName || ''}
-                  onChange={(e) => handleInputChange('formName', e.target.value)}
-                  placeholder="My AI Generated Form"
-                  className={`
-                    w-full px-3 py-2 rounded-lg
-                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                    text-[var(--color-text-primary)]
-                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                  `}
+                <textarea
+                  value={config.fields || config.prompt || ''}
+                  onChange={(e) => handleInputChange(isAiBuilder ? 'prompt' : 'fields', e.target.value)}
+                  placeholder={isAiBuilder ? 'Describe the form you want to create...' : 'Enter field definitions (JSON)...'}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[120px]"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  Target Module
-                </label>
-                <select
-                  value={config.targetModule || ''}
-                  onChange={(e) => handleInputChange('targetModule', e.target.value)}
-                  className={`
-                    w-full px-3 py-2 rounded-lg
-                    bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                    text-[var(--color-text-primary)]
-                    focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-                  `}
-                >
-                  <option value="">Select module...</option>
-                  <option value="crm">CRM (Create Contact)</option>
-                  <option value="pipeline">Pipeline (Create Deal)</option>
-                  <option value="comms">Comms (Send Message)</option>
-                  <option value="brain">Brain (Save to Memory)</option>
-                </select>
-              </div>
+              
+              {isAiBuilder && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                      Save Form As
+                    </label>
+                    <input
+                      type="text"
+                      value={config.formName || ''}
+                      onChange={(e) => handleInputChange('formName', e.target.value)}
+                      placeholder="My AI Generated Form"
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                      Target Module
+                    </label>
+                    <select
+                      value={config.targetModule || ''}
+                      onChange={(e) => handleInputChange('targetModule', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    >
+                      <option value="">Select module...</option>
+                      <option value="crm">CRM (Create Contact)</option>
+                      <option value="pipeline">Pipeline (Create Deal)</option>
+                      <option value="comms">Comms (Send Message)</option>
+                      <option value="brain">Brain (Save to Memory)</option>
+                    </select>
+                  </div>
+                </>
+              )}
             </>
           )}
           
@@ -225,15 +324,10 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
             </label>
             <input
               type="text"
-              value={config.outputVar || ''}
+              value={config.outputVar || 'formData'}
               onChange={(e) => handleInputChange('outputVar', e.target.value)}
               placeholder="formData"
-              className={`
-                w-full px-3 py-2 rounded-lg
-                bg-[var(--color-bg-primary)] border border-[var(--color-border)]
-                text-[var(--color-text-primary)]
-                focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]
-              `}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
           </div>
         </div>
