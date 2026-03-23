@@ -1,14 +1,17 @@
 import json
 import logging
 import os
+import re
 from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from html import unescape
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import uvicorn
@@ -48,9 +51,206 @@ auth_store = AuthStore(default_auth_db_path())
 oauth_states: dict[str, dict[str, str]] = {}
 GOOGLE_APP_AUTH_SCOPE = "openid email profile"
 
+AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
+    "ALPHA": {
+        "registry_key": "ALPHA",
+        "label": "Commander-in-Chief",
+        "rank": "Commander",
+        "role": "HQ",
+        "specialization": "Commander-in-Chief",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": ["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "APEX", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
+        "tools": [
+            "Mission Brief Generator",
+            "Resource Allocation Optimizer",
+            "Squad Performance Dashboard",
+            "Integration Protocol Generator",
+            "Strategic Directive Builder",
+        ],
+    },
+    "BRAVO": {
+        "registry_key": "BRAVO",
+        "label": "Business Strategy",
+        "rank": "AI Agent",
+        "role": "Strategy",
+        "specialization": "Business Strategy",
+        "visibility": "visible",
+        "capability_tier": "tier-2",
+        "subordinates": [],
+        "tools": ["Strategic Plan Generator", "SWOT Analysis Builder", "Growth Strategy Framework"],
+    },
+    "CHARLIE": {
+        "registry_key": "CHARLIE",
+        "label": "Customer Support",
+        "rank": "AI Agent",
+        "role": "Support",
+        "specialization": "Customer Support",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": [],
+        "tools": ["Support Script Generator", "FAQ Builder", "Customer Response Templates", "Support Ticket Optimizer"],
+    },
+    "DELTA": {
+        "registry_key": "DELTA",
+        "label": "Visual/Project Coordination",
+        "rank": "AI Agent",
+        "role": "Coordination",
+        "specialization": "Visual/Project Coordination",
+        "visibility": "visible",
+        "capability_tier": "tier-2",
+        "subordinates": [],
+        "tools": ["Project Timeline Generator", "Resource Allocation Matrix", "Task Priority Framework"],
+    },
+    "ECHO": {
+        "registry_key": "ECHO",
+        "label": "Email/Comms/Socials",
+        "rank": "AI Agent",
+        "role": "Comms",
+        "specialization": "Email/Comms/Socials",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": [],
+        "tools": ["Email Template Generator", "Newsletter Builder", "Communication Plan Creator", "Social Campaign Builder"],
+    },
+    "FORGE": {
+        "registry_key": "FORGE",
+        "label": "Content/Copywriting",
+        "rank": "AI Agent",
+        "role": "Copy",
+        "specialization": "Content/Copywriting",
+        "visibility": "visible",
+        "capability_tier": "tier-2",
+        "subordinates": [],
+        "tools": ["Article Generator", "Landing Page Copy Generator", "Brand Story Creator"],
+    },
+    "APEX": {
+        "registry_key": "APEX",
+        "label": "Coder/IT/Site Dev",
+        "rank": "AI Agent",
+        "role": "Engineering",
+        "specialization": "Coder/IT/Site Dev",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": [],
+        "tools": ["System Architecture Planner", "Automation Playbook Builder", "API Integration Design", "Security Hardening Checklist"],
+    },
+    "ARCHER": {
+        "registry_key": "ARCHER",
+        "label": "Analytics/Financial",
+        "rank": "AI Agent",
+        "role": "Analytics",
+        "specialization": "Analytics/Financial",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": [],
+        "tools": ["KPI Dashboard Generator", "Financial Report Builder", "ROI Calculator"],
+    },
+    "ATLAS": {
+        "registry_key": "ATLAS",
+        "label": "Logistics/Systems Mapping",
+        "rank": "AI Agent",
+        "role": "Logistics",
+        "specialization": "Logistics/Systems Mapping",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": [],
+        "tools": ["Deployment Coordination Plan", "Systems Map Builder", "Resource Movement Tracker", "Runbook Routing Matrix"],
+    },
+    "RANGER": {
+        "registry_key": "RANGER",
+        "label": "SEO/Content Optimization",
+        "rank": "AI Agent",
+        "role": "SEO",
+        "specialization": "SEO/Content Optimization",
+        "visibility": "visible",
+        "capability_tier": "tier-2",
+        "subordinates": [],
+        "tools": ["SEO Blog Writer", "SEO Auditor", "Keyword Research Generator"],
+    },
+    "SCOUT": {
+        "registry_key": "SCOUT",
+        "label": "Hiring/Recruitment",
+        "rank": "AI Agent",
+        "role": "Recruitment",
+        "specialization": "Hiring/Recruitment",
+        "visibility": "visible",
+        "capability_tier": "tier-2",
+        "subordinates": [],
+        "tools": ["Job Description Generator", "Interview Question Builder", "Candidate Assessment Template"],
+    },
+    "STRIKER": {
+        "registry_key": "STRIKER",
+        "label": "Sales/Negotiation",
+        "rank": "AI Agent",
+        "role": "Sales",
+        "specialization": "Sales/Negotiation",
+        "visibility": "visible",
+        "capability_tier": "tier-1",
+        "subordinates": [],
+        "tools": ["Cold Email Generator", "Discovery Call Script Writer", "Proposal Builder", "Negotiation Advisor"],
+    },
+    "VECTOR": {
+        "registry_key": "VECTOR",
+        "label": "Graphics/Design",
+        "rank": "AI Agent",
+        "role": "Design",
+        "specialization": "Graphics/Design",
+        "visibility": "visible",
+        "capability_tier": "tier-2",
+        "subordinates": [],
+        "tools": ["Image Generation", "Design Brief Builder", "Brand Style Guide Generator"],
+    },
+    "OMEGA": {
+        "registry_key": "OMEGA",
+        "label": "Emergency Governance",
+        "rank": "Shadow Authority",
+        "role": "Governance",
+        "specialization": "Emergency Local Purge Control",
+        "visibility": "hidden",
+        "capability_tier": "restricted",
+        "subordinates": [],
+        "tools": ["Emergency Purge Arming", "Purge Countdown Control", "Emergency Cancel Validation", "Audit Seal Recorder"],
+    },
+}
+
+VISIBLE_AGENT_KEYS = [key for key, value in AGENT_RUNTIME_REGISTRY.items() if value.get("visibility") != "hidden"]
+
 
 def utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def omega_local_data_paths() -> list[Path]:
+    paths: dict[str, Path] = {}
+    for candidate in [getattr(auth_store, "db_path", None), getattr(provider, "db_path", None)]:
+        if not candidate:
+            continue
+        base_path = Path(candidate)
+        for resolved in [
+            base_path,
+            Path(f"{base_path}-wal"),
+            Path(f"{base_path}-shm"),
+        ]:
+            paths[str(resolved)] = resolved
+    return list(paths.values())
+
+
+def reset_runtime_stores() -> None:
+    global provider, auth_store
+    oauth_states.clear()
+    auth_store = AuthStore(default_auth_db_path())
+    provider = create_provider()
+
+
+def purge_local_app_data() -> list[str]:
+    removed_paths: list[str] = []
+    for path in omega_local_data_paths():
+        if path.exists():
+            path.unlink()
+            removed_paths.append(str(path))
+    reset_runtime_stores()
+    return removed_paths
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -100,19 +300,43 @@ def extract_url_text(url: str) -> tuple[str, str]:
 def extract_file_text(file_name: str | None, mime_type: str | None, content_base64: str | None) -> str:
     if not content_base64:
         raise ValueError("File content is required for Brain file ingest.")
-    try:
-        payload = b64decode(content_base64)
-    except Exception as error:  # pragma: no cover - invalid client payload
-        raise ValueError("Unable to decode uploaded file.") from error
-    decoded = payload.decode("utf-8", errors="ignore")
+    
     normalized_name = (file_name or "").lower()
     normalized_type = (mime_type or "").lower()
-    if "html" in normalized_type or normalized_name.endswith((".html", ".htm")):
-        decoded = html_to_text(unescape(decoded))
-    cleaned = " ".join(decoded.split()).strip()
-    if not cleaned:
-        raise ValueError("The uploaded file did not contain readable text. Use text-like files for now.")
-    return cleaned
+    
+    # Document / Text Formats
+    text_extensions = (".txt", ".md", ".markdown", ".csv", ".vtt", ".json", ".xml")
+    rich_text_extensions = (".rtf", ".doc", ".docx", ".pdf", ".xls", ".xlsx", ".odt")
+    media_extensions = (".mp3", ".wav", ".m4a", ".mp4", ".mov", ".avi")
+    image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
+
+    try:
+        payload = b64decode(content_base64)
+    except Exception as error:  # pragma: no cover
+        raise ValueError("Unable to decode uploaded file.") from error
+
+    if normalized_name.endswith(text_extensions) or "text" in normalized_type or "json" in normalized_type:
+        decoded = payload.decode("utf-8", errors="ignore")
+        if "html" in normalized_type or normalized_name.endswith((".html", ".htm")):
+            decoded = html_to_text(unescape(decoded))
+        cleaned = " ".join(decoded.split()).strip()
+        if not cleaned:
+            raise ValueError("The uploaded text file appears to be empty.")
+        return cleaned
+
+    if normalized_name.endswith(rich_text_extensions):
+        # Stub for complex document extraction (PDF, Word, Excel)
+        return f"[DOCUMENT STUB] Content from '{normalized_name}' will be extracted via document-processing workflow. Metadata indexed for now."
+
+    if normalized_name.endswith(media_extensions):
+        # Stub for transcription service
+        return f"[TRANSCRIPTION STUB] Audio/Video content from '{normalized_name}' is queued for transcription. Operating memory will be updated once complete."
+
+    if normalized_name.endswith(image_extensions):
+        # Stub for OCR/Image Analysis
+        return f"[IMAGE STUB] Visual content from '{normalized_name}' is queued for OCR and scene analysis."
+
+    raise ValueError(f"File type '{normalized_name.split('.')[-1]}' is not yet supported for direct Brain ingestion.")
 
 
 def build_brain_assist_query(current_value: str, context: dict[str, Any], tenant: dict[str, Any]) -> str:
@@ -136,6 +360,418 @@ def build_brain_assist_query(current_value: str, context: dict[str, Any], tenant
     return " | ".join(parts[:4]).strip()
 
 
+def summarize_runtime_excerpt(value: Any, fallback: str = "") -> str:
+    text = " ".join(str(value or "").split()).strip()
+    if not text:
+        return fallback
+    return f"{text[:277].rstrip()}..." if len(text) > 280 else text
+
+
+def resolve_brain_mcp_source(source_id: str) -> dict[str, Any]:
+    source = next((item for item in provider.list_brain_sources() if item.get("id") == source_id), None)
+    if not source:
+        raise ValueError("MCP server not found.")
+    if (source.get("source_type") or "").strip().lower() != "mcp":
+        raise ValueError("This Brain source is not an MCP server.")
+    return source
+
+
+def resolve_brain_mcp_endpoint(source: dict[str, Any]) -> str:
+    endpoint = (source.get("location") or "").strip()
+    if not endpoint:
+        raise ValueError("This MCP server does not have an endpoint configured.")
+    if not endpoint.lower().startswith(("http://", "https://")):
+        raise ValueError("Only HTTP(S) MCP endpoints are supported right now.")
+    return endpoint
+
+
+def set_brain_mcp_status(source_id: str, status: str) -> dict[str, Any]:
+    return provider.update_brain_source(source_id, {"status": status})
+
+
+def request_brain_mcp(source: dict[str, Any], payload: dict[str, Any] | None = None, query_params: dict[str, Any] | None = None) -> Any:
+    endpoint = resolve_brain_mcp_endpoint(source)
+    if query_params:
+        suffix = urlencode({key: value for key, value in query_params.items() if value not in (None, "")})
+        if suffix:
+            joiner = "&" if "?" in endpoint else "?"
+            endpoint = f"{endpoint}{joiner}{suffix}"
+    encoded = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urlrequest.Request(
+        endpoint,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
+            "User-Agent": "AIOCRM/1.0 (+brain-mcp-runtime)",
+        },
+        data=encoded,
+        method="POST" if encoded is not None else "GET",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=15) as response:
+            content_type = response.headers.get("Content-Type", "")
+            charset = response.headers.get_content_charset() or "utf-8"
+            body = response.read()
+    except (urlerror.HTTPError, urlerror.URLError, TimeoutError, OSError) as error:
+        raise ValueError(f"Unable to reach MCP server: {error}") from error
+    decoded = body.decode(charset, errors="ignore").strip()
+    if not decoded:
+        return {}
+    if "json" in content_type.lower():
+        try:
+            return json.loads(decoded)
+        except json.JSONDecodeError:
+            pass
+    try:
+        return json.loads(decoded)
+    except json.JSONDecodeError:
+        return {"content": decoded}
+
+
+def normalize_brain_mcp_results(source: dict[str, Any], payload: Any, query: str, limit: int) -> list[dict[str, Any]]:
+    entries: list[Any]
+    if isinstance(payload, list):
+        entries = payload
+    elif isinstance(payload, dict):
+        for key in ["results", "data", "items"]:
+            value = payload.get(key)
+            if isinstance(value, list):
+                entries = value
+                break
+        else:
+            entries = [payload]
+    elif payload is None:
+        entries = []
+    else:
+        entries = [payload]
+
+    results: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries[: max(1, limit)], start=1):
+        if isinstance(entry, dict):
+            title = next(
+                (
+                    str(entry.get(key)).strip()
+                    for key in ["title", "label", "name", "subject", "id"]
+                    if str(entry.get(key) or "").strip()
+                ),
+                f"{source.get('label') or 'MCP'} result {index}",
+            )
+            excerpt = next(
+                (
+                    summarize_runtime_excerpt(entry.get(key))
+                    for key in ["excerpt", "summary", "content", "text", "message", "result", "details"]
+                    if summarize_runtime_excerpt(entry.get(key))
+                ),
+                summarize_runtime_excerpt(json.dumps(entry, default=str), "No MCP response content."),
+            )
+        else:
+            title = f"{source.get('label') or 'MCP'} result {index}"
+            excerpt = summarize_runtime_excerpt(entry, "No MCP response content.")
+        results.append(
+            {
+                "id": f"{source.get('id')}-mcp-{index}",
+                "kind": "mcp",
+                "title": title,
+                "excerpt": excerpt,
+                "source_id": source.get("id"),
+                "source_label": source.get("label") or "MCP Server",
+                "score": max(1, limit - index + 1) + 5,
+                "matched_terms": [query] if query else [],
+                "runtime": True,
+            }
+        )
+    return results
+
+
+def probe_brain_mcp_source(source: dict[str, Any]) -> dict[str, Any]:
+    attempts = [
+        {"payload": {"action": "probe", "source_id": source.get("id"), "label": source.get("label")}},
+        {"query_params": {"action": "probe"}},
+    ]
+    last_error: ValueError | None = None
+    for attempt in attempts:
+        try:
+            response = request_brain_mcp(source, payload=attempt.get("payload"), query_params=attempt.get("query_params"))
+            refreshed = set_brain_mcp_status(str(source.get("id")), "connected")
+            message = ""
+            if isinstance(response, dict):
+                message = summarize_runtime_excerpt(
+                    response.get("message") or response.get("status") or response.get("result") or response.get("content"),
+                    "Connected",
+                )
+            else:
+                message = summarize_runtime_excerpt(response, "Connected")
+            return {"source": refreshed, "status": refreshed.get("status") or "connected", "message": message or "Connected"}
+        except ValueError as error:
+            last_error = error
+    set_brain_mcp_status(str(source.get("id")), "error")
+    raise ValueError(str(last_error or "Unable to reach MCP server."))
+
+
+def query_brain_mcp_source(source: dict[str, Any], query: str, limit: int = 5) -> dict[str, Any]:
+    resolved_query = " ".join(str(query or "").split()).strip()
+    if not resolved_query:
+        raise ValueError("A query is required to search this MCP server.")
+    attempts = [
+        {"payload": {"action": "query", "query": resolved_query, "limit": max(1, limit)}},
+        {"query_params": {"action": "query", "query": resolved_query, "limit": max(1, limit)}},
+    ]
+    last_error: ValueError | None = None
+    for attempt in attempts:
+        try:
+            response = request_brain_mcp(source, payload=attempt.get("payload"), query_params=attempt.get("query_params"))
+            refreshed = set_brain_mcp_status(str(source.get("id")), "connected")
+            return {
+                "source": refreshed,
+                "results": normalize_brain_mcp_results(refreshed, response, resolved_query, max(1, limit)),
+            }
+        except ValueError as error:
+            last_error = error
+    set_brain_mcp_status(str(source.get("id")), "error")
+    raise ValueError(str(last_error or "Unable to query MCP server."))
+
+
+def search_brain_mcp_memory(query: str, limit: int = 6) -> list[dict[str, Any]]:
+    resolved_query = " ".join(str(query or "").split()).strip()
+    if not resolved_query:
+        return []
+    results: list[dict[str, Any]] = []
+    sources = [
+        source
+        for source in provider.list_brain_sources()
+        if (source.get("source_type") or "").strip().lower() == "mcp" and (source.get("location") or "").strip()
+    ]
+    per_source_limit = max(1, min(3, limit))
+    for source in sources[:4]:
+        try:
+            payload = query_brain_mcp_source(source, resolved_query, limit=per_source_limit)
+        except ValueError:
+            continue
+        results.extend(payload.get("results") or [])
+        if len(results) >= max(1, limit) * 2:
+            break
+    results.sort(key=lambda item: (item.get("score") or 0, item.get("title") or ""), reverse=True)
+    return results[: max(1, limit)]
+
+
+def collect_brain_memory_results(query: str, limit: int = 6, include_runtime: bool = False) -> list[dict[str, Any]]:
+    stored_results = provider.search_brain_memory(query, limit=max(1, limit))
+    runtime_results = search_brain_mcp_memory(query, limit=max(1, limit)) if include_runtime else []
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in [*runtime_results, *stored_results]:
+        key = (str(entry.get("kind") or ""), str(entry.get("id") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(entry)
+        if len(merged) >= max(1, limit):
+            break
+    return merged
+
+
+def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
+    keys = AGENT_RUNTIME_REGISTRY.keys() if include_hidden else VISIBLE_AGENT_KEYS
+    return [{**AGENT_RUNTIME_REGISTRY[key]} for key in keys]
+
+
+def normalize_agent_key(value: Any) -> str:
+    resolved = " ".join(str(value or "").split()).strip().upper()
+    return resolved if resolved in AGENT_RUNTIME_REGISTRY else ""
+
+
+def extract_requested_agent(command_text: str = "", explicit: str = "") -> str:
+    direct = normalize_agent_key(explicit)
+    if direct:
+        return direct
+    if not command_text:
+        return ""
+    command_upper = command_text.upper()
+    for key in VISIBLE_AGENT_KEYS:
+        if re.search(rf"\b{re.escape(key)}\b", command_upper):
+            return key
+    return ""
+
+
+def resolve_permission_tier(command_text: str, field: str = "", intent: str = "") -> str:
+    haystack = " ".join([str(command_text or ""), str(field or ""), str(intent or "")]).lower()
+    if any(term in haystack for term in ["wipe", "destroy", "purge", "kill switch", "delete from mailbox", "delete everywhere"]):
+        return "dangerous"
+    if any(term in haystack for term in ["assign", "archive", "close", "schedule", "create deal", "run workflow", "trigger workflow", "send "]):
+        return "guarded"
+    return "safe"
+
+
+def choose_specialist_for_command(module: str, surface: str, field: str, command_text: str, context: dict[str, Any]) -> str:
+    explicit_agent = extract_requested_agent(
+        command_text,
+        explicit=str(
+            context.get("agent_role")
+            or context.get("assignee")
+            or context.get("selected_agent")
+            or context.get("agent")
+            or context.get("requested_agent")
+            or ""
+        ),
+    )
+    if explicit_agent and explicit_agent != "OMEGA":
+        return explicit_agent
+    haystack = " ".join(
+        [
+            str(command_text or ""),
+            str(field or ""),
+            str(surface or ""),
+            str(module or ""),
+            str(context.get("summary") or ""),
+            str(context.get("subject") or ""),
+            str(context.get("description") or ""),
+            str(context.get("notes") or ""),
+        ]
+    ).lower()
+    normalized_module = " ".join(str(module or "").split()).strip().lower()
+    normalized_field = " ".join(str(field or "").split()).strip().lower()
+    if normalized_module == "comms":
+        if normalized_field in {"summary", "brief", "refresh-brief"}:
+            return "CHARLIE"
+        if normalized_field in {"draft-reply", "reply", "rewrite", "rewrite-draft"}:
+            return "STRIKER"
+        if normalized_field in {"extract", "extract-tasks", "schedule", "schedule-follow-up", "run-workflow", "workflow"}:
+            return "ALPHA"
+    if any(term in haystack for term in ["support", "ticket", "help desk", "customer success", "faq", "issue resolution", "service"]):
+        return "CHARLIE"
+    if any(term in haystack for term in ["email", "newsletter", "campaign", "social", "hashtag", "channel", "outreach", "response template"]):
+        return "ECHO"
+    if any(term in haystack for term in ["proposal", "deal", "close", "negotiat", "pipeline", "revenue", "follow-up", "discovery call", "sales"]):
+        return "STRIKER"
+    if any(term in haystack for term in ["strategy", "swot", "market", "positioning", "growth plan", "business model"]):
+        return "BRAVO"
+    if any(term in haystack for term in ["project", "timeline", "milestone", "coordinate", "meeting follow-up"]):
+        return "DELTA"
+    if any(term in haystack for term in ["logistics", "deployment", "runbook", "system map", "resource movement", "handoff"]):
+        return "ATLAS"
+    if any(term in haystack for term in ["api", "code", "devops", "infra", "bug", "engineering", "it ", "site", "automation", "integration"]):
+        return "APEX"
+    if any(term in haystack for term in ["analytics", "financial", "roi", "kpi", "forecast", "reporting", "budget"]):
+        return "ARCHER"
+    if any(term in haystack for term in ["content", "copy", "article", "landing page", "brand story", "product description"]):
+        return "FORGE"
+    if any(term in haystack for term in ["seo", "keyword", "ranking", "meta description", "organic"]):
+        return "RANGER"
+    if any(term in haystack for term in ["hire", "recruit", "candidate", "interview", "onboarding"]):
+        return "SCOUT"
+    if any(term in haystack for term in ["design", "visual", "creative", "palette", "asset", "graphics", "style guide"]):
+        return "VECTOR"
+    if "comms" in haystack:
+        return "CHARLIE"
+    return "ALPHA"
+
+
+def resolve_ai_run_routing(module: str, surface: str, field: str, intent: str, command_text: str, context: dict[str, Any]) -> dict[str, Any]:
+    requested_agent = extract_requested_agent(command_text, explicit=str(context.get("requested_agent") or ""))
+    if requested_agent == "OMEGA":
+        requested_agent = ""
+    executing_agent = choose_specialist_for_command(module, surface, field, command_text, context)
+    permission_tier = resolve_permission_tier(command_text, field=field, intent=intent)
+    intake_agent = "CHARLIE"
+    dispatcher_agent = "ALPHA"
+    delegate_chain = [intake_agent, dispatcher_agent]
+    if requested_agent and requested_agent not in delegate_chain and requested_agent != executing_agent:
+        delegate_chain.append(requested_agent)
+    if executing_agent and executing_agent not in delegate_chain:
+        delegate_chain.append(executing_agent)
+    return {
+        "intake_agent": intake_agent,
+        "dispatcher_agent": dispatcher_agent,
+        "requested_agent": requested_agent or None,
+        "executing_agent": executing_agent,
+        "delegate_chain": delegate_chain,
+        "permission_tier": permission_tier,
+    }
+
+
+def build_ai_run_steps(
+    *,
+    brain_results: list[dict[str, Any]],
+    applied_thread: dict[str, Any] | None = None,
+    draft_text: str = "",
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    if brain_results:
+        runtime_count = sum(1 for item in brain_results if item.get("runtime"))
+        steps.append(
+            {
+                "kind": "retrieval",
+                "status": "completed",
+                "label": "Brain retrieval",
+                "summary": f"{len(brain_results)} memory match(es) pulled for context.",
+                "runtime_hits": runtime_count,
+            }
+        )
+        if runtime_count:
+            steps.append(
+                {
+                    "kind": "tool",
+                    "status": "completed",
+                    "label": "MCP query",
+                    "summary": f"{runtime_count} live MCP result(s) merged into the run context.",
+                }
+            )
+    steps.append(
+        {
+            "kind": "generation",
+            "status": "completed",
+            "label": "AI assist",
+            "summary": "Suggestion generated through the shared AI assist path.",
+        }
+    )
+    if applied_thread:
+        steps.append(
+            {
+                "kind": "writeback",
+                "status": "completed",
+                "label": "Thread writeback",
+                "summary": "Thread brief and related Comms state updated from the run result.",
+            }
+        )
+    if draft_text:
+        steps.append(
+            {
+                "kind": "artifact",
+                "status": "completed",
+                "label": "Draft artifact",
+                "summary": "A draft output was produced for operator review.",
+            }
+        )
+    return steps
+
+
+def build_ai_run_artifacts(*, draft_text: str = "", thread: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    artifacts: list[dict[str, Any]] = []
+    if draft_text:
+        artifacts.append(
+            {
+                "artifact_type": "draft",
+                "kind": "reply",
+                "title": "AI Draft",
+                "body": summarize_runtime_excerpt(draft_text, "Draft generated."),
+            }
+        )
+    if thread and isinstance(thread.get("brief"), dict):
+        brief = thread.get("brief") or {}
+        artifacts.append(
+            {
+                "artifact_type": "brief",
+                "kind": "thread-brief",
+                "title": "AI Brief",
+                "body": summarize_runtime_excerpt(
+                    brief.get("summary") or brief.get("recommended_next_step"),
+                    "Thread brief updated.",
+                ),
+            }
+        )
+    return artifacts
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logger.info("AIO CRM Backend starting up")
@@ -152,7 +788,7 @@ app = FastAPI(
 )
 
 ALLOWED_ORIGINS = [
-    origin.strip()
+    origin.strip().rstrip("/")
     for origin in os.getenv(
         "ALLOWED_ORIGINS",
         ",".join(
@@ -168,20 +804,28 @@ ALLOWED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+# Add both normalized and trailing slash variants to the list for safety with CORSMiddleware
+ALLOWED_ORIGINS = list(set(ALLOWED_ORIGINS + [f"{o}/" for o in ALLOWED_ORIGINS]))
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "X-Session-Token"],
-)
+# NOTE: CORSMiddleware is defined here but will be moved to after @app.middleware declarations
+# to ensure it runs FIRST in the stack (LIFO ordering in FastAPI/Starlette).
+# However, for clarity and baseline config, we keep the initialization logic here.
+CORS_CONFIG = {
+    "allow_origins": ALLOWED_ORIGINS,
+    "allow_credentials": True,
+    "allow_methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization", "X-Session-Token", "X-Requested-With", "Accept", "Origin", "X-Tenant-Id"],
+}
 
 
 class AuthBootstrapRequest(BaseModel):
     name: str
     email: str
     password: str
+
+
+class AuthForgotPasswordRequest(BaseModel):
+    email: str
 
 
 class AuthLoginRequest(BaseModel):
@@ -317,6 +961,11 @@ class BrainIngestRequest(BaseModel):
     file_content_base64: str | None = None
 
 
+class BrainMCPQueryRequest(BaseModel):
+    query: str
+    limit: int = 5
+
+
 class SystemEmailTemplateUpdateRequest(BaseModel):
     subject: str | None = None
     send_to: str | None = None
@@ -333,6 +982,27 @@ class AIAssistRequest(BaseModel):
     intent: str = "draft"
     current_value: str = ""
     context: dict[str, Any] | None = None
+
+
+class AICommandRequest(BaseModel):
+    module: str
+    surface: str
+    command_text: str
+    requested_agent: str | None = None
+    context: dict[str, Any] | None = None
+
+
+class OmegaArmRequest(BaseModel):
+    confirmation_code: str
+    cancel_code: str
+
+
+class OmegaCancelRequest(BaseModel):
+    cancel_code: str
+
+
+class OmegaExecuteRequest(BaseModel):
+    confirmation_code: str
 
 
 class AIProviderUpsertRequest(BaseModel):
@@ -414,6 +1084,10 @@ class ThreadDraftRequest(BaseModel):
 
 class ThreadMeetingRequest(BaseModel):
     scheduled_at: str | None = None
+
+
+class ThreadReportRequest(BaseModel):
+    kind: str = "operator"
 
 
 class CalendarEventUpdateRequest(BaseModel):
@@ -586,7 +1260,7 @@ def require_workspace_role(request: Request, allowed_roles: set[str], detail: st
 
 
 def is_public_api_request(path: str) -> bool:
-    if path in {"/api/", "/api/health", "/api/auth/status", "/api/auth/bootstrap", "/api/auth/login", "/api/auth/google/authorize", "/api/oauth/callback"}:
+    if path in {"/api/", "/api/health", "/api/auth/status", "/api/auth/bootstrap", "/api/auth/login", "/api/auth/forgot-password", "/api/auth/google/authorize", "/api/oauth/callback"}:
         return True
     if path.startswith("/api/forms/by-slug/"):
         return True
@@ -612,21 +1286,35 @@ async def inject_tenant_context(request: Request, call_next):
     tenant_id = (session or {}).get("tenant", {}).get("id")
     request.state.session = session
     request.state.tenant_id = tenant_id
+
     if request.method == "OPTIONS":
         context_token = set_request_tenant_id(tenant_id)
         try:
             return await call_next(request)
         finally:
             reset_request_tenant(context_token)
+
     if request.url.path.startswith("/api") and not is_public_api_request(request.url.path) and not session:
         return JSONResponse(status_code=401, content={"detail": "Authentication required."})
-    if request.url.path.startswith("/api") and not is_public_api_request(request.url.path) and session and not tenant_id and not allows_no_active_workspace(request.url.path):
+    if (
+        request.url.path.startswith("/api")
+        and not is_public_api_request(request.url.path)
+        and session
+        and not tenant_id
+        and not allows_no_active_workspace(request.url.path)
+    ):
         return JSONResponse(status_code=403, content={"detail": "No active workspace selected."})
+
     context_token = set_request_tenant_id(tenant_id)
     try:
         return await call_next(request)
     finally:
         reset_request_tenant(context_token)
+
+
+# Move CORSMiddleware to be the outermost middleware by adding it LAST.
+# This ensures it handles preflight before custom HTTP midleware runs its full logic.
+app.add_middleware(CORSMiddleware, **CORS_CONFIG)
 
 
 @app.exception_handler(Exception)
@@ -754,6 +1442,26 @@ async def delete_brain_source(source_id: str, request: Request):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
+@app.post("/api/brain/mcp/{source_id}/probe")
+async def probe_brain_mcp(source_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can connect Brain MCP servers.")
+    try:
+        source = resolve_brain_mcp_source(source_id)
+        return {"data": probe_brain_mcp_source(source)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/brain/mcp/{source_id}/query")
+async def query_brain_mcp(source_id: str, request: Request, payload: BrainMCPQueryRequest):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can query Brain MCP servers.")
+    try:
+        source = resolve_brain_mcp_source(source_id)
+        return {"data": query_brain_mcp_source(source, payload.query, limit=max(1, payload.limit))}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.get("/api/brain/items")
 async def list_brain_items(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain knowledge.")
@@ -856,9 +1564,9 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
 
 
 @app.get("/api/brain/search")
-async def search_brain_memory(request: Request, query: str, limit: int = 6):
+async def search_brain_memory(request: Request, query: str, limit: int = 6, include_runtime: bool = False):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can query AIO Brain memory.")
-    return {"data": provider.search_brain_memory(query, limit=max(1, limit))}
+    return {"data": collect_brain_memory_results(query, limit=max(1, limit), include_runtime=include_runtime)}
 
 
 @app.post("/api/auth/bootstrap")
@@ -870,6 +1578,15 @@ async def bootstrap_auth(request: Request, payload: AuthBootstrapRequest):
         detail = str(error)
         status_code = 409 if "already exists" in detail.lower() else 400
         raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password_auth(payload: AuthForgotPasswordRequest):
+    email = payload.email.strip().lower()
+    logger.info(f"Password recovery requested for: {email}")
+    # In a real implementation, we would generate a token and send an email here.
+    # For now, we return success to avoid user enumeration.
+    return {"message": "If an account exists with that email, a password reset link has been sent."}
 
 
 @app.post("/api/auth/login")
@@ -989,9 +1706,20 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
     ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
     resolved_module = (payload.module or "").strip().lower()
     resolved_context = dict(payload.context or {})
+    routing = resolve_ai_run_routing(
+        payload.module,
+        payload.surface,
+        field=payload.field,
+        intent=payload.intent,
+        command_text=payload.current_value,
+        context=resolved_context,
+    )
+    resolved_agent_role = routing["executing_agent"]
+    resolved_context.update(routing)
+    brain_results: list[dict[str, Any]] = []
     brain_query = build_brain_assist_query(payload.current_value, resolved_context, tenant)
     if brain_query:
-        brain_results = provider.search_brain_memory(brain_query, limit=5)
+        brain_results = collect_brain_memory_results(brain_query, limit=5, include_runtime=True)
         if brain_results:
             resolved_context["brain_memory"] = brain_results
             resolved_context["brain_memory_summary"] = "\n".join(
@@ -1013,6 +1741,8 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
         provider_config=ai_provider,
     )
     response = result.to_dict()
+    applied_thread = None
+    draft_text = ""
     if resolved_module == "comms" and resolved_context.get("thread_id"):
         applied = provider.apply_thread_ai_result(
             thread_id=str(resolved_context["thread_id"]),
@@ -1020,9 +1750,13 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
             suggestion=result.suggestion,
             metadata=result.metadata or {},
         )
-        response["thread"] = applied.get("thread")
+        applied_thread = applied.get("thread")
+        response["thread"] = applied_thread
         if applied.get("draft"):
-            response["draft"] = applied["draft"]
+            draft_text = str(applied["draft"])
+            response["draft"] = draft_text
+    run_artifacts = build_ai_run_artifacts(draft_text=draft_text, thread=applied_thread)
+    run_steps = build_ai_run_steps(brain_results=brain_results, applied_thread=applied_thread, draft_text=draft_text)
     run = auth_store.record_ai_run(
         user_id=user.get("id"),
         tenant_id=tenant.get("id"),
@@ -1030,16 +1764,36 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
         surface=payload.surface,
         field=payload.field,
         intent=payload.intent,
+        status="completed",
+        agent_role=resolved_agent_role,
+        intake_agent=routing["intake_agent"],
+        dispatcher_agent=routing["dispatcher_agent"],
+        executing_agent=routing["executing_agent"],
+        requested_agent=routing["requested_agent"],
+        delegate_chain=routing["delegate_chain"],
+        permission_tier=routing["permission_tier"],
+        thread_id=str(resolved_context.get("thread_id") or "") or None,
+        contact_id=str(resolved_context.get("contact_id") or "") or None,
+        company_id=str(resolved_context.get("company_id") or "") or None,
+        command_text=str(resolved_context.get("command_text") or "").strip() or None,
+        provider_key=(ai_provider or {}).get("provider_key"),
+        provider_label=(ai_provider or {}).get("label"),
+        model=(ai_provider or {}).get("model"),
         prompt=result.prompt,
         result=result.suggestion,
+        artifacts=run_artifacts,
+        steps=run_steps,
         metadata={
             "alternatives": result.alternatives,
             "rationale": result.rationale,
             "context": resolved_context,
             "result_metadata": result.metadata or {},
+            "brain_query": brain_query,
+            "brain_result_count": len(brain_results),
         },
     )
     response["run_id"] = run["id"]
+    response["run"] = run
     return {"data": response, "run": run}
 
 
@@ -1051,6 +1805,180 @@ async def list_ai_runs(request: Request, limit: int = 50):
         return {"data": auth_store.list_ai_runs(token, limit=limit)}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/ai/agents")
+async def list_ai_agents(request: Request, include_hidden: bool = False):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI agents.")
+    tenant_role = ((session.get("tenant") or {}).get("role") or "").strip().lower()
+    resolved_include_hidden = include_hidden and tenant_role == "owner"
+    return {"data": list_runtime_agents(include_hidden=resolved_include_hidden)}
+
+
+@app.get("/api/omega/status")
+async def omega_status(request: Request, limit: int = 12):
+    session = require_workspace_role(request, {"owner"}, "Only workspace owners can access Omega controls.")
+    token = extract_session_token(request)
+    tenant = session.get("tenant") or {}
+    try:
+        protocol = auth_store.get_omega_protocol(token, tenant.get("id"))
+        events = auth_store.list_omega_protocol_events(token, tenant.get("id"), limit=limit)
+        return {"data": {"protocol": protocol, "events": events}}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/omega/arm")
+async def omega_arm(request: Request, payload: OmegaArmRequest):
+    session = require_workspace_role(request, {"owner"}, "Only workspace owners can arm Omega.")
+    token = extract_session_token(request)
+    tenant = session.get("tenant") or {}
+    try:
+        protocol = auth_store.arm_omega_protocol(
+            token,
+            tenant.get("id"),
+            payload.confirmation_code,
+            payload.cancel_code,
+            delay_minutes=5,
+        )
+        events = auth_store.list_omega_protocol_events(token, tenant.get("id"), limit=12)
+        return {"data": {"protocol": protocol, "events": events}}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/omega/cancel")
+async def omega_cancel(request: Request, payload: OmegaCancelRequest):
+    session = require_workspace_role(request, {"owner"}, "Only workspace owners can cancel Omega.")
+    token = extract_session_token(request)
+    tenant = session.get("tenant") or {}
+    try:
+        protocol = auth_store.cancel_omega_protocol(token, tenant.get("id"), payload.cancel_code)
+        events = auth_store.list_omega_protocol_events(token, tenant.get("id"), limit=12)
+        return {"data": {"protocol": protocol, "events": events}}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/omega/execute")
+async def omega_execute(request: Request, payload: OmegaExecuteRequest):
+    session = require_workspace_role(request, {"owner"}, "Only workspace owners can execute Omega.")
+    token = extract_session_token(request)
+    tenant = session.get("tenant") or {}
+    try:
+        protocol = auth_store.verify_omega_execution(token, tenant.get("id"), payload.confirmation_code)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    removed_paths = purge_local_app_data()
+    logger.warning(
+        "OMEGA EXECUTED for tenant %s by user %s. Removed paths: %s",
+        tenant.get("id"),
+        protocol.get("verified_by_user_id"),
+        removed_paths,
+    )
+    return {
+        "data": {
+            "status": "executed",
+            "bootstrap_required": True,
+            "removed_paths": removed_paths,
+        }
+    }
+
+
+@app.post("/api/ai/command")
+async def ai_command(request: Request, payload: AICommandRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can run AI commands.")
+    tenant = session.get("tenant") or {}
+    user = session.get("user") or {}
+    ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+    resolved_context = dict(payload.context or {})
+    routing = resolve_ai_run_routing(
+        payload.module,
+        payload.surface,
+        field="command",
+        intent="command",
+        command_text=payload.command_text,
+        context={**resolved_context, "requested_agent": payload.requested_agent},
+    )
+    if routing["permission_tier"] == "dangerous":
+        raise HTTPException(status_code=403, detail="Dangerous commands are blocked from natural-language routing. Use the dedicated Omega admin controls.")
+    resolved_context.update(routing)
+    resolved_context["command_text"] = payload.command_text
+    brain_query = build_brain_assist_query(payload.command_text, resolved_context, tenant)
+    brain_results: list[dict[str, Any]] = []
+    if brain_query:
+        brain_results = collect_brain_memory_results(brain_query, limit=5, include_runtime=True)
+        if brain_results:
+            resolved_context["brain_memory"] = brain_results
+            resolved_context["brain_memory_summary"] = "\n".join(
+                [f"{entry.get('title')}: {entry.get('excerpt')}" for entry in brain_results]
+            )
+            resolved_context["brain_memory_query"] = brain_query
+    result = ai_assist_service.assist(
+        module=payload.module,
+        surface=payload.surface,
+        field=routing["executing_agent"].lower(),
+        intent="command",
+        current_value=payload.command_text,
+        context=resolved_context,
+        actor=user,
+        tenant=tenant,
+        provider_config=ai_provider,
+    )
+    response = result.to_dict()
+    applied_thread = None
+    draft_text = ""
+    if (payload.module or "").strip().lower() == "comms" and resolved_context.get("thread_id"):
+        applied = provider.apply_thread_ai_result(
+            thread_id=str(resolved_context["thread_id"]),
+            mode="summary" if routing["executing_agent"] in {"CHARLIE", "ECHO"} else "draft",
+            suggestion=result.suggestion,
+            metadata=result.metadata or {},
+        )
+        applied_thread = applied.get("thread")
+        response["thread"] = applied_thread
+        if applied.get("draft"):
+            draft_text = str(applied["draft"])
+            response["draft"] = draft_text
+    run = auth_store.record_ai_run(
+        user_id=user.get("id"),
+        tenant_id=tenant.get("id"),
+        module=payload.module,
+        surface=payload.surface,
+        field="command",
+        intent="command",
+        status="completed",
+        agent_role=routing["executing_agent"],
+        intake_agent=routing["intake_agent"],
+        dispatcher_agent=routing["dispatcher_agent"],
+        executing_agent=routing["executing_agent"],
+        requested_agent=routing["requested_agent"],
+        delegate_chain=routing["delegate_chain"],
+        permission_tier=routing["permission_tier"],
+        thread_id=str(resolved_context.get("thread_id") or "") or None,
+        contact_id=str(resolved_context.get("contact_id") or "") or None,
+        company_id=str(resolved_context.get("company_id") or "") or None,
+        command_text=payload.command_text.strip(),
+        provider_key=(ai_provider or {}).get("provider_key"),
+        provider_label=(ai_provider or {}).get("label"),
+        model=(ai_provider or {}).get("model"),
+        prompt=result.prompt,
+        result=result.suggestion,
+        artifacts=build_ai_run_artifacts(draft_text=draft_text, thread=applied_thread),
+        steps=build_ai_run_steps(brain_results=brain_results, applied_thread=applied_thread, draft_text=draft_text),
+        metadata={
+            "alternatives": result.alternatives,
+            "rationale": result.rationale,
+            "context": resolved_context,
+            "result_metadata": result.metadata or {},
+            "brain_query": brain_query,
+            "brain_result_count": len(brain_results),
+        },
+    )
+    response["routing"] = routing
+    response["run"] = run
+    response["run_id"] = run["id"]
+    return {"data": response, "run": run}
 
 
 @app.get("/api/ai/providers/catalog")
@@ -2083,6 +3011,24 @@ async def schedule_thread_meeting(thread_id: str, request: Request, payload: Thr
         return provider.schedule_thread_meeting(thread_id=thread_id, scheduled_at=payload.scheduled_at if payload else None)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/comms/threads/{thread_id}/reports")
+async def create_thread_report(thread_id: str, request: Request, payload: ThreadReportRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    try:
+        return provider.create_thread_report(thread_id=thread_id, kind=payload.kind)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/comms/threads/{thread_id}")
+async def delete_thread(thread_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    try:
+        return provider.delete_thread(thread_id=thread_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 if __name__ == "__main__":

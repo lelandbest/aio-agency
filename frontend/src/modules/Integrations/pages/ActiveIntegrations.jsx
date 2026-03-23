@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, CalendarDays, CheckCircle2, Mail, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { Bot, CalendarDays, CheckCircle2, Mail, Plus, RefreshCw, ShieldCheck, Trash2, Zap } from 'lucide-react';
 import IntegrationCard from '../components/IntegrationCard';
 import IntegrationTabs from '../components/IntegrationTabs';
 import AddIntegrationPanel from '../components/AddIntegrationPanel';
@@ -297,7 +297,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const [aiProviderCatalog, setAiProviderCatalog] = useState(DEFAULT_AI_PROVIDER_CATALOG);
   const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
-  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(DEFAULT_AI_PROVIDER_CATALOG[0].key);
+  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => localStorage.getItem('aio_active_provider_id') || DEFAULT_AI_PROVIDER_CATALOG[0].key);
   const [aiProviderForm, setAiProviderForm] = useState(() => createAiProviderDraft(DEFAULT_AI_PROVIDER_CATALOG[0]));
   const [ollamaModels, setOllamaModels] = useState([]);
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
@@ -381,6 +381,38 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   useEffect(() => {
     loadAll();
   }, []);
+
+  // Dual-way sync for AI Provider
+  useEffect(() => {
+    if (selectedAiProviderKey) localStorage.setItem('aio_active_provider_id', selectedAiProviderKey);
+  }, [selectedAiProviderKey]);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'aio_active_provider_id' && e.newValue && e.newValue !== selectedAiProviderKey) {
+        setSelectedAiProviderKey(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [selectedAiProviderKey]);
+
+  // Dual-way sync for AI Model
+  useEffect(() => {
+    if (selectedAiProviderConfig?.model) localStorage.setItem('aio_active_model_id', selectedAiProviderConfig.model);
+  }, [selectedAiProviderConfig?.model]);
+
+  useEffect(() => {
+    const handleModelStorageChange = (e) => {
+      if (e.key === 'aio_active_model_id' && e.newValue && e.newValue !== selectedAiProviderConfig?.model) {
+        if (selectedAiProviderConfig) {
+          setAiProviderForm(prev => ({ ...prev, model: e.newValue }));
+        }
+      }
+    };
+    window.addEventListener('storage', handleModelStorageChange);
+    return () => window.removeEventListener('storage', handleModelStorageChange);
+  }, [selectedAiProviderConfig]);
 
   useEffect(() => {
     if (!mailboxes.length) {
