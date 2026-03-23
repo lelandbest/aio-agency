@@ -10,7 +10,8 @@ const DESCRIPTIONS = {
   'aio-livebots': 'Operate live automation experiences, real-time messaging, and engagement-first bot sessions.',
   'aio-sniper': 'Pinpoint lead targeting, precision outreach, and high-intent opportunity intelligence.',
   'postly-ai': 'Create and coordinate social publishing flows, scheduled campaigns, and content distribution.',
-  'aio-market': 'Browse the AIO marketplace catalog and launch supporting products without leaving the workspace.'
+  'aio-market': 'Browse the AIO marketplace catalog and launch supporting products without leaving the workspace.',
+  'aio-academy': 'Access the AIO Academy training portal for advanced tutorials, system masterclasses, and tactical implementation guides.'
 };
 
 const gradients = [
@@ -51,8 +52,8 @@ const Systems = ({ systems = [], iconMap = {}, onOpenSystem }) => {
             >
               <div className={`h-32 px-5 py-4 bg-gradient-to-br ${tone} border-b border-[var(--color-border)] flex flex-col justify-between`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[var(--color-bg-primary)]/80 border border-white/10 flex items-center justify-center">
-                    {SystemIcon && <SystemIcon size={22} className="text-[var(--color-primary)]" />}
+                  <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    {SystemIcon && <SystemIcon size={22} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />}
                   </div>
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-[0.18em] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-secondary)]">
                     {system.type === 'iframe' ? 'Live system' : 'Internal'}

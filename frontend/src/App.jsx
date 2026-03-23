@@ -37,7 +37,7 @@ import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
-  Phone, Settings, Video, Crosshair, EyeOff, Activity, Zap, Rocket
+  Phone, Settings, Video, Crosshair, EyeOff, Activity, Zap, Rocket, GraduationCap
 } from 'lucide-react';
 
 // ============ MENU STRUCTURE ============
@@ -66,6 +66,7 @@ const ICON_MAP = {
   Activity,
   Zap,
   Rocket,
+  GraduationCap,
 };
 
 const MODULE_SUBTITLE_MAP = {
@@ -76,12 +77,12 @@ const MODULE_SUBTITLE_MAP = {
 const App = () => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const [activeModule, setActiveModule] = useState('aio-brain');
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [db, setDb] = useState(null);
   const [currentPage, setCurrentPage] = useState('app'); // 'app', 'terms', 'privacy', 'acceptable-use', 'form'
   const [formSlug, setFormSlug] = useState(null);
-  const [lastNonFullscreen, setLastNonFullscreen] = useState('dashboard');
+  const [lastNonFullscreen, setLastNonFullscreen] = useState('aio-brain');
   const [flowId, setFlowId] = useState(null);
   const [commsThreadId, setCommsThreadId] = useState(null);
   const [integrationCategory, setIntegrationCategory] = useState('automation');
@@ -122,10 +123,11 @@ const App = () => {
     };
   })();
 
-  const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market'];
+  const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market', 'aio-academy'];
   const systemsLauncherItems = MENU_STRUCTURE
     .flatMap(category => category.items)
-    .filter(item => systemsLauncherIds.includes(item.id));
+    .filter(item => systemsLauncherIds.includes(item.id))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -212,7 +214,7 @@ const App = () => {
     } catch {}
     clearStoredSessionToken();
     setSession(null);
-    setActiveModule('dashboard');
+    setActiveModule('aio-brain');
   };
 
   const handleSwitchTenant = async (tenantId) => {
