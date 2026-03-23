@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { assistAiApi } from '../../services/backendApi';
 import { getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
 const STORAGE_KEY = 'aio_pipeline_layout_v2';
@@ -204,7 +205,29 @@ const PipelineModule = () => {
   const runPipelineAssist = async () => {
     const highestSignal = [...contacts].sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))[0];
     if (!highestSignal) return;
-    await openCommsThread(highestSignal, 'email');
+    
+    try {
+      const response = await assistAiApi({
+        module: 'pipeline',
+        surface: 'deal-card',
+        field: 'next-action',
+        intent: 'suggest',
+        current_value: '',
+        context: {
+          contactName: highestSignal.name,
+          contactEmail: highestSignal.email,
+          dealValue: highestSignal.deal_value,
+          pipelineStage: highestSignal.pipeline_stage,
+          leadScore: highestSignal.lead_score
+        }
+      });
+      if (response?.suggestion) {
+        await openCommsThread(highestSignal, 'email');
+      }
+    } catch (err) {
+      console.error(err);
+      await openCommsThread(highestSignal, 'email');
+    }
   };
 
   const getColumnHighlight = (cards) => [...cards].sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))[0] || null;

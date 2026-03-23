@@ -3,11 +3,30 @@ import { Filter, Download, ShoppingCart } from 'lucide-react';
 import { mockSupabase } from '../../services/mockSupabase';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { assistAiApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const runOrdersAssist = async () => {
+    try {
+      const response = await assistAiApi({
+        module: 'orders',
+        surface: 'order-list',
+        field: 'summary',
+        intent: 'analyze',
+        current_value: '',
+        context: { orderCount: data.length }
+      });
+      if (response?.suggestion) {
+        console.log('Orders insight:', response.suggestion);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     fetchData('orders');
@@ -48,8 +67,8 @@ const OrdersModule = () => {
         className="border-b-0"
         aiAssistSlot={(
           <AIAssistButton
-            onAssist={() => console.log('AI Assist: Orders')}
-            tooltip="AI Assist"
+            onAssist={runOrdersAssist}
+            tooltip="Analyze Orders"
             iconType="crosshair"
           />
         )}
