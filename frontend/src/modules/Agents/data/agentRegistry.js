@@ -1,6 +1,12 @@
 export const SPECIALIST_REGISTRY = {
   ALPHA: {
     label: 'Commander-in-Chief',
+    rank: 'Commander',
+    role: 'HQ',
+    specialization: 'Commander-in-Chief',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: ['BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'APEX', 'ARCHER', 'ATLAS', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR'],
     tools: [
       'Mission Brief Generator',
       'Resource Allocation Optimizer',
@@ -11,6 +17,12 @@ export const SPECIALIST_REGISTRY = {
   },
   BRAVO: {
     label: 'Business Strategy',
+    rank: 'AI Agent',
+    role: 'Strategy',
+    specialization: 'Business Strategy',
+    visibility: 'visible',
+    capabilityTier: 'tier-2',
+    subordinates: [],
     tools: [
       'Strategic Plan Generator',
       'SWOT Analysis Builder',
@@ -21,6 +33,12 @@ export const SPECIALIST_REGISTRY = {
   },
   CHARLIE: {
     label: 'Customer Support',
+    rank: 'AI Agent',
+    role: 'Support',
+    specialization: 'Customer Support',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: [],
     tools: [
       'Support Script Generator',
       'FAQ Builder',
@@ -31,17 +49,28 @@ export const SPECIALIST_REGISTRY = {
   },
   DELTA: {
     label: 'Visual/Project Coordination',
+    rank: 'AI Agent',
+    role: 'Coordination',
+    specialization: 'Visual/Project Coordination',
+    visibility: 'visible',
+    capabilityTier: 'tier-2',
+    subordinates: [],
     tools: [
-      'Birthday Organizer',
-      'Financial Reporter',
-      'Trip Planner',
       'Project Timeline Generator',
       'Resource Allocation Matrix',
       'Task Priority Framework',
+      'Milestone Tracker',
+      'Delivery Sequence Planner',
     ],
   },
   ECHO: {
     label: 'Email/Comms/Socials',
+    rank: 'AI Agent',
+    role: 'Comms',
+    specialization: 'Email/Comms/Socials',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: [],
     tools: [
       'Email Template Generator',
       'Newsletter Builder',
@@ -57,6 +86,12 @@ export const SPECIALIST_REGISTRY = {
   },
   FORGE: {
     label: 'Content/Copywriting',
+    rank: 'AI Agent',
+    role: 'Copy',
+    specialization: 'Content/Copywriting',
+    visibility: 'visible',
+    capabilityTier: 'tier-2',
+    subordinates: [],
     tools: [
       'Article Generator',
       'Product Description Writer',
@@ -66,7 +101,13 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   APEX: {
-    label: 'Coder/IT/Logistics/Site Dev',
+    label: 'Coder/IT/Site Dev',
+    rank: 'AI Agent',
+    role: 'Engineering',
+    specialization: 'Coder/IT/Site Dev',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: [],
     tools: [
       'System Architecture Planner',
       'Automation Playbook Builder',
@@ -81,6 +122,12 @@ export const SPECIALIST_REGISTRY = {
   },
   ARCHER: {
     label: 'Analytics/Financial',
+    rank: 'AI Agent',
+    role: 'Analytics',
+    specialization: 'Analytics/Financial',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: [],
     tools: [
       'KPI Dashboard Generator',
       'Financial Report Builder',
@@ -89,8 +136,30 @@ export const SPECIALIST_REGISTRY = {
       'ROI Calculator',
     ],
   },
+  ATLAS: {
+    label: 'Logistics/Systems Mapping',
+    rank: 'AI Agent',
+    role: 'Logistics',
+    specialization: 'Logistics/Systems Mapping',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: [],
+    tools: [
+      'Deployment Coordination Plan',
+      'Systems Map Builder',
+      'Resource Movement Tracker',
+      'Operational Load Planner',
+      'Runbook Routing Matrix',
+    ],
+  },
   RANGER: {
     label: 'SEO/Content Optimization',
+    rank: 'AI Agent',
+    role: 'SEO',
+    specialization: 'SEO/Content Optimization',
+    visibility: 'visible',
+    capabilityTier: 'tier-2',
+    subordinates: [],
     tools: [
       'SEO Blog Writer',
       'SEO Auditor',
@@ -102,6 +171,12 @@ export const SPECIALIST_REGISTRY = {
   },
   SCOUT: {
     label: 'Hiring/Recruitment',
+    rank: 'AI Agent',
+    role: 'Recruitment',
+    specialization: 'Hiring/Recruitment',
+    visibility: 'visible',
+    capabilityTier: 'tier-2',
+    subordinates: [],
     tools: [
       'Job Description Generator',
       'Interview Question Builder',
@@ -112,6 +187,12 @@ export const SPECIALIST_REGISTRY = {
   },
   STRIKER: {
     label: 'Sales/Negotiation',
+    rank: 'AI Agent',
+    role: 'Sales',
+    specialization: 'Sales/Negotiation',
+    visibility: 'visible',
+    capabilityTier: 'tier-1',
+    subordinates: [],
     tools: [
       'Cold Email Generator',
       'Discovery Call Script Writer',
@@ -127,6 +208,12 @@ export const SPECIALIST_REGISTRY = {
   },
   VECTOR: {
     label: 'Graphics/Design',
+    rank: 'AI Agent',
+    role: 'Design',
+    specialization: 'Graphics/Design',
+    visibility: 'visible',
+    capabilityTier: 'tier-2',
+    subordinates: [],
     tools: [
       'Image Generation',
       'Upscale Image',
@@ -138,4 +225,27 @@ export const SPECIALIST_REGISTRY = {
       'Color Palette Generator',
     ],
   },
+  OMEGA: {
+    label: 'Emergency Governance',
+    rank: 'Shadow Authority',
+    role: 'Governance',
+    specialization: 'Emergency Local Purge Control',
+    visibility: 'hidden',
+    capabilityTier: 'restricted',
+    subordinates: [],
+    tools: [
+      'Emergency Purge Arming',
+      'Purge Countdown Control',
+      'Emergency Cancel Validation',
+      'Audit Seal Recorder',
+    ],
+  },
 };
+
+export const VISIBLE_SPECIALIST_KEYS = Object.keys(SPECIALIST_REGISTRY).filter(
+  (key) => SPECIALIST_REGISTRY[key].visibility !== 'hidden'
+);
+
+export const HIDDEN_SPECIALIST_KEYS = Object.keys(SPECIALIST_REGISTRY).filter(
+  (key) => SPECIALIST_REGISTRY[key].visibility === 'hidden'
+);

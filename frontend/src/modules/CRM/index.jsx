@@ -62,6 +62,12 @@ const CRMModule = ({ initialContactId = null }) => {
   const [bulkActionSubmitting, setBulkActionSubmitting] = useState(false);
   const [bulkActionAssistLoading, setBulkActionAssistLoading] = useState(false);
   const [bulkActionError, setBulkActionError] = useState('');
+  
+  // Resizing state
+  const [leftPanelWidth, setLeftPanelWidth] = useState(640);
+  const [rightPanelWidth, setRightPanelWidth] = useState(400);
+  const [activeResizeSide, setActiveResizeSide] = useState(null);
+  const layoutRef = useRef(null);
 
   const currentWorkspace = tenant || tenants[0] || null;
   
@@ -117,11 +123,6 @@ const CRMModule = ({ initialContactId = null }) => {
   const destructiveActionClass = 'rounded-xl border border-red-500/30 bg-red-500/12 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/18';
   const primaryActionClass = 'rounded-xl bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-on-primary)] transition hover:bg-[var(--color-primary-hover)]';
 
-  // Load data from database
-  useEffect(() => {
-    loadData();
-  }, []);
-
   useEffect(() => {
     if (!initialContactId || !contacts.length) return;
     const contact = contacts.find((entry) => entry.id === initialContactId);
@@ -130,6 +131,46 @@ const CRMModule = ({ initialContactId = null }) => {
     }
   }, [initialContactId, contacts]);
 
+  useEffect(() => {
+    if (selectedContact && typeof window !== 'undefined') {
+      const w = window.innerWidth - 64; // Adjust for margins/padding
+      setLeftPanelWidth(Math.floor(w * 0.5)); // 50%
+      setRightPanelWidth(Math.floor(w * 0.25)); // 25%
+    }
+  }, [selectedContact]);
+
+  useEffect(() => {
+    if (!activeResizeSide) return undefined;
+
+    const handleMouseMove = (event) => {
+      const bounds = layoutRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+
+      if (activeResizeSide === 'left') {
+        const nextWidth = Math.min(Math.max(event.clientX - bounds.left, 280), 1200);
+        setLeftPanelWidth(nextWidth);
+        return;
+      }
+
+      const nextWidth = Math.min(Math.max(bounds.right - event.clientX, 320), 800);
+      setRightPanelWidth(nextWidth);
+    };
+
+    const handleMouseUp = () => setActiveResizeSide(null);
+    document.body.style.cursor = 'col-resize';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [activeResizeSide]);
+
+  // Load data from database
+  useEffect(() => {
+    loadData();
+  }, []);
   // Load contact activities when a contact is selected
   useEffect(() => {
     if (selectedContact) {
@@ -177,6 +218,51 @@ const CRMModule = ({ initialContactId = null }) => {
       console.error('Error loading data:', error);
     }
     setLoading(false);
+  };
+
+  const decodeHtmlEntities = (value) => {
+    if (typeof window === 'undefined') return value;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = value;
+    return textarea.value;
+  };
+
+  const looksLikeMarkup = (value) => /<!doctype|<html|<body|<meta|<style|<div|<\/[a-z]+>|xmlns=|mso-|office:office/i.test(value || '');
+
+  const normalizeAiText = (value, fallback = '') => {
+    let source = `${value || ''}`.trim();
+    if (!source) return fallback;
+    
+    // Truncate common reply/forward noise for legibility
+    const markers = [
+      'From:', 
+      'Sent:', 
+      'To:', 
+      'Subject:', 
+      '---------- Forwarded message ----------',
+      '________________________________',
+      'On ',
+      '> On '
+    ];
+    
+    for (const marker of markers) {
+      const index = source.indexOf(marker);
+      if (index !== -1 && index > 100) { // Only truncate if we have some preceding content
+        source = source.substring(0, index).trim();
+      }
+    }
+
+    if (!looksLikeMarkup(source)) return source;
+
+    const cleaned = decodeHtmlEntities(source)
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return cleaned || fallback;
   };
 
   const normalizeText = (value) => String(value || '').trim().toLowerCase();
@@ -1143,7 +1229,12 @@ const CRMModule = ({ initialContactId = null }) => {
     );
   };
 
-  // CONTACT DETAIL VIEW (Placeholder for Phase 4)
+  const hiddenScrollbarStyle = {
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none'
+  };
+
+  // CONTACT DETAIL VIEW
   const renderContactDetailView = () => {
     const meetingActivities = activities.filter((activity) => activity.activity_type === 'meeting');
     const workflowActivities = activities.filter((activity) => activity.activity_type === 'workflow');
@@ -1173,6 +1264,28 @@ const CRMModule = ({ initialContactId = null }) => {
 
     const renderActivityMetadata = (activity) => {
       const metadata = activity.metadata || {};
+      if (activity.activity_type === 'email') {
+        return (
+          <div className="mt-2 space-y-1 text-[11px] text-[var(--color-text-tertiary)] border-l-2 border-[var(--color-primary)]/30 pl-3 py-1 bg-[var(--color-bg-primary)]/40 rounded-r-lg">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold uppercase tracking-wider opacity-60">From</span>
+              <span className="text-[var(--color-text-secondary)]">{metadata.sender_name || metadata.sender_email || 'Unknown Sender'}</span>
+            </div>
+            {metadata.subject && (
+              <div className="flex items-center gap-2">
+                <span className="font-semibold uppercase tracking-wider opacity-60">Subject</span>
+                <span className="text-[var(--color-text-primary)] font-medium">{metadata.subject}</span>
+              </div>
+            )}
+            {metadata.status && (
+              <div className="flex items-center gap-2">
+                <span className="font-semibold uppercase tracking-wider opacity-60">Status</span>
+                <span className={`px-1.5 py-0.5 rounded-full border border-[var(--color-border)] ${metadata.status === 'sent' ? 'text-emerald-400 border-emerald-500/30' : ''}`}>{metadata.status}</span>
+              </div>
+            )}
+          </div>
+        );
+      }
       const chips = [];
       if (metadata.status) chips.push(`Status ${String(metadata.status).replace(/_/g, ' ')}`);
       if (metadata.subject) chips.push(metadata.subject);
@@ -1357,6 +1470,9 @@ const CRMModule = ({ initialContactId = null }) => {
 
     return (
       <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)] overflow-hidden">
+        <style>{`
+          .crm-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
+        `}</style>
         <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <button 
@@ -1376,9 +1492,12 @@ const CRMModule = ({ initialContactId = null }) => {
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
         {/* LEFT PANEL: Detailed Contact Info */}
-        <div className="w-80 flex flex-col gap-4 overflow-y-auto p-4">
+        <div 
+          style={{ width: leftPanelWidth, ...hiddenScrollbarStyle }}
+          className="crm-scroll-hidden flex-none flex flex-col gap-4 overflow-y-auto p-4 transition-all duration-75"
+        >
           {/* Detail Card */}
           <div className={shellPanelClass + ' p-4 space-y-4'}>
             <div className="flex justify-between items-start">
@@ -1637,6 +1756,12 @@ const CRMModule = ({ initialContactId = null }) => {
           </div>
         </div>
 
+        {/* Resizer LEFT */}
+        <div 
+          onMouseDown={() => setActiveResizeSide('left')}
+          className={`w-1.5 h-full cursor-col-resize hover:bg-[var(--color-primary)]/20 transition-colors ${activeResizeSide === 'left' ? 'bg-[var(--color-primary)]/40' : ''}`}
+        />
+
         {/* CENTER: Activity Timeline */}
         <div className="flex-1 bg-[var(--color-bg-secondary)] border-x border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Activity Tabs */}
@@ -1659,7 +1784,10 @@ const CRMModule = ({ initialContactId = null }) => {
           </div>
 
           {/* Timeline */}
-          <div className="flex-1 overflow-auto p-4 space-y-3">
+          <div 
+            style={hiddenScrollbarStyle}
+            className="crm-scroll-hidden flex-1 overflow-auto p-4 space-y-3"
+          >
             {filteredActivities.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-[var(--color-text-tertiary)]">No activities yet</p>
@@ -1677,7 +1805,11 @@ const CRMModule = ({ initialContactId = null }) => {
                         {activity.activity_type}
                       </span>
                     </div>
-                    <p className="text-[var(--color-text-secondary)] text-xs mt-1">{activity.description}</p>
+                    <div className="text-[var(--color-text-secondary)] text-xs mt-1 leading-relaxed">
+                      {activity.activity_type === 'email' 
+                        ? normalizeAiText(activity.description, 'No message body') 
+                        : activity.description}
+                    </div>
                     {activity.metadata ? renderActivityMetadata(activity) : null}
                     <p className="text-[var(--color-text-tertiary)] text-xs mt-2">
                       {new Date(activity.created_at).toLocaleString()}
@@ -1689,8 +1821,17 @@ const CRMModule = ({ initialContactId = null }) => {
           </div>
         </div>
 
+        {/* Resizer RIGHT */}
+        <div 
+          onMouseDown={() => setActiveResizeSide('right')}
+          className={`w-1.5 h-full cursor-col-resize hover:bg-[var(--color-primary)]/20 transition-colors ${activeResizeSide === 'right' ? 'bg-[var(--color-primary)]/40' : ''}`}
+        />
+
         {/* RIGHT: Relationship Assets */}
-        <div className="w-80 bg-[var(--color-bg-secondary)] border-l border-[var(--color-border)] overflow-y-auto p-4 space-y-4">
+        <div 
+          style={{ width: rightPanelWidth, ...hiddenScrollbarStyle }}
+          className="crm-scroll-hidden flex-none bg-[var(--color-bg-secondary)] border-l border-[var(--color-border)] overflow-y-auto p-4 space-y-4 transition-all duration-75"
+        >
           {/* Forms Submitted */}
           <div className="bg-[var(--color-bg-primary)] rounded p-3">
             <button onClick={() => toggleDetailPanel('forms')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">

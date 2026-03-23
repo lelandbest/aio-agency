@@ -75,6 +75,37 @@ def summarize_excerpt(value: str | None, limit: int = 220) -> str:
     return compact[: max(0, limit - 3)].rstrip() + "..."
 
 
+def build_thread_report_text(thread: dict[str, Any], kind: str = "operator") -> str:
+    contact = thread.get("contact") or {}
+    company = thread.get("company") or {}
+    brief = thread.get("brief") or {}
+    flags = thread.get("aiFlags") or {}
+    cues = brief.get("reasoning_cues") or []
+    lines = [
+        "Executive Thread Report" if kind == "executive" else "Operator Thread Report",
+        f"Thread: {thread.get('subject') or thread.get('generated_title') or 'Untitled thread'}",
+        f"Priority: {thread.get('ai_priority') or 'medium'}",
+        f"Contact: {' '.join(part for part in [contact.get('first_name'), contact.get('last_name')] if part).strip() or 'No linked contact'}",
+        f"Company: {company.get('name') or 'No linked company'}",
+        f"Stage: {contact.get('pipeline_stage') or 'Unlinked'}",
+        f"Owner: {thread.get('owner') or 'Unassigned'}",
+        f"Assignee: {thread.get('assignee') or 'Unassigned'}",
+        "",
+        "Executive Summary" if kind == "executive" else "Operating Summary",
+        brief.get("summary") or thread.get("preview") or "No summary available.",
+        "",
+        "Recommended Next Step",
+        brief.get("recommended_next_step") or "Review the active thread and send the clearest next move.",
+        "",
+        "Signals",
+    ]
+    active_flags = [key.replace("_", " ") for key, enabled in flags.items() if enabled]
+    lines.append(f"- {'; '.join(active_flags)}" if active_flags else "- No active AI flags")
+    lines.extend(["", "Reasoning Cues"])
+    lines.append("\n".join(f"- {cue}" for cue in cues) if cues else "- No reasoning cues logged")
+    return "\n".join(lines)
+
+
 def chunk_text_content(value: str | None, chunk_size: int = 900, overlap: int = 120) -> list[str]:
     text = normalize_text_content(value)
     if not text:
@@ -189,6 +220,7 @@ def default_queue_definitions() -> list[dict[str, Any]]:
         {"id": "scheduled", "label": "Scheduled Follow-ups"},
         {"id": "automated", "label": "Automated"},
         {"id": "closed", "label": "Closed"},
+        {"id": "archived", "label": "Archived"},
     ]
 
 
@@ -1069,6 +1101,11 @@ class MockProvider(BaseProvider):
             "thread-jenna-launch": [{"label": "Summarize"}, {"label": "Reply with AI"}, {"label": "Schedule follow-up"}],
             "thread-sarah-demo": [{"label": "Summarize"}, {"label": "Reply with AI"}],
             "thread-emily-internal": [{"label": "Summarize"}, {"label": "Run workflow"}],
+        }
+        self.thread_artifacts = {
+            "thread-jenna-launch": [],
+            "thread-sarah-demo": [],
+            "thread-emily-internal": [],
         }
         self.thread_links = {
             "thread-jenna-launch": [{"source_type": "contact", "source_id": "contact-jenna", "label": "Jenna Best"}, {"source_type": "company", "source_id": "company-techcorp", "label": "TechCorp Solutions"}],
@@ -2312,6 +2349,7 @@ class MockProvider(BaseProvider):
                     "aiFlags": ai_flags,
                     "brief": self.thread_ai_briefs.get(thread["id"], {}),
                     "actions": self.thread_actions.get(thread["id"], []),
+                    "artifacts": self.thread_artifacts.get(thread["id"], []),
                     "links": self.thread_links.get(thread["id"], []),
                     "calendarEvents": [event for event in self.calendar_events if event.get("thread_id") == thread["id"]],
                     "mailbox": mailbox_map.get(thread["mailbox_id"]),
@@ -2328,6 +2366,10 @@ class MockProvider(BaseProvider):
     @staticmethod
     def _queue_ids(thread: dict[str, Any]) -> list[str]:
         flags = thread.get("aiFlags") or thread.get("ai_flags") or {}
+        if thread["status"] == "archived":
+            return ["archived"]
+        if thread["status"] == "closed":
+            return ["closed"]
         queue_ids = []
         if thread["status"] == "new" or flags.get("needs_human") or thread.get("priority_score", 0) >= 88:
             queue_ids.append("now")
@@ -2343,8 +2385,6 @@ class MockProvider(BaseProvider):
             queue_ids.append("scheduled")
         if thread.get("automation_state") == "automated":
             queue_ids.append("automated")
-        if thread["status"] == "closed":
-            queue_ids.append("closed")
         return queue_ids
 
     def get_comms_snapshot(self) -> dict[str, Any]:
@@ -2352,7 +2392,28 @@ class MockProvider(BaseProvider):
         queue_counts = []
         for queue in default_queue_definitions():
             queue_counts.append({**queue, "count": sum(1 for thread in threads if queue["id"] in thread["queueIds"])})
-        return {"queues": queue_counts, "threads": threads, "allThreads": threads, "mailboxes": self.list_mailboxes(), "calendarEvents": self.list_calendar_events(), "agents": [{"name": "ALPHA"}, {"name": "ECHO"}, {"name": "STRIKER"}]}
+        return {
+            "queues": queue_counts,
+            "threads": threads,
+            "allThreads": threads,
+            "mailboxes": self.list_mailboxes(),
+            "calendarEvents": self.list_calendar_events(),
+            "agents": [
+                {"name": "ALPHA"},
+                {"name": "BRAVO"},
+                {"name": "CHARLIE"},
+                {"name": "DELTA"},
+                {"name": "ECHO"},
+                {"name": "FORGE"},
+                {"name": "APEX"},
+                {"name": "ARCHER"},
+                {"name": "ATLAS"},
+                {"name": "RANGER"},
+                {"name": "SCOUT"},
+                {"name": "STRIKER"},
+                {"name": "VECTOR"},
+            ],
+        }
 
     def create_thread(
         self,
@@ -2682,6 +2743,50 @@ class MockProvider(BaseProvider):
         self.send_thread_message(thread_id, f"CRM action: scheduled a meeting follow-up for {follow_up_at}.", channel_type="internal", sender_name="ALPHA", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
         return next(item for item in self._hydrate_threads() if item["id"] == thread_id)
 
+    def create_thread_report(self, thread_id: str, kind: str = "operator") -> dict[str, Any]:
+        thread = next((item for item in self._hydrate_threads() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        now = utcnow()
+        artifact = {
+            "id": f"thread-artifact-{unique_suffix()}",
+            "thread_id": thread_id,
+            "tenant_id": DEFAULT_TENANT_ID,
+            "artifact_type": "report",
+            "kind": kind,
+            "title": "Executive Thread Report" if kind == "executive" else "Operator Thread Report",
+            "body": build_thread_report_text(thread, kind=kind),
+            "created_by": thread.get("assignee") or "AIO Flow",
+            "created_at": now,
+            "updated_at": now,
+        }
+        self.thread_artifacts.setdefault(thread_id, []).insert(0, artifact)
+        self.thread_actions.setdefault(thread_id, []).append({
+            "label": artifact["title"],
+            "action_type": f"{kind}-report",
+            "source": "system",
+            "status": "completed",
+            "created_at": now,
+            "updated_at": now,
+        })
+        return {"artifact": artifact, "thread": next(item for item in self._hydrate_threads() if item["id"] == thread_id)}
+
+    def delete_thread(self, thread_id: str) -> dict[str, Any]:
+        thread = next((item for item in self.threads if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        self.threads = [item for item in self.threads if item["id"] != thread_id]
+        self.messages = [item for item in self.messages if item["thread_id"] != thread_id]
+        self.thread_ai_briefs.pop(thread_id, None)
+        self.thread_actions.pop(thread_id, None)
+        self.thread_artifacts.pop(thread_id, None)
+        self.thread_links.pop(thread_id, None)
+        self.calendar_events = [
+            {**event, "thread_id": None} if event.get("thread_id") == thread_id else event
+            for event in self.calendar_events
+        ]
+        return {"deleted_thread_id": thread_id}
+
 
 class SQLiteProvider(BaseProvider):
     provider_name = "sqlite"
@@ -2732,6 +2837,7 @@ class SQLiteProvider(BaseProvider):
             "thread_ai_briefs",
             "thread_actions",
             "thread_links",
+            "thread_artifacts",
             "calendar_events",
             "calendars",
             "booking_types",
@@ -2990,6 +3096,19 @@ class SQLiteProvider(BaseProvider):
                     label TEXT
                 );
 
+                CREATE TABLE IF NOT EXISTS thread_artifacts (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    thread_id TEXT NOT NULL,
+                    artifact_type TEXT NOT NULL,
+                    kind TEXT,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    created_by TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
                 CREATE TABLE IF NOT EXISTS calendar_events (
                     id TEXT PRIMARY KEY,
                     calendar_id TEXT NOT NULL,
@@ -3116,6 +3235,7 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "thread_ai_briefs", "tenant_id", "TEXT")
             self._ensure_column(conn, "thread_actions", "tenant_id", "TEXT")
             self._ensure_column(conn, "thread_links", "tenant_id", "TEXT")
+            self._ensure_column(conn, "thread_artifacts", "tenant_id", "TEXT")
             self._ensure_column(conn, "calendars", "tenant_id", "TEXT")
             self._ensure_column(conn, "booking_types", "tenant_id", "TEXT")
             self._ensure_column(conn, "calendar_sources", "tenant_id", "TEXT")
@@ -3616,6 +3736,10 @@ class SQLiteProvider(BaseProvider):
 
     def _thread_queue_ids(self, thread: dict[str, Any]) -> list[str]:
         flags = thread.get("aiFlags") or thread.get("ai_flags") or {}
+        if thread["status"] == "archived":
+            return ["archived"]
+        if thread["status"] == "closed":
+            return ["closed"]
         queue_ids: list[str] = []
         if thread["status"] == "new" or flags.get("needs_human") or thread.get("priority_score", 0) >= 88:
             queue_ids.append("now")
@@ -3631,8 +3755,6 @@ class SQLiteProvider(BaseProvider):
             queue_ids.append("scheduled")
         if thread.get("automation_state") == "automated":
             queue_ids.append("automated")
-        if thread["status"] == "closed":
-            queue_ids.append("closed")
         return queue_ids
 
     def _get_thread_context(self) -> list[dict[str, Any]]:
@@ -3651,6 +3773,10 @@ class SQLiteProvider(BaseProvider):
             for row in conn.execute("SELECT * FROM thread_links WHERE tenant_id = ?", (tenant_id,)).fetchall():
                 payload = dict(row)
                 link_rows.setdefault(payload["thread_id"], []).append(payload)
+            artifact_rows: dict[str, list[dict[str, Any]]] = {}
+            for row in conn.execute("SELECT * FROM thread_artifacts WHERE tenant_id = ? ORDER BY created_at DESC", (tenant_id,)).fetchall():
+                payload = dict(row)
+                artifact_rows.setdefault(payload["thread_id"], []).append(payload)
             calendar_event_rows: dict[str, list[dict[str, Any]]] = {}
             for row in conn.execute("SELECT * FROM calendar_events WHERE tenant_id = ? ORDER BY start_time ASC", (tenant_id,)).fetchall():
                 payload = dict(row)
@@ -3687,6 +3813,7 @@ class SQLiteProvider(BaseProvider):
                     "aiFlags": ai_flags,
                     "brief": brief,
                     "actions": action_rows.get(thread["id"], []),
+                    "artifacts": artifact_rows.get(thread["id"], []),
                     "links": link_rows.get(thread["id"], []),
                     "calendarEvents": calendar_event_rows.get(thread["id"], []),
                     "mailbox": mailboxes.get(thread["mailbox_id"]),
@@ -4204,6 +4331,46 @@ class SQLiteProvider(BaseProvider):
                     (source_id, self._tenant_id()),
                 ).fetchone()
             )
+            
+            # --- Auto-Item Creation ---
+            if payload.get("create_item"):
+                item_id = f"brain-item-{unique_suffix()}"
+                item_record = {
+                    "id": item_id,
+                    "tenant_id": self._tenant_id(),
+                    "title": f"Summary: {source['label']}",
+                    "category": payload.get("category") or ("brand" if source["source_type"] == "profile" else "note"),
+                    "content": payload.get("item_content") or summarize_excerpt(content, limit=500),
+                    "source_id": source_id,
+                    "status": "ready",
+                    "tags_json": json.dumps(payload.get("tags") or ["auto-ingest"]),
+                    "graph_x": payload.get("graph_x") + 100 if payload.get("graph_x") else None,
+                    "graph_y": payload.get("graph_y") + 100 if payload.get("graph_y") else None,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                conn.execute(
+                    """
+                    INSERT INTO brain_items (
+                        id, tenant_id, title, category, content, source_id, status, tags_json, graph_x, graph_y, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        item_record["id"],
+                        item_record["tenant_id"],
+                        item_record["title"],
+                        item_record["category"],
+                        item_record["content"],
+                        item_record["source_id"],
+                        item_record["status"],
+                        item_record["tags_json"],
+                        item_record["graph_x"],
+                        item_record["graph_y"],
+                        item_record["created_at"],
+                        item_record["updated_at"],
+                    ),
+                )
+
             chunks = chunk_text_content(content)
             if not chunks:
                 raise ValueError("Unable to create Brain chunks from this ingest.")
@@ -4251,23 +4418,20 @@ class SQLiteProvider(BaseProvider):
             conn.executemany(
                 """
                 INSERT INTO brain_chunks (
-                    id, tenant_id, source_id, ingest_id, ordinal, title, content, content_excerpt, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, tenant_id, source_id, ingest_id, chunk_index, content, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
-                        f"brain-chunk-{unique_suffix()}",
+                        f"chunk-{unique_suffix()}",
                         self._tenant_id(),
                         source_id,
                         ingest["id"],
-                        index,
-                        ingest["title"],
+                        idx,
                         chunk,
-                        summarize_excerpt(chunk),
-                        now,
                         now,
                     )
-                    for index, chunk in enumerate(chunks, start=1)
+                    for idx, chunk in enumerate(chunks)
                 ],
             )
             conn.commit()
@@ -5775,7 +5939,28 @@ class SQLiteProvider(BaseProvider):
     def get_comms_snapshot(self) -> dict[str, Any]:
         threads = self._get_thread_context()
         queues = [{**queue, "count": sum(1 for thread in threads if queue["id"] in thread["queueIds"])} for queue in default_queue_definitions()]
-        return {"queues": queues, "threads": threads, "allThreads": threads, "mailboxes": self.list_mailboxes(), "calendarEvents": self.list_calendar_events(), "agents": [{"name": "ALPHA"}, {"name": "ECHO"}, {"name": "STRIKER"}]}
+        return {
+            "queues": queues,
+            "threads": threads,
+            "allThreads": threads,
+            "mailboxes": self.list_mailboxes(),
+            "calendarEvents": self.list_calendar_events(),
+            "agents": [
+                {"name": "ALPHA"},
+                {"name": "BRAVO"},
+                {"name": "CHARLIE"},
+                {"name": "DELTA"},
+                {"name": "ECHO"},
+                {"name": "FORGE"},
+                {"name": "APEX"},
+                {"name": "ARCHER"},
+                {"name": "ATLAS"},
+                {"name": "RANGER"},
+                {"name": "SCOUT"},
+                {"name": "STRIKER"},
+                {"name": "VECTOR"},
+            ],
+        }
 
     def create_thread(
         self,
@@ -5927,10 +6112,98 @@ class SQLiteProvider(BaseProvider):
         return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
 
     def update_thread_status(self, thread_id: str, status: str) -> dict[str, Any]:
+        now = utcnow()
         with self._connect() as conn:
-            conn.execute("UPDATE threads SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", (status, utcnow(), thread_id, self._tenant_id()))
+            existing = conn.execute("SELECT status FROM threads WHERE id = ? AND tenant_id = ?", (thread_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Thread not found")
+            conn.execute("UPDATE threads SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?", (status, now, thread_id, self._tenant_id()))
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    f"thread-action-{unique_suffix()}",
+                    self._tenant_id(),
+                    thread_id,
+                    f"Status: {status.replace('_', ' ').title()}",
+                    "status-update",
+                    "system",
+                    "completed",
+                    now,
+                    now,
+                ),
+            )
             conn.commit()
         return next(thread for thread in self._get_thread_context() if thread["id"] == thread_id)
+
+    def create_thread_report(self, thread_id: str, kind: str = "operator") -> dict[str, Any]:
+        thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)
+        if not thread:
+            raise ValueError("Thread not found")
+        now = utcnow()
+        title = "Executive Thread Report" if kind == "executive" else "Operator Thread Report"
+        artifact = {
+            "id": f"thread-artifact-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "thread_id": thread_id,
+            "artifact_type": "report",
+            "kind": kind,
+            "title": title,
+            "body": build_thread_report_text(thread, kind=kind),
+            "created_by": thread.get("assignee") or "AIO Flow",
+            "created_at": now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO thread_artifacts (
+                    id, tenant_id, thread_id, artifact_type, kind, title, body, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    artifact["id"],
+                    artifact["tenant_id"],
+                    artifact["thread_id"],
+                    artifact["artifact_type"],
+                    artifact["kind"],
+                    artifact["title"],
+                    artifact["body"],
+                    artifact["created_by"],
+                    artifact["created_at"],
+                    artifact["updated_at"],
+                ),
+            )
+            conn.execute(
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    f"thread-action-{unique_suffix()}",
+                    self._tenant_id(),
+                    thread_id,
+                    title,
+                    f"{kind}-report",
+                    "system",
+                    "completed",
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+        return {"artifact": artifact, "thread": next(item for item in self._get_thread_context() if item["id"] == thread_id)}
+
+    def delete_thread(self, thread_id: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            existing = conn.execute("SELECT id FROM threads WHERE id = ? AND tenant_id = ?", (thread_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Thread not found")
+            conn.execute("UPDATE calendar_events SET thread_id = NULL, updated_at = ? WHERE thread_id = ? AND tenant_id = ?", (utcnow(), thread_id, self._tenant_id()))
+            conn.execute("DELETE FROM messages WHERE thread_id = ? AND tenant_id = ?", (thread_id, self._tenant_id()))
+            conn.execute("DELETE FROM thread_ai_briefs WHERE thread_id = ? AND tenant_id = ?", (thread_id, self._tenant_id()))
+            conn.execute("DELETE FROM thread_actions WHERE thread_id = ? AND tenant_id = ?", (thread_id, self._tenant_id()))
+            conn.execute("DELETE FROM thread_links WHERE thread_id = ? AND tenant_id = ?", (thread_id, self._tenant_id()))
+            conn.execute("DELETE FROM thread_artifacts WHERE thread_id = ? AND tenant_id = ?", (thread_id, self._tenant_id()))
+            conn.execute("DELETE FROM threads WHERE id = ? AND tenant_id = ?", (thread_id, self._tenant_id()))
+            conn.commit()
+        return {"deleted_thread_id": thread_id}
 
     def assign_thread(self, thread_id: str, assignee_name: str) -> dict[str, Any]:
         thread = next((item for item in self._get_thread_context() if item["id"] == thread_id), None)

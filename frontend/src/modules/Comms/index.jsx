@@ -26,9 +26,11 @@ import {
   advanceThreadStageApi,
   assignThreadApi,
   assistAiApi,
+  createThreadReportApi,
   createDealFromThreadApi,
   createMailboxApi,
   createThreadApi,
+  deleteThreadApi,
   getMailboxAuthorizeUrl,
   getCommsSnapshotApi,
   getMailboxEventsApi,
@@ -58,7 +60,14 @@ const QUEUE_DEFINITIONS = [
   { id: 'at-risk', label: 'At Risk' },
   { id: 'scheduled', label: 'Scheduled Follow-ups' },
   { id: 'automated', label: 'Automated' },
-  { id: 'closed', label: 'Closed' }
+  { id: 'closed', label: 'Closed' },
+  { id: 'archived', label: 'Archived' }
+];
+
+const THREAD_VIEW_MODES = [
+  { id: 'all', label: 'All Threads' },
+  { id: 'latest-contact', label: 'Latest / Contact' },
+  { id: 'latest-contact-channel', label: 'Latest / Contact + Channel' }
 ];
 
 const EMPTY_SNAPSHOT = {
@@ -72,8 +81,18 @@ const EMPTY_SNAPSHOT = {
 
 const AGENT_ROLE_HINTS = {
   ALPHA: 'Routes, orchestrates, and handles system-level decisions.',
-  ECHO: 'Owns communication intelligence and contextual thread understanding.',
-  STRIKER: 'Drives sales framing, replies, and next-move execution.'
+  BRAVO: 'Owns strategic planning, market framing, and business direction.',
+  CHARLIE: 'Owns support-facing intake, customer care, and service response.',
+  DELTA: 'Coordinates timelines, milestones, and project movement.',
+  ECHO: 'Owns communication craft, channel packaging, and socials output.',
+  FORGE: 'Shapes copy, narrative, and content assets.',
+  APEX: 'Owns engineering, IT, integrations, and systems build.',
+  ARCHER: 'Handles analytics, finance, ROI, and reporting.',
+  ATLAS: 'Owns logistics, deployment coordination, and systems mapping.',
+  RANGER: 'Handles SEO, search strategy, and optimization.',
+  SCOUT: 'Owns hiring, recruiting, and people pipelines.',
+  STRIKER: 'Drives sales framing, replies, and next-move execution.',
+  VECTOR: 'Owns visual direction, design assets, and brand systems.'
 };
 
 const CHANNEL_FILTERS = [
@@ -201,6 +220,24 @@ const matchesThreadFilters = (thread, { queueId = 'all', channel = 'all', mailbo
     thread.company?.name || ''
   ].some((value) => (value || '').toLowerCase().includes(searchValue));
   return queueMatch && channelMatch && mailboxMatch && searchMatch;
+};
+
+const shapeThreadsForView = (threads, mode) => {
+  if (mode === 'all') return threads;
+  const grouped = new Map();
+  threads.forEach((thread) => {
+    const contactKey = thread.contact_id || thread.contact?.email || thread.contact?.id || thread.id;
+    const key = mode === 'latest-contact-channel' ? `${contactKey}::${thread.channel_type}` : contactKey;
+    const existing = grouped.get(key);
+    const currentStamp = new Date(thread.last_activity_at || thread.updated_at || 0).getTime();
+    const existingStamp = existing ? new Date(existing.last_activity_at || existing.updated_at || 0).getTime() : -1;
+    if (!existing || currentStamp >= existingStamp) {
+      grouped.set(key, thread);
+    }
+  });
+  return Array.from(grouped.values()).sort(
+    (left, right) => new Date(right.last_activity_at || right.updated_at || 0).getTime() - new Date(left.last_activity_at || left.updated_at || 0).getTime()
+  );
 };
 
 const readErrorMessage = (error) => {
@@ -424,6 +461,7 @@ const buildThreadReport = (thread, kind = 'executive') => {
 
 const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   const [queueId, setQueueId] = useState('now');
+  const [threadViewMode, setThreadViewMode] = useState('latest-contact-channel');
   const [channel, setChannel] = useState(initialChannel);
   const [search, setSearch] = useState('');
   const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT);
@@ -449,12 +487,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   const refresh = async () => {
     try {
       const backendSnapshot = await getCommsSnapshotApi();
-      const filteredThreads = (backendSnapshot.allThreads || backendSnapshot.threads || []).filter((thread) => (
-        matchesThreadFilters(thread, { queueId, channel, mailboxId: activeMailboxId, search })
-      ));
       setSnapshot({
         ...backendSnapshot,
-        threads: filteredThreads,
+        threads: backendSnapshot.threads || backendSnapshot.allThreads || [],
         allThreads: backendSnapshot.allThreads || backendSnapshot.threads || []
       });
     } catch (error) {
@@ -465,7 +500,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
 
   useEffect(() => {
     refresh();
-  }, [queueId, channel, search, activeMailboxId]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -496,31 +531,39 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   useEffect(() => {
     const unsubscribe = subscribe('*', refresh);
     return unsubscribe;
-  }, [queueId, channel, search, activeMailboxId]);
-
-  useEffect(() => {
-    const current = snapshot.threads.find((thread) => thread.id === selectedThreadId);
-    if (!current && snapshot.threads[0]) {
-      setSelectedThreadId(snapshot.threads[0].id);
-    }
-    if (!snapshot.threads.length) {
-      setSelectedThreadId(null);
-    }
-  }, [snapshot, selectedThreadId]);
-
-  const selectedThread = useMemo(
-    () => snapshot.allThreads.find((thread) => thread.id === selectedThreadId) || snapshot.threads[0] || null,
-    [snapshot, selectedThreadId]
-  );
+  }, []);
 
   const channelScopedThreads = useMemo(
-    () => (snapshot.allThreads || []).filter((thread) => matchesThreadFilters(thread, { channel, search })),
-    [snapshot.allThreads, channel, search]
+    () => shapeThreadsForView(
+      (snapshot.allThreads || []).filter((thread) => matchesThreadFilters(thread, { channel, search })),
+      threadViewMode
+    ),
+    [snapshot.allThreads, channel, search, threadViewMode]
   );
 
   const mailboxScopedThreads = useMemo(
     () => channelScopedThreads.filter((thread) => activeMailboxId === 'all' ? true : thread.mailbox_id === activeMailboxId),
     [channelScopedThreads, activeMailboxId]
+  );
+
+  const visibleThreads = useMemo(
+    () => mailboxScopedThreads.filter((thread) => queueId === 'all' ? true : (thread.queueIds || []).includes(queueId)),
+    [mailboxScopedThreads, queueId]
+  );
+
+  useEffect(() => {
+    const current = visibleThreads.find((thread) => thread.id === selectedThreadId);
+    if (!current && visibleThreads[0]) {
+      setSelectedThreadId(visibleThreads[0].id);
+    }
+    if (!visibleThreads.length) {
+      setSelectedThreadId(null);
+    }
+  }, [visibleThreads, selectedThreadId]);
+
+  const selectedThread = useMemo(
+    () => snapshot.allThreads.find((thread) => thread.id === selectedThreadId) || visibleThreads[0] || null,
+    [snapshot.allThreads, visibleThreads, selectedThreadId]
   );
 
   const queueCards = useMemo(
@@ -801,7 +844,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   const handleReceiveForMailbox = async () => {
     if (!selectedMailbox?.id) return;
     await runAction('Receiving sample', async () => {
-      const seedThread = snapshot.threads[0] || snapshot.allThreads?.find((thread) => thread.mailbox_id === selectedMailbox.id) || snapshot.allThreads?.[0];
+      const seedThread = visibleThreads[0] || snapshot.allThreads?.find((thread) => thread.mailbox_id === selectedMailbox.id) || snapshot.allThreads?.[0];
       await ingestMailboxMessageApi(selectedMailbox.id, {
         subject: seedThread?.subject || `${selectedMailbox.name} inbound sample`,
         body: 'Inbound signal generated from the mailbox operations strip so you can validate routing, AI brief refresh, and queue movement in one step.',
@@ -839,19 +882,25 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
     if (!selectedThread?.id) return;
     const label = kind === 'executive' ? 'Creating executive report' : 'Creating operator report';
     await runAction(label, async () => {
-      const report = buildThreadReport(selectedThread, kind);
-      await sendThreadMessageApi(selectedThread.id, {
-        body: report,
-        channel_type: 'internal',
-        sender_name: kind === 'executive' ? 'ALPHA' : (selectedThread.assignee || 'ECHO'),
-        sender_email: 'system@aiocrm.local',
-        recipients: ['Internal'],
-        direction: 'system'
-      });
+      await createThreadReportApi(selectedThread.id, kind);
       setActionNotice({
         tone: 'success',
-        message: kind === 'executive' ? 'Executive report logged to the thread.' : 'Operator report logged to the thread.'
+        message: kind === 'executive' ? 'Executive report artifact created.' : 'Operator report artifact created.'
       });
+    });
+  };
+  const handleArchiveThread = async () => {
+    if (!selectedThread?.id) return;
+    await runAction('Archiving thread', async () => {
+      await updateThreadStatusApi(selectedThread.id, 'archived');
+      setActionNotice({ tone: 'success', message: 'Thread archived from active queues.' });
+    });
+  };
+  const handleDeleteThread = async () => {
+    if (!selectedThread?.id) return;
+    await runAction('Deleting thread', async () => {
+      await deleteThreadApi(selectedThread.id);
+      setActionNotice({ tone: 'warning', message: 'Thread deleted from Comms. Mailbox-side deletion is still separate.' });
     });
   };
   const handleAssignThread = async (assigneeName) => {
@@ -925,6 +974,10 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
   );
   const threadCalendarEvents = useMemo(
     () => selectedThread?.calendarEvents || [],
+    [selectedThread]
+  );
+  const reportArtifacts = useMemo(
+    () => ((selectedThread?.artifacts || []).filter((artifact) => artifact.artifact_type === 'report')),
     [selectedThread]
   );
   const availableAgents = useMemo(
@@ -1002,7 +1055,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
           showTitle={false}
           actions={[
             { label: 'Simulate Receive', icon: Sparkles, onClick: () => runAction('Simulating', async () => {
-              const seedThread = snapshot.threads[0] || snapshot.allThreads?.[0];
+              const seedThread = visibleThreads[0] || snapshot.allThreads?.[0];
               const targetChannel = channel === 'all' ? 'email' : channel;
               if (seedThread && targetChannel === 'email' && (seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id)) {
                 await ingestMailboxMessageApi(seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id, {
@@ -1036,7 +1089,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
             { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'ghost', className: COMMS_TOOLBAR_GHOST, groupStart: true },
             { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary', className: COMMS_TOOLBAR_PRIMARY }
           ]}
-          statusBadge={{ label: `${snapshot.threads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
+          statusBadge={{ label: `${visibleThreads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
           aiAssistSlot={<AIAssistButton onAssist={() => handleAiAction('summarize')} tooltip="Refresh AI brief" iconType="crosshair" />}
         />
 
@@ -1233,7 +1286,24 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
               <>
               <div className={`p-5 border-b border-[var(--color-border)] ${COMMS_HEADER_BG} shadow-[inset_0_-1px_0_rgba(15,23,42,0.82)]`}>
                   <div className="flex items-center justify-between gap-3 min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Thread Queue</div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Thread Queue</div>
+                      <div className="flex flex-wrap gap-2">
+                        {THREAD_VIEW_MODES.map((mode) => (
+                          <button
+                            key={mode.id}
+                            onClick={() => setThreadViewMode(mode.id)}
+                            className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                              threadViewMode === mode.id
+                                ? 'border-sky-400/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.24),rgba(12,22,38,0.34))] text-sky-100'
+                                : 'border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.08))] text-[var(--color-text-secondary)] hover:border-slate-500/70 hover:text-[var(--color-text-primary)]'
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {queueCards.map((queue) => (
                         <button
@@ -1249,7 +1319,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                   </div>
 
                   <div className="comms-thread-strip mt-4 -mx-1 flex gap-3 overflow-x-auto px-1 pb-3">
-                    {snapshot.threads.map((thread) => {
+                    {visibleThreads.map((thread) => {
                       const pulse = getThreadPulse(thread);
                       return (
                         <button key={thread.id} onClick={() => setSelectedThreadId(thread.id)} className={`min-w-[18rem] max-w-[18rem] flex-none rounded-[1.35rem] border p-3 text-left transition shadow-[0_12px_28px_rgba(2,6,23,0.2)] ${selectedThread?.id === thread.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_16px_32px_rgba(37,99,235,0.18)]' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/30'}`}>
@@ -1615,6 +1685,47 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null }) => {
                         No tracks yet. AI, workflow, calendar, and automation actions will appear here as this thread changes state.
                       </div>
                     ) : null}
+                  </div>
+                </section>
+
+                <section className={`${COMMS_PANEL} p-4 space-y-3`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><FileText size={16} /> Reports</div>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{reportArtifacts.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {reportArtifacts.length ? reportArtifacts.map((artifact) => (
+                      <div key={artifact.id} className={`min-w-0 ${COMMS_SUBPANEL} px-3 py-3`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 text-sm font-medium text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{artifact.title}</div>
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{artifact.kind}</span>
+                        </div>
+                        <div className="mt-2 text-sm text-[var(--color-text-secondary)] line-clamp-4">{artifact.body}</div>
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
+                          <span>{artifact.created_by || 'AIO Flow'}</span>
+                          <span>{formatRelative(artifact.created_at || artifact.updated_at || selectedThread.updated_at)}</span>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
+                        Operator and executive reports will appear here as standalone thread artifacts.
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className={`${COMMS_PANEL} p-4 space-y-3`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Settings2 size={16} /> Thread Lifecycle</div>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.status.replace(/_/g, ' ')}</span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <button onClick={handleArchiveThread} disabled={selectedThread.status === 'archived'} className="px-3 py-3 rounded-xl border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50">Archive</button>
+                    <button onClick={() => runAction('Closing', async () => { await updateThreadStatusApi(selectedThread.id, 'closed'); })} disabled={selectedThread.status === 'closed'} className="px-3 py-3 rounded-xl border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50">Close</button>
+                    <button onClick={handleDeleteThread} className="px-3 py-3 rounded-xl border border-red-500/30 text-left text-sm text-red-200 hover:border-red-400/50">Delete CRM</button>
+                  </div>
+                  <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
+                    Archive removes a thread from active queues. Delete CRM removes only the Comms record, not the source mailbox message.
                   </div>
                 </section>
 

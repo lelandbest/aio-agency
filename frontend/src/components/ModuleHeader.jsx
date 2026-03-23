@@ -97,11 +97,13 @@ const ModuleHeader = ({
   showTitle = true,
   showCompactTitle = false,
   showActions = true,
+  toolbarLeftSlot = null,
+  toolbarCenterSlot = null,
   toolbarRightSlot = null,
   aiAssistSlot = null,
   className = ''
 }) => {
-  const hasToolbar = (showActions && actions.length > 0) || breadcrumbs.length > 0 || statusBadge || toolbarRightSlot || aiAssistSlot;
+  const hasToolbar = (showActions && actions.length > 0) || breadcrumbs.length > 0 || statusBadge || toolbarLeftSlot || toolbarCenterSlot || toolbarRightSlot || aiAssistSlot;
 
   if (!showTitle && !hasToolbar && !subtitle) {
     return null;
@@ -111,7 +113,7 @@ const ModuleHeader = ({
     return (
       <div className={`border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] ${className}`}>
         <div className="px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-wrap min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-4 flex-wrap">
             {showCompactTitle ? (
               <div className="min-w-0 mr-2">
                 <div className="text-lg font-bold text-[var(--color-text-primary)] truncate">
@@ -124,9 +126,15 @@ const ModuleHeader = ({
                 ) : null}
               </div>
             ) : null}
+            {toolbarLeftSlot}
             <Breadcrumbs breadcrumbs={breadcrumbs} />
             {showActions && <Actions actions={actions} />}
           </div>
+          {toolbarCenterSlot ? (
+            <div className="hidden min-w-0 flex-1 justify-center xl:flex">
+              {toolbarCenterSlot}
+            </div>
+          ) : null}
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {toolbarRightSlot}
             <StatusBadge statusBadge={statusBadge} />
@@ -146,10 +154,16 @@ const ModuleHeader = ({
     <div className={`border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col ${className}`}>
       {hasToolbar && (
         <div className="px-6 py-4 flex items-center justify-between gap-4 border-b border-[var(--color-border)]">
-          <div className="flex items-center gap-4 flex-wrap min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-4 flex-wrap">
+            {toolbarLeftSlot}
             <Breadcrumbs breadcrumbs={breadcrumbs} />
             {showActions && <Actions actions={actions} />}
           </div>
+          {toolbarCenterSlot ? (
+            <div className="hidden min-w-0 flex-1 justify-center xl:flex">
+              {toolbarCenterSlot}
+            </div>
+          ) : null}
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {toolbarRightSlot}
             <StatusBadge statusBadge={statusBadge} />

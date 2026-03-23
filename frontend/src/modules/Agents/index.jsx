@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow } from 'lucide-react';
 import { mockSupabase } from '../../services/mockSupabase';
-import { getAiRunsApi } from '../../services/backendApi';
+import { getAiAgentsApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import flowDraftRepository from '../Flows/utils/flowDraftRepository';
 import { SPECIALIST_REGISTRY } from './data/agentRegistry';
@@ -18,31 +18,74 @@ const AIOAgentsModule = () => {
   const [aiRuns, setAiRuns] = useState([]);
   const [aiRunsError, setAiRunsError] = useState('');
 
+  const normalizeAgentRecord = (agent = {}) => ({
+    ...agent,
+    registryKey: agent.registryKey || agent.registry_key || agent.name || '',
+    registry_key: agent.registry_key || agent.registryKey || agent.name || '',
+    name: agent.name || agent.registry_key || agent.registryKey || '',
+  });
+
   useEffect(() => {
-    // Fetch agents from mock DB
-    mockSupabase.from('aio_agents').select().then(({ data }) => setAgents(data));
+    getAiAgentsApi()
+      .then((data) => setAgents(Array.isArray(data) ? data.map(normalizeAgentRecord) : []))
+      .catch(() => {
+        mockSupabase.from('aio_agents').select().then(({ data }) => setAgents((data || []).map(normalizeAgentRecord)));
+      });
     getAiRunsApi(12)
       .then((data) => setAiRuns(Array.isArray(data) ? data : []))
       .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
   }, []);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
-    setMessages([...messages, { role: 'user', content: chatInput, timestamp: 'Now' }]);
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'assistant', content: `[Mock AI Response for "${chatInput}"]`, timestamp: 'Now', rank: activeAgent?.rank || 'AI' }]);
-    }, 1000);
+    const nextMessage = chatInput.trim();
+    setMessages((prev) => [...prev, { role: 'user', content: nextMessage, timestamp: 'Now' }]);
     setChatInput('');
+    try {
+      const response = await runAiCommandApi({
+        module: 'agents',
+        surface: 'command',
+        command_text: nextMessage,
+        requested_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || null,
+        context: {
+          requested_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || '',
+          active_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || '',
+        }
+      });
+      const routing = response?.routing || {};
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: response?.suggestion || 'No agent output returned.',
+          timestamp: 'Now',
+          rank: routing.executing_agent || activeAgent?.name || 'AI',
+          chain: (response?.run?.delegate_chain || routing.delegate_chain || []).join(' -> ')
+        }
+      ]);
+      const latestRuns = await getAiRunsApi(12);
+      setAiRuns(Array.isArray(latestRuns) ? latestRuns : []);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: error.message || 'Unable to run the selected agent command.',
+          timestamp: 'Now',
+          rank: 'SYSTEM'
+        }
+      ]);
+    }
   };
 
   const updateAgentRegistryKey = (agentId, registryKey) => {
     setAgents((prev) =>
       prev.map((agent) =>
-        agent.id === agentId ? { ...agent, registryKey, name: registryKey } : agent
+        agent.id === agentId ? { ...agent, registryKey, registry_key: registryKey, name: registryKey } : agent
       )
     );
     if (activeAgent?.id === agentId) {
-      setActiveAgent((prev) => ({ ...prev, registryKey, name: registryKey }));
+      setActiveAgent((prev) => ({ ...prev, registryKey, registry_key: registryKey, name: registryKey }));
     }
   };
 
@@ -104,9 +147,16 @@ const AIOAgentsModule = () => {
                           <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-primary)]">
                             {run.module}
                           </span>
-                          <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                            {run.intent}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {run.agent_role ? (
+                              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200">
+                                {run.agent_role}
+                              </span>
+                            ) : null}
+                            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                              {run.status || run.intent}
+                            </span>
+                          </div>
                         </div>
                         <p className="text-sm font-semibold text-[var(--color-text-primary)]">
                           {run.surface} / {run.field}
@@ -114,6 +164,18 @@ const AIOAgentsModule = () => {
                         <p className="mt-2 line-clamp-3 text-sm text-[var(--color-text-secondary)]">
                           {run.result}
                         </p>
+                        {run.delegate_chain?.length ? (
+                          <div className="mt-3 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                            {run.delegate_chain.join(' -> ')}
+                          </div>
+                        ) : null}
+                        {(run.provider_label || run.model || run.thread_id) ? (
+                          <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                            {run.provider_label ? <span>{run.provider_label}</span> : null}
+                            {run.model ? <span>{run.model}</span> : null}
+                            {run.thread_id ? <span>thread-linked</span> : null}
+                          </div>
+                        ) : null}
                         <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
                           {new Date(run.created_at).toLocaleString()}
                         </p>
@@ -212,7 +274,7 @@ const AIOAgentsModule = () => {
                         onChange={(e) => updateAgentRegistryKey(activeAgent.id, e.target.value)}
                         className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)]"
                       >
-                        {Object.keys(SPECIALIST_REGISTRY).map((key) => (
+                        {Object.keys(SPECIALIST_REGISTRY).filter((key) => SPECIALIST_REGISTRY[key].visibility !== 'hidden').map((key) => (
                           <option key={key} value={key}>{key}</option>
                         ))}
                       </select>
@@ -319,6 +381,11 @@ const AIOAgentsModule = () => {
                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                                   {msg.role === 'user' ? 'Operator' : msg.rank}
                                </span>
+                               {msg.chain ? (
+                                 <span className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                                   {msg.chain}
+                                 </span>
+                               ) : null}
                                <span className="text-[10px] text-gray-600 font-mono">{msg.timestamp}</span>
                             </div>
                             <div className={`p-4 rounded-xl text-sm leading-relaxed ${

@@ -137,9 +137,52 @@ export async function assistAiApi(payload) {
   return response.data || null;
 }
 
+export async function runAiCommandApi(payload) {
+  const response = await request('/api/ai/command', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
 export async function getAiRunsApi(limit = 50) {
   const response = await request(`/api/ai/runs?limit=${encodeURIComponent(limit)}`);
   return response.data || [];
+}
+
+export async function getAiAgentsApi(includeHidden = false) {
+  const suffix = includeHidden ? '?include_hidden=true' : '';
+  const response = await request(`/api/ai/agents${suffix}`);
+  return response.data || [];
+}
+
+export async function getOmegaStatusApi(limit = 12) {
+  const response = await request(`/api/omega/status?limit=${encodeURIComponent(limit)}`);
+  return response.data || null;
+}
+
+export async function armOmegaApi(payload) {
+  const response = await request('/api/omega/arm', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function cancelOmegaApi(payload) {
+  const response = await request('/api/omega/cancel', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function executeOmegaApi(payload) {
+  const response = await request('/api/omega/execute', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
 }
 
 export async function getAiProviderCatalogApi() {
@@ -377,8 +420,26 @@ export async function createBrainIngestApi(payload) {
   return response.data || null;
 }
 
-export async function searchBrainMemoryApi(query, limit = 6) {
+export async function probeBrainMcpApi(sourceId) {
+  const response = await request(`/api/brain/mcp/${encodeURIComponent(sourceId)}/probe`, {
+    method: 'POST'
+  });
+  return response.data || null;
+}
+
+export async function queryBrainMcpApi(sourceId, payload) {
+  const response = await request(`/api/brain/mcp/${encodeURIComponent(sourceId)}/query`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function searchBrainMemoryApi(query, limit = 6, options = {}) {
   const params = new URLSearchParams({ query, limit: String(limit) });
+  if (options.includeRuntime) {
+    params.set('include_runtime', 'true');
+  }
   const response = await request(`/api/brain/search?${params.toString()}`);
   return response.data || [];
 }
@@ -809,6 +870,19 @@ export async function scheduleThreadMeetingApi(threadId, scheduledAt = null) {
   return request(`/api/comms/threads/${encodeURIComponent(threadId)}/schedule-meeting`, {
     method: 'POST',
     body: JSON.stringify({ scheduled_at: scheduledAt })
+  });
+}
+
+export async function createThreadReportApi(threadId, kind = 'operator') {
+  return request(`/api/comms/threads/${encodeURIComponent(threadId)}/reports`, {
+    method: 'POST',
+    body: JSON.stringify({ kind })
+  });
+}
+
+export async function deleteThreadApi(threadId) {
+  return request(`/api/comms/threads/${encodeURIComponent(threadId)}`, {
+    method: 'DELETE'
   });
 }
 

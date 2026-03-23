@@ -101,8 +101,25 @@ class AuthStore:
                     surface TEXT NOT NULL,
                     field TEXT NOT NULL,
                     intent TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'completed',
+                    agent_role TEXT,
+                    intake_agent TEXT,
+                    dispatcher_agent TEXT,
+                    executing_agent TEXT,
+                    requested_agent TEXT,
+                    delegate_chain_json TEXT,
+                    permission_tier TEXT,
+                    thread_id TEXT,
+                    contact_id TEXT,
+                    company_id TEXT,
+                    command_text TEXT,
+                    provider_key TEXT,
+                    provider_label TEXT,
+                    model TEXT,
                     prompt TEXT NOT NULL,
                     result TEXT NOT NULL,
+                    artifacts_json TEXT,
+                    steps_json TEXT,
                     metadata_json TEXT,
                     created_at TEXT NOT NULL
                 );
@@ -141,6 +158,27 @@ class AuthStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     UNIQUE(tenant_id, provider_key)
+                );
+
+                CREATE TABLE IF NOT EXISTS omega_protocols (
+                    tenant_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL DEFAULT 'idle',
+                    armed_by_user_id TEXT,
+                    armed_at TEXT,
+                    execute_at TEXT,
+                    arm_code_hash TEXT,
+                    cancel_code_hash TEXT,
+                    last_event TEXT,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS omega_protocol_events (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    user_id TEXT,
+                    event_type TEXT NOT NULL,
+                    detail TEXT,
+                    created_at TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS global_variables (
@@ -184,6 +222,23 @@ class AuthStore:
             self._ensure_column(conn, "app_users", "email_signature", "TEXT")
             self._ensure_column(conn, "app_sessions", "current_tenant_id", "TEXT")
             self._ensure_column(conn, "app_sessions", "user_agent", "TEXT")
+            self._ensure_column(conn, "ai_runs", "status", "TEXT NOT NULL DEFAULT 'completed'")
+            self._ensure_column(conn, "ai_runs", "agent_role", "TEXT")
+            self._ensure_column(conn, "ai_runs", "intake_agent", "TEXT")
+            self._ensure_column(conn, "ai_runs", "dispatcher_agent", "TEXT")
+            self._ensure_column(conn, "ai_runs", "executing_agent", "TEXT")
+            self._ensure_column(conn, "ai_runs", "requested_agent", "TEXT")
+            self._ensure_column(conn, "ai_runs", "delegate_chain_json", "TEXT")
+            self._ensure_column(conn, "ai_runs", "permission_tier", "TEXT")
+            self._ensure_column(conn, "ai_runs", "thread_id", "TEXT")
+            self._ensure_column(conn, "ai_runs", "contact_id", "TEXT")
+            self._ensure_column(conn, "ai_runs", "company_id", "TEXT")
+            self._ensure_column(conn, "ai_runs", "command_text", "TEXT")
+            self._ensure_column(conn, "ai_runs", "provider_key", "TEXT")
+            self._ensure_column(conn, "ai_runs", "provider_label", "TEXT")
+            self._ensure_column(conn, "ai_runs", "model", "TEXT")
+            self._ensure_column(conn, "ai_runs", "artifacts_json", "TEXT")
+            self._ensure_column(conn, "ai_runs", "steps_json", "TEXT")
             self._backfill_usernames(conn)
             self._backfill_default_workspace(conn)
             self._seed_default_system_email_templates(conn)
@@ -331,6 +386,10 @@ class AuthStore:
             fallback_seed = row["display_name"] or row["email"].split("@")[0]
             username = self._resolve_unique_username(conn, row["email"].split("@")[0], fallback_seed)
             conn.execute("UPDATE app_users SET username = ?, updated_at = ? WHERE id = ?", (username, utcnow_iso(), row["id"]))
+
+    @staticmethod
+    def _omega_code_digest(value: str) -> str:
+        return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
 
     def _user_count(self) -> int:
         with self._connect() as conn:
@@ -1385,18 +1444,72 @@ class AuthStore:
         intent: str,
         prompt: str,
         result: str,
+        status: str = "completed",
+        agent_role: str | None = None,
+        intake_agent: str | None = None,
+        dispatcher_agent: str | None = None,
+        executing_agent: str | None = None,
+        requested_agent: str | None = None,
+        delegate_chain: list[str] | None = None,
+        permission_tier: str | None = None,
+        thread_id: str | None = None,
+        contact_id: str | None = None,
+        company_id: str | None = None,
+        command_text: str | None = None,
+        provider_key: str | None = None,
+        provider_label: str | None = None,
+        model: str | None = None,
+        artifacts: list[dict[str, Any]] | None = None,
+        steps: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run_id = f"airun-{secrets.token_hex(8)}"
         created_at = utcnow_iso()
         metadata_json = json.dumps(metadata or {})
+        artifacts_json = json.dumps(artifacts or [])
+        steps_json = json.dumps(steps or [])
+        delegate_chain_json = json.dumps(delegate_chain or [])
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO ai_runs (id, tenant_id, user_id, module, surface, field, intent, prompt, result, metadata_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO ai_runs (
+                    id, tenant_id, user_id, module, surface, field, intent, status, agent_role,
+                    intake_agent, dispatcher_agent, executing_agent, requested_agent, delegate_chain_json, permission_tier,
+                    thread_id, contact_id, company_id, command_text, provider_key, provider_label,
+                    model, prompt, result, artifacts_json, steps_json, metadata_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (run_id, tenant_id, user_id, module, surface, field, intent, prompt, result, metadata_json, created_at),
+                (
+                    run_id,
+                    tenant_id,
+                    user_id,
+                    module,
+                    surface,
+                    field,
+                    intent,
+                    status,
+                    agent_role,
+                    intake_agent,
+                    dispatcher_agent,
+                    executing_agent,
+                    requested_agent,
+                    delegate_chain_json,
+                    permission_tier,
+                    thread_id,
+                    contact_id,
+                    company_id,
+                    command_text,
+                    provider_key,
+                    provider_label,
+                    model,
+                    prompt,
+                    result,
+                    artifacts_json,
+                    steps_json,
+                    metadata_json,
+                    created_at,
+                ),
             )
             conn.commit()
         return {
@@ -1407,8 +1520,25 @@ class AuthStore:
             "surface": surface,
             "field": field,
             "intent": intent,
+            "status": status,
+            "agent_role": agent_role,
+            "intake_agent": intake_agent,
+            "dispatcher_agent": dispatcher_agent,
+            "executing_agent": executing_agent,
+            "requested_agent": requested_agent,
+            "delegate_chain": delegate_chain or [],
+            "permission_tier": permission_tier,
+            "thread_id": thread_id,
+            "contact_id": contact_id,
+            "company_id": company_id,
+            "command_text": command_text,
+            "provider_key": provider_key,
+            "provider_label": provider_label,
+            "model": model,
             "prompt": prompt,
             "result": result,
+            "artifacts": artifacts or [],
+            "steps": steps or [],
             "metadata": metadata or {},
             "created_at": created_at,
         }
@@ -1437,6 +1567,18 @@ class AuthStore:
                 metadata = json.loads(row["metadata_json"] or "{}")
             except json.JSONDecodeError:
                 metadata = {}
+            try:
+                artifacts = json.loads(row["artifacts_json"] or "[]")
+            except json.JSONDecodeError:
+                artifacts = []
+            try:
+                steps = json.loads(row["steps_json"] or "[]")
+            except json.JSONDecodeError:
+                steps = []
+            try:
+                delegate_chain = json.loads(row["delegate_chain_json"] or "[]")
+            except json.JSONDecodeError:
+                delegate_chain = []
             runs.append(
                 {
                     "id": row["id"],
@@ -1446,13 +1588,201 @@ class AuthStore:
                     "surface": row["surface"],
                     "field": row["field"],
                     "intent": row["intent"],
+                    "status": row["status"] or "completed",
+                    "agent_role": row["agent_role"],
+                    "intake_agent": row["intake_agent"],
+                    "dispatcher_agent": row["dispatcher_agent"],
+                    "executing_agent": row["executing_agent"],
+                    "requested_agent": row["requested_agent"],
+                    "delegate_chain": delegate_chain if isinstance(delegate_chain, list) else [],
+                    "permission_tier": row["permission_tier"],
+                    "thread_id": row["thread_id"],
+                    "contact_id": row["contact_id"],
+                    "company_id": row["company_id"],
+                    "command_text": row["command_text"],
+                    "provider_key": row["provider_key"],
+                    "provider_label": row["provider_label"],
+                    "model": row["model"],
                     "prompt": row["prompt"],
                     "result": row["result"],
+                    "artifacts": artifacts if isinstance(artifacts, list) else [],
+                    "steps": steps if isinstance(steps, list) else [],
                     "metadata": metadata,
                     "created_at": row["created_at"],
                 }
             )
         return runs
+
+    def get_omega_protocol(self, token: str | None, tenant_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            row = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+        if not row:
+            return {
+                "tenant_id": tenant_id,
+                "status": "idle",
+                "armed_by_user_id": None,
+                "armed_at": None,
+                "execute_at": None,
+                "last_event": "idle",
+            }
+        payload = dict(row)
+        payload.pop("arm_code_hash", None)
+        payload.pop("cancel_code_hash", None)
+        return payload
+
+    def _record_omega_event(self, conn: sqlite3.Connection, tenant_id: str, user_id: str | None, event_type: str, detail: str | None = None) -> None:
+        conn.execute(
+            """
+            INSERT INTO omega_protocol_events (id, tenant_id, user_id, event_type, detail, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                secrets.token_hex(16),
+                tenant_id,
+                user_id,
+                event_type,
+                (detail or "").strip() or None,
+                utcnow_iso(),
+            ),
+        )
+
+    def list_omega_protocol_events(self, token: str | None, tenant_id: str, limit: int = 25) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            rows = conn.execute(
+                """
+                SELECT id, tenant_id, user_id, event_type, detail, created_at
+                FROM omega_protocol_events
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (tenant_id, max(1, limit)),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def arm_omega_protocol(self, token: str | None, tenant_id: str, confirmation_code: str, cancel_code: str, delay_minutes: int = 5) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        if not confirmation_code.strip() or not cancel_code.strip():
+            raise ValueError("Both confirmation and cancel codes are required.")
+        if confirmation_code.strip() == cancel_code.strip():
+            raise ValueError("Cancel code must be different from the confirmation code.")
+        now = utcnow_iso()
+        execute_at = (datetime.now(UTC) + timedelta(minutes=max(1, delay_minutes))).isoformat()
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            if existing and (existing["status"] or "idle") == "armed":
+                raise ValueError("Omega is already armed for this workspace.")
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE omega_protocols
+                    SET status = 'armed', armed_by_user_id = ?, armed_at = ?, execute_at = ?, arm_code_hash = ?, cancel_code_hash = ?, last_event = 'armed', updated_at = ?
+                    WHERE tenant_id = ?
+                    """,
+                    (
+                        session["user_id"],
+                        now,
+                        execute_at,
+                        self._omega_code_digest(confirmation_code.strip()),
+                        self._omega_code_digest(cancel_code.strip()),
+                        now,
+                        tenant_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO omega_protocols (
+                        tenant_id, status, armed_by_user_id, armed_at, execute_at, arm_code_hash, cancel_code_hash, last_event, updated_at
+                    ) VALUES (?, 'armed', ?, ?, ?, ?, ?, 'armed', ?)
+                    """,
+                    (
+                        tenant_id,
+                        session["user_id"],
+                        now,
+                        execute_at,
+                        self._omega_code_digest(confirmation_code.strip()),
+                        self._omega_code_digest(cancel_code.strip()),
+                        now,
+                    ),
+                )
+            self._record_omega_event(
+                conn,
+                tenant_id,
+                session["user_id"],
+                "armed",
+                f"Omega armed with {max(1, delay_minutes)} minute delay.",
+            )
+            conn.commit()
+        return self.get_omega_protocol(token, tenant_id)
+
+    def cancel_omega_protocol(self, token: str | None, tenant_id: str, cancel_code: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        if not cancel_code.strip():
+            raise ValueError("Cancel code is required.")
+        now = utcnow_iso()
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            if not existing or (existing["status"] or "idle") != "armed":
+                raise ValueError("Omega is not armed.")
+            if not hmac.compare_digest(existing["cancel_code_hash"] or "", self._omega_code_digest(cancel_code.strip())):
+                raise ValueError("Cancel code did not match.")
+            conn.execute(
+                """
+                UPDATE omega_protocols
+                SET status = 'cancelled', execute_at = NULL, arm_code_hash = NULL, cancel_code_hash = NULL, last_event = 'cancelled', updated_at = ?
+                WHERE tenant_id = ?
+                """,
+                (now, tenant_id),
+            )
+            self._record_omega_event(conn, tenant_id, session["user_id"], "cancelled", "Omega arm sequence cancelled.")
+            conn.commit()
+        return self.get_omega_protocol(token, tenant_id)
+
+    def verify_omega_execution(self, token: str | None, tenant_id: str, confirmation_code: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        if not confirmation_code.strip():
+            raise ValueError("Confirmation code is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            if not existing or (existing["status"] or "idle") != "armed":
+                raise ValueError("Omega is not armed.")
+            if not hmac.compare_digest(existing["arm_code_hash"] or "", self._omega_code_digest(confirmation_code.strip())):
+                raise ValueError("Confirmation code did not match.")
+            execute_at = existing["execute_at"]
+            execute_dt = datetime.fromisoformat(execute_at) if execute_at else None
+            if not execute_dt or execute_dt > datetime.now(UTC):
+                raise ValueError("Omega countdown is still active.")
+            protocol = dict(existing)
+            protocol["verified_by_user_id"] = session["user_id"]
+        return protocol
 
     def list_ai_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
         if not token:

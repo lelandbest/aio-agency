@@ -3,12 +3,17 @@ import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenT
 import { useTheme } from '../../lib/ThemeContext';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAuth } from '../../contexts/AuthContext';
+import { clearStoredSessionToken } from '../../services/authStorage';
 import {
   addWorkspaceMemberApi,
+  armOmegaApi,
+  cancelOmegaApi,
   changePasswordApi,
   createWorkspaceApi,
   deleteGlobalVariableApi,
+  executeOmegaApi,
   getAuthSessionsApi,
+  getOmegaStatusApi,
   getGlobalVariablesApi,
   getProfileApi,
   getSystemEmailTemplatesApi,
@@ -48,6 +53,20 @@ const useTransientSaveFeedback = (duration = 1400) => {
 };
 
 const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
+
+const formatOmegaCountdown = (executeAt, nowTick) => {
+  if (!executeAt) {
+    return 'Not armed';
+  }
+  const remainingMs = new Date(executeAt).getTime() - nowTick;
+  if (remainingMs <= 0) {
+    return 'Ready to execute';
+  }
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')} remaining`;
+};
 
 // ============ GLOBAL VARIABLES MANAGER ============
 const GlobalVarsManager = () => {
@@ -1590,6 +1609,250 @@ const SecuritySettings = () => {
   );
 };
 
+const OmegaSettings = () => {
+  const { tenant, user } = useAuth();
+  const currentRole = (tenant?.role || user?.role || 'viewer').toLowerCase();
+  const isOwner = currentRole === 'owner';
+  const [protocol, setProtocol] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [armCode, setArmCode] = useState('');
+  const [cancelCode, setCancelCode] = useState('');
+  const [executeCode, setExecuteCode] = useState('');
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  const loadOmega = async () => {
+    if (!isOwner) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getOmegaStatusApi();
+      setProtocol(data?.protocol || null);
+      setEvents(Array.isArray(data?.events) ? data.events : []);
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load Omega status.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOmega();
+  }, [isOwner, tenant?.id]);
+
+  useEffect(() => {
+    if ((protocol?.status || 'idle') !== 'armed') {
+      return undefined;
+    }
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [protocol?.status, protocol?.execute_at]);
+
+  const handleArm = async () => {
+    setError('');
+    setStatus('');
+    try {
+      const data = await armOmegaApi({
+        confirmation_code: armCode,
+        cancel_code: cancelCode
+      });
+      setProtocol(data?.protocol || null);
+      setEvents(Array.isArray(data?.events) ? data.events : []);
+      setStatus('Omega armed. Five-minute countdown started.');
+      setExecuteCode(armCode);
+      setArmCode('');
+      setCancelCode('');
+      setNowTick(Date.now());
+    } catch (armError) {
+      setError(armError.message || 'Unable to arm Omega.');
+    }
+  };
+
+  const handleCancel = async () => {
+    setError('');
+    setStatus('');
+    try {
+      const data = await cancelOmegaApi({ cancel_code: cancelCode });
+      setProtocol(data?.protocol || null);
+      setEvents(Array.isArray(data?.events) ? data.events : []);
+      setStatus('Omega sequence cancelled.');
+      setCancelCode('');
+      setExecuteCode('');
+    } catch (cancelError) {
+      setError(cancelError.message || 'Unable to cancel Omega.');
+    }
+  };
+
+  const handleExecute = async () => {
+    setError('');
+    setStatus('');
+    try {
+      await executeOmegaApi({ confirmation_code: executeCode });
+      clearStoredSessionToken();
+      setStatus('Omega executed. Local app data was purged. Reloading...');
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (executeError) {
+      setError(executeError.message || 'Unable to execute Omega.');
+    }
+  };
+
+  if (!isOwner) {
+    return (
+      <div className="p-8">
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+          Omega governance is owner-only and does not appear for non-owner workspace roles.
+        </div>
+      </div>
+    );
+  }
+
+  const omegaStatus = protocol?.status || 'idle';
+  const readyToExecute = omegaStatus === 'armed' && protocol?.execute_at && new Date(protocol.execute_at).getTime() <= nowTick;
+
+  return (
+    <div className="p-6 space-y-6 bg-[var(--color-bg-primary)]">
+      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-red-200">Emergency Governance</div>
+            <h3 className="text-xl font-semibold text-[var(--color-text-primary)]">OMEGA Kill Switch</h3>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              This surface only affects local app data and credentials/config within AIO CRM. It does not delete remote provider data.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{omegaStatus}</div>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Countdown</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{formatOmegaCountdown(protocol?.execute_at, nowTick)}</div>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Scope</div>
+                <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Local app data only</div>
+              </div>
+            </div>
+          </div>
+
+          {(error || status) && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+              {error || status}
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Arm Sequence</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">Two separate codes are required. Arming starts a fixed 5-minute countdown.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Confirmation Code</label>
+                <input
+                  type="password"
+                  value={armCode}
+                  onChange={(event) => setArmCode(event.target.value)}
+                  placeholder="Enter arm code"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-red-400 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Cancel Code</label>
+                <input
+                  type="password"
+                  value={cancelCode}
+                  onChange={(event) => setCancelCode(event.target.value)}
+                  placeholder="Enter separate cancel code"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleArm}
+                disabled={loading || omegaStatus === 'armed'}
+                className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Arm Omega
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={loading || omegaStatus !== 'armed' || !cancelCode.trim()}
+                className="px-4 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel Omega
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Execute Purge</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Execution only unlocks after the countdown completes. This clears local app data and forces a clean bootstrap state.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+              <input
+                type="password"
+                value={executeCode}
+                onChange={(event) => setExecuteCode(event.target.value)}
+                placeholder="Re-enter confirmation code"
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-red-400 focus:outline-none"
+              />
+              <button
+                onClick={handleExecute}
+                disabled={!readyToExecute || !executeCode.trim()}
+                className="px-4 py-2 rounded-lg border border-red-500/40 bg-red-500/20 text-red-100 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Execute Omega
+              </button>
+            </div>
+            <div className="text-xs text-[var(--color-text-secondary)]">
+              {readyToExecute ? 'Countdown complete. Execution is armed and awaiting the confirmation code.' : 'Execution stays locked until the countdown completes.'}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">Protocol Notes</div>
+            <div className="text-sm text-[var(--color-text-primary)]">`OMEGA` is hidden from normal agent routing and only lives in this owner-level control plane.</div>
+            <div className="text-xs text-[var(--color-text-secondary)]">Remote mailbox, calendar, and third-party systems are not touched by v1 execution.</div>
+          </div>
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--color-border)]">
+              <div className="text-sm font-semibold text-[var(--color-text-primary)]">Omega Activity</div>
+              <div className="text-xs text-[var(--color-text-secondary)]">Owner-only arming and cancellation events.</div>
+            </div>
+            <div className="divide-y divide-[var(--color-border)]">
+              {loading && <div className="px-5 py-4 text-sm text-[var(--color-text-secondary)]">Loading...</div>}
+              {!loading && events.map((event) => (
+                <div key={event.id} className="px-5 py-4 space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{event.event_type}</div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{new Date(event.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="text-sm text-[var(--color-text-primary)]">{event.detail || 'No detail recorded.'}</div>
+                </div>
+              ))}
+              {!loading && events.length === 0 && (
+                <div className="px-5 py-6 text-sm text-[var(--color-text-secondary)]">No Omega activity recorded yet.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const WorkspaceSettings = () => {
   const { tenant, tenants = [], switchTenant, refreshSession, user } = useAuth();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(tenant?.id || '');
@@ -1889,7 +2152,9 @@ const WorkspaceSettings = () => {
 
 // ============ MAIN SETTINGS MODULE ============
 const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
+  const { tenant, user } = useAuth();
   const [activeTab, setActiveTab] = useState(activeSettingsTab || 'personal');
+  const isOwner = ((tenant?.role || user?.role || 'viewer').toLowerCase() === 'owner');
 
   useEffect(() => {
     if (activeSettingsTab) setActiveTab(activeSettingsTab);
@@ -1901,7 +2166,8 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'workspace', label: 'Workspace', icon: Layers },
     { id: 'whitelabel', label: 'White Label', icon: Globe },
-    { id: 'variables', label: 'Variables', icon: Key }
+    { id: 'variables', label: 'Variables', icon: Key },
+    ...(isOwner ? [{ id: 'omega', label: 'Omega', icon: Lock }] : [])
   ];
 
   const tabMeta = {
@@ -1910,7 +2176,8 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
     security: { eyebrow: 'Access', description: 'Password, session, and security posture for the active app user.', status: 'Mixed' },
     workspace: { eyebrow: 'Workspace', description: 'Switch, rename, and manage members for the active workspace.', status: 'Live' },
     whitelabel: { eyebrow: 'Branding', description: 'Brand, menu, and presentation controls that shape the app shell.', status: 'Mixed' },
-    variables: { eyebrow: 'Automation', description: 'Global variables and tokens available to builders and workflows.', status: 'Legacy' }
+    variables: { eyebrow: 'Automation', description: 'Global variables and tokens available to builders and workflows.', status: 'Legacy' },
+    omega: { eyebrow: 'Governance', description: 'Owner-only emergency protocol for app-local purge control.', status: 'Restricted' }
   };
 
   const renderContent = () => {
@@ -1921,6 +2188,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
       case 'workspace': return <WorkspaceSettings />;
       case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} />;
       case 'variables': return <GlobalVarsManager />;
+      case 'omega': return <OmegaSettings />;
       default: return <PersonalSettings />;
     }
   };
@@ -1963,6 +2231,6 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   );
 };
 
-export { GlobalVarsManager, WhiteLabelSettings, PersonalSettings, BillingSettings, SecuritySettings, WorkspaceSettings };
+export { GlobalVarsManager, WhiteLabelSettings, PersonalSettings, BillingSettings, SecuritySettings, WorkspaceSettings, OmegaSettings };
 export default SettingsModule;
 

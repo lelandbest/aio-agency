@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
+  LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon, GraduationCap,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
   Phone, Settings, ChevronDown, ChevronRight, Search, Plus, Video,
   CreditCard, Zap, Shield, Tag, Layout, EyeOff, Activity, Crosshair,
@@ -21,7 +21,7 @@ export const ICON_LIBRARY = {
   Briefcase, FileInput, Webhook, Link, Power, Download, Package, Clock, Copy,
   Server, Chrome, PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
   User, Bell, Smartphone, MapPin, Receipt, CardIcon, Cpu, Target, ShieldCheck, Terminal, MessageSquareCode, Layers,
-  AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays
+  AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays, GraduationCap
 };
 
 const TM = '\u2122';
@@ -39,18 +39,19 @@ export const initialDb = {
     { id: 2, name: "Daniel Salinas", email: "daniel.salinas@hvac.com", phone: "+1 (555) 987-6543", company: "Salinas HVAC", title: "Manager", lead_score: 42, tags: ["Nurture"], owner: "Adam B.", last_contacted_at: "2026-01-06T14:30:00Z", pipeline_stage: "Discovery", source: "LinkedIn" },
   ],
   aio_agents: [
-    { id: 1, name: "ALPHA", registryKey: "ALPHA", rank: "Commander", role: "HQ", status: "Active", model: "GPT-4o", subordinates: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], specialization: "Commander-in-Chief" },
-    { id: 2, name: "BRAVO", registryKey: "BRAVO", rank: "AI Agent", role: "Strategy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Business Strategy" },
-    { id: 3, name: "CHARLIE", registryKey: "CHARLIE", rank: "AI Agent", role: "Support", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Customer Support" },
-    { id: 4, name: "DELTA", registryKey: "DELTA", rank: "AI Agent", role: "Coordination", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Visual/Project Coordination" },
-    { id: 5, name: "ECHO", registryKey: "ECHO", rank: "AI Agent", role: "Comms", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Email/Comms/Socials" },
-    { id: 6, name: "FORGE", registryKey: "FORGE", rank: "AI Agent", role: "Copy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Content/Copywriting" },
-    { id: 7, name: "APEX", registryKey: "APEX", rank: "AI Agent", role: "Engineering", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Coder/IT/Logistics/Site Dev" },
-    { id: 8, name: "ARCHER", registryKey: "ARCHER", rank: "AI Agent", role: "Analytics", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Analytics/Financial" },
-    { id: 9, name: "RANGER", registryKey: "RANGER", rank: "AI Agent", role: "SEO", status: "Active", model: "GPT-4o", subordinates: [], specialization: "SEO/Content Optimization" },
-    { id: 10, name: "SCOUT", registryKey: "SCOUT", rank: "AI Agent", role: "Recruitment", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Hiring/Recruitment" },
-    { id: 11, name: "STRIKER", registryKey: "STRIKER", rank: "AI Agent", role: "Sales", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Sales/Negotiation" },
-    { id: 12, name: "VECTOR", registryKey: "VECTOR", rank: "AI Agent", role: "Design", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Graphics/Design" }
+    { id: 1, name: "ALPHA", registryKey: "ALPHA", rank: "Commander", role: "HQ", status: "Active", model: "GPT-4o", subordinates: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], specialization: "Commander-in-Chief", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 2, name: "BRAVO", registryKey: "BRAVO", rank: "AI Agent", role: "Strategy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Business Strategy", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 3, name: "CHARLIE", registryKey: "CHARLIE", rank: "AI Agent", role: "Support", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Customer Support", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 4, name: "DELTA", registryKey: "DELTA", rank: "AI Agent", role: "Coordination", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Visual/Project Coordination", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 5, name: "ECHO", registryKey: "ECHO", rank: "AI Agent", role: "Comms", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Email/Comms/Socials", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 6, name: "FORGE", registryKey: "FORGE", rank: "AI Agent", role: "Copy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Content/Copywriting", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 7, name: "APEX", registryKey: "APEX", rank: "AI Agent", role: "Engineering", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Coder/IT/Site Dev", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 8, name: "ARCHER", registryKey: "ARCHER", rank: "AI Agent", role: "Analytics", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Analytics/Financial", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 9, name: "RANGER", registryKey: "RANGER", rank: "AI Agent", role: "SEO", status: "Active", model: "GPT-4o", subordinates: [], specialization: "SEO/Content Optimization", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 10, name: "SCOUT", registryKey: "SCOUT", rank: "AI Agent", role: "Recruitment", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Hiring/Recruitment", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 11, name: "STRIKER", registryKey: "STRIKER", rank: "AI Agent", role: "Sales", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Sales/Negotiation", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 12, name: "VECTOR", registryKey: "VECTOR", rank: "AI Agent", role: "Design", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Graphics/Design", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 13, name: "ATLAS", registryKey: "ATLAS", rank: "AI Agent", role: "Logistics", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Logistics/Systems Mapping", visibility: "visible", capabilityTier: "tier-1" }
   ],
   companies: [
     { id: 1, name: "All IT Solution", industry: "IT Services", size: "50-100", website: "allitsolutions.com", owner: "System" },
@@ -119,7 +120,7 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Main",
     items: [
       { id: "aio-agents", label: "AIO Agents\u2122", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-brain", label: "AIO Brain", icon: "Cpu", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search AIO Brain..." },
+      { id: "aio-brain", label: `AIO Cortex${TM}`, icon: "Cpu", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: `Search AIO Cortex${TM}...` },
       { id: "dashboard", label: "AIO Dashboard", icon: "LayoutDashboard", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-systems", label: "AIO Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full AIO system stack and launch each workspace inside the embedded app frame." }
     ]
@@ -130,7 +131,8 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "aio-bots", label: `AIO Bots${TM}`, icon: "Bot", type: "iframe", url: "https://go.aiobots.us", visible: true, iconColor: "#9ca3af" },
       { id: "aio-flows", label: `AIO Flows${TM}`, icon: "Workflow", type: "iframe", url: "https://work.aioflows.com", visible: true, iconColor: "#9ca3af" },
       { id: "aio-livebots", label: `AIO LiveBots${TM}`, icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-sniper", label: `AIO Sniper${TM}`, icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" }
+      { id: "aio-sniper", label: `AIO Sniper${TM}`, icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-academy", label: `AIO Academy${TM}`, icon: "GraduationCap", type: "iframe", url: "https://aiocrm.org/academy", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
