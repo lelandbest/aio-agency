@@ -47,7 +47,8 @@ import {
   getBrainItemsApi,
   createBrainItemApi,
   updateBrainItemApi,
-  deleteBrainItemApi
+  deleteBrainItemApi,
+  getAnalyticsSummaryApi
 } from '../../services/backendApi';
 import BrainGraphPanel from './BrainGraphPanel';
 import TabbedBrainFormModal from './TabbedBrainFormModal';
@@ -634,6 +635,172 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
   );
 };
 
+const generateReport = (reportId, analytics) => {
+  const { crm, comms, ai } = analytics || {};
+  const c = crm || {};
+  const com = comms || {};
+  const aiData = ai || {};
+  
+  const formatStage = (s) => s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const safeNum = (n) => typeof n === 'number' ? n : 0;
+  
+  const lines = ['[ANALYSIS COMPLETE]\n'];
+  
+  switch (reportId) {
+    case 'brand-avatar':
+      lines.push(`[CRM TELEMETRY] ${safeNum(c.total_contacts)} contacts analyzed`);
+      if (c.sources && Object.keys(c.sources).length > 0) {
+        const topSource = Object.entries(c.sources).sort((a, b) => b[1] - a[1])[0];
+        lines.push(`Top Source: ${topSource[0]} (${topSource[1]} contacts)`);
+      }
+      if (c.score_distribution) {
+        lines.push(`Lead Quality: ${safeNum(c.score_distribution['90+'])} hot, ${safeNum(c.score_distribution['70-89'])} warm, ${safeNum(c.score_distribution['50-69'])} cool`);
+      }
+      if (c.recent_contacts?.length > 0) {
+        lines.push(`Latest Entry: ${c.recent_contacts[0].name || c.recent_contacts[0].email || 'Unknown'}`);
+      }
+      lines.push('\n[STRATEGY] Focus on high-score leads for immediate conversion. Diversify lead sources to reduce concentration risk.');
+      break;
+      
+    case 'awareness-attention':
+      lines.push(`[FUNNEL STATS] ${safeNum(c.total_deals)} deals in pipeline`);
+      if (c.stages) {
+        const activeStages = Object.entries(c.stages).filter(([k]) => k !== 'Closed Won' && k !== 'Closed Lost');
+        lines.push(`Active Stages: ${activeStages.map(([k, v]) => `${formatStage(k)}: ${v}`).join(', ')}`);
+      }
+      lines.push(`[ENGAGEMENT] ${safeNum(com.total_threads)} communication threads`);
+      if (com.active_threads !== undefined) {
+        lines.push(`Active: ${com.active_threads}, Archived: ${com.archived_threads}`);
+      }
+      lines.push('\n[STRATEGY] Optimize top-of-funnel. Increase engagement on stalled deals. Re-engage archived conversations.');
+      break;
+      
+    case 'content-performance':
+      lines.push(`[DEAL VALUE] Total pipeline value: $${Object.values(c.stage_values || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()}`);
+      if (c.stages && c.stage_values) {
+        const stageData = Object.entries(c.stages).map(([stage, count]) => ({
+          stage: formatStage(stage),
+          count,
+          value: safeNum(c.stage_values[stage])
+        }));
+        lines.push('Pipeline Breakdown:');
+        stageData.forEach(s => lines.push(`  ${s.stage}: ${s.count} deals, $${s.value.toLocaleString()}`));
+      }
+      lines.push('\n[STRATEGY] Focus on high-value stages. Track conversion rates between stages. Identify bottlenecks.');
+      break;
+      
+    case 'offer-conversion':
+      lines.push(`[CONVERSION METRICS] ${safeNum(c.total_deals)} deals tracked`);
+      if (c.stages) {
+        const won = safeNum(c.stages['Closed Won'] || c.stages['closed_won'] || 0);
+        const lost = safeNum(c.stages['Closed Lost'] || c.stages['closed_lost'] || 0);
+        const total = won + lost;
+        const rate = total > 0 ? Math.round((won / total) * 100) : 0;
+        lines.push(`Win Rate: ${rate}% (${won} won / ${lost} lost)`);
+      }
+      if (c.quality_distribution) {
+        lines.push(`Quality Distribution: ${JSON.stringify(c.quality_distribution)}`);
+      }
+      lines.push('\n[STRATEGY] Analyze lost deals for patterns. Improve follow-up timing. Test offer variations.');
+      break;
+      
+    case 'customer-journey':
+      lines.push(`[JOURNEY MAP] ${safeNum(c.total_contacts)} customer touchpoints`);
+      if (c.recent_contacts?.length > 0) {
+        lines.push(`Recent Journey Sample: ${c.recent_contacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
+      }
+      if (c.engagement_distribution) {
+        lines.push(`Engagement Levels: ${JSON.stringify(c.engagement_distribution)}`);
+      }
+      lines.push('\n[STRATEGY] Map common journey patterns. Identify friction points. Optimize automation triggers.');
+      break;
+      
+    case 'market-intelligence':
+      lines.push(`[MARKET SIGNALS] ${safeNum(c.total_contacts)} contacts in database`);
+      if (c.sources) {
+        lines.push(`Lead Sources: ${Object.entries(c.sources).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+      }
+      lines.push(`[COMPETITIVE] ${safeNum(com.total_threads)} active conversations`);
+      lines.push('\n[STRATEGY] Monitor source effectiveness. Track emerging channels. Analyze competitor mentions in conversations.');
+      break;
+      
+    case 'competitive-intelligence':
+      lines.push(`[COMPETITOR DATA] ${safeNum(c.total_contacts)} contacts analyzed`);
+      if (c.quality_distribution) {
+        lines.push(`Quality Segmentation: ${Object.entries(c.quality_distribution).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+      }
+      lines.push(`[COMMUNICATIONS] ${safeNum(com.active_threads)} active threads`);
+      lines.push('\n[STRATEGY] Identify positioning gaps. Benchmark against industry standards. Find blue ocean opportunities.');
+      break;
+      
+    case 'service-performance':
+      lines.push(`[SERVICE METRICS] ${safeNum(c.total_deals)} active projects/deals`);
+      if (c.stage_values) {
+        const topStage = Object.entries(c.stage_values).sort((a, b) => safeNum(b[1]) - safeNum(a[1]))[0];
+        if (topStage) lines.push(`Highest Value Stage: ${formatStage(topStage[0])} ($${safeNum(topStage[1]).toLocaleString()})`);
+      }
+      lines.push('\n[STRATEGY] Identify scaling bottlenecks. Optimize delivery workflow. Prioritize high-margin services.');
+      break;
+      
+    case 'operational-efficiency':
+      lines.push(`[AI OPERATIONS] ${safeNum(aiData.total_runs)} AI executions logged`);
+      if (aiData.runs_by_module) {
+        lines.push('AI Usage by Module:');
+        Object.entries(aiData.runs_by_module).forEach(([mod, count]) => lines.push(`  ${mod}: ${count} runs`));
+      }
+      lines.push(`[AUTOMATION] ${safeNum(c.total_contacts)} contacts in system`);
+      lines.push('\n[STRATEGY] Optimize AI routing. Reduce manual touchpoints. Scale successful workflows.');
+      break;
+      
+    case 'revenue-intelligence':
+      lines.push(`[REVENUE] $${Object.values(c.stage_values || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()} total pipeline value`);
+      if (c.stages) {
+        const wonVal = safeNum(c.stage_values?.['Closed Won'] || c.stage_values?.['closed_won'] || 0);
+        lines.push(`Closed Revenue: $${wonVal.toLocaleString()}`);
+      }
+      lines.push(`[CONCENTRATION] ${safeNum(c.total_contacts)} customers`);
+      if (c.score_distribution) {
+        const highValue = safeNum(c.score_distribution['90+']) + safeNum(c.score_distribution['70-89']);
+        lines.push(`High-Value Contacts: ${highValue}`);
+      }
+      lines.push('\n[STRATEGY] Track LTV patterns. Diversify revenue sources. Monitor concentration risk.');
+      break;
+      
+    case 'client-retention':
+      lines.push(`[RETENTION] ${safeNum(c.total_contacts)} contacts tracked`);
+      if (c.engagement_distribution) {
+        lines.push(`Engagement: ${JSON.stringify(c.engagement_distribution)}`);
+      }
+      if (c.quality_distribution) {
+        lines.push(`Quality: ${JSON.stringify(c.quality_distribution)}`);
+      }
+      lines.push(`[GROWTH] ${safeNum(com.total_threads)} conversations`);
+      lines.push('\n[STRATEGY] Nurture high-engagement contacts. Re-engage dormant accounts. Identify expansion opportunities.');
+      break;
+      
+    case 'innovation-opportunity':
+      lines.push(`[INNOVATION SIGNALS] ${safeNum(c.total_contacts)} contact profiles`);
+      if (c.recent_contacts?.length > 0) {
+        lines.push(`Recent additions: ${c.recent_contacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
+      }
+      const unmetNeeds = [];
+      if (c.score_distribution && safeNum(c.score_distribution['<50']) > 0) unmetNeeds.push('Low-score leads need better nurturing');
+      if (com.active_threads === 0) unmetNeeds.push('Expand communication channels');
+      if (Object.keys(c.sources || {}).length < 3) unmetNeeds.push('Diversify lead sources');
+      if (unmetNeeds.length > 0) lines.push(`Potential Gaps: ${unmetNeeds.join('; ')}`);
+      lines.push('\n[STRATEGY] Prioritize feature requests from high-value clients. Test new offer concepts. Prototype solutions.');
+      break;
+      
+    default:
+      lines.push(`[DATA] CRM: ${safeNum(c.total_contacts)} contacts, ${safeNum(c.total_deals)} deals`);
+      lines.push(`Comms: ${safeNum(com.total_threads)} threads`);
+      lines.push(`AI: ${safeNum(aiData.total_runs)} runs`);
+  }
+  
+  lines.push('\n[STATUS] ARCHIVED TO LOCAL REPORTS');
+  return lines.join('\n');
+};
+
 const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSave }) => {
   const handleCopy = () => {
     navigator.clipboard.writeText(output);
@@ -894,17 +1061,24 @@ const Cortex = () => {
                 setActiveReportId(r.id); 
                 setOutput(`[NEURAL ACTIVATION] Executing: ${r.label}...\n[SEED PROMPT] ${r.prompt}\n\n`); 
                 setTimeout(async () => { 
-                  const res = `[ANALYSIS COMPLETE]\n\nKey Strategy Signal: Operational DNA aligned with live CRM telemetry.\n\n[RECOMMENDATION]\n- Standardize core brand voice across all touchpoints.\n- Prioritize ICP-1 engagement via high-retention content themes.\n\n[STATUS] ARCHIVED TO LOCAL REPORTS.`; 
-                  setOutput(p => p + res); 
+                  let reportContent = '';
+                  try {
+                    const analytics = await getAnalyticsSummaryApi();
+                    reportContent = generateReport(r.id, analytics);
+                    setOutput(p => p + reportContent);
+                  } catch (err) {
+                    reportContent = `\n[ERROR] Failed to fetch analytics: ${err.message}`;
+                    setOutput(p => p + reportContent);
+                  }
                   setActiveReportId(''); 
                   const newItem = { 
                     label: r.label, 
-                    content: res, 
+                    content: `[NEURAL ACTIVATION] Executing: ${r.label}...\n[SEED PROMPT] ${r.prompt}\n\n${reportContent}`, 
                     category: 'document'
                   }; 
                   const saved = await createBrainItemApi(newItem);
                   if (saved) await fetchOverview();
-                }, 2000); 
+                }, 1500); 
             }} 
             output={output} 
             setOutput={setOutput} 
