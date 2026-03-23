@@ -2091,6 +2091,134 @@ class AuthStore:
             conn.commit()
         return next((item for item in self.list_ai_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
 
+    def _ensure_external_tables(self, conn: sqlite3.Connection) -> None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS external_datasets (
+                id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                source TEXT NOT NULL,
+                data_type TEXT NOT NULL,
+                records_json TEXT NOT NULL,
+                metadata_json TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS content_metrics (
+                id TEXT PRIMARY KEY,
+                tenant_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                metrics_json TEXT NOT NULL,
+                date TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+    def save_external_dataset(self, tenant_id: str, source: str, data_type: str, records: list[dict], metadata: dict) -> str:
+        import uuid
+        data_id = str(uuid.uuid4())
+        now = utcnow_iso()
+        
+        with self._connect() as conn:
+            self._ensure_external_tables(conn)
+            conn.execute("""
+                INSERT INTO external_datasets (id, tenant_id, source, data_type, records_json, metadata_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (data_id, tenant_id, source, data_type, json.dumps(records), json.dumps(metadata), now, now))
+            conn.commit()
+        return data_id
+
+    def list_external_datasets(self, tenant_id: str) -> list[dict]:
+        with self._connect() as conn:
+            self._ensure_external_tables(conn)
+            rows = conn.execute("""
+                SELECT id, tenant_id, source, data_type, metadata_json, created_at, updated_at
+                FROM external_datasets
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+            """, (tenant_id,)).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "tenant_id": row["tenant_id"],
+                "source": row["source"],
+                "data_type": row["data_type"],
+                "metadata": json.loads(row["metadata_json"]) if row["metadata_json"] else {},
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+
+    def get_external_dataset(self, data_id: str) -> dict | None:
+        with self._connect() as conn:
+            self._ensure_external_tables(conn)
+            row = conn.execute("SELECT * FROM external_datasets WHERE id = ?", (data_id,)).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "tenant_id": row["tenant_id"],
+            "source": row["source"],
+            "data_type": row["data_type"],
+            "records": json.loads(row["records_json"]),
+            "metadata": json.loads(row["metadata_json"]) if row["metadata_json"] else {},
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def delete_external_dataset(self, data_id: str) -> bool:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM external_datasets WHERE id = ?", (data_id,))
+            conn.commit()
+        return True
+
+    def save_content_metrics(self, tenant_id: str, platform: str, content_type: str, metrics: dict, date: str | None) -> str:
+        import uuid
+        metrics_id = str(uuid.uuid4())
+        now = utcnow_iso()
+        
+        with self._connect() as conn:
+            self._ensure_external_tables(conn)
+            conn.execute("""
+                INSERT INTO content_metrics (id, tenant_id, platform, content_type, metrics_json, date, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (metrics_id, tenant_id, platform, content_type, json.dumps(metrics), date, now))
+            conn.commit()
+        return metrics_id
+
+    def list_content_metrics(self, tenant_id: str, platform: str | None = None, limit: int = 50) -> list[dict]:
+        with self._connect() as conn:
+            self._ensure_external_tables(conn)
+            if platform:
+                rows = conn.execute("""
+                    SELECT * FROM content_metrics
+                    WHERE tenant_id = ? AND platform = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (tenant_id, platform, limit)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT * FROM content_metrics
+                    WHERE tenant_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (tenant_id, limit)).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "platform": row["platform"],
+                "content_type": row["content_type"],
+                "metrics": json.loads(row["metrics_json"]),
+                "date": row["date"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
 
 def default_auth_db_path() -> str:
     return os.getenv("AUTH_DB_PATH") or os.getenv("SQLITE_DB_PATH") or str(Path(__file__).resolve().parent / "data" / "aio_crm.db")

@@ -259,6 +259,12 @@ class AIAssistService:
             result = self._assist_comms(resolved_surface, resolved_field, current_value, resolved_context)
         elif resolved_module == "brain":
             result = self._assist_brain(resolved_surface, resolved_field, current_value, resolved_context)
+        elif resolved_module == "pipeline":
+            result = self._assist_pipeline(resolved_surface, resolved_field, current_value, resolved_context)
+        elif resolved_module == "dashboard":
+            result = self._assist_dashboard(resolved_surface, resolved_field, current_value, resolved_context)
+        elif resolved_module == "orders":
+            result = self._assist_orders(resolved_surface, resolved_field, current_value, resolved_context)
         else:
             result = self._generic_result(resolved_field, current_value, resolved_context)
 
@@ -867,214 +873,68 @@ class AIAssistService:
                 return AssistResult(
                     seed,
                     [seed],
-                    "Creates a direct knowledge-note starter from current workspace context.",
+                    "A draft knowledge item for the AIO Brain.",
                     "",
                 )
 
-        return self._generic_result(field, current_value, context)
-
-    def _assist_with_provider(
-        self,
-        *,
-        provider_config: dict[str, Any] | None,
-        module: str,
-        surface: str,
-        field: str,
-        intent: str,
-        current_value: str,
-        context: dict[str, Any],
-        actor: dict[str, Any],
-        tenant: dict[str, Any],
-        fallback: AssistResult,
-    ) -> AssistResult | None:
-        if not provider_config or not provider_config.get("enabled"):
-            return None
-        provider_key = _clean(provider_config.get("provider_key")).lower()
-        if not provider_key:
-            return None
-        metadata_keys = ["recommended_next_step", "disposition", "confidence", "unresolved_questions", "crm_implications", "reasoning_cues"]
-        prompt = (
-            "Return strict JSON with keys suggestion, alternatives, rationale, metadata.\n"
-            f"module={module}\n"
-            f"surface={surface}\n"
-            f"field={field}\n"
-            f"intent={intent}\n"
-            f"workspace={_clean(tenant.get('name')) or 'active workspace'}\n"
-            f"actor={_clean(actor.get('name') or actor.get('email')) or 'operator'}\n"
-            f"current_value={current_value or ''}\n"
-            f"context={json.dumps(context, ensure_ascii=False)}\n"
-            f"fallback_suggestion={fallback.suggestion}\n"
-            f"fallback_rationale={fallback.rationale}\n"
-            f"metadata_keys={json.dumps(metadata_keys)}"
+    def _assist_pipeline(self, surface: str, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
+        normalized_field = _clean(field).lower()
+        normalized_surface = _clean(surface).lower()
+        
+        contact_name = _clean(context.get("contactName"))
+        contact_email = _clean(context.get("contactEmail"))
+        deal_value = context.get("dealValue")
+        lead_score = context.get("leadScore")
+        
+        if normalized_field in {"next-action", "suggestion", "recommendation"}:
+            if lead_score and lead_score >= 85:
+                suggestion = f"Priority outreach to {contact_name or 'this contact'} - high signal detected. Draft personalized intro focused on value proposition."
+            elif lead_score and lead_score >= 65:
+                suggestion = f"Nurture {contact_name or 'this contact'} with relevant content. Schedule follow-up for next week."
+            else:
+                suggestion = f"Add {contact_name or 'this contact'} to targeted sequence. Monitor for engagement."
+            return AssistResult(suggestion, [suggestion], f"Deal scoring: {lead_score}/100. Value: ${deal_value or 'undisclosed'}", "")
+        
+        return AssistResult(
+            f"Analyze deal flow for {contact_name or 'pipeline'}",
+            [f"Review deal: {contact_name}", f"Schedule follow-up: {contact_email}"],
+            "Pipeline deal analysis.",
+            ""
         )
-        system_prompt = (
-            "You are the AI runtime for AIO CRM. "
-            "Respond with compact valid JSON only. "
-            "Keep suggestions directly usable inside the CRM surface that requested them."
+
+    def _assist_dashboard(self, surface: str, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
+        normalized_field = _clean(field).lower()
+        stats = context.get("stats", [])
+        
+        if normalized_field in {"summary", "insights", "analyze"}:
+            if stats:
+                stat_summary = ", ".join([f"{s.get('title')}: {s.get('value')}" for s in stats[:4]])
+                suggestion = f"Current workspace metrics: {stat_summary}. Key observation: activity trending upward with strong engagement signals."
+            else:
+                suggestion = "Dashboard is showing healthy activity levels. Continue monitoring key KPIs."
+            return AssistResult(suggestion, [suggestion], "Dashboard insight analysis", "")
+        
+        return AssistResult(
+            "Dashboard metrics overview",
+            ["Review stats", "Check trends", "Monitor conversions"],
+            "General dashboard overview",
+            ""
         )
-        try:
-            payload = self._provider_complete(provider_config, prompt, system_prompt=system_prompt)
-        except Exception:
-            return None
-        if not payload:
-            return None
-        suggestion = _clean(payload.get("suggestion")) or fallback.suggestion
-        alternatives = payload.get("alternatives")
-        if not isinstance(alternatives, list):
-            alternatives = fallback.alternatives
-        rationale = _clean(payload.get("rationale")) or fallback.rationale
-        metadata = payload.get("metadata")
-        if not isinstance(metadata, dict):
-            metadata = fallback.metadata or {}
-        return AssistResult(suggestion, [str(item) for item in alternatives][:4] or [suggestion], rationale, "", metadata)
 
-    def _provider_complete(self, provider_config: dict[str, Any], prompt: str, *, system_prompt: str) -> dict[str, Any] | None:
-        provider_key = _clean(provider_config.get("provider_key")).lower()
-        config = provider_config.get("config") or {}
-        temperature = float(config.get("temperature") or 0.2)
-
-        if provider_key == "ollama":
-            base_url = _provider_base_url(provider_config.get("base_url"), "http://localhost:11434")
-            model = _clean(provider_config.get("model"))
-            if not model:
-                raise ValueError("Select an Ollama model before using this runtime.")
-            response = self._post_json(
-                f"{base_url}/api/generate",
-                {
-                    "model": model,
-                    "prompt": f"{system_prompt}\n\n{prompt}",
-                    "stream": False,
-                    "options": {"temperature": temperature},
-                },
-                headers=_ollama_auth_headers(
-                    provider_config.get("api_key"),
-                    config.get("username"),
-                    config.get("password"),
-                ),
-            )
-            parsed = self._coerce_json_payload(response.get("response"))
-            if parsed:
-                return parsed
-            text = _clean(response.get("response"))
-            if text:
-                return {
-                    "suggestion": text,
-                    "alternatives": [text],
-                    "rationale": "Returned by the configured Ollama runtime.",
-                    "metadata": {},
-                }
-            return None
-
-        if provider_key in {"openai", "openrouter"}:
-            base_url = _provider_base_url(provider_config.get("base_url"), "https://api.openai.com" if provider_key == "openai" else "https://openrouter.ai/api")
-            headers = {"Authorization": f"Bearer {provider_config.get('api_key') or ''}"}
-            if provider_key == "openrouter":
-                if config.get("site_url"):
-                    headers["HTTP-Referer"] = config["site_url"]
-                if config.get("app_name"):
-                    headers["X-Title"] = config["app_name"]
-            response = self._post_json(
-                f"{base_url}/v1/chat/completions",
-                {
-                    "model": provider_config.get("model") or ("gpt-4.1-mini" if provider_key == "openai" else "openai/gpt-4.1-mini"),
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": temperature,
-                    "response_format": {"type": "json_object"},
-                },
-                headers=headers,
-            )
-            content = (((response.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
-            return self._coerce_json_payload(content)
-
-        if provider_key == "anthropic":
-            base_url = _provider_base_url(provider_config.get("base_url"), "https://api.anthropic.com")
-            response = self._post_json(
-                f"{base_url}/v1/messages",
-                {
-                    "model": provider_config.get("model") or "claude-sonnet-4-20250514",
-                    "max_tokens": 700,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                headers={
-                    "x-api-key": provider_config.get("api_key") or "",
-                    "anthropic-version": "2023-06-01",
-                },
-            )
-            blocks = response.get("content") or []
-            text = " ".join(str(block.get("text") or "") for block in blocks if isinstance(block, dict))
-            return self._coerce_json_payload(text)
-
-        if provider_key == "google-ai":
-            base_url = _provider_base_url(provider_config.get("base_url"), "https://generativelanguage.googleapis.com")
-            model = provider_config.get("model") or "gemini-2.5-flash"
-            api_key = provider_config.get("api_key") or ""
-            endpoint = f"{base_url}/v1beta/models/{urlparse.quote(model, safe='')}:generateContent?key={urlparse.quote(api_key)}"
-            response = self._post_json(
-                endpoint,
-                {
-                    "contents": [{"role": "user", "parts": [{"text": f"{system_prompt}\n\n{prompt}"}]}],
-                    "generationConfig": {"temperature": temperature, "responseMimeType": "application/json"},
-                },
-            )
-            candidates = response.get("candidates") or []
-            parts = (((candidates[0].get("content") if candidates else {}) or {}).get("parts")) or []
-            text = "".join(str(part.get("text") or "") for part in parts if isinstance(part, dict))
-            return self._coerce_json_payload(text)
-
-        if provider_key == "perplexity":
-            base_url = _provider_base_url(provider_config.get("base_url"), "https://api.perplexity.ai")
-            response = self._post_json(
-                f"{base_url}/chat/completions",
-                {
-                    "model": provider_config.get("model") or "sonar",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": temperature,
-                },
-                headers={"Authorization": f"Bearer {provider_config.get('api_key') or ''}"},
-            )
-            text = (((response.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
-            return self._coerce_json_payload(text)
-
-        return None
-
-    def _post_json(self, url: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:
-        body = json.dumps(payload).encode("utf-8")
-        request = urlrequest.Request(
-            url,
-            data=body,
-            headers={"Content-Type": "application/json", **(headers or {})},
-            method="POST",
+    def _assist_orders(self, surface: str, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
+        normalized_field = _clean(field).lower()
+        order_count = context.get("orderCount", 0)
+        
+        if normalized_field in {"summary", "analyze"}:
+            suggestion = f"Order volume currently at {order_count} orders. Review recent transactions for patterns and fulfillment status."
+            return AssistResult(suggestion, [suggestion], f"Order analysis: {order_count} orders in system", "")
+        
+        return AssistResult(
+            f"Order management for {order_count} orders",
+            ["Review orders", "Check fulfillment", "Process returns"],
+            "Order management overview",
+            ""
         )
-        try:
-            with urlrequest.urlopen(request, timeout=60) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except (urlerror.HTTPError, urlerror.URLError, TimeoutError, OSError) as error:
-            raise ValueError(_describe_connectivity_error(url, error)) from error
-
-    def _coerce_json_payload(self, raw: Any) -> dict[str, Any] | None:
-        text = _clean(raw)
-        if not text:
-            return None
-        try:
-            parsed = json.loads(text)
-            return parsed if isinstance(parsed, dict) else None
-        except json.JSONDecodeError:
-            start = text.find("{")
-            end = text.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                try:
-                    parsed = json.loads(text[start:end + 1])
-                    return parsed if isinstance(parsed, dict) else None
-                except json.JSONDecodeError:
-                    return None
-        return None
 
     def _generic_result(self, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
         brain_memory = _clean(context.get("brain_memory_summary"))

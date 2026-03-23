@@ -3031,6 +3031,196 @@ async def delete_thread(thread_id: str, request: Request):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
+# ============ ANALYTICS & REPORTING ============
+
+@app.get("/api/analytics/summary")
+async def get_analytics_summary(request: Request):
+    """Get aggregate stats across all modules for report cards."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to access analytics.")
+    tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id") or "default"
+    
+    try:
+        contacts = provider.list_contacts()
+        deals = [c for c in contacts if c.get("pipeline_stage")]
+        threads = provider.get_comms_snapshot().get("threads", [])
+        ai_runs = auth_store.list_ai_runs(token=None, limit=100)
+        
+        stages = {}
+        stage_values = {}
+        for c in deals:
+            stage = c.get("pipeline_stage", "Unknown")
+            stages[stage] = stages.get(stage, 0) + 1
+            val = c.get("deal_value") or c.get("lead_score", 0) * 100
+            stage_values[stage] = stage_values.get(stage, 0) + val
+        
+        sources = {}
+        for c in contacts:
+            src = c.get("source", "Unknown")
+            sources[src] = sources.get(src, 0) + 1
+        
+        score_buckets = {"90+": 0, "70-89": 0, "50-69": 0, "<50": 0}
+        for c in contacts:
+            score = c.get("lead_score", 0)
+            if score >= 90: score_buckets["90+"] += 1
+            elif score >= 70: score_buckets["70-89"] += 1
+            elif score >= 50: score_buckets["50-69"] += 1
+            else: score_buckets["<50"] += 1
+        
+        quality_dist = {}
+        for c in contacts:
+            q = c.get("quality", "unknown")
+            quality_dist[q] = quality_dist.get(q, 0) + 1
+        
+        engagement_dist = {}
+        for c in contacts:
+            e = c.get("engagement", "unknown")
+            engagement_dist[e] = engagement_dist.get(e, 0) + 1
+        
+        return {
+            "crm": {
+                "total_contacts": len(contacts),
+                "total_deals": len(deals),
+                "avg_lead_score": round(sum(c.get("lead_score", 0) for c in contacts) / max(len(contacts), 1), 1),
+                "stages": stages,
+                "stage_values": stage_values,
+                "score_distribution": score_buckets,
+                "quality_distribution": quality_dist,
+                "engagement_distribution": engagement_dist,
+                "sources": sources,
+                "recent_contacts": sorted(contacts, key=lambda x: x.get("updated_at", ""), reverse=True)[:10],
+            },
+            "comms": {
+                "total_threads": len(threads),
+                "active_threads": len([t for t in threads if t.get("status") == "active"]),
+                "archived_threads": len([t for t in threads if t.get("status") == "archived"]),
+            },
+            "ai": {
+                "total_runs": len(ai_runs),
+                "runs_by_module": _group_by_module(ai_runs),
+                "recent_runs": ai_runs[:10],
+            },
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _group_by_module(runs):
+    grouped = {}
+    for run in runs:
+        module = run.get("module", "unknown")
+        grouped[module] = grouped.get(module, 0) + 1
+    return grouped
+
+
+# ============ EXTERNAL DATA INTAKE ============
+
+class ExternalDataRequest(BaseModel):
+    source: str
+    data_type: str
+    records: list[dict[str, Any]]
+    metadata: dict[str, Any] | None = None
+
+
+@app.post("/api/analytics/external-data")
+async def ingest_external_data(request: Request, payload: ExternalDataRequest):
+    """Import external data for analysis (CSV uploads, API feeds, etc.)"""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to import data.")
+    tenant = session.get("tenant") or {}
+    
+    try:
+        data_id = auth_store.save_external_dataset(
+            tenant_id=tenant.get("id") or "default",
+            source=payload.source,
+            data_type=payload.data_type,
+            records=payload.records,
+            metadata=payload.metadata or {}
+        )
+        return {"data": {"id": data_id, "source": payload.source, "record_count": len(payload.records)}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/analytics/external-data")
+async def list_external_data(request: Request):
+    """List all imported external datasets"""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    tenant = session.get("tenant") or {}
+    
+    try:
+        datasets = auth_store.list_external_datasets(tenant_id=tenant.get("id") or "default")
+        return {"data": datasets}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/analytics/external-data/{data_id}")
+async def get_external_data(request: Request, data_id: str):
+    """Get a specific external dataset"""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    
+    try:
+        dataset = auth_store.get_external_dataset(data_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        return {"data": dataset}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/api/analytics/external-data/{data_id}")
+async def delete_external_data(request: Request, data_id: str):
+    """Delete an external dataset"""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    
+    try:
+        auth_store.delete_external_dataset(data_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============ CONTENT METRICS INTAKE ============
+
+@app.post("/api/analytics/content-metrics")
+async def ingest_content_metrics(request: Request, payload: dict[str, Any]):
+    """Import content performance metrics for analysis"""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    tenant = session.get("tenant") or {}
+    
+    try:
+        metrics_id = auth_store.save_content_metrics(
+            tenant_id=tenant.get("id") or "default",
+            platform=payload.get("platform", "unknown"),
+            content_type=payload.get("content_type", "general"),
+            metrics=payload.get("metrics", {}),
+            date=payload.get("date")
+        )
+        return {"data": {"id": metrics_id, "platform": payload.get("platform")}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/analytics/content-metrics")
+async def list_content_metrics(request: Request, platform: str | None = None, limit: int = 50):
+    """Get content metrics for analysis"""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    tenant = session.get("tenant") or {}
+    
+    try:
+        metrics = auth_store.list_content_metrics(
+            tenant_id=tenant.get("id") or "default",
+            platform=platform,
+            limit=limit
+        )
+        return {"data": metrics}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")

@@ -185,6 +185,50 @@ export async function executeOmegaApi(payload) {
   return response.data || null;
 }
 
+export async function getAnalyticsSummaryApi() {
+  const response = await request('/api/analytics/summary');
+  return response.data || {};
+}
+
+export async function ingestExternalDataApi(payload) {
+  const response = await request('/api/analytics/external-data', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function listExternalDataApi() {
+  const response = await request('/api/analytics/external-data');
+  return response.data || [];
+}
+
+export async function getExternalDataApi(dataId) {
+  const response = await request(`/api/analytics/external-data/${dataId}`);
+  return response.data || null;
+}
+
+export async function deleteExternalDataApi(dataId) {
+  const response = await request(`/api/analytics/external-data/${dataId}`, {
+    method: 'DELETE'
+  });
+  return response.data || null;
+}
+
+export async function ingestContentMetricsApi(payload) {
+  const response = await request('/api/analytics/content-metrics', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function listContentMetricsApi(platform = null, limit = 50) {
+  const params = platform ? `?platform=${encodeURIComponent(platform)}&limit=${limit}` : `?limit=${limit}`;
+  const response = await request(`/api/analytics/content-metrics${params}`);
+  return response.data || [];
+}
+
 export async function getAiProviderCatalogApi() {
   const response = await request('/api/ai/providers/catalog');
   return response.data || [];
