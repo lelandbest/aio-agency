@@ -102,7 +102,12 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                                     title={isCollapsed ? item.label : ''}
                                                 >
                                                     <span className={`flex items-center ${isCollapsed ? '' : 'gap-2'}`}>
-                                                        {iconMap[item.icon] && React.createElement(iconMap[item.icon], { size: 16 })}
+                                                        <span className="relative">
+                                                            {iconMap[item.icon] && React.createElement(iconMap[item.icon], { size: 16, className: item.id === 'aio-agents' ? 'drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]' : '' })}
+                                                            {item.id === 'aio-agents' && (
+                                                                <span className="absolute -inset-1 rounded-full blur-sm bg-cyan-400/30" />
+                                                            )}
+                                                        </span>
                                                         {!isCollapsed && normalizeDisplayText(item.label)}
                                                     </span>
                                                     {!isCollapsed && (

@@ -1,21 +1,69 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
+import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi } from '../services/backendApi';
 
 const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showTenantDropdown, setShowTenantDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const { theme, setTheme } = useTheme();
     const { user, tenant, tenants = [], switchTenant } = useAuth();
-    const [notifications] = useState([
-        { id: 1, message: 'New message from John', time: '5m ago', type: 'chat' },
-        { id: 2, message: 'System update available', time: '1h ago', type: 'system' },
-        { id: 3, message: 'Your report is ready', time: '2h ago', type: 'system' }
-    ]);
+
+    const fetchNotifications = useCallback(async () => {
+        try {
+            const result = await getNotificationsApi(50, false);
+            setNotifications(result.data);
+            setUnreadCount(result.unread_count);
+        } catch (error) {
+            console.warn('Failed to fetch notifications:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (showNotifications) {
+            fetchNotifications();
+        }
+    }, [showNotifications, fetchNotifications]);
+
+    useEffect(() => {
+        const handleNotification = () => {
+            fetchNotifications();
+        };
+        window.addEventListener('aio:notification', handleNotification);
+        return () => window.removeEventListener('aio:notification', handleNotification);
+    }, [fetchNotifications]);
+
+    const handleMarkAllRead = async () => {
+        try {
+            await markAllNotificationsReadApi();
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            setUnreadCount(0);
+        } catch (error) {
+            console.warn('Failed to mark all notifications as read:', error);
+        }
+    };
+
+    const handleNotificationClick = async (notification) => {
+        if (!notification.read) {
+            try {
+                await markNotificationReadApi(notification.id);
+                setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, read: true } : n));
+                setUnreadCount(prev => Math.max(0, prev - 1));
+            } catch (error) {
+                console.warn('Failed to mark notification as read:', error);
+            }
+        }
+        if (notification.link) {
+            onNavigate(notification.link);
+        }
+        setShowNotifications(false);
+    };
 
     const currentUser = useMemo(() => ({
         email: user?.email || 'local@aiocrm',
@@ -95,8 +143,10 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                         aria-haspopup="true"
                     >
                         <Bell size={18} />
-                        {notifications.length > 0 && (
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" aria-label={`${notifications.length} unread notifications`}></span>
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1" aria-label={`${unreadCount} unread notifications`}>
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                            </span>
                         )}
                     </button>
 
@@ -104,19 +154,37 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
                             <div className="absolute right-0 top-12 w-80 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
-                                <div className="p-4 border-b border-[var(--color-border)]">
+                                <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Notifications</h3>
+                                    {unreadCount > 0 && (
+                                        <button 
+                                            onClick={handleMarkAllRead}
+                                            className="text-xs text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
+                                        >
+                                            Mark all read
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="max-h-96 overflow-y-auto">
                                     {notifications.length > 0 ? (
                                         notifications.map(notif => (
-                                            <div key={notif.id} className="p-4 border-b border-[var(--color-border)] hover:bg-[var(--color-hover)] transition cursor-pointer">
-                                                <p className="text-sm text-[var(--color-text-primary)]">{notif.message}</p>
-                                                <p className="text-xs text-[var(--color-text-secondary)] mt-1">{notif.time}</p>
+                                            <div 
+                                                key={notif.id} 
+                                                onClick={() => handleNotificationClick(notif)}
+                                                className={`p-3 border-b border-[var(--color-border)] hover:bg-[var(--color-hover)] transition cursor-pointer ${!notif.read ? 'bg-[var(--color-primary)]/5' : ''}`}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    {!notif.read && <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] mt-1.5 shrink-0" />}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-[var(--color-text-primary)]">{notif.title}</p>
+                                                        <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{notif.message}</p>
+                                                        <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{new Date(notif.created_at).toLocaleString()}</p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="p-4 text-center text-[var(--color-text-secondary)] text-sm">No notifications</div>
+                                        <div className="p-6 text-center text-[var(--color-text-secondary)] text-sm">No notifications</div>
                                     )}
                                 </div>
                             </div>

@@ -30,6 +30,15 @@
   --color-warning: #F59E0B;
   --color-neon-magenta: #FF006E;
 
+  /* NODE COLORS (Glow tokens) */
+  --node-trigger: #0891b2;   /* Cyan darker */
+  --node-action: #7c3aed;   /* Purple darker */
+  --node-logic: #d97706;    /* Yellow darker */
+  --node-webhook: #ea580c;  /* Orange darker */
+  --node-socket: #15803d;   /* Green darker */
+  --node-input: #b91c1c;   /* Red darker */
+  --node-agent: #0891b2;   /* Blue Aqua */
+
   /* GLASSMORPHISM (Light Mode Frost) */
   --glass-bg: rgba(255, 255, 255, 0.45);
   --glass-border: rgba(255, 255, 255, 0.6);
@@ -54,6 +63,15 @@ html.dark {
   --color-text-secondary: #CBD5E1;
   --color-text-tertiary: #94A3B8;
   --color-border: #334155;
+
+  /* NODE COLORS (Glow tokens) */
+  --node-trigger: #22d3ee;   /* Cyan */
+  --node-action: #a855f7;   /* Purple */
+  --node-logic: #facc15;    /* Yellow */
+  --node-webhook: #f97316;  /* Orange */
+  --node-socket: #22c55e;  /* Green */
+  --node-input: #ef4444;   /* Red */
+  --node-agent: #06b6d4;   /* Blue Aqua */
 
   /* GLASSMORPHISM (Dark Mode Obsidian) */
   --glass-bg: rgba(15, 23, 42, 0.7);

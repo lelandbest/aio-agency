@@ -1053,4 +1053,31 @@ export async function createHelpBroadcastApi(payload) {
 
 // --- End Help Desk APIs ---
 
+// --- Notification APIs ---
+
+export async function getNotificationsApi(limit = 50, unreadOnly = false) {
+  const suffix = unreadOnly ? `?limit=${limit}&unread_only=true` : `?limit=${limit}`;
+  const response = await request(`/api/notifications${suffix}`);
+  return { data: response.data || [], unread_count: response.unread_count || 0 };
+}
+
+export async function markNotificationReadApi(notificationId) {
+  return request(`/api/notifications/${encodeURIComponent(notificationId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ read: true })
+  });
+}
+
+export async function markAllNotificationsReadApi() {
+  return request('/api/notifications/read-all', {
+    method: 'POST'
+  });
+}
+
+export async function deleteNotificationApi(notificationId) {
+  return request(`/api/notifications/${encodeURIComponent(notificationId)}`, {
+    method: 'DELETE'
+  });
+}
+
 export { API_BASE_URL };

@@ -846,7 +846,7 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
+      <div className="h-full w-full flex items-center justify-center bg-[var(--color-bg-primary)]">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-[var(--node-action)] border-transparent border-t-[var(--node-action)] rounded-full animate-spin mx-auto mb-4" />
           <p className="text-[var(--color-text-primary)]">Loading Flow Builder...</p>
@@ -856,7 +856,7 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[var(--color-bg-primary)] overflow-hidden relative">
+    <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] overflow-hidden relative">
       <style>{`
         .flow-controls button {
           width: 28px !important;
@@ -893,8 +893,7 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           { id: 'editor', label: 'Editor' },
         ]}
         aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
-        onToggleTerminal={() => setTerminalOpen(prev => !prev)}
-        isTerminalOpen={terminalOpen}
+        onSave={handleConfigSave}
       />
 
       {assistError ? (

@@ -6,12 +6,13 @@
  */
 
 import React from 'react';
-import { ChevronRight, ArrowLeft, Info, History, Menu, Plus, Save, Upload, Download, Terminal } from 'lucide-react';
+import { ChevronRight, ArrowLeft, Info, History, Maximize2, Minimize2, Save, Upload, Download } from 'lucide-react';
 
 const FlowBuilderHeader = ({
   flowName = 'Untitled Flow',
   status = 'Draft',
   onExit,
+  onSave,
   onToggleDetails,
   isDetailsOpen = false,
   onOpenHistory,
@@ -20,14 +21,14 @@ const FlowBuilderHeader = ({
   aiAssistSlot = null,
   onImport,
   onExport,
-  onToggleTerminal,
-  isTerminalOpen = false,
+  onToggleFullscreen,
+  isFullscreen = false,
 }) => {
   return (
     <div className="bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
       {/* Row 1: Toolbar */}
       <div className="h-11 flex items-center justify-between px-4 gap-2">
-        {/* Left: Exit + Menu */}
+        {/* Left: Exit + Fullscreen */}
         <div className="flex items-center gap-2">
           {onExit && (
             <button
@@ -38,25 +39,13 @@ const FlowBuilderHeader = ({
               Exit
             </button>
           )}
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium text-xs bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50">
-            <Menu className="w-3.5 h-3.5" />
-            Menu
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium text-xs bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50">
-            <Plus className="w-3.5 h-3.5" />
-            New
-          </button>
-          {onToggleTerminal && (
+          {onToggleFullscreen && (
             <button
-              onClick={onToggleTerminal}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium text-xs transition-all ${
-                isTerminalOpen
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50'
-              }`}
+              onClick={onToggleFullscreen}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium text-xs bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50"
             >
-              <Terminal className="w-3.5 h-3.5" />
-              Terminal
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
             </button>
           )}
         </div>
@@ -89,10 +78,15 @@ const FlowBuilderHeader = ({
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
           {aiAssistSlot}
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium text-xs bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50">
-            <Save className="w-3.5 h-3.5" />
-            Save
-          </button>
+          {onSave && (
+            <button
+              onClick={onSave}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium text-xs bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save
+            </button>
+          )}
           {onExport && (
             <button
               onClick={onExport}

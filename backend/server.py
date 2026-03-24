@@ -3483,6 +3483,138 @@ async def test_payment_provider_config(config_id: str, request: Request):
     return {"result": {"success": True, "message": "Payment provider routed (Simulation)."}, "data": config}
 
 
+# Notification Store (in-memory, per-tenant)
+_notification_store: dict[str, list[dict]] = {}
+
+def _get_tenant_notifications(tenant_id: str) -> list[dict]:
+    if tenant_id not in _notification_store:
+        _notification_store[tenant_id] = []
+    return _notification_store[tenant_id]
+
+def push_notification(tenant_id: str, notification_type: str, title: str, message: str, priority: str = "normal", link: str | None = None):
+    """Push a notification to a tenant's notification store."""
+    notifications = _get_tenant_notifications(tenant_id)
+    notification = {
+        "id": str(uuid4()),
+        "type": notification_type,
+        "title": title,
+        "message": message,
+        "priority": priority,
+        "link": link,
+        "read": False,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    notifications.insert(0, notification)
+    # Keep only last 100 notifications per tenant
+    if len(notifications) > 100:
+        notifications[:] = notifications[:100]
+    return notification
+
+
+class NotificationCreateRequest(BaseModel):
+    type: str
+    title: str
+    message: str
+    priority: str = "normal"
+    link: str | None = None
+
+
+class NotificationUpdateRequest(BaseModel):
+    read: bool | None = None
+
+
+@app.get("/api/notifications")
+async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False):
+    """Get notifications for the current tenant."""
+    session = require_auth(request)
+    tenant_id = session.get("tenant_id")
+    if not tenant_id:
+        tenant_id = session.get("tenant", {}).get("id")
+    if not tenant_id:
+        return {"data": [], "unread_count": 0}
+    
+    notifications = _get_tenant_notifications(tenant_id)
+    result = notifications[:limit]
+    if unread_only:
+        result = [n for n in result if not n.get("read")]
+    unread_count = len([n for n in notifications if not n.get("read")])
+    return {"data": result, "unread_count": unread_count}
+
+
+@app.post("/api/notifications")
+async def create_notification(request: Request, payload: NotificationCreateRequest):
+    """Create a notification for the current tenant."""
+    session = require_auth(request)
+    tenant_id = session.get("tenant_id")
+    if not tenant_id:
+        tenant_id = session.get("tenant", {}).get("id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    
+    notification = push_notification(
+        tenant_id=tenant_id,
+        notification_type=payload.type,
+        title=payload.title,
+        message=payload.message,
+        priority=payload.priority,
+        link=payload.link,
+    )
+    return {"data": notification}
+
+
+@app.patch("/api/notifications/{notification_id}")
+async def update_notification(notification_id: str, request: Request, payload: NotificationUpdateRequest):
+    """Update a notification (mark as read)."""
+    session = require_auth(request)
+    tenant_id = session.get("tenant_id")
+    if not tenant_id:
+        tenant_id = session.get("tenant", {}).get("id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    
+    notifications = _get_tenant_notifications(tenant_id)
+    for n in notifications:
+        if n["id"] == notification_id:
+            if payload.read is not None:
+                n["read"] = payload.read
+            return {"data": n}
+    raise HTTPException(status_code=404, detail="Notification not found")
+
+
+@app.post("/api/notifications/read-all")
+async def mark_all_notifications_read(request: Request):
+    """Mark all notifications as read for the current tenant."""
+    session = require_auth(request)
+    tenant_id = session.get("tenant_id")
+    if not tenant_id:
+        tenant_id = session.get("tenant", {}).get("id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    
+    notifications = _get_tenant_notifications(tenant_id)
+    for n in notifications:
+        n["read"] = True
+    return {"success": True}
+
+
+@app.delete("/api/notifications/{notification_id}")
+async def delete_notification(notification_id: str, request: Request):
+    """Delete a notification."""
+    session = require_auth(request)
+    tenant_id = session.get("tenant_id")
+    if not tenant_id:
+        tenant_id = session.get("tenant", {}).get("id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    
+    notifications = _get_tenant_notifications(tenant_id)
+    for i, n in enumerate(notifications):
+        if n["id"] == notification_id:
+            notifications.pop(i)
+            return {"success": True}
+    raise HTTPException(status_code=404, detail="Notification not found")
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")

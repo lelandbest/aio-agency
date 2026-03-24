@@ -79,7 +79,7 @@ const MODULE_SUBTITLE_MAP = {
 const App = () => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeModule, setActiveModule] = useState('aio-brain');
+  const [activeModule, setActiveModule] = useState('aio-agents');
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [db, setDb] = useState(null);
   const [currentPage, setCurrentPage] = useState('app'); // 'app', 'terms', 'privacy', 'acceptable-use', 'form'
@@ -90,7 +90,7 @@ const App = () => {
   const [integrationCategory, setIntegrationCategory] = useState('automation');
   const [crmContactId, setCrmContactId] = useState(null);
 
-  const fullscreenModules = ['flows'];
+  const fullscreenModules = [];
   const isFullscreen = fullscreenModules.includes(activeModule);
 
   const findMenuItemById = (items, targetId, parent = null) => {
@@ -437,7 +437,7 @@ const App = () => {
               )}
 
               {/* Module Content */}
-              <div className={`flex-1 bg-[var(--color-bg-primary)] ${isFullscreen ? 'overflow-hidden p-0' : 'overflow-auto p-6'}`}>
+              <div className={`flex-1 bg-[var(--color-bg-primary)] ${activeModule === 'flows' ? 'overflow-hidden p-0' : 'overflow-auto p-6'}`}>
                 <Suspense key={activeModule} fallback={
                   <div className="h-full flex items-center justify-center">
                     <LoadingSpinner size="lg" message="Loading module..." />

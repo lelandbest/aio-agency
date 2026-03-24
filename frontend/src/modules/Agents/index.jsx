@@ -219,8 +219,23 @@ const AIOAgentsModule = () => {
 
                 {/* Regular Agents Grid */}
                 <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
-                  {regularAgents.map(agent => {
+                  {regularAgents.map((agent, idx) => {
                     const agentKey = agent.registryKey || agent.registry_key;
+                    const colors = [
+                      { bg: 'bg-blue-900/50', border: 'border-blue-600', shadow: 'rgba(59,130,246,0.15)', icon: 'text-blue-400' },
+                      { bg: 'bg-purple-900/50', border: 'border-purple-600', shadow: 'rgba(168,85,247,0.15)', icon: 'text-purple-400' },
+                      { bg: 'bg-pink-900/50', border: 'border-pink-600', shadow: 'rgba(236,72,153,0.15)', icon: 'text-pink-400' },
+                      { bg: 'bg-red-900/50', border: 'border-red-600', shadow: 'rgba(239,68,68,0.15)', icon: 'text-red-400' },
+                      { bg: 'bg-orange-900/50', border: 'border-orange-600', shadow: 'rgba(249,115,22,0.15)', icon: 'text-orange-400' },
+                      { bg: 'bg-amber-900/50', border: 'border-amber-600', shadow: 'rgba(245,158,11,0.15)', icon: 'text-amber-400' },
+                      { bg: 'bg-yellow-900/50', border: 'border-yellow-600', shadow: 'rgba(234,179,8,0.15)', icon: 'text-yellow-400' },
+                      { bg: 'bg-lime-900/50', border: 'border-lime-600', shadow: 'rgba(132,204,22,0.15)', icon: 'text-lime-400' },
+                      { bg: 'bg-green-900/50', border: 'border-green-600', shadow: 'rgba(34,197,94,0.15)', icon: 'text-green-400' },
+                      { bg: 'bg-emerald-900/50', border: 'border-emerald-600', shadow: 'rgba(16,185,129,0.15)', icon: 'text-emerald-400' },
+                      { bg: 'bg-teal-900/50', border: 'border-teal-600', shadow: 'rgba(20,184,166,0.15)', icon: 'text-teal-400' },
+                      { bg: 'bg-cyan-900/50', border: 'border-cyan-600', shadow: 'rgba(6,182,212,0.15)', icon: 'text-cyan-400' },
+                    ];
+                    const c = colors[idx % colors.length];
                     return (
                     <div
                       key={agent.id}
@@ -230,8 +245,11 @@ const AIOAgentsModule = () => {
                       <div className="bg-[var(--color-bg-secondary)] rounded-t-lg p-2 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] flex items-center justify-center text-[9px] font-bold text-[var(--color-text-primary)]">
-                              {agent.name?.slice(0, 2)}
+                            <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center shadow-[0_0_10px_${c.shadow}]`}>
+                              <svg className={`w-4 h-4 ${c.icon}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                              </svg>
                             </div>
                             <div>
                               <h3 className="text-[10px] font-bold text-white leading-tight">{agent.name}</h3>
@@ -243,15 +261,15 @@ const AIOAgentsModule = () => {
                       </div>
                       <div className="px-2 py-1.5 flex-1">
                         <div className="flex items-center gap-1.5 text-[9px] text-gray-400">
-                          <Target size={9} className="text-purple-500 shrink-0" />
+                          <Target size={9} className={`${c.icon} shrink-0`} />
                           <span className="truncate">{agent.specialization}</span>
                         </div>
                       </div>
-                      <div className="px-2 py-1.5 border-t border-[var(--color-border)] flex justify-between items-center bg-[var(--color-bg-secondary)]/50 rounded-b-lg">
-                        <span className="text-[8px] text-gray-600 uppercase tracking-wider font-mono font-bold">
+                      <div className={`px-2 py-1.5 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
+                        <span className={`text-[8px] ${c.icon} uppercase tracking-wider font-mono font-bold opacity-70`}>
                           ID: {agent.id}
                         </span>
-                        <div className="text-purple-400 text-[8px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                        <div className="text-white text-[8px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                           Command <ArrowRight size={8} />
                         </div>
                       </div>
@@ -268,8 +286,11 @@ const AIOAgentsModule = () => {
 
                   <div className="relative z-10 px-4 py-3 flex items-center gap-4 border-b border-red-900/20">
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-red-950/40 border-2 border-red-800/40 flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.15)]">
-                        <span className="text-[9px] font-black text-red-700/80 tracking-widest">?</span>
+                      <div className="w-10 h-10 rounded-full bg-gray-800/40 border-2 border-gray-600/40 flex items-center justify-center shadow-[0_0_15px_rgba(156,163,175,0.15)]">
+                        <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
                       </div>
                       <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-600/40 border-2 border-[var(--color-bg-secondary)]" />
                     </div>
@@ -279,27 +300,27 @@ const AIOAgentsModule = () => {
                         <h2 className="text-sm font-black tracking-[0.15em]" style={{ color: 'rgba(239,68,68,0.4)', textShadow: '0 0 10px rgba(239,68,68,0.3)', filter: 'blur(0.3px)' }}>
                           ████████
                         </h2>
-                        <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] bg-red-950/40 text-red-700/60 border border-red-800/30">
+                        <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] bg-red-950/60 text-red-400 border border-red-700/50">
                           CLASSIFIED
                         </span>
                       </div>
-                      <p className="text-[8px] text-red-800/60 uppercase tracking-[0.22em] font-bold mt-0.5">AGT-OPS-999 · REDACTED</p>
+                      <p className="text-[8px] text-red-400 uppercase tracking-[0.22em] font-bold mt-0.5">AGT-OPS-999 · REDACTED</p>
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
                       <div className="flex flex-col items-center gap-1">
                         <div className="w-6 h-6 rounded-full bg-red-950/30 border border-red-800/30 flex items-center justify-center">
-                          <span className="text-red-700/50 text-xs">🔒</span>
+                          <span className="text-red-400 text-xs">🔒</span>
                         </div>
-                        <span className="text-[7px] text-red-800/50 uppercase tracking-widest font-bold">Locked</span>
+                        <span className="text-[7px] text-red-400 uppercase tracking-widest font-bold">Locked</span>
                       </div>
                     </div>
                   </div>
                   <div className="relative z-10 px-4 py-2 flex items-center justify-between">
-                    <p className="text-[8px] text-red-800/50 uppercase tracking-[0.24em] font-bold">
+                    <p className="text-[8px] text-red-400 uppercase tracking-[0.24em] font-bold">
                       ██ ██████ clearance required
                     </p>
-                    <span className="text-[7px] text-red-900/50 font-mono">OMEGA-SYS // DO NOT ACCESS</span>
+                    <span className="text-[7px] text-red-400 font-mono">OMEGA-SYS // DO NOT ACCESS</span>
                   </div>
                 </div>
 
