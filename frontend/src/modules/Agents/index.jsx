@@ -349,23 +349,23 @@ const AIOAgentsModule = () => {
                   </div>
 
                   {/* CHARLIE MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#0a0a14] rounded-xl border border-purple-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(168,85,247,0.03)] relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #6b21a8 1px, #6b21a8 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-purple-950/40 border-b border-purple-500/20 p-2 flex items-center justify-center gap-2 text-purple-400 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_5px_rgba(192,132,252,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
-                      CHARLIE
+                  <div className="flex-1 flex flex-col bg-[#0a0a14] rounded-xl border border-blue-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(59,130,246,0.03)] relative">
+                    <div className="relative z-10 bg-blue-950/40 border-b border-blue-500/20 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                      CHARLIE INTAKE
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
                     </div>
-                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                    <div className="flex-1 p-2 space-y-1 overflow-y-auto">
                        {charlieRuns.slice(0, 10).map(run => (
-                          <div key={run.id} className="text-[8px] font-mono text-purple-500 border border-purple-500/20 bg-purple-900/10 p-1.5 rounded">
-                             <span className="text-purple-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.intent || run.status} <span className="text-purple-400/50">|</span> {run.field}
+                          <div key={run.id} className="text-[8px] font-mono text-blue-500 border border-blue-500/20 bg-blue-900/10 p-1.5 rounded">
+                             <span className="text-blue-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.intent || run.status} <span className="text-blue-400/50">|</span> {run.field}
                           </div>
-                       ))}
-                       {charlieRuns.length === 0 && <div className="text-[8px] font-mono text-purple-500/40 p-2 text-center">STANDBY...</div>}
-                    </div>
-                  </div>
+                        ))}
+                        {charlieRuns.length === 0 && <div className="text-[8px] font-mono text-blue-500/40 p-2 text-center">STANDBY...</div>}
+                     </div>
+                   </div>
 
-                  {/* ALPHA MONITOR */}
+                   {/* ALPHA MONITOR */}
                   <div className="flex-1 flex flex-col bg-[#14140a] rounded-xl border border-yellow-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(234,179,8,0.03)] relative">
                     <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #854d0e 1px, #854d0e 2px)', backgroundSize: '100% 2px' }}></div>
                     <div className="relative z-10 bg-yellow-950/40 border-b border-yellow-500/20 p-2 flex items-center justify-center gap-2 text-yellow-400 font-mono text-[9px] uppercase tracking-widest">
