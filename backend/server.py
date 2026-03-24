@@ -572,7 +572,17 @@ def collect_brain_memory_results(query: str, limit: int = 6, include_runtime: bo
 
 def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
     keys = AGENT_RUNTIME_REGISTRY.keys() if include_hidden else VISIBLE_AGENT_KEYS
-    return [{**AGENT_RUNTIME_REGISTRY[key]} for key in keys]
+    agents = []
+    for key in keys:
+        agent = {**AGENT_RUNTIME_REGISTRY[key]}
+        conn = sqlite3.connect(provider.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT id FROM agents WHERE registry_key = ?", (key,)).fetchone()
+        conn.close()
+        if row:
+            agent["id"] = row["id"]
+        agents.append(agent)
+    return agents
 
 
 def normalize_agent_key(value: Any) -> str:
@@ -796,12 +806,7 @@ ALLOWED_ORIGINS = [
                 "http://localhost:5175",
                 "http://127.0.0.1:5175",
                 "http://0.0.0.0:5175",
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://0.0.0.0:5173",
-                "http://localhost:5174",
-                "http://127.0.0.1:5174",
-                "http://0.0.0.0:5174",
+
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
                 "http://0.0.0.0:3000",

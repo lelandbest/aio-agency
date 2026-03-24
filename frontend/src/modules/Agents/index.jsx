@@ -154,12 +154,12 @@ const AIOAgentsModule = () => {
                 {alpha && (
                   <div
                     onClick={() => { setActiveAgent(alpha); setView('command'); setMessages([]); }}
-                    className="group mb-3 cursor-pointer rounded-xl border border-yellow-500/30 bg-gradient-to-br from-yellow-500/5 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-yellow-500/60 transition-all duration-500 overflow-hidden shrink-0 shadow-sm"
+                    className="group mb-3 cursor-pointer rounded-xl border border-green-500/30 bg-gradient-to-br from-green-500/5 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shrink-0 shadow-sm"
                   >
-                    <div className="px-3 py-2 flex items-center gap-3 border-b border-yellow-500/10">
+                    <div className="px-3 py-2 flex items-center gap-3 border-b border-green-500/10">
                       {/* Avatar */}
                       <div className="relative shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-yellow-500/10 border-2 border-yellow-500/40 flex items-center justify-center text-sm font-black text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                        <div className="w-10 h-10 rounded-full bg-green-500/10 border-2 border-green-500/40 flex items-center justify-center text-sm font-black text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
                           AL
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[var(--color-bg-secondary)] shadow-[0_0_6px_rgba(34,197,94,0.8)]" />
@@ -169,18 +169,18 @@ const AIOAgentsModule = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <h2 className="text-sm font-black text-white tracking-wide">{alpha.name || 'ALPHA'}</h2>
-                          <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                          <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-[0.2em] bg-green-500/15 text-green-400 border border-green-500/30">
                             Commander-in-Chief
                           </span>
                         </div>
-                        <p className="text-[8px] text-yellow-500/60 uppercase tracking-[0.22em] font-bold">AGT-CMD-001 · HQ</p>
+                        <p className="text-[8px] text-green-500/60 uppercase tracking-[0.22em] font-bold">AGT-CMD-001 · HQ</p>
                       </div>
 
                       {/* Action */}
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={(e) => { e.stopPropagation(); openDraftInFlowBuilder(alpha); }}
-                          className="text-[8px] px-2 py-1.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20 transition-colors font-bold uppercase tracking-wider"
+                          className="text-[8px] px-2 py-1.5 rounded bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors font-bold uppercase tracking-wider"
                         >
                           Draft Flow
                         </button>
@@ -222,23 +222,23 @@ const AIOAgentsModule = () => {
                   {regularAgents.map((agent, idx) => {
                     const agentKey = agent.registryKey || agent.registry_key;
                     const colors = [
+                      { bg: 'bg-cyan-900/50', border: 'border-cyan-600', shadow: 'rgba(6,182,212,0.15)', icon: 'text-cyan-400' },
                       { bg: 'bg-blue-900/50', border: 'border-blue-600', shadow: 'rgba(59,130,246,0.15)', icon: 'text-blue-400' },
                       { bg: 'bg-purple-900/50', border: 'border-purple-600', shadow: 'rgba(168,85,247,0.15)', icon: 'text-purple-400' },
                       { bg: 'bg-pink-900/50', border: 'border-pink-600', shadow: 'rgba(236,72,153,0.15)', icon: 'text-pink-400' },
                       { bg: 'bg-red-900/50', border: 'border-red-600', shadow: 'rgba(239,68,68,0.15)', icon: 'text-red-400' },
                       { bg: 'bg-orange-900/50', border: 'border-orange-600', shadow: 'rgba(249,115,22,0.15)', icon: 'text-orange-400' },
-                      { bg: 'bg-amber-900/50', border: 'border-amber-600', shadow: 'rgba(245,158,11,0.15)', icon: 'text-amber-400' },
                       { bg: 'bg-yellow-900/50', border: 'border-yellow-600', shadow: 'rgba(234,179,8,0.15)', icon: 'text-yellow-400' },
+                      { bg: 'bg-amber-900/50', border: 'border-amber-600', shadow: 'rgba(245,158,11,0.15)', icon: 'text-amber-400' },
                       { bg: 'bg-lime-900/50', border: 'border-lime-600', shadow: 'rgba(132,204,22,0.15)', icon: 'text-lime-400' },
                       { bg: 'bg-green-900/50', border: 'border-green-600', shadow: 'rgba(34,197,94,0.15)', icon: 'text-green-400' },
                       { bg: 'bg-emerald-900/50', border: 'border-emerald-600', shadow: 'rgba(16,185,129,0.15)', icon: 'text-emerald-400' },
                       { bg: 'bg-teal-900/50', border: 'border-teal-600', shadow: 'rgba(20,184,166,0.15)', icon: 'text-teal-400' },
-                      { bg: 'bg-cyan-900/50', border: 'border-cyan-600', shadow: 'rgba(6,182,212,0.15)', icon: 'text-cyan-400' },
                     ];
                     const c = colors[idx % colors.length];
                     return (
                     <div
-                      key={agent.id}
+                      key={agentKey || agent.id || idx}
                       onClick={() => { setActiveAgent(agent); setView('command'); setMessages([]); }}
                       className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-xl p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
                     >
@@ -253,7 +253,6 @@ const AIOAgentsModule = () => {
                             </div>
                             <div>
                               <h3 className="text-[10px] font-bold text-white leading-tight">{agent.name}</h3>
-                              <p className="text-[8px] text-gray-500 font-mono mt-0.5">{SPECIALIST_REGISTRY[agentKey]?.role || ''}</p>
                             </div>
                           </div>
                           <div className={`w-1.5 h-1.5 rounded-full mt-1 ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.7)]' : 'bg-[var(--color-text-tertiary)]'}`} />

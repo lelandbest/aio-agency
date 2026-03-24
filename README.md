@@ -67,7 +67,7 @@ cp .env.example .env
 Edit `.env` with your configuration:
 
 ```env
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:5175,http://localhost:3000
 PORT=8001
 HOST=0.0.0.0
 ENVIRONMENT=development
@@ -91,7 +91,7 @@ cd frontend
 npm run dev
 ```
 
-The frontend will start on `http://localhost:5173`
+The frontend will start on `http://localhost:5175`
 
 ### Production Build
 
@@ -219,7 +219,7 @@ export default MyComponent;
 ### Frontend won't start
 - Ensure Node.js 18+ is installed
 - Delete `node_modules` and run `npm install` again
-- Check for port conflicts (default: 5173)
+- Check for port conflicts (default: 5175)
 
 ### Backend won't start
 - Ensure Python 3.8+ is installed

@@ -13,7 +13,7 @@
 **Error:**
 ```
 TypeError: integrations.filter is not a function
-at getCategoryIntegrations (http://localhost:5173/src/modules/Integrations/pages/ActiveIntegrations.jsx?t=1768107473313:35:25)
+at getCategoryIntegrations (http://localhost:5175/src/modules/Integrations/pages/ActiveIntegrations.jsx?t=1768107473313:35:25)
 ```
 
 **Root Cause:**
