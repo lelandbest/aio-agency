@@ -995,6 +995,72 @@ class AIAssistService:
             "ai_draft": f"Hello! Charlie has received your ticket regarding '{subject}'. An agent will be with you shortly."
         }
 
+    def parse_command(
+        self,
+        command: str,
+        context: dict[str, Any],
+        actor: dict[str, Any],
+        tenant_id: str,
+        provider_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        normalized_command = _clean(command)
+        if not normalized_command:
+            return {"steps": []}
+
+        system_prompt = (
+            "You are Cortex, the orchestrator. Parse the user's natural language command into a structured JSON array of execution steps.\n"
+            "Return valid JSON ONLY matching this exact schema:\n"
+            '{\n  "steps": [\n    { "intent": "supported_intent", "parameters": { ... } }\n  ]\n}\n'
+            "Strictly use ONLY the following supported intents:\n"
+            "- draft_email\n"
+            "- schedule_calendar\n"
+            "- add_contact\n"
+            "- add_crm_note\n"
+            "\n"
+            "CRITICAL RULES:\n"
+            "1. Output NOTHING except valid JSON.\n"
+            "2. DO NOT guess missing information. Return partial steps with available parameters only.\n"
+        )
+        prompt = (
+            f"User Command: {normalized_command}\n"
+            f"Available Context: {json.dumps(context)}\n"
+            f"Actor: {actor.get('name') or actor.get('email') or 'operator'}\n"
+            f"Return the parsed steps."
+        )
+
+        try:
+            ai_response = self._provider_complete(provider_config, prompt, system_prompt=system_prompt)
+            if not ai_response:
+                return {"steps": []}
+
+            raw_text = _clean(ai_response.get("suggestion"))
+            if not raw_text:
+                return {"steps": []}
+
+            # Strip Markdown formatting if present
+            if "```json" in raw_text:
+                raw_text = raw_text.split("```json")[-1].split("```")[0].strip()
+            elif "```" in raw_text:
+                raw_text = raw_text.split("```")[-1].split("```")[0].strip()
+
+            parsed = json.loads(raw_text)
+            steps = parsed.get("steps") or []
+            
+            supported_intents = {"draft_email", "schedule_calendar", "add_contact", "add_crm_note"}
+            valid_steps = []
+            
+            for step in steps:
+                if isinstance(step, dict) and step.get("intent") in supported_intents:
+                    valid_steps.append({
+                        "intent": step.get("intent"),
+                        "parameters": step.get("parameters") or {}
+                    })
+
+            return {"steps": valid_steps}
+        except Exception:
+            return {"steps": []}
+
+
     def _generic_result(self, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
         brain_memory = _clean(context.get("brain_memory_summary"))
         seed = (

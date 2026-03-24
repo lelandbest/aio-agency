@@ -3,7 +3,7 @@
 Updated: 2026-03-20  
 Workspace: `D:\AIOCRM`  
 Remote: [lelandbest/aio-agency](https://github.com/lelandbest/aio-agency.git)  
-Current pushed baseline: `main` @ `9e10d29`
+Current pushed baseline: `main` @ `636d29f`
 
 ## Original Phase Scope
 
@@ -22,8 +22,8 @@ Current pushed baseline: `main` @ `9e10d29`
 ## Phase Status
 
 - Phases 1-9: complete enough for the current stage
-- Phase 10: in progress
-- Phase 11: not started in earnest
+- Phase 10: in progress (Orchestration & Workflow depth)
+- Phase 11: in progress (Parallel UI lockdown [Signals, Cortex, Systems, Comms, CRM], Forms/Payments, and help docs preparation)
 
 ## Current Product State
 
@@ -127,20 +127,30 @@ Key rules:
 
 ## Best Immediate Next Scope
 
-### Phase 10
+We are currently operating on a two-track approach: deepening the Phase 10 orchestration backend while systematically finalizing module UIs and integrations.
+
+### Track 1: Tactical UI, Features, & Docs
+*(Completing module UI lock-down & preparing for Productization)*
+
+1. **Forms & Payments:** Implement Purchase field config panel/renderer, Orders module integration, and Stripe/PayPal backend endpoints.
+2. **Module UI Locks:** Continue refining and locking down module UIs (Signals, Cortex, Systems, Comms are already locked).
+3. **Help Documentation:** Once UI updates on modules are entirely closed out, strictly prioritize updating and mapping the external help docs to match the finalized surfaces.
+
+### Track 2: Core Phase 10 (AI Orchestration)
+*(Deepening the unified runtime execution)*
 
 1. Extend shared command execution beyond `Agents` and current bullseyes.
 2. Add multi-step execution and structured action parsing on top of `/api/ai/command`.
 3. Promote richer run artifacts and delegate chains into more module activity surfaces.
 4. Harden side-effect gates for send/delete/automation actions.
+5. Introduce conversational command parsing for multi-step workflows.
 
-Items already in place:
+Items already in place for AI:
 
-- Brain ingest and retrieval
-- MCP runtime probe/query for HTTP(S) endpoints
-- runtime agent registry aligned to the visible AIO Agents block
-- shared AI run envelope with intake, dispatch, execution, delegate chain, and permission tier
-- owner-only Omega arm/cancel/execute controls
+- Brain ingest, retrieval, and HTTP(S) MCP probe
+- Runtime agent registry aligned to the visible AIO Agents block
+- Shared AI run envelope with intake, dispatch, execution, delegate chain, and permission tier
+- Owner-only Omega arm/cancel/execute controls
 
 ## Known Cleanup
 

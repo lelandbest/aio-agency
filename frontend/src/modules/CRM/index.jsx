@@ -5,6 +5,7 @@ import {
   createContactApi,
   getCompaniesApi,
   getContactActivitiesApi,
+  createContactActivityApi,
   getContactFormSubmissionsApi,
   getContactsApi,
   getUserAccessApi,
@@ -26,7 +27,6 @@ const CRMModule = ({ initialContactId = null }) => {
   const { tenant, tenants = [], switchTenant } = useAuth();
   const importInputRef = useRef(null);
   // State Management
-  const [activeTab, setActiveTab] = useState('Contacts');
   const [contacts, setContacts] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [tags, setTags] = useState([]);
@@ -38,11 +38,12 @@ const CRMModule = ({ initialContactId = null }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalTab, setCreateModalTab] = useState('Contact');
   const [selectedContact, setSelectedContact] = useState(null);
-  const [showFilters, setShowFilters] = useState(true);
   
   // Contact detail view states
   const [activities, setActivities] = useState([]);
   const [activityTab, setActivityTab] = useState('Activity');
+  const [newNote, setNewNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
   const [formsSubmitted, setFormsSubmitted] = useState([]);
   const [userAccess, setUserAccess] = useState(null);
   const [loadingUserAccess, setLoadingUserAccess] = useState(false);
@@ -75,6 +76,7 @@ const CRMModule = ({ initialContactId = null }) => {
   const [filters, setFilters] = useState({
     department: { operator: 'is', value: '', active: false },
     owner: { operator: 'is', value: '', active: false },
+    company: { operator: 'is', value: '', active: false },
     tags: { operator: 'has', value: '', active: false },
     system_tags: { operator: 'has', value: '', active: false },
     flow: { operator: 'is', value: '', active: false },
@@ -96,11 +98,12 @@ const CRMModule = ({ initialContactId = null }) => {
   // Filter Options (tags populated dynamically from API)
   const filterOperators = ['is', 'is not', 'is in', 'is not in', 'is defined', 'is not defined', 'has', 'has not'];
   
-  const availableTags = tags.length > 0 ? tags.map(t => typeof t === 'string' ? t : t.name || t.label || '').filter(Boolean) : ['VIP', 'Hot Lead', 'Customer', 'Nurture', 'Partner', 'Prospect', 'Inactive', 'Trial', 'Enterprise', 'SMB'];
+  const availableTags = tags.map(t => t.name).filter(Boolean).sort();
   
   const filterOptions = {
     department: ['Sales', 'Marketing', 'Support', 'Engineering', 'Operations', 'Product', 'Design', 'Analytics', 'Consulting', 'Creative', 'Administration'],
     owner: ['AIO Flow', 'System'],
+    company: companies.map(c => c.name).filter(Boolean).sort(),
     tags: availableTags,
     system_tags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
     flow: ['Active', 'Paused', 'Inactive', 'Completed'],
@@ -383,6 +386,9 @@ const CRMModule = ({ initialContactId = null }) => {
           break;
         case 'owner':
           filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.owner, filter.value));
+          break;
+        case 'company':
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.company, filter.value));
           break;
         case 'tags':
           filtered = filtered.filter((c) => matchesArrayOperator(filter.operator, c.tags, filter.value));
@@ -970,260 +976,167 @@ const CRMModule = ({ initialContactId = null }) => {
       <ArrowDown size={14} className="text-[var(--color-primary)]" />;
   };
 
-  // Render tabs based on activeTab
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'Contacts':
-        return renderContactsTab();
-      case 'Companies':
-        return renderCompaniesTab();
-      default:
-        return renderContactsTab();
-    }
-  };
-
   // CONTACTS TAB
   const renderContactsTab = () => {
     if (selectedContact) {
       return renderContactDetailView();
     }
 
-    const selectedCount = selectedContacts.size;
-    const bulkActions = [
-      { action: 'add_tag', label: 'Add Tag', className: softActionClass },
-      { action: 'remove_tag', label: 'Remove Tag', className: destructiveActionClass },
-      { action: 'add_flow', label: 'Add Flow', className: softActionClass },
-      { action: 'remove_flow', label: 'Remove Flow', className: destructiveActionClass },
-      { action: 'set_owner', label: 'Set Owner', className: softActionClass },
-      { action: 'set_department', label: 'Set Dept', className: softActionClass },
-      { action: 'assign_ai', label: 'Assign AI', className: primaryActionClass },
-      { action: 'send_email', label: 'Send Email', className: softActionClass, icon: Mail },
-      { action: 'send_sms', label: 'Send SMS', className: softActionClass, icon: MessageCircle },
-      { action: 'export', label: 'Export', className: softActionClass, icon: Download },
-      { action: 'send_api', label: 'Send API', className: softActionClass },
-      { action: 'delete', label: 'Delete', className: destructiveActionClass, icon: Trash2 }
-    ];
-
     return (
       <div className="flex-1 flex overflow-hidden bg-[var(--color-bg-secondary)]">
-        {/* LEFT: Contact Table */}
+        {/* LEFT: Contact Table - 75% */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-5">
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className={innerPanelClass + ' p-4'}>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Tracked Contacts</div>
-                <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{crmStats.total}</div>
-              </div>
-              <div className={innerPanelClass + ' p-4'}>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">High Signal</div>
-                <div className="mt-2 text-2xl font-semibold text-emerald-300">{crmStats.highSignal}</div>
-              </div>
-              <div className={innerPanelClass + ' p-4'}>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Needs Owner</div>
-                <div className="mt-2 text-2xl font-semibold text-amber-300">{crmStats.needsOwner}</div>
-              </div>
-              <div className={innerPanelClass + ' p-4'}>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Form Driven</div>
-                <div className="mt-2 text-2xl font-semibold text-cyan-300">{crmStats.formDriven}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative flex-1 max-w-2xl">
-                <Search size={16} className="absolute left-3 top-3 text-[var(--color-text-secondary)]" />
-                <input
-                  type="text"
-                  placeholder="Filter visible records by name, email, company, or phone..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2.5 pl-10 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                />
-              </div>
-              <button
-                onClick={() => setShowFilters((current) => !current)}
-                className={showFilters ? primaryActionClass : softActionClass}
-              >
-                {showFilters ? 'Hide Filters' : 'Show Filters'}
-              </button>
-            </div>
-          </div>
-
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Operator Actions</div>
-                <div className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                  {selectedCount} of {filteredAndSortedContacts.length} visible contact{filteredAndSortedContacts.length === 1 ? '' : 's'} selected.
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 xl:justify-end">
-                {bulkActions.map(({ action, label, className, icon: ActionIcon }) => (
-                  <button key={action} onClick={() => handleBulkAction(action)} className={className}>
-                    {ActionIcon ? <ActionIcon size={12} className="mr-1.5 inline" /> : null}
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Section Label */}
+          <div className="px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Contact List</div>
           </div>
 
           {/* Contact Table */}
-          <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)] px-5 py-5">
+          <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)] p-4">
             {loading ? (
               <div className={shellPanelClass + ' flex h-full items-center justify-center'}>
                 <div className="text-[var(--color-text-secondary)]">Loading contacts...</div>
               </div>
             ) : (
               <div className={shellPanelClass + ' overflow-hidden'}>
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)]">
-                  <tr>
-                    <th className="px-4 py-3 text-left w-12">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedContacts.size === filteredAndSortedContacts.length && filteredAndSortedContacts.length > 0}
-                        onChange={toggleSelectAll}
-                        className="w-4 h-4" 
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('first_name')}>
-                      <div className="flex items-center gap-2">
-                        NAME {renderSortIcon('first_name')}
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
-                      <div className="flex items-center gap-2">
-                        COMPANY {renderSortIcon('company')}
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('lead_score')}>
-                      <div className="flex items-center gap-2">
-                        SCORE {renderSortIcon('lead_score')}
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
-                      TAGS
-                    </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('created_at')}>
-                      <div className="flex items-center gap-2">
-                        CREATED AT {renderSortIcon('created_at')}
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updated_at')}>
-                      <div className="flex items-center gap-2">
-                        UPDATED AT {renderSortIcon('updated_at')}
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedContacts.map(contact => (
-                    <tr 
-                      key={contact.id} 
-                      className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer"
-                    >
-                      <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)]">
+                    <tr>
+                      <th className="px-4 py-3 text-left w-12">
                         <input 
                           type="checkbox" 
-                          checked={selectedContacts.has(contact.id)}
-                          onChange={() => {}}
-                          className="w-4 h-4"
+                          checked={selectedContacts.size === filteredAndSortedContacts.length && filteredAndSortedContacts.length > 0}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4" 
                         />
-                      </td>
-                      <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
-                        <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
-                          {contact.first_name} {contact.last_name}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('first_name')}>
+                        <div className="flex items-center gap-2">
+                          NAME {renderSortIcon('first_name')}
                         </div>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)]">
-                          {contact.lead_score || '--'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1 flex-wrap">
-                          {contact.tags?.map((tag, idx) => (
-                            <span key={idx} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)]">
-                              {tag}
-                            </span>
-                          ))}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
+                        <div className="flex items-center gap-2">
+                          COMPANY {renderSortIcon('company')}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                        {new Date(contact.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                        {new Date(contact.updated_at).toLocaleDateString()}
-                      </td>
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('lead_score')}>
+                        <div className="flex items-center gap-2">
+                          SCORE {renderSortIcon('lead_score')}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
+                        TAGS
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('created_at')}>
+                        <div className="flex items-center gap-2">
+                          CREATED {renderSortIcon('created_at')}
+                        </div>
+                      </th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updated_at')}>
+                        <div className="flex items-center gap-2">
+                          UPDATED {renderSortIcon('updated_at')}
+                        </div>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredAndSortedContacts.map(contact => (
+                      <tr 
+                        key={contact.id} 
+                        className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer"
+                      >
+                        <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedContacts.has(contact.id)}
+                            onChange={() => {}}
+                            className="w-4 h-4"
+                          />
+                        </td>
+                        <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
+                          <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
+                            {contact.first_name} {contact.last_name}
+                          </div>
+                          <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
+                        </td>
+                        <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)]">
+                            {contact.lead_score || '--'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1 flex-wrap">
+                            {contact.tags?.map((tag, idx) => (
+                              <span key={idx} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)]">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
+                          {new Date(contact.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
+                          {new Date(contact.updated_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT: Filters */}
-        {showFilters && (
-          <div className="w-80 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col overflow-hidden">
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-4 flex justify-between items-center">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Refine Records</div>
-                <h3 className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Filters</h3>
-              </div>
-              <button onClick={() => setShowFilters(false)} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                <X size={16} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 crm-scroll-hidden">
-              {Object.entries(filterOptions).map(([filterKey, options]) => (
-                <div key={filterKey} className={innerPanelClass + ' p-3'}>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
-                      {filterKey.replace('_', ' ')}
-                    </label>
-                    {filters[filterKey].active && (
-                      <button onClick={() => clearFilter(filterKey)} className="text-xs text-red-300 hover:text-red-200">
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Operator Selector */}
-                  <select
-                    value={filters[filterKey].operator}
-                    onChange={(e) => updateFilter(filterKey, 'operator', e.target.value)}
-                    className="w-full mb-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                  >
-                    {filterOperators.map(op => (
-                      <option key={op} value={op}>{op}</option>
-                    ))}
-                  </select>
-                  
-                  {/* Value Selector */}
-                  {!['is defined', 'is not defined'].includes(filters[filterKey].operator) && (
-                    <select
-                      value={filters[filterKey].value}
-                      onChange={(e) => updateFilter(filterKey, 'value', e.target.value)}
-                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                    >
-                      <option value="">Select...</option>
-                      {options.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
+        {/* RIGHT: Filters - 25% */}
+        <div className="w-72 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col overflow-hidden">
+          {/* Section Label */}
+          <div className="px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Refine Records - Filters</div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 crm-scroll-hidden">
+            {Object.entries(filterOptions).sort(([a], [b]) => a.localeCompare(b)).map(([filterKey, options]) => (
+              <div key={filterKey} className={innerPanelClass + ' p-2.5'}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] font-semibold tracking-[0.15em] text-[var(--color-text-tertiary)] uppercase">
+                    {filterKey.replace('_', ' ')}
+                  </label>
+                  {filters[filterKey].active && (
+                    <button onClick={() => clearFilter(filterKey)} className="text-[10px] text-red-300 hover:text-red-200">
+                      Clear
+                    </button>
                   )}
                 </div>
-              ))}
-            </div>
+                
+                <select
+                  value={filters[filterKey].operator}
+                  onChange={(e) => updateFilter(filterKey, 'operator', e.target.value)}
+                  className="w-full mb-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  {filterOperators.map(op => (
+                    <option key={op} value={op}>{op}</option>
+                  ))}
+                </select>
+                
+                {!['is defined', 'is not defined'].includes(filters[filterKey].operator) && (
+                  <select
+                    value={filters[filterKey].value}
+                    onChange={(e) => updateFilter(filterKey, 'value', e.target.value)}
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  >
+                    <option value="">Select...</option>
+                    {options.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -1385,6 +1298,26 @@ const CRMModule = ({ initialContactId = null }) => {
       await loadData();
     };
 
+    const handleAddNote = async () => {
+      if (!newNote.trim() || !selectedContact) return;
+      setAddingNote(true);
+      try {
+        const newActivity = await createContactActivityApi(selectedContact.id, {
+          activity_type: 'note',
+          title: 'Note',
+          description: newNote.trim()
+        });
+        if (newActivity) {
+          setActivities(prev => [newActivity, ...prev]);
+        }
+        setNewNote('');
+      } catch (error) {
+        console.error('Failed to add note:', error);
+      } finally {
+        setAddingNote(false);
+      }
+    };
+
     const handleQuickAction = async (label) => {
       switch (label) {
         case 'Note':
@@ -1420,33 +1353,14 @@ const CRMModule = ({ initialContactId = null }) => {
         <style>{`
           .crm-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
         `}</style>
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <button 
-              onClick={() => setSelectedContact(null)}
-              className="inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
-            >
-              <ChevronLeft size={16} /> Back to Contacts
-            </button>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                Stage {currentContact.pipeline_stage || 'New'}
-              </span>
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                Owner {currentContact.owner || 'Unassigned'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div ref={layoutRef} className="flex flex-1 overflow-hidden relative">
+        <div ref={layoutRef} className="flex flex-1 overflow-hidden relative p-4 gap-3">
         {/* LEFT PANEL: Detailed Contact Info */}
         <div 
           style={{ width: leftPanelWidth, ...hiddenScrollbarStyle }}
-          className="crm-scroll-hidden flex-none flex flex-col gap-4 overflow-y-auto p-4 transition-all duration-75"
+          className="crm-scroll-hidden flex-none flex flex-col gap-2 overflow-y-auto transition-all duration-75"
         >
           {/* Detail Card */}
-          <div className={shellPanelClass + ' p-4 space-y-4'}>
+          <div className={shellPanelClass + ' p-3 space-y-3'}>
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Relationship Dossier</div>
@@ -1496,6 +1410,45 @@ const CRMModule = ({ initialContactId = null }) => {
                   <span>{action.label}</span>
                 </button>
               ))}
+            </div>
+
+            {/* Tags Section */}
+            <div className="border-t border-[var(--color-border)] pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Tags</label>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {currentContact.tags?.map((tag, idx) => (
+                  <span key={idx} className="inline-flex items-center gap-0.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-1.5 py-0.5 text-[9px] text-[var(--color-text-secondary)]">
+                    {tag}
+                    <button
+                      onClick={() => handleRemoveTag(tag)}
+                      className="text-[var(--color-text-tertiary)] hover:text-red-400 transition"
+                    >
+                      <X size={8} />
+                    </button>
+                  </span>
+                ))}
+                {(!currentContact.tags || currentContact.tags.length === 0) && (
+                  <span className="text-[9px] text-[var(--color-text-tertiary)]">No tags</span>
+                )}
+              </div>
+              <div className="relative">
+                <select
+                  value=""
+                  onChange={(e) => e.target.value && handleAddTag(e.target.value)}
+                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[9px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  <option value="">+ Add tag...</option>
+                  {availableTags.filter(tag => !currentContact.tags?.includes(tag)).map(tag => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                  {availableTags.filter(tag => !currentContact.tags?.includes(tag)).length === 0 && (
+                    <option value="" disabled>All tags assigned</option>
+                  )}
+                </select>
+                <p className="mt-0.5 text-[8px] text-[var(--color-text-tertiary)]">Separate by commas to manually enter</p>
+              </div>
             </div>
 
             {/* Contact Info */}
@@ -1710,61 +1663,91 @@ const CRMModule = ({ initialContactId = null }) => {
         />
 
         {/* CENTER: Activity Timeline */}
-        <div className="flex-1 bg-[var(--color-bg-secondary)] border-x border-[var(--color-border)] flex flex-col overflow-hidden">
-          {/* Activity Tabs */}
-          <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3">
-            <div className="flex gap-2 overflow-x-auto crm-scroll-hidden">
-            {['Activity', 'Notes', 'Forms', 'Emails', 'SMS', 'Calls', 'Flows'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActivityTab(tab === 'Emails' ? 'Flow Emails' : tab === 'SMS' ? 'Flow SMS' : tab === 'Calls' ? 'Call Logs' : tab === 'Flows' ? 'Flow Activity' : tab)}
-                className={`rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap transition ${
-                  (activityTab === tab || (tab === 'Emails' && activityTab === 'Flow Emails') || (tab === 'SMS' && activityTab === 'Flow SMS') || (tab === 'Calls' && activityTab === 'Call Logs') || (tab === 'Flows' && activityTab === 'Flow Activity'))
-                    ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' 
-                    : 'border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div 
-            style={hiddenScrollbarStyle}
-            className="crm-scroll-hidden flex-1 overflow-auto p-4 space-y-3"
-          >
-            {filteredActivities.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-[var(--color-text-tertiary)]">No activities yet</p>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className={shellPanelClass + ' flex flex-col flex-1 overflow-hidden'}>
+            {/* Activity Tabs */}
+            <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
+              <div className="flex gap-2 overflow-x-auto crm-scroll-hidden">
+              {['Activity', 'Notes', 'Forms', 'Emails', 'SMS', 'Calls', 'Flows'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActivityTab(tab === 'Emails' ? 'Flow Emails' : tab === 'SMS' ? 'Flow SMS' : tab === 'Calls' ? 'Call Logs' : tab === 'Flows' ? 'Flow Activity' : tab)}
+                  className={`rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap transition ${
+                    (activityTab === tab || (tab === 'Emails' && activityTab === 'Flow Emails') || (tab === 'SMS' && activityTab === 'Flow SMS') || (tab === 'Calls' && activityTab === 'Call Logs') || (tab === 'Flows' && activityTab === 'Flow Activity'))
+                      ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' 
+                      : 'border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
               </div>
-            ) : (
-              filteredActivities.map(activity => (
-                <div key={activity.id} className={`flex gap-3 p-3 rounded-lg border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-                    {renderTimelineIcon(activity.activity_type)}
+            </div>
+
+            {/* Timeline */}
+            <div 
+              style={hiddenScrollbarStyle}
+              className="crm-scroll-hidden flex-1 overflow-auto p-3 space-y-2"
+            >
+              {/* Note Input - Only show on Notes tab */}
+              {activityTab === 'Notes' && (
+                <div className="sticky top-0 z-10 bg-[var(--color-bg-primary)] pb-2 border-b border-[var(--color-border)] mb-2">
+                  <div className="flex gap-2">
+                    <textarea
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Add a note... (website links, account info, preferences, etc.)"
+                      className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] resize-none focus:outline-none focus:border-[var(--color-primary)]"
+                      rows={2}
+                      disabled={addingNote}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          handleAddNote();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleAddNote}
+                      disabled={!newNote.trim() || addingNote}
+                      className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-text-on-primary)] text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
+                    >
+                      {addingNote ? 'Adding...' : 'Add Note'}
+                    </button>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-[var(--color-text-primary)] font-medium text-sm">{activity.title}</h4>
-                      <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
-                        {activity.activity_type}
-                      </span>
-                    </div>
-                    <div className="text-[var(--color-text-secondary)] text-xs mt-1 leading-relaxed">
-                      {activity.activity_type === 'email' 
-                        ? normalizeAiText(activity.description, 'No message body') 
-                        : activity.description}
-                    </div>
-                    {activity.metadata ? renderActivityMetadata(activity) : null}
-                    <p className="text-[var(--color-text-tertiary)] text-xs mt-2">
-                      {new Date(activity.created_at).toLocaleString()}
-                    </p>
-                  </div>
+                  <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Ctrl+Enter to submit</p>
                 </div>
-              ))
-            )}
+              )}
+              {filteredActivities.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-[var(--color-text-tertiary)]">{activityTab === 'Notes' ? 'No notes yet. Add one above!' : 'No activities yet'}</p>
+                </div>
+              ) : (
+                filteredActivities.map(activity => (
+                  <div key={activity.id} className={`flex gap-3 p-3 rounded-lg border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+                      {renderTimelineIcon(activity.activity_type)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-[var(--color-text-primary)] font-medium text-sm">{activity.title}</h4>
+                        <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
+                          {activity.activity_type}
+                        </span>
+                      </div>
+                      <div className="text-[var(--color-text-secondary)] text-xs mt-1 leading-relaxed">
+                        {activity.activity_type === 'email' 
+                          ? normalizeAiText(activity.description, 'No message body') 
+                          : activity.description}
+                      </div>
+                      {activity.metadata ? renderActivityMetadata(activity) : null}
+                      <p className="text-[var(--color-text-tertiary)] text-xs mt-2">
+                        {new Date(activity.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
@@ -1777,32 +1760,33 @@ const CRMModule = ({ initialContactId = null }) => {
         {/* RIGHT: Relationship Assets */}
         <div 
           style={{ width: rightPanelWidth, ...hiddenScrollbarStyle }}
-          className="crm-scroll-hidden flex-none bg-[var(--color-bg-secondary)] border-l border-[var(--color-border)] overflow-y-auto p-4 space-y-4 transition-all duration-75"
+          className="crm-scroll-hidden flex-none overflow-y-auto transition-all duration-75"
         >
-          {/* Forms Submitted */}
-          <div className="bg-[var(--color-bg-primary)] rounded p-3">
-            <button onClick={() => toggleDetailPanel('forms')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
-              <span>Forms Submitted ({formsSubmitted.length})</span>
-              <ChevronDown size={14} className={detailPanels.forms ? 'rotate-180' : ''} />
-            </button>
-            {detailPanels.forms ? <div className="space-y-2">
-              {formsSubmitted.length === 0 ? (
-                <p className="text-xs text-[var(--color-text-tertiary)]">No form submissions</p>
-              ) : (
-                formsSubmitted.map(submission => (
-                  <div key={submission.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs">
-                    <p className="text-white font-medium">Γ£ô Form Submission</p>
-                    <p className="text-[var(--color-text-secondary)] text-[10px] mt-1">
-                      {new Date(submission.submitted_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div> : null}
+          <div className={shellPanelClass + ' p-4 space-y-4'}>
+            {/* Forms Submitted */}
+            <div className="bg-[var(--color-bg-secondary)] rounded p-3">
+              <button onClick={() => toggleDetailPanel('forms')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
+                <span>Forms Submitted ({formsSubmitted.length})</span>
+                <ChevronDown size={14} className={detailPanels.forms ? 'rotate-180' : ''} />
+              </button>
+              {detailPanels.forms ? <div className="space-y-2">
+                {formsSubmitted.length === 0 ? (
+                  <p className="text-xs text-[var(--color-text-tertiary)]">No form submissions</p>
+                ) : (
+                  formsSubmitted.map(submission => (
+                    <div key={submission.id} className="p-2 bg-[var(--color-bg-primary)] rounded text-xs">
+                      <p className="text-white font-medium">Form Submission</p>
+                      <p className="text-[var(--color-text-secondary)] text-[10px] mt-1">
+                        {new Date(submission.submitted_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div> : null}
           </div>
 
           {/* Flows */}
-          <div className="bg-[var(--color-bg-primary)] rounded p-3">
+          <div className="bg-[var(--color-bg-secondary)] rounded p-3">
             <button onClick={() => toggleDetailPanel('flows')} className="w-full text-sm font-semibold text-[var(--color-text-primary)] mb-2 flex justify-between items-center">
               <span>Flows</span>
               <ChevronDown size={14} className={detailPanels.flows ? 'rotate-180' : ''} />
@@ -1813,7 +1797,7 @@ const CRMModule = ({ initialContactId = null }) => {
               ) : (
                 <div className="space-y-2">
                   {[...workflowActivities, ...flowEmailActivities].slice(0, 6).map((activity) => (
-                    <div key={activity.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs border border-[var(--color-border)]">
+                    <div key={activity.id} className="p-2 bg-[var(--color-bg-primary)] rounded text-xs border border-[var(--color-border)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[var(--color-text-primary)] font-medium">{activity.title}</p>
                         <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activity.activity_type}</span>
@@ -1879,29 +1863,30 @@ const CRMModule = ({ initialContactId = null }) => {
               ))}
             </div> : null}
           </div>
+          </div>
         </div>
 
         </div>
 
         {billingModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
-              <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-bg-secondary)]/80 backdrop-blur-xl shadow-2xl">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)]/50 px-5 py-4">
                 <div>
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Billing Detail</div>
                   <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{billingModal.label}</h3>
                 </div>
-                <button onClick={() => setBillingModal(null)} className="rounded-lg border border-[var(--color-border)] p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                <button onClick={() => setBillingModal(null)} className="rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] backdrop-blur-sm">
                   <X size={16} />
                 </button>
               </div>
               <div className="space-y-3 px-5 py-4 text-sm">
-                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3 text-[var(--color-text-secondary)]">
+                <div className="rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-4 py-3 text-[var(--color-text-secondary)] backdrop-blur-sm">
                   {billingModal.emptyMessage}
                 </div>
                 <div className="space-y-2">
                   {billingModal.lines.map((line) => (
-                    <div key={line} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">
+                    <div key={line} className="rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-2 text-[var(--color-text-primary)] backdrop-blur-sm">
                       {line}
                     </div>
                   ))}
@@ -1910,69 +1895,6 @@ const CRMModule = ({ initialContactId = null }) => {
             </div>
           </div>
         ) : null}
-      </div>
-    );
-  };
-
-  // COMPANIES TAB
-  const renderCompaniesTab = () => {
-    return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-3 text-[var(--color-text-tertiary)]" />
-            <input
-              type="text"
-              placeholder="Search companies..."
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-4 py-2 pl-10 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)] crm-scroll-hidden">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[var(--color-bg-primary)] border-b border-[var(--color-border)]">
-              <tr>
-                <th className="px-4 py-3 text-left w-12">
-                  <input type="checkbox" className="w-4 h-4" />
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">NAME</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">INDUSTRY</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">SCORE</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">TAGS</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">CREATED AT</th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase">UPDATED AT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map(company => (
-                <tr key={company.id} className="border-b border-[var(--color-border)] hover:bg-[color:var(--color-border)/0.2] transition">
-                  <td className="px-4 py-3">
-                    <input type="checkbox" className="w-4 h-4" />
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-primary)] font-medium">{company.name}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">{company.industry || '--'}</td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">{company.lead_score || '--'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {company.tags?.map((tag, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-[var(--color-primary)]/15 text-[var(--color-primary)] rounded text-xs">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                    {company.created_at ? new Date(company.created_at).toLocaleDateString() : '--'}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                    {company.updated_at ? new Date(company.updated_at).toLocaleDateString() : '--'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     );
   };
@@ -2015,8 +1937,8 @@ const CRMModule = ({ initialContactId = null }) => {
       </div>
     );
 
-    const modalInputClass = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]";
-    const modalSelectClass = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]";
+    const modalInputClass = "w-full rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm";
+    const modalSelectClass = "w-full rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm";
 
     const handleSubmit = async (e) => {
       e.preventDefault();
@@ -2082,10 +2004,10 @@ const CRMModule = ({ initialContactId = null }) => {
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="flex max-h-[90vh] w-full max-w-[1080px] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+        <div className="flex max-h-[90vh] w-full max-w-[1080px] flex-col overflow-hidden rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-bg-secondary)]/80 backdrop-blur-xl shadow-2xl">
           {/* Modal Header with Tabs */}
-          <div className="flex border-b border-[var(--color-border)]">
+          <div className="flex border-b border-[var(--color-border)]/50">
             <button
               onClick={() => setCreateModalTab('Contact')}
               className={`flex-1 border-b-2 px-4 py-2.5 font-medium text-sm ${
@@ -2560,9 +2482,9 @@ const CRMModule = ({ initialContactId = null }) => {
     const accessMemberships = userAccess?.memberships || [];
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-        <div className="w-full max-w-2xl rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+        <div className="w-full max-w-2xl rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-bg-secondary)]/80 backdrop-blur-xl shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)]/50 px-6 py-4">
             <div>
               <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">User Access</div>
               <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
@@ -2570,24 +2492,24 @@ const CRMModule = ({ initialContactId = null }) => {
               </h3>
               <p className="text-sm text-[var(--color-text-secondary)]">{userAccess?.user?.email || selectedContact?.email || '--'}</p>
             </div>
-            <button onClick={() => setShowUserAccessModal(false)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
-              <X size={20} />
+            <button onClick={() => setShowUserAccessModal(false)} className="rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] backdrop-blur-sm">
+              <X size={18} />
             </button>
           </div>
 
           <div className="space-y-4 p-6">
             {!userAccess ? (
-              <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 text-sm text-[var(--color-text-secondary)]">
+              <div className="rounded-xl border border-dashed border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 p-5 text-sm text-[var(--color-text-secondary)] backdrop-blur-sm">
                 No CRM-linked user login exists for this contact yet.
               </div>
             ) : (
               <>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                  <div className="rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 p-4 backdrop-blur-sm">
                     <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Username</div>
                     <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{userAccess.user.username || '--'}</div>
                   </div>
-                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4">
+                  <div className="rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 p-4 backdrop-blur-sm">
                     <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Provider</div>
                     <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{userAccess.user.provider || 'local-password'}</div>
                   </div>
@@ -2662,12 +2584,12 @@ const CRMModule = ({ initialContactId = null }) => {
     const options = optionsMap[bulkActionModal.action] || null;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-        <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+        <div className="w-full max-w-md rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-bg-secondary)]/80 backdrop-blur-xl shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)]/50 px-5 py-4">
             <h3 className="text-base font-semibold text-[var(--color-text-primary)]">{titles[bulkActionModal.action] || 'Bulk Action'}</h3>
-            <button onClick={closeBulkActionModal} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
-              <X size={18} />
+            <button onClick={closeBulkActionModal} className="rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 p-1.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] backdrop-blur-sm">
+              <X size={16} />
             </button>
           </div>
           <div className="space-y-4 p-5">
@@ -2675,7 +2597,7 @@ const CRMModule = ({ initialContactId = null }) => {
               Apply this action to {selectedContacts.size} selected contact{selectedContacts.size === 1 ? '' : 's'}.
             </p>
             {bulkActionError ? (
-              <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              <div className="rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-2 text-sm text-red-200 backdrop-blur-sm">
                 {bulkActionError}
               </div>
             ) : null}
@@ -2695,7 +2617,7 @@ const CRMModule = ({ initialContactId = null }) => {
               <select
                 value={bulkActionModal.value}
                 onChange={(e) => setBulkActionModal((current) => ({ ...current, value: e.target.value }))}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                className="w-full rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm"
               >
                 <option value="">Select...</option>
                 {options.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -2706,12 +2628,12 @@ const CRMModule = ({ initialContactId = null }) => {
                 value={bulkActionModal.value}
                 onChange={(e) => setBulkActionModal((current) => ({ ...current, value: e.target.value }))}
                 placeholder={placeholders[bulkActionModal.action] || ''}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                className="w-full rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm"
               />
             )}
           </div>
-          <div className="flex justify-end gap-3 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-5 py-4">
-            <button onClick={closeBulkActionModal} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]">
+          <div className="flex justify-end gap-3 border-t border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/50 px-5 py-4 backdrop-blur-sm">
+            <button onClick={closeBulkActionModal} className="rounded-full border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] backdrop-blur-sm">
               Cancel
             </button>
             <button
@@ -2743,19 +2665,44 @@ const CRMModule = ({ initialContactId = null }) => {
         titleIcon={Users}
         showTitle={false}
         actions={[
-          {
-            label: 'Import',
-            icon: FileInput,
-            onClick: () => importInputRef.current?.click(),
-            variant: 'secondary'
-          },
-          {
-            label: 'Create Contact',
-            icon: Plus,
-            onClick: () => setShowCreateModal(true),
-            variant: 'primary'
-          }
+          { label: 'Add Tag', icon: Tag, onClick: () => handleBulkAction('add_tag'), variant: 'secondary', color: 'emerald' },
+          { label: 'Remove Tag', icon: Tag, onClick: () => handleBulkAction('remove_tag'), variant: 'secondary', color: 'rose' },
+          { label: 'Add Flow', icon: Zap, onClick: () => handleBulkAction('add_flow'), variant: 'secondary', color: 'emerald' },
+          { label: 'Remove Flow', icon: Zap, onClick: () => handleBulkAction('remove_flow'), variant: 'secondary', color: 'rose' },
+          { label: 'Set Owner', icon: User, onClick: () => handleBulkAction('set_owner'), variant: 'secondary', color: 'violet' },
+          { label: 'Set Dept', icon: Building2, onClick: () => handleBulkAction('set_department'), variant: 'secondary', color: 'violet' },
+          { label: 'Send API', icon: Zap, onClick: () => handleBulkAction('send_api'), variant: 'secondary', color: 'sky' },
+          { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('send_email'), variant: 'secondary', color: 'sky' },
+          { label: 'Send SMS', icon: MessageCircle, onClick: () => handleBulkAction('send_sms'), variant: 'secondary', color: 'sky' },
+          { label: 'Delete', icon: Trash2, onClick: () => handleBulkAction('delete'), variant: 'secondary', color: 'red' },
+          { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary', color: 'slate' },
+          { label: 'Import', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', color: 'slate' },
+          { label: 'Create Contact', icon: Plus, onClick: () => setShowCreateModal(true), variant: 'primary', color: 'primary' }
         ]}
+        toolbarLeftSlot={
+          selectedContact ? (
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setSelectedContact(null)}
+                className="inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
+              >
+                <ChevronLeft size={16} /> Back to Contacts
+              </button>
+              <div className="h-4 w-px bg-[var(--color-border)]" />
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">{selectedContact.first_name} {selectedContact.last_name}</span>
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
+                Stage {selectedContact.pipeline_stage || 'New'}
+              </span>
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
+                Owner {selectedContact.owner || 'Unassigned'}
+              </span>
+            </div>
+          ) : selectedContacts.size > 0 ? (
+            <div className="text-xs text-[var(--color-text-secondary)]">
+              {selectedContacts.size} selected
+            </div>
+          ) : null
+        }
         statusBadge={null}
         showActions={true}
         aiAssistSlot={(
@@ -2767,27 +2714,8 @@ const CRMModule = ({ initialContactId = null }) => {
         )}
       />
 
-      {/* Tab Navigation (moved inside content area) */}
-      <div className="px-4 pt-4 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
-        <div className="flex gap-6 text-sm font-medium">
-          {['Contacts', 'Companies'].map(tab => (
-            <button 
-              key={tab} 
-              onClick={() => setActiveTab(tab)}
-              className={`pb-2 border-b-2 transition ${
-                tab === activeTab 
-                  ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]' 
-                  : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      {renderTabContent()}
+      {/* Content */}
+      {renderContactsTab()}
 
       {/* Create Contact Modal */}
       {showCreateModal && <CreateContactModal />}

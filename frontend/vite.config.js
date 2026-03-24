@@ -1,53 +1,73 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import fs from "fs";
+import path from "path";
+import net from "net";
 
-export default defineConfig(({ mode }) => {
-  // Load env variables from .env files
-  const env = loadEnv(mode, process.cwd(), "");
+const LOCK_FILE = path.join(process.cwd(), ".vite-lock");
 
-  /**
-   * Set VITE_HOSTED=true ONLY in hosted environments
-   * (Emergent, cloud preview, etc.)
-   */
+function checkPort(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", (err) => {
+      if (err.code === "EADDRINUSE") resolve(false);
+      else resolve(true);
+    });
+    server.once("listening", () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port, "localhost");
+  });
+}
+
+async function acquireLock(port) {
+  const portFree = await checkPort(port);
+  if (!portFree) {
+    const allowMulti = process.env.VITE_ALLOW_MULTI === "true";
+    if (allowMulti) {
+      console.log(`[vite] Port ${port} in use, but VITE_ALLOW_MULTI=true - allowing multiple instances`);
+      return true;
+    }
+    console.error(`[vite] Port ${port} is already in use. Only one instance allowed.`);
+    console.error(`[vite] Set VITE_ALLOW_MULTI=true to allow multiple instances (admin only).`);
+    process.exit(1);
+  }
+  fs.writeFileSync(LOCK_FILE, String(port));
+  return true;
+}
+
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE);
+  } catch {}
+}
+
+export default defineConfig(async () => {
+  await acquireLock(5175);
+
+  process.on("SIGINT", releaseLock);
+  process.on("SIGTERM", releaseLock);
+
+  const env = loadEnv(process.env.NODE_ENV || "development", process.cwd(), "");
+
   const isHosted =
     String(env.VITE_HOSTED || "").toLowerCase() === "true";
 
-  /**
-   * Optional public hostname for hosted HMR
-   * Example: your-app.emergent.sh
-   */
   const publicHost = env.VITE_PUBLIC_HOST || "";
 
   return {
     plugins: [react()],
 
     server: {
-      /**
-       * Local:
-       *  - localhost
-       * Hosted:
-       *  - bind on all interfaces behind proxy
-       */
       host: isHosted ? "0.0.0.0" : "localhost",
+      port: 5175,
+      strictPort: true,
 
-      /**
-       * Local dev port (default Vite port)
-       */
-      port: Number(env.VITE_PORT || 5173),
-
-      /**
-       * Hot Module Reloading
-       */
       hmr: isHosted
         ? {
             protocol: "wss",
             clientPort: 443,
-
-            /**
-             * IMPORTANT:
-             * Use a PUBLIC HOSTNAME, not a raw IP.
-             * Do NOT bind to an external IP locally.
-             */
             ...(publicHost ? { host: publicHost } : {}),
           }
         : true,

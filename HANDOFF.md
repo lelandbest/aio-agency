@@ -121,6 +121,24 @@
 
 ---
 
+### 7. CRM Module Recovery & Refinement
+**Status:** Recovered and Polished, LOCKED (2026-03-24)
+
+**Final Layout (40/40/20):**
+- **Left (40%):** Relationship Dossier (independent scroll, crm-scroll-hidden)
+- **Center (40%):** Activity Timeline (compact tabs, 11px font, crm-scroll-hidden)
+- **Right (20%):** Relationship Assets (independent scroll, crm-scroll-hidden)
+
+**Changes:**
+- Restored from git history (`6e44478`) after structural corruption.
+- Implemented aggressive email header/signature stripping in `normalizeAiText`.
+- Standardized `rounded-2xl` corners across all panes.
+- Purged all mock owners ("Adam B.", "User 1", etc.).
+- Fixed `ReferenceError: flowEmailActivities` caused by partial cleanup.
+- Hidden all scrollbars globally for "Design 101" look.
+
+---
+
 ## 📚 PROTOCOLS & SELF-HEALING
 
 ### Rule 1: ASK BEFORE CHANGING UI
@@ -236,6 +254,17 @@ This might need cleanup depending on how actions are passed in other modules.
 
 ---
 
+### 3. CRM Module "Explosion" & Build Break
+**Status:** LOGGED AND RESOLVED
+
+**Failure Report:**
+- **Structural Corruption (2026-03-23):** Deleted ~460 lines of `index.jsx` during an aggressive cleanup, "exploding" the module's core functions and unclosing JSX tags.
+- **Reference Error (2026-03-23):** Introduced `ReferenceError: flowEmailActivities is not defined` after a partial cleanup, breaking the render loop.
+- **Impact:** Multiple round-trips required for restoration from git history, wasting user tokens and developer time.
+- **Root Cause:** Refactoring massive files (2800+ lines) without a verified git checkpoint or full structural map.
+
+---
+
 ## 📁 FILE STRUCTURE
 
 ### Modified Files:
@@ -296,5 +325,6 @@ C:\Users\besta\AppData\Local\Programs\Python\Python313\python.exe D:\AIOCRM\back
 **AIO Cortex:** LOCKED (2026-03-23)
 **AIO Systems:** LOCKED (2026-03-23)
 **Comms:** LOCKED (2026-03-23)
+**CRM:** LOCKED (2026-03-24)
 
 **Any UI changes to locked modules require explicit unlock command.**

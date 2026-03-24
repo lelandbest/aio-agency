@@ -160,6 +160,21 @@ class AuthStore:
                     UNIQUE(tenant_id, provider_key)
                 );
 
+                CREATE TABLE IF NOT EXISTS payment_provider_configs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    provider_key TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'disconnected',
+                    config_json TEXT,
+                    last_tested_at TEXT,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(tenant_id, provider_key)
+                );
+
                 CREATE TABLE IF NOT EXISTS omega_protocols (
                     tenant_id TEXT PRIMARY KEY,
                     status TEXT NOT NULL DEFAULT 'idle',
@@ -506,6 +521,27 @@ class AuthStore:
         }
         if include_secret:
             payload["api_key"] = record["api_key"]
+        return payload
+
+    def _payment_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
+        config = json.loads(record["config_json"]) if record["config_json"] else {}
+        payload = {
+            "id": record["id"],
+            "tenant_id": record["tenant_id"],
+            "provider_key": record["provider_key"],
+            "label": record["label"],
+            "enabled": bool(record["enabled"]),
+            "status": record["status"],
+            "last_tested_at": record["last_tested_at"],
+            "last_error": record["last_error"],
+            "config": config,
+            "api_key_present": bool(config.get("api_key") or config.get("secret_key")),
+            "created_at": record["created_at"],
+            "updated_at": record["updated_at"],
+        }
+        if include_secret:
+            payload["api_key"] = config.get("api_key")
+            payload["secret_key"] = config.get("secret_key")
         return payload
 
     def _require_workspace_role(self, conn: sqlite3.Connection, user_id: str, tenant_id: str, allowed_roles: set[str]) -> sqlite3.Row:
@@ -1950,6 +1986,123 @@ class AuthStore:
             )
             conn.commit()
         return next((item for item in self.list_automation_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def list_payment_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM payment_provider_configs
+                WHERE tenant_id = ?
+                ORDER BY updated_at DESC, created_at DESC
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [self._payment_provider_record(row) for row in rows]
+
+    def get_payment_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM payment_provider_configs WHERE tenant_id = ? AND id = ? LIMIT 1",
+                (tenant_id, config_id),
+            ).fetchone()
+        return self._payment_provider_record(row, include_secret=True) if row else None
+
+    def list_payment_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+        return self.list_payment_provider_configs_for_tenant(tenant_id)
+
+    def upsert_payment_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        normalized_provider = (provider_key or "").strip().lower()
+        if not normalized_provider:
+            raise ValueError("Provider key is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            existing = conn.execute(
+                "SELECT * FROM payment_provider_configs WHERE tenant_id = ? AND provider_key = ? LIMIT 1",
+                (tenant_id, normalized_provider),
+            ).fetchone()
+            now = utcnow_iso()
+            label = (payload.get("label") or normalized_provider.replace("-", " ").title()).strip()
+            config = payload.get("config") or {}
+            enabled = 1 if payload.get("enabled") else 0
+            status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
+            last_error = payload.get("last_error")
+            if existing:
+                resolved_last_tested_at = payload.get("last_tested_at", existing["last_tested_at"])
+                conn.execute(
+                    """
+                    UPDATE payment_provider_configs
+                    SET label = ?, enabled = ?, status = ?, config_json = ?,
+                        last_tested_at = ?, last_error = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        label,
+                        enabled,
+                        status,
+                        json.dumps(config),
+                        resolved_last_tested_at,
+                        last_error,
+                        now,
+                        existing["id"],
+                    ),
+                )
+                config_id = existing["id"]
+            else:
+                config_id = f"payment-provider-{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO payment_provider_configs (
+                        id, tenant_id, provider_key, label, enabled, status,
+                        config_json, last_tested_at, last_error, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        config_id,
+                        tenant_id,
+                        normalized_provider,
+                        label,
+                        enabled,
+                        status,
+                        json.dumps(config),
+                        payload.get("last_tested_at"),
+                        last_error,
+                        now,
+                        now,
+                    ),
+                )
+            conn.commit()
+        return next((item for item in self.list_payment_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def delete_payment_provider_config(self, token: str | None, tenant_id: str, config_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            row = conn.execute(
+                "SELECT * FROM payment_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Payment provider config not found.")
+            conn.execute("DELETE FROM payment_provider_configs WHERE id = ?", (config_id,))
+            conn.commit()
+        return {"deleted_id": config_id, "provider_key": row["provider_key"]}
 
     def upsert_ai_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not token:

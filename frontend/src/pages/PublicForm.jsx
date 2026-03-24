@@ -94,6 +94,93 @@ const PublicForm = ({ formSlug }) => {
                 {field.type === 'textarea' && <textarea required={field.required} placeholder={field.placeholder} value={formData[field.name] || ''} onChange={(event) => handleChange(field.name, event.target.value)} rows={4} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent" />}
                 {field.type === 'select' && <select required={field.required} value={formData[field.name] || ''} onChange={(event) => handleChange(field.name, event.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"><option value="">Select...</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select>}
                 {field.type === 'checkbox' && <div className="flex items-center"><input type="checkbox" required={field.required} checked={formData[field.name] || false} onChange={(event) => handleChange(field.name, event.target.checked)} className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" /><span className="ml-2 text-sm text-gray-600">{field.placeholder}</span></div>}
+                {field.type === 'purchase' && (
+                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4 mt-4">
+                    <h3 className="text-lg font-bold text-[var(--color-primary)] border-b border-gray-200 pb-2">Payment Details</h3>
+                    <div className="space-y-4 pt-2">
+                       {/* Product Selection Placeholder */}
+                       <div className="flex items-center justify-between p-3 border border-purple-200 rounded-lg bg-purple-50">
+                         <label className="flex items-center cursor-pointer">
+                           <input type={field.allowMultipleProducts ? "checkbox" : "radio"} className="h-4 w-4 text-purple-600 focus:ring-purple-500" defaultChecked />
+                           <span className="ml-3 font-medium text-purple-900">Standard Package</span>
+                         </label>
+                         {field.showProductPrices !== false && <span className="font-bold text-purple-900">$99.00</span>}
+                       </div>
+                       
+                       {field.showCouponCode && (
+                         <div>
+                           <label className="block text-sm font-medium text-gray-700 mb-1">Coupon Code</label>
+                           <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none" placeholder="Optional" />
+                         </div>
+                       )}
+
+                       {/* Customer Info */}
+                       {(field.collectEmail || field.collectPhone) && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {field.collectEmail && (
+                             <div>
+                               <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                               <input type="email" required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none" />
+                             </div>
+                           )}
+                           {field.collectPhone && (
+                             <div>
+                               <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                               <input type="tel" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none" />
+                             </div>
+                           )}
+                         </div>
+                       )}
+
+                       {/* Billing Address */}
+                       {field.collectBillingAddress === 'full' && (
+                         <div className="space-y-3">
+                           <label className="block text-sm font-medium text-gray-700">Billing Address</label>
+                           <input type="text" placeholder="Street Address" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none" />
+                           <div className="grid grid-cols-2 gap-4">
+                             <input type="text" placeholder="City" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none" />
+                             <input type="text" placeholder="State/Province" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none" />
+                           </div>
+                           <input type="text" placeholder="Zip/Postal Code" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none" />
+                         </div>
+                       )}
+                       {field.collectBillingAddress === 'zip' && (
+                         <div>
+                           <label className="block text-sm font-medium text-gray-700 mb-1">Billing Zip Code</label>
+                           <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none" />
+                         </div>
+                       )}
+
+                       {/* Credit Card */}
+                       {field.showCreditCardInput && (
+                         <div className="space-y-4">
+                           {field.collectCardHolderName && (
+                             <div>
+                               <label className="block text-sm font-medium text-gray-700 mb-1">Cardholder Name</label>
+                               <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none" />
+                             </div>
+                           )}
+                           <div className="relative">
+                             <label className="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
+                             <div className="flex bg-white rounded-lg border border-gray-300 px-4 py-2 focus-within:ring-2 focus-within:ring-purple-600 focus-within:border-transparent">
+                               <input type="text" placeholder="0000 0000 0000 0000" className="w-full border-none p-0 focus:ring-0 outline-none" />
+                               {field.showCvv && (
+                                 <input type="text" placeholder="CVV" className="w-16 ml-4 pl-4 border-l border-gray-300 outline-none focus:ring-0 text-center" />
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       )}
+
+                       {field.showTotalPrice && (
+                         <div className="flex justify-between items-center pt-4 border-t border-gray-200 mt-2">
+                           <span className="text-gray-600 font-medium tracking-wide uppercase text-sm">Amount Due:</span>
+                           <span className="text-2xl font-bold text-gray-900">$99.00</span>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{error}</p></div>}

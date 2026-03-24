@@ -34,8 +34,27 @@ const OrdersModule = () => {
 
   const fetchData = async (table) => {
     setLoading(true);
-    const { data } = await mockSupabase.from(table).select();
-    if (data) setData(data);
+    try {
+      if (table === 'orders') {
+        const { getOrdersApi } = await import('../../services/backendApi');
+        const data = await getOrdersApi();
+        const formatted = data.map(o => ({
+          id: o.id.split('-').pop() || o.id,
+          contact: o.contact_id || 'Unknown',
+          payment_status: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
+          fulfillment_status: o.status === 'active' ? 'Processing' : 'Shipped',
+          items: o.items?.length || 1,
+          total: o.total_amount || 0,
+          date: new Date(o.created_at).toLocaleDateString()
+        }));
+        setData(formatted);
+      } else {
+        const { data } = await mockSupabase.from(table).select();
+        if (data) setData(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
     setLoading(false);
   };
 

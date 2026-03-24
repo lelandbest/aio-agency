@@ -137,7 +137,7 @@ const AIOAgentsModule = () => {
           const subRuns = aiRuns.filter(r => r.agent_role && !['ALPHA', 'CHARLIE'].includes(r.agent_role));
 
           return (
-            <div className="flex-1 flex gap-4 p-4 overflow-hidden relative">
+            <div className="flex-1 flex gap-2 p-2 overflow-hidden relative">
               <style>{`
                 @keyframes scanner-slide {
                   0% { left: 0%; transform: translateX(0); }
@@ -316,7 +316,7 @@ const AIOAgentsModule = () => {
                     <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
                     <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse"></div>
-                      SYS_OWNER
+                      ADMIN
                     </div>
                     <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
                        {userRuns.slice(0, 10).map(run => (

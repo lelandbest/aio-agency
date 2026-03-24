@@ -705,35 +705,38 @@ const FormBuilderModule = () => {
 
   // Editor View
   return (
-    <div className="h-full flex bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] overflow-hidden">
+    <div className="h-full flex bg-transparent gap-[5px]">
       {/* Left Sidebar - Field Tools */}
-      <div className="w-56 border-r border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto">
-        <div className="p-3 border-b border-[var(--color-border)] flex items-center gap-2 sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
-          <button onClick={() => setView('list')} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+      <div className="w-56 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
+        <div className="p-3 border-b border-[var(--color-border)] sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
+          <button 
+            onClick={() => setView('list')} 
+            className="flex items-center gap-2 w-full text-left text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
             <ArrowRight size={16} className="rotate-180" />
+            <span className="text-xs font-bold">Back to List</span>
           </button>
-          <span className="text-xs font-bold text-[var(--color-text-primary)]">Back to List</span>
         </div>
-        <div className="p-2 space-y-1">
+        <div className="p-1.5 space-y-0.5">
           {FORM_TOOLS.map((category, idx) => (
             <div key={idx}>
               <button
                 onClick={() => toggleCategory(idx)}
-                className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider hover:text-[var(--color-text-secondary)]"
+                className="w-full flex items-center justify-between px-2 py-1 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider hover:text-[var(--color-text-secondary)]"
               >
                 {category.category}
                 <ChevronDown size={12} className={`transition-transform ${expandedCategories[idx] ? 'rotate-180' : ''}`} />
               </button>
               {expandedCategories[idx] && (
-                <div className="flex flex-wrap gap-1 px-1 pb-2">
+                <div className="flex flex-col gap-0.5 px-1 pb-1">
                   {category.items.map((tool, tIdx) => (
                     <button
                       key={tIdx}
                       onClick={() => handleAddField(tool)}
-                      className="flex items-center gap-1.5 px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+                      className="w-full flex justify-start items-center gap-1.5 px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] rounded text-[10px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
                       title={tool.label}
                     >
-                      <tool.icon size={14} />
+                      <tool.icon size={12} />
                       <span>{tool.label}</span>
                     </button>
                   ))}
@@ -745,7 +748,7 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)]">
+      <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
         {/* Editor Header */}
         <div className="h-16 border-b border-[var(--color-border)] flex items-center justify-between px-6 bg-[var(--color-bg-tertiary)]">
           <div className="flex-1 flex items-center gap-2">
@@ -845,11 +848,11 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Right Sidebar - Field Configuration */}
-      <div className="w-80 border-l border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col">
+      <div className="w-80 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
         {selectedField ? (
           <>
             <div className="border-b border-[var(--color-border)] flex bg-[var(--color-bg-primary)]">
-              {['Display', 'Data', 'Validation'].map(tab => (
+              {['Display', 'Data', 'Validation', ...(selectedField.type === 'purchase' ? ['Purchase'] : [])].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab.toLowerCase())}

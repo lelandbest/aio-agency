@@ -7,7 +7,7 @@ Define agent behavior, interaction control, and execution discipline.
 This file is the entry point.
 Operational rules live in:
 - AIOBuild.md
-- Protocols/*
+- Protocols/* (including **tagging.md** - MUST READ before any tag operations)
 - **HANDOFF.md** (Critical - Read before any work)
 
 ---

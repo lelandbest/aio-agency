@@ -372,6 +372,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_orders(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_mailboxes(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
@@ -1555,6 +1559,9 @@ class MockProvider(BaseProvider):
             row.update(submission_data)
             rows.append(row)
         return sorted(rows, key=lambda row: row.get("submitted_at") or "", reverse=True)
+
+    def list_orders(self) -> list[dict[str, Any]]:
+        return []
 
     def submit_form(self, form_id: str, form_data: dict[str, Any]) -> dict[str, Any]:
         form = self.get_form_by_id(form_id)
@@ -2836,6 +2843,7 @@ class SQLiteProvider(BaseProvider):
             "forms",
             "form_folders",
             "form_submissions",
+            "orders",
             "mailboxes",
             "threads",
             "messages",
@@ -3034,6 +3042,23 @@ class SQLiteProvider(BaseProvider):
                     submission_json TEXT NOT NULL,
                     created_contact INTEGER NOT NULL DEFAULT 0,
                     submitted_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS orders (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    contact_id TEXT,
+                    form_submission_id TEXT,
+                    reference_code TEXT,
+                    status TEXT,
+                    total_amount REAL,
+                    currency TEXT,
+                    payment_status TEXT,
+                    payment_provider TEXT,
+                    payment_id TEXT,
+                    items_json TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS mailboxes (
@@ -4049,10 +4074,45 @@ class SQLiteProvider(BaseProvider):
         now = utcnow()
         tenant_id = self._default_tenant_id()
         seeds = [
+            # META
+            ("META:AGENT", "META", "Agent", "Meta agent tag.", "system", 1, "#888888"),
+            ("META:ACCESS:INTERNAL", "META", "Internal Access", "Internal access level.", "system", 1, "#888888"),
+            ("META:DOC:HELP", "META", "Help Documentation", "Help documentation.", "system", 1, "#888888"),
+            # CRM
             ("CRM:HOT", "CRM", "Hot Lead", "High priority potential customer.", "system", 1, "#ef4444"),
+            ("CRM:WARM", "CRM", "Warm Lead", "Medium priority lead.", "system", 1, "#f97316"),
             ("CRM:COLD", "CRM", "Cold Lead", "Low priority/initial contact.", "system", 1, "#3b82f6"),
-            ("MKG:EMAIL", "MKG", "Email Marketing", "Engagement via email campaigns.", "system", 1, "#10b981"),
+            # AI
             ("AI:BOT", "AI", "AI Bot", "Interaction handled by autonomous agents.", "system", 1, "#8b5cf6"),
+            ("AI:AUT", "AI", "AI Authoring Tool", "AI authoring/automation tool.", "system", 1, "#a855f7"),
+            # Marketing
+            ("MKG:EMAIL", "MKG", "Email Marketing", "Engagement via email campaigns.", "system", 1, "#10b981"),
+            ("MKT:DIGITAL", "MKT", "Digital Marketing", "Digital marketing campaigns.", "system", 1, "#06b6d4"),
+            # Meetings
+            ("MTG:SCHEDULE", "MTG", "Meeting Scheduled", "Meeting has been scheduled.", "system", 1, "#f59e0b"),
+            # Capture
+            ("CP:LEAD", "CP", "Lead Capture", "Lead captured via form or other.", "system", 1, "#ec4899"),
+            # Content
+            ("CD:ASSET", "CD", "Content Asset", "Creative/content asset.", "system", 1, "#14b8a6"),
+            # Events
+            ("EVT:WEBINAR", "EVT", "Webinar Event", "Webinar event.", "system", 1, "#6366f1"),
+            # Operations
+            ("PM:PROJECT", "PM", "Project", "Project management.", "system", 1, "#84cc16"),
+            # Roles
+            ("ROLE:CMD", "ROLE", "Command", "Command access role.", "system", 1, "#64748b"),
+            ("ROLE:BIZ", "ROLE", "Business", "Business role.", "system", 1, "#64748b"),
+            ("ROLE:CS", "ROLE", "Customer Service", "Customer service role.", "system", 1, "#64748b"),
+            ("ROLE:VIS", "ROLE", "Visitor", "Visitor role.", "system", 1, "#64748b"),
+            ("ROLE:COM", "ROLE", "Commerce", "Commerce role.", "system", 1, "#64748b"),
+            ("ROLE:CPY", "ROLE", "Copywriting", "Copywriting role.", "system", 1, "#64748b"),
+            ("ROLE:DEV", "ROLE", "Developer", "Developer role.", "system", 1, "#64748b"),
+            ("ROLE:FIN", "ROLE", "Finance", "Finance role.", "system", 1, "#64748b"),
+            ("ROLE:OPS", "ROLE", "Operations", "Operations role.", "system", 1, "#64748b"),
+            ("ROLE:SEO", "ROLE", "SEO", "SEO role.", "system", 1, "#64748b"),
+            ("ROLE:HR", "ROLE", "Human Resources", "HR role.", "system", 1, "#64748b"),
+            ("ROLE:SLS", "ROLE", "Sales", "Sales role.", "system", 1, "#64748b"),
+            ("ROLE:DES", "ROLE", "Design", "Design role.", "system", 1, "#64748b"),
+            ("ROLE:SYS", "ROLE", "System", "System role.", "system", 1, "#64748b"),
         ]
         
         def _seed(db_conn):
@@ -4964,6 +5024,13 @@ class SQLiteProvider(BaseProvider):
             }
             entry.update(json_loads(row.get("submission_json"), {}))
             data.append(entry)
+    def list_orders(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM orders WHERE tenant_id = ? ORDER BY created_at DESC")
+        data = []
+        for row in rows:
+            entry = dict(row)
+            entry["items"] = json_loads(row.get("items_json"), [])
+            data.append(entry)
         return data
 
     def submit_form(self, form_id: str, form_data: dict[str, Any]) -> dict[str, Any]:
@@ -5052,6 +5119,34 @@ class SQLiteProvider(BaseProvider):
                 "INSERT INTO form_submissions (id, tenant_id, form_id, contact_id, submission_json, created_contact, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (submission_id, self._tenant_id(), form_id, contact_id, json_dumps(form_data), int(created_contact), utcnow()),
             )
+            
+            # Create Order if purchase fields are present
+            has_purchase = any(field.get("type") == "purchase" for field in form["schema"])
+            if has_purchase:
+                order_id = f"order-{unique_suffix()}"
+                payment_status = form_data.get("payment_status", "pending")
+                total_amount = float(form_data.get("total_amount", 0.0))
+                payment_id = form_data.get("payment_id")
+                payment_provider = form_data.get("payment_provider", "unknown")
+                items = form_data.get("order_items", [])
+                
+                conn.execute(
+                    """
+                    INSERT INTO orders (
+                        id, tenant_id, contact_id, form_submission_id, reference_code,
+                        status, total_amount, currency, payment_status, payment_provider,
+                        payment_id, items_json, created_at, updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        order_id, self._tenant_id(), contact_id, submission_id, f"ORD-{unique_suffix().upper()}",
+                        "active", total_amount, "USD", payment_status, payment_provider,
+                        payment_id, json_dumps(items), utcnow(), utcnow()
+                    )
+                )
+
             conn.execute(
                 "UPDATE forms SET responses_count = responses_count + 1, last_response_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
                 (utcnow(), utcnow(), form_id, self._tenant_id()),

@@ -165,39 +165,6 @@ const FlowInfoPanel = ({
                 </div>
               </div>
 
-              {/* Tenant/Brand Context */}
-              <div className="space-y-3 pt-4 border-t border-[var(--color-border)]">
-                <p className="text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Tenant / Brand</p>
-                <div>
-                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">Tenant ID</label>
-                  <input
-                    value={flow.metadata?.tenantId || ''}
-                    onChange={(e) => onFlowUpdate?.({ metadata: { ...flow.metadata, tenantId: e.target.value } })}
-                    className="w-full px-3 py-2 text-xs rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">Brand</label>
-                  <input
-                    value={flow.metadata?.brand || ''}
-                    onChange={(e) => onFlowUpdate?.({ metadata: { ...flow.metadata, brand: e.target.value } })}
-                    className="w-full px-3 py-2 text-xs rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-[var(--color-text-tertiary)] mb-1">Theme Preset</label>
-                  <select
-                    value={flow.metadata?.themePreset || ''}
-                    onChange={(e) => onFlowUpdate?.({ metadata: { ...flow.metadata, themePreset: e.target.value } })}
-                    className="w-full px-3 py-2 text-xs rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-                  >
-                    <option value="">Default</option>
-                    <option value="AIO">AIO</option>
-                    <option value="BLTV">BLTV</option>
-                  </select>
-                </div>
-              </div>
-
             </div>
           </div>
         </div>

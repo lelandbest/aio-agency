@@ -546,8 +546,21 @@ export async function getContactActivitiesApi(contactId) {
   return response.data || [];
 }
 
+export async function createContactActivityApi(contactId, payload) {
+  const response = await request(`/api/contacts/${encodeURIComponent(contactId)}/activities`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
 export async function getContactFormSubmissionsApi(contactId) {
   const response = await request(`/api/contacts/${encodeURIComponent(contactId)}/form-submissions`);
+  return response.data || [];
+}
+
+export async function getOrdersApi() {
+  const response = await request('/api/orders');
   return response.data || [];
 }
 

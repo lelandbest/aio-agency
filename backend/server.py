@@ -793,9 +793,15 @@ ALLOWED_ORIGINS = [
         "ALLOWED_ORIGINS",
         ",".join(
             [
+                "http://localhost:5175",
+                "http://127.0.0.1:5175",
+                "http://0.0.0.0:5175",
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
                 "http://0.0.0.0:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:5174",
+                "http://0.0.0.0:5174",
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
                 "http://0.0.0.0:3000",
@@ -3385,6 +3391,96 @@ async def list_content_metrics(request: Request, platform: str | None = None, li
         return {"data": metrics}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============ ORDERS ============
+
+@app.get("/api/orders")
+async def list_orders(request: Request):
+    """List all orders for the workspace."""
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Need viewer role to view orders.")
+    try:
+        return {"data": provider.list_orders()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============ AI ORCHESTRATION ============
+
+class CommandRequest(BaseModel):
+    command: str
+    context: dict[str, Any] | None = None
+
+@app.post("/api/ai/command")
+async def parse_ai_command(request: Request, payload: CommandRequest):
+    """Parse a natural language command into structured steps (Parse-first, no execution)."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to execute AI commands.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    actor = {"id": session.get("user", {}).get("id"), "email": session.get("user", {}).get("email")}
+    config = auth_store.get_active_ai_provider_config_for_tenant(tenant_id)
+    
+    try:
+        result = ai_assist_service.parse_command(
+            command=payload.command,
+            context=payload.context or {},
+            actor=actor,
+            tenant_id=tenant_id,
+            provider_config=config,
+        )
+        return {"data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ============ PAYMENT PROVIDERS ============
+
+class PaymentProviderUpsertRequest(BaseModel):
+    label: str | None = None
+    enabled: bool = False
+    status: str | None = None
+    config: dict[str, Any] | None = None
+    last_tested_at: str | None = None
+    last_error: str | None = None
+
+@app.get("/api/payments/providers")
+async def list_payment_provider_configs(request: Request):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view payment providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return {"data": auth_store.list_payment_provider_configs(token, tenant_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+@app.put("/api/payments/providers/{provider_key}")
+async def upsert_payment_provider_config(provider_key: str, request: Request, payload: PaymentProviderUpsertRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage payment providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        config = auth_store.upsert_payment_provider_config(token, tenant_id, provider_key, payload.model_dump())
+        return {"data": config}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+@app.delete("/api/payments/providers/{config_id}")
+async def delete_payment_provider_config(config_id: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete payment providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return auth_store.delete_payment_provider_config(token, tenant_id, config_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+@app.post("/api/payments/providers/{config_id}/test")
+async def test_payment_provider_config(config_id: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test payment providers.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_payment_provider_config_for_tenant(tenant_id, config_id)
+    if not config:
+        raise HTTPException(status_code=404, detail="Payment provider config not found")
+    return {"result": {"success": True, "message": "Payment provider routed (Simulation)."}, "data": config}
 
 
 if __name__ == "__main__":

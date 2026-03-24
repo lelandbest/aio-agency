@@ -113,10 +113,10 @@ const LEFT_PANEL_MIN = 280;
 const LEFT_PANEL_MAX = 480;
 const RIGHT_PANEL_MIN = 320;
 const RIGHT_PANEL_MAX = 560;
-const COMMS_TOOLBAR_SECONDARY = '!h-11 !rounded-xl !border !border-slate-600/75 !bg-[linear-gradient(180deg,rgba(19,27,45,0.56),rgba(10,16,30,0.68))] !px-4 !text-slate-100 shadow-[inset_0_1px_0_rgba(148,163,184,0.12),0_0_0_1px_rgba(148,163,184,0.04),0_10px_24px_rgba(2,6,23,0.22)] hover:!border-sky-400/45 hover:!bg-[linear-gradient(180deg,rgba(25,36,61,0.62),rgba(13,21,38,0.74))] disabled:!border-slate-800 disabled:!bg-[linear-gradient(180deg,rgba(19,27,45,0.34),rgba(10,16,30,0.4))]';
-const COMMS_TOOLBAR_REPORT = '!h-11 !rounded-xl !border !border-cyan-500/35 !bg-[linear-gradient(180deg,rgba(10,31,43,0.36),rgba(7,20,32,0.5))] !px-4 !text-cyan-100 shadow-[inset_0_1px_0_rgba(103,232,249,0.1),0_0_0_1px_rgba(34,211,238,0.06),0_10px_24px_rgba(2,6,23,0.22)] hover:!border-cyan-400/55 hover:!bg-[linear-gradient(180deg,rgba(12,41,58,0.46),rgba(8,25,37,0.58))] disabled:!border-slate-800 disabled:!bg-[linear-gradient(180deg,rgba(10,31,43,0.22),rgba(7,20,32,0.3))] disabled:!text-slate-400';
-const COMMS_TOOLBAR_GHOST = '!h-11 !rounded-xl !border !border-slate-700/70 !bg-[linear-gradient(180deg,rgba(15,23,42,0.24),rgba(15,23,42,0.12))] !px-4 !text-slate-300 shadow-[inset_0_1px_0_rgba(148,163,184,0.05)] hover:!border-slate-500/70 hover:!bg-[linear-gradient(180deg,rgba(15,23,42,0.38),rgba(15,23,42,0.2))] hover:!text-slate-100';
-const COMMS_TOOLBAR_PRIMARY = '!h-11 !rounded-xl !border !border-sky-400/45 !bg-[linear-gradient(180deg,rgba(32,71,126,0.28),rgba(12,22,38,0.42))] !px-5 !text-sky-100 shadow-[inset_0_1px_0_rgba(191,219,254,0.12),0_0_0_1px_rgba(96,165,250,0.08),0_12px_28px_rgba(37,99,235,0.18)] hover:!border-sky-300/65 hover:!bg-[linear-gradient(180deg,rgba(40,88,154,0.36),rgba(13,24,42,0.48))]';
+const COMMS_TOOLBAR_SECONDARY = '!h-7 !rounded-full !border !border-slate-600/75 !bg-slate-800/40 !px-3 !text-slate-300 !text-xs hover:!border-sky-400/50 hover:!bg-sky-500/15 hover:!text-sky-200 disabled:!opacity-40';
+const COMMS_TOOLBAR_REPORT = '!h-7 !rounded-full !border !border-cyan-500/50 !bg-cyan-500/15 !px-3 !text-cyan-200 !text-xs hover:!border-cyan-400/70 hover:!bg-cyan-500/25 disabled:!opacity-40 disabled:!text-slate-500';
+const COMMS_TOOLBAR_GHOST = '!h-7 !rounded-full !border !border-slate-700/60 !bg-transparent !px-3 !text-slate-400 !text-xs hover:!border-slate-500/70 hover:!bg-slate-700/30 hover:!text-slate-200';
+const COMMS_TOOLBAR_PRIMARY = '!h-7 !rounded-full !border !border-sky-400/50 !bg-sky-500/20 !px-3 !text-sky-200 !text-xs hover:!border-sky-300/70 hover:!bg-sky-500/30';
 const COMMS_PANEL = 'rounded-[1.5rem] border border-slate-800/80 bg-[linear-gradient(180deg,rgba(12,19,34,0.98),rgba(7,12,24,0.98))] shadow-[0_18px_40px_rgba(2,6,23,0.22),inset_0_1px_0_rgba(148,163,184,0.05)]';
 const COMMS_SUBPANEL = 'rounded-[1.05rem] border border-slate-800/70 bg-[linear-gradient(180deg,rgba(17,25,41,0.94),rgba(10,16,29,0.94))] shadow-[inset_0_1px_0_rgba(148,163,184,0.05)]';
 const COMMS_READING_WIDTH = 'max-w-[72rem]';
@@ -191,12 +191,34 @@ const decodeHtmlEntities = (value) => {
 
 const looksLikeMarkup = (value) => /<!doctype|<html|<body|<meta|<style|<div|<\/[a-z]+>|xmlns=|mso-|office:office/i.test(value || '');
 
+const stripEmailHeaders = (value) => {
+  if (!value) return value;
+  const headerPatterns = [
+    /^(Received|From|To|Cc|Bcc|Subject|Date|Message-ID|In-Reply-To|References|DKIM-Signature|DMARC|SPF|ARC-Message-Signature|ARC-Seal|X-.*|Return-Path|Reply-To):.*$/gim,
+    /^(-separator-).*$/gim,
+    /^__________________________________________$/gm,
+    /^___.*___$/gm,
+  ];
+  let result = value;
+  headerPatterns.forEach((pattern) => {
+    result = result.replace(pattern, '');
+  });
+  result = result.replace(/^[\s\r\n]*-----.*-----[\s\r\n]*/g, '');
+  result = result.replace(/^[\s\r\n]*={3,}[\s\r\n]*/g, '');
+  const blankLineIndex = result.search(/^\s*$/m);
+  if (blankLineIndex > 0 && blankLineIndex < 500) {
+    result = result.substring(blankLineIndex);
+  }
+  return result.trim();
+};
+
 const normalizeAiText = (value, fallback = '') => {
   const source = `${value || ''}`.trim();
   if (!source) return fallback;
-  if (!looksLikeMarkup(source)) return source;
+  const stripped = stripEmailHeaders(source);
+  if (!looksLikeMarkup(stripped)) return stripped;
 
-  const cleaned = decodeHtmlEntities(source)
+  const cleaned = decodeHtmlEntities(stripped)
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
@@ -1120,8 +1142,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                   {CHANNEL_FILTERS.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <button key={item.id} onClick={() => setChannel(item.id)} className={`px-3 py-1.5 rounded-full text-xs border flex items-center gap-1.5 ${channel === item.id ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] border-[var(--color-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
-                        <Icon size={13} />
+                      <button key={item.id} onClick={() => setChannel(item.id)} className={`px-2.5 py-1 rounded-full text-[11px] border flex items-center gap-1.5 ${channel === item.id ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] border-[var(--color-primary)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50'}`}>
+                        <Icon size={12} />
                         {item.label}
                       </button>
                     );

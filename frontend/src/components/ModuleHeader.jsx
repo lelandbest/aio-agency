@@ -48,37 +48,44 @@ const Breadcrumbs = ({ breadcrumbs }) => {
   );
 };
 
+const colorClasses = {
+  emerald: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400/60',
+  rose: 'border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 hover:border-rose-400/60',
+  violet: 'border-violet-500/40 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 hover:border-violet-400/60',
+  sky: 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 hover:border-sky-400/60',
+  red: 'border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:border-red-400/60',
+  slate: 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50',
+  primary: 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)]',
+};
+
 const Actions = ({ actions }) => {
   if (!actions.length) return null;
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex gap-1.5 flex-wrap">
       {actions.map((action, idx) => {
         const ActionIcon = action.icon;
-        const isVariant = action.variant === 'primary' || (action.variant !== 'secondary' && action.variant !== 'ghost');
+        const colorClass = colorClasses[action.color] || colorClasses.slate;
 
         return (
           <React.Fragment key={idx}>
-            {action.groupStart ? (
-              <div className="mx-1 hidden h-8 w-px self-center rounded-full bg-slate-700/70 xl:block" />
-            ) : null}
+            {action.groupStart && (
+              <div className="mx-1 hidden h-6 w-px self-center rounded-full bg-slate-700/50 xl:block" />
+            )}
             <button
               onClick={action.onClick}
               disabled={action.disabled}
               className={`
-                px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-all
-                ${isVariant
-                  ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] disabled:opacity-50'
-                  : action.variant === 'secondary'
-                  ? 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50'
-                  : 'bg-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] disabled:opacity-50'
-                }
+                px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-all
+                border
+                ${action.variant === 'primary' ? colorClasses.primary : colorClass}
+                disabled:opacity-40 disabled:cursor-not-allowed
                 ${action.className || ''}
               `}
               title={action.title}
             >
-              {ActionIcon && <ActionIcon size={16} />}
-                <span>{normalizeDisplayText(action.label)}</span>
+              {ActionIcon && <ActionIcon size={12} />}
+              <span>{normalizeDisplayText(action.label)}</span>
             </button>
           </React.Fragment>
         );

@@ -164,6 +164,16 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   const [nodeConfigRawError, setNodeConfigRawError] = useState('');
   const [assistTarget, setAssistTarget] = useState('');
   const [assistError, setAssistError] = useState('');
+  
+  // Terminal state
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalLogs, setTerminalLogs] = useState([]);
+  
+  // Terminal logging helper
+  const logToTerminal = useCallback((message, type = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    setTerminalLogs(prev => [...prev.slice(-99), { timestamp, message, type }]);
+  }, []);
 
   const buildFlowAssistText = useCallback((kind, overrides = {}) => {
     const flowName = flow?.name || 'Untitled Flow';
@@ -847,6 +857,26 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[var(--color-bg-primary)] overflow-hidden relative">
+      <style>{`
+        .flow-controls button {
+          width: 28px !important;
+          height: 28px !important;
+          background: var(--color-bg-secondary) !important;
+          border: 1px solid var(--color-border) !important;
+          border-radius: 9999px !important;
+          color: var(--color-text-secondary) !important;
+          margin: 0 2px !important;
+        }
+        .flow-controls button:hover {
+          background: var(--color-hover) !important;
+          border-color: var(--color-primary) !important;
+          color: var(--color-text-primary) !important;
+        }
+        .flow-controls button svg {
+          max-width: 14px !important;
+          max-height: 14px !important;
+        }
+      `}</style>
       {/* Header */}
       <FlowBuilderHeader
         flowName={flow?.name}
@@ -863,6 +893,8 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           { id: 'editor', label: 'Editor' },
         ]}
         aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
+        onToggleTerminal={() => setTerminalOpen(prev => !prev)}
+        isTerminalOpen={terminalOpen}
       />
 
       {assistError ? (
@@ -874,7 +906,7 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       {/* Main Canvas Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Center - React Flow Canvas */}
-        <div className="flex-1 relative bg-[var(--color-bg-primary)] p-2.5" ref={reactFlowWrapper}>
+        <div className="flex-1 relative bg-[var(--color-bg-primary)] overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" ref={reactFlowWrapper}>
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -924,18 +956,16 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             <Controls
               showInteractive={false}
               showFitView={false}
-              className="flow-controls bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-md"
-              style={{
-                button: {
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text-primary)',
-                },
-              }}
+              className="!absolute !bottom-4 !right-4 flow-controls"
             />
             <MiniMap
-              className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-md"
-              style={{ backgroundColor: 'var(--color-bg-primary)' }}
+              className="!absolute !bottom-4 !left-4 !rounded-xl"
+              style={{ 
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-border)',
+                minWidth: '120px',
+                minHeight: '80px',
+              }}
               nodeColor={(node) => {
                 const colorMap = {
                   trigger: 'var(--node-trigger)',
@@ -1832,6 +1862,53 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Terminal Toast */}
+      {terminalOpen && (
+        <div className="fixed bottom-4 right-4 w-[480px] max-h-80 bg-[var(--color-bg-secondary)]/95 backdrop-blur-xl border border-[var(--color-border)]/50 rounded-xl shadow-2xl overflow-hidden z-50">
+          <div className="flex items-center justify-between px-4 py-2 bg-[var(--color-bg-primary)]/80 border-b border-[var(--color-border)]/50">
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-semibold text-[var(--color-text-primary)] uppercase tracking-wide">Terminal</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTerminalLogs([])}
+                className="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] uppercase tracking-wide"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => setTerminalOpen(false)}
+                className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto p-3 font-mono text-xs space-y-1 crm-scroll-hidden">
+            {terminalLogs.length === 0 ? (
+              <div className="text-[var(--color-text-tertiary)] italic">
+                Terminal ready. Logs will appear here...
+              </div>
+            ) : (
+              terminalLogs.map((log, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="text-[var(--color-text-tertiary)] shrink-0">[{log.timestamp}]</span>
+                  <span className={
+                    log.type === 'error' ? 'text-red-400' :
+                    log.type === 'success' ? 'text-emerald-400' :
+                    log.type === 'warning' ? 'text-amber-400' :
+                    'text-[var(--color-text-secondary)]'
+                  }>
+                    {log.message}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
