@@ -100,7 +100,7 @@ const CRMModule = ({ initialContactId = null }) => {
   
   const filterOptions = {
     department: ['Sales', 'Marketing', 'Support', 'Engineering', 'Operations', 'Product', 'Design', 'Analytics', 'Consulting', 'Creative', 'Administration'],
-    owner: ['AIO Flow', 'Adam B.', 'System', 'User 1', 'User 2', 'User 3'],
+    owner: ['AIO Flow', 'System'],
     tags: availableTags,
     system_tags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
     flow: ['Active', 'Paused', 'Inactive', 'Completed'],
@@ -135,9 +135,9 @@ const CRMModule = ({ initialContactId = null }) => {
 
   useEffect(() => {
     if (selectedContact && typeof window !== 'undefined') {
-      const w = window.innerWidth - 64; // Adjust for margins/padding
-      setLeftPanelWidth(Math.floor(w * 0.5)); // 50%
-      setRightPanelWidth(Math.floor(w * 0.25)); // 25%
+      const w = window.innerWidth - 64; 
+      setLeftPanelWidth(Math.floor(w * 0.4)); 
+      setRightPanelWidth(Math.floor(w * 0.2));
     }
   }, [selectedContact]);
 
@@ -235,27 +235,24 @@ const CRMModule = ({ initialContactId = null }) => {
     let source = `${value || ''}`.trim();
     if (!source) return fallback;
     
-    // Truncate common reply/forward noise for legibility
-    const markers = [
-      'From:', 
-      'Sent:', 
-      'To:', 
-      'Subject:', 
+    // Truncate email noise (headers, forwards, signatures)
+    const cleanupMarkers = [
+      'From:', 'Sent:', 'To:', 'Subject:', 'Reply-To:',
       '---------- Forwarded message ----------',
       '________________________________',
-      'On ',
-      '> On '
+      'On ', '> On ', '---', '-- '
     ];
     
-    for (const marker of markers) {
+    for (const marker of cleanupMarkers) {
       const index = source.indexOf(marker);
-      if (index !== -1 && index > 100) { // Only truncate if we have some preceding content
+      if (index !== -1 && index > 30) { 
         source = source.substring(0, index).trim();
       }
     }
 
     if (!looksLikeMarkup(source)) return source;
 
+    // Clean HTML if present
     const cleaned = decodeHtmlEntities(source)
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -694,7 +691,7 @@ const CRMModule = ({ initialContactId = null }) => {
         },
         dob: formData.dob || null,
         owner_id: 'user-1',
-        owner: 'AIO Flow™',
+        owner: 'AIO FlowΓäó',
         source: 'Manual Entry',
         status: 'contact',
         lead_score: 50,
@@ -1184,7 +1181,7 @@ const CRMModule = ({ initialContactId = null }) => {
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 crm-scroll-hidden">
               {Object.entries(filterOptions).map(([filterKey, options]) => (
                 <div key={filterKey} className={innerPanelClass + ' p-3'}>
                   <div className="flex items-center justify-between mb-2">
@@ -1245,15 +1242,15 @@ const CRMModule = ({ initialContactId = null }) => {
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0] || null;
     const getActivityIcon = (type) => {
       switch(type) {
-        case 'form': return '📋';
-        case 'email': return '📧';
-        case 'call': return '📞';
-        case 'sms': return '💬';
-        case 'note': return '✅';
-        case 'meeting': return '🤝';
+        case 'form': return '≡ƒôï';
+        case 'email': return '≡ƒôº';
+        case 'call': return '≡ƒô₧';
+        case 'sms': return '≡ƒÆ¼';
+        case 'note': return 'Γ£à';
+        case 'meeting': return '≡ƒñ¥';
         case 'flow':
-        case 'automation': return '🤖';
-        default: return '📌';
+        case 'automation': return '≡ƒñû';
+        default: return '≡ƒôî';
       }
     };
 
@@ -1324,59 +1321,7 @@ const CRMModule = ({ initialContactId = null }) => {
 
     const flowEmailActivities = activities.filter((activity) => ['email', 'automation', 'flow'].includes(activity.activity_type));
     const bookingActivities = meetingActivities;
-    const billingItems = [
-      {
-        id: 'credit-cards',
-        label: 'Credit Cards',
-        count: 0,
-        emptyMessage: 'No credit cards are attached to this contact yet.',
-        lines: [
-          `Contact: ${selectedContact.first_name} ${selectedContact.last_name}`.trim(),
-          `Email: ${selectedContact.email || 'No email on file'}`,
-          'Status: no payment methods recorded'
-        ]
-      },
-      {
-        id: 'orders',
-        label: 'Orders',
-        count: 0,
-        emptyMessage: 'No orders are associated with this contact yet.',
-        lines: [
-          `Pipeline stage: ${selectedContact.pipeline_stage || 'New'}`,
-          'Order history: empty'
-        ]
-      },
-      {
-        id: 'purchases',
-        label: 'Purchases',
-        count: 0,
-        emptyMessage: 'No purchases are associated with this contact yet.',
-        lines: [
-          `Company: ${selectedContact.company || 'No company linked'}`,
-          'Purchases: none'
-        ]
-      },
-      {
-        id: 'transactions',
-        label: 'Transactions',
-        count: 0,
-        emptyMessage: 'No transactions are available for this contact yet.',
-        lines: [
-          `Owner: ${selectedContact.owner || 'Unassigned'}`,
-          'Transactions: none'
-        ]
-      },
-      {
-        id: 'invoices',
-        label: 'Invoices',
-        count: 0,
-        emptyMessage: 'No invoices are attached to this contact yet.',
-        lines: [
-          `Contact ID: ${selectedContact.id}`,
-          'Invoices: none'
-        ]
-      }
-    ];
+    const billingItems = [];
 
     const renderTimelineIcon = (type) => {
       switch (type) {
@@ -1546,9 +1491,9 @@ const CRMModule = ({ initialContactId = null }) => {
                 { icon: Calendar, label: 'Meet' },
                 { icon: FileInput, label: 'Form' }
               ].map((action, idx) => (
-                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex flex-col items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-2 text-[11px] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]">
-                  <action.icon size={16} />
-                  <span className="text-xs">{action.label}</span>
+                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex flex-col items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-1 py-1.5 text-[10px] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]">
+                  <action.icon size={14} />
+                  <span>{action.label}</span>
                 </button>
               ))}
             </div>
@@ -1768,13 +1713,13 @@ const CRMModule = ({ initialContactId = null }) => {
         <div className="flex-1 bg-[var(--color-bg-secondary)] border-x border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Activity Tabs */}
           <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3">
-            <div className="flex gap-2 overflow-x-auto">
-            {['Activity', 'Notes', 'Forms', 'Flow Emails', 'Flow SMS', 'Call Logs', 'Flow Activity'].map(tab => (
+            <div className="flex gap-2 overflow-x-auto crm-scroll-hidden">
+            {['Activity', 'Notes', 'Forms', 'Emails', 'SMS', 'Calls', 'Flows'].map(tab => (
               <button
                 key={tab}
-                onClick={() => setActivityTab(tab)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                  activityTab === tab 
+                onClick={() => setActivityTab(tab === 'Emails' ? 'Flow Emails' : tab === 'SMS' ? 'Flow SMS' : tab === 'Calls' ? 'Call Logs' : tab === 'Flows' ? 'Flow Activity' : tab)}
+                className={`rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap transition ${
+                  (activityTab === tab || (tab === 'Emails' && activityTab === 'Flow Emails') || (tab === 'SMS' && activityTab === 'Flow SMS') || (tab === 'Calls' && activityTab === 'Call Logs') || (tab === 'Flows' && activityTab === 'Flow Activity'))
                     ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' 
                     : 'border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                 }`}
@@ -1846,7 +1791,7 @@ const CRMModule = ({ initialContactId = null }) => {
               ) : (
                 formsSubmitted.map(submission => (
                   <div key={submission.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs">
-                    <p className="text-white font-medium">✓ Form Submission</p>
+                    <p className="text-white font-medium">Γ£ô Form Submission</p>
                     <p className="text-[var(--color-text-secondary)] text-[10px] mt-1">
                       {new Date(submission.submitted_at).toLocaleDateString()}
                     </p>
@@ -1984,7 +1929,7 @@ const CRMModule = ({ initialContactId = null }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)]">
+        <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)] crm-scroll-hidden">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-[var(--color-bg-primary)] border-b border-[var(--color-border)]">
               <tr>
@@ -2166,7 +2111,7 @@ const CRMModule = ({ initialContactId = null }) => {
             </button>
           </div>
           
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3.5 space-y-2.5">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3.5 space-y-2.5 crm-scroll-hidden">
             {createModalTab === 'Contact' ? (
               // CONTACT FORM
               <>
@@ -2506,7 +2451,7 @@ const CRMModule = ({ initialContactId = null }) => {
               </div>
 
               <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded p-3 text-xs text-[var(--color-text-secondary)]">
-                <p>⚠️ User will not be billed for this package as no credit card has been added to this user. If you wish to bill this user for this package please select the option "Setup Billing For New User" above</p>
+                <p>ΓÜá∩╕Å User will not be billed for this package as no credit card has been added to this user. If you wish to bill this user for this package please select the option "Setup Billing For New User" above</p>
               </div>
 
               <div>
@@ -2576,7 +2521,7 @@ const CRMModule = ({ initialContactId = null }) => {
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] mb-2">Phone</label>
                 <div className="flex gap-2">
                     <select className={modalSelectClass}>
-                    <option>🇺🇸 +1</option>
+                    <option>≡ƒç║≡ƒç╕ +1</option>
                   </select>
                   <input 
                     type="tel"
