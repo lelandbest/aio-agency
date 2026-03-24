@@ -350,36 +350,36 @@ const AIOAgentsModule = () => {
                   </div>
 
                   {/* CHARLIE MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#0a0f0a] rounded-xl border border-green-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(34,197,94,0.03)] relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                  <div className="flex-1 flex flex-col bg-[#0a0a14] rounded-xl border border-purple-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(168,85,247,0.03)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #6b21a8 1px, #6b21a8 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-purple-950/40 border-b border-purple-500/20 p-2 flex items-center justify-center gap-2 text-purple-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shadow-[0_0_5px_rgba(192,132,252,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
                       CHARLIE
                     </div>
                     <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
                        {charlieRuns.slice(0, 10).map(run => (
-                          <div key={run.id} className="text-[8px] font-mono text-green-500 border border-green-500/20 bg-green-900/10 p-1.5 rounded">
-                             <span className="text-green-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.intent || run.status} <span className="text-green-400/50">|</span> {run.field}
+                          <div key={run.id} className="text-[8px] font-mono text-purple-500 border border-purple-500/20 bg-purple-900/10 p-1.5 rounded">
+                             <span className="text-purple-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.intent || run.status} <span className="text-purple-400/50">|</span> {run.field}
                           </div>
                        ))}
-                       {charlieRuns.length === 0 && <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">STANDBY...</div>}
+                       {charlieRuns.length === 0 && <div className="text-[8px] font-mono text-purple-500/40 p-2 text-center">STANDBY...</div>}
                     </div>
                   </div>
 
                   {/* ALPHA MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#1a1405] rounded-xl border border-amber-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(245,158,11,0.03)] relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #b45309 1px, #b45309 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-amber-950/40 border-b border-amber-500/20 p-2 flex items-center justify-center gap-2 text-amber-500 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_5px_rgba(251,191,36,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
-                      ALPHA_CMD
+                  <div className="flex-1 flex flex-col bg-[#14140a] rounded-xl border border-yellow-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(234,179,8,0.03)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #854d0e 1px, #854d0e 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-yellow-950/40 border-b border-yellow-500/20 p-2 flex items-center justify-center gap-2 text-yellow-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
+                      ALPHA
                     </div>
                     <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
                        {alphaRuns.slice(0, 10).map(run => (
-                          <div key={run.id} className="text-[8px] font-mono text-amber-500 border border-amber-500/20 bg-amber-900/10 p-1.5 rounded">
-                             <span className="text-amber-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.result || run.intent}
+                          <div key={run.id} className="text-[8px] font-mono text-yellow-500 border border-yellow-500/20 bg-yellow-900/10 p-1.5 rounded">
+                             <span className="text-yellow-300 opacity-60">[{new Date(run.created_at).toLocaleTimeString()}]</span> {run.result || run.intent}
                           </div>
                        ))}
-                       {alphaRuns.length === 0 && <div className="text-[8px] font-mono text-amber-500/40 p-2 text-center">IDLE...</div>}
+                       {alphaRuns.length === 0 && <div className="text-[8px] font-mono text-yellow-500/40 p-2 text-center">IDLE...</div>}
                     </div>
                   </div>
                 </div>
