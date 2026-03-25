@@ -36,11 +36,11 @@ const mapDataToSignals = (rawData) => {
       impact: 'Potential revenue stagnation and decreased conversion probability.',
       primaryAction: {
         label: 'Open Pipeline',
-        action: { type: 'open_module', payload: { module: 'pipeline' } }
+        action: { type: 'open_module', payload: { module: 'pipelines' } }
       },
       recommendedActions: [
-        { label: 'Generate Follow-ups', action: { type: 'create_flow_dynamic', payload: { intent: 'follow up with stalled leads in pipeline', source: 'signals' } } },
-        { label: 'Assign Agent', action: { type: 'navigate', payload: { route: '/settings' } } }
+        { label: 'Generate Follow-ups', action: { type: 'create_flow_dynamic', payload: { intent: 'follow up stalled deals', source: 'signals' } } },
+        { label: 'Assign Agent', action: { type: 'assign_agent', payload: { context: 'pipeline_signal' } } }
       ],
       count: stalledDeals.length,
       entities: stalledDeals,
@@ -315,7 +315,7 @@ const PulseBand = ({ stats, loading }) => {
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} />
-        <PulseCard title="Pipeline" value={stats.pipeline} icon={Target} color="green" live={true} />
+        <PulseCard title="Pipelines" value={stats.pipeline} icon={Target} color="green" live={true} />
         <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} />
         <PulseCard title="AI Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} />
       </div>
@@ -371,9 +371,9 @@ const SignalsModule = () => {
   }, []);
 
   const quickActions = [
-    { id: 'new-contact', label: 'New Contact', icon: Users, action: { type: 'navigate', payload: { route: '/crm' } } },
+    { id: 'new-contact', label: 'New Contact', icon: Users, action: { type: 'open_module', payload: { module: 'crm' } } },
     { id: 'send-msg', label: 'Send Message', icon: Send, action: { type: 'open_module', payload: { module: 'chat' } } },
-    { id: 'new-deal', label: 'New Deal', icon: Target, action: { type: 'open_module', payload: { module: 'pipeline' } } },
+    { id: 'new-deal', label: 'New Deal', icon: Target, action: { type: 'open_module', payload: { module: 'pipelines' } } },
     { id: 'new-flow', label: 'Create Flow', icon: Zap, action: { type: 'open_module', payload: { module: 'flows' } } },
   ];
 

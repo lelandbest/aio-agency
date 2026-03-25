@@ -60,6 +60,20 @@ export const helpActions = {
         requiresOrchestration: true
       }
     }));
+  },
+
+  /**
+   * Assign an agent to a specific context (e.g., pipeline signal).
+   */
+  assign_agent: ({ context }) => {
+    if (!context) return;
+    window.dispatchEvent(new CustomEvent('aio:navigate', {
+      detail: { 
+        module: 'settings', 
+        action: 'assign_agent',
+        context 
+      }
+    }));
   }
 };
 
@@ -74,5 +88,6 @@ export const executeHelpAction = (action) => {
   }
 
   console.log(`[HelpAction] Executing: ${action.type}`, action.payload);
+  console.log("[Signals Action]", action.type, action.payload);
   helpActions[action.type](action.payload || {});
 };
