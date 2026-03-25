@@ -17,11 +17,29 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
+import {
+  Bot,
+  Layers,
+  Terminal,
+  ArrowRight,
+  History,
+  Save,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
+  Zap,
+  Wand2,
+} from 'lucide-react';
+
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
+import TemplateLibraryPanel from './components/TemplateLibraryPanel';
 import FlowInfoPanel from './components/FlowInfoPanel';
+import VariableMappingModal from './components/VariableMappingModal';
+import AiGeneratorModal from './components/AiGeneratorModal';
 import NodeConfigDrawer from './components/NodeConfigDrawer';
 import CustomNode from './components/nodes/CustomNode';
 import FrameNode from './components/nodes/FrameNode';
@@ -31,6 +49,8 @@ import { createNode } from './data/nodeLibrary';
 import flowRepository from './utils/flowRepository';
 import flowDraftRepository from './utils/flowDraftRepository';
 import { buildFlowSpec, validateFlowSpec } from './utils/flowSpec';
+import { ingestFlowSource } from './utils/flowIngestion';
+import { mutateFlowGraph } from './utils/flowMutation';
 
 // Node type registry
 const nodeTypes = {
@@ -140,8 +160,9 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   const [selectedNode, setSelectedNode] = useState(null);
   const [showNodeConfig, setShowNodeConfig] = useState(false);
   const [showNodeModal, setShowNodeModal] = useState(false);
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [libraryMode, setLibraryMode] = useState('all');
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [leftPanelTab, setLeftPanelTab] = useState('nodes');
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [showStickerModal, setShowStickerModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showNoteEditModal, setShowNoteEditModal] = useState(false);
@@ -149,7 +170,6 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   const [noteEditDraft, setNoteEditDraft] = useState({ label: 'Note', note: '', color: getCssVar('--note-default-color', '#111827') });
   const [noteDraft, setNoteDraft] = useState({ label: 'Note', note: '', color: getCssVar('--note-default-color', '#111827') });
   const [stickerDraft, setStickerDraft] = useState({ label: 'Frame', note: '', color: '#1f2937' });
-  const [showDetails, setShowDetails] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
@@ -164,6 +184,12 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   const [nodeConfigRawError, setNodeConfigRawError] = useState('');
   const [assistTarget, setAssistTarget] = useState('');
   const [assistError, setAssistError] = useState('');
+  
+  // Template & Mapping state
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [mappingTemplate, setMappingTemplate] = useState(null);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState([]);
   
   // Terminal state
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -312,16 +338,15 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       else applyNodeAssist('general');
       return;
     }
-    setShowDetails(false);
-    setLibraryMode('ai');
-    setShowLibrary(true);
+    setLeftPanelOpen(true);
+    setLeftPanelTab('nodes');
     setAssistTarget('');
   }, [applyNodeAssist, selectedNode]);
 
   const applyNoteAssist = useCallback(async (mode = 'new') => {
-    setAssistError('');
-    setAssistTarget(`note:${mode}`);
     try {
+      setAssistError('');
+      setAssistTarget(`note:${mode}`);
       const suggestion = await requestFlowAssist('note');
       if (mode === 'edit') {
         setNoteEditDraft((prev) => ({ ...prev, label: prev.label || 'AI Brief', note: suggestion }));
@@ -334,6 +359,22 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       setAssistTarget('');
     }
   }, [requestFlowAssist]);
+
+  const createGhostStarterNode = () => ({
+    id: 'ghost-starter',
+    type: 'trigger',
+    position: { x: 360, y: 220 },
+    data: {
+      label: 'Add your first node',
+      description: 'Drag a trigger or webhook to start',
+      typeLabel: '',
+      nodeColor: 'trigger',
+      iconName: 'Plus',
+      isGhost: true,
+    },
+    sourcePosition: 'right',
+    targetPosition: 'left',
+  });
 
   // Initialize flow on mount
   useEffect(() => {
@@ -353,109 +394,57 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
         }
 
         setFlow(flowData);
-        const mappedNodes = (flowData.nodes || []).map((node) => ({
-            ...node,
-            sourcePosition: node.sourcePosition || 'right',
-            targetPosition: node.targetPosition || 'left',
-            data: {
-              ...node.data,
-              typeLabel: node.data?.typeLabel || ({
-                trigger: 'Trigger',
-                action: 'Action',
-                logic: 'Logic',
-                webhook: 'Webhook',
-                socket: 'Socket',
-              }[node.type] || 'Node'),
-            },
-          }));
-        const mappedEdges = (flowData.edges || []).map((edge) => ({
-            ...edge,
-            type: edge.type || 'smoothstep',
-            animated: edge.animated ?? true,
-            style: {
-              stroke: 'var(--color-accent)',
-              strokeWidth: 2,
-              strokeDasharray: '6 6',
-              filter: 'drop-shadow(0 0 6px var(--color-accent))',
-              ...(edge.style || {}),
-            },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: 'var(--color-accent)',
-              ...(edge.markerEnd || {}),
-            },
-            label: edge.label || '\u2699',
-            labelStyle: edge.labelStyle || { fill: 'rgba(148,163,184,0.7)', fontSize: 12 },
-            labelBgStyle: { fill: 'transparent' },
-            labelBgPadding: [0, 0],
-          }));
+
+        // 1. Initial Load Ingress (Saved)
+        const initialResult = ingestFlowSource({ 
+          nodes: flowData.nodes || [], 
+          edges: flowData.edges || [], 
+          source: 'saved' 
+        });
+        
+        // 2. Draft Ingress (Priority)
         const activeDraft = flowDraftRepository.getActiveDraft();
         if (activeDraft && (!flowId || !flowData?.metadata?.sourceDraftId)) {
-          const draftNodes = (activeDraft.draftSpec?.nodes || []).map((node) => ({
-            ...node,
-            sourcePosition: node.sourcePosition || 'right',
-            targetPosition: node.targetPosition || 'left',
-            data: {
-              ...node.data,
-              typeLabel: node.data?.typeLabel || ({
-                trigger: 'Trigger',
-                action: 'Action',
-                logic: 'Logic',
-                webhook: 'Webhook',
-                socket: 'Socket',
-              }[node.type] || 'Node'),
-            },
-          }));
-          const draftEdges = (activeDraft.draftSpec?.edges || []).map((edge) => ({
-            ...edge,
-            type: edge.type || 'smoothstep',
-            animated: edge.animated ?? true,
-            style: {
-              stroke: 'var(--color-accent)',
-              strokeWidth: 2,
-              strokeDasharray: '6 6',
-              filter: 'drop-shadow(0 0 6px var(--color-accent))',
-              ...(edge.style || {}),
-            },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: 'var(--color-accent)',
-              ...(edge.markerEnd || {}),
-            },
-          }));
-          setNodes(layoutNodesLeftToRight(draftNodes, draftEdges));
-          setEdges(draftEdges);
-          setFlow({
-            ...flowData,
-            name: activeDraft.intentSummary || flowData.name,
-            metadata: {
-              ...flowData.metadata,
-              sourceDraftId: activeDraft.id,
-            },
+          const draftResult = ingestFlowSource({ 
+            nodes: activeDraft.draftSpec?.nodes || activeDraft.nodes || [], 
+            edges: activeDraft.draftSpec?.edges || activeDraft.edges || [], 
+            source: 'draft' 
           });
-          flowDraftRepository.clearActiveDraft();
+          
+          if (draftResult.validation.blockers.length === 0) {
+            // Rule: Ghost logic based ONLY on ingested result length
+            if (draftResult.nodes.length > 0) {
+              setNodes(layoutNodesLeftToRight(draftResult.nodes, draftResult.edges));
+              setEdges(draftResult.edges);
+            } else {
+              setNodes([createGhostStarterNode()]);
+              setEdges([]);
+            }
+            setFlow({
+              ...flowData,
+              name: activeDraft.intentSummary || flowData.name,
+              metadata: { ...flowData.metadata, sourceDraftId: activeDraft.id },
+            });
+            flowDraftRepository.clearActiveDraft();
+          } else {
+             // Fallback to initialResult
+             if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
+               setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
+               setEdges(initialResult.edges);
+             } else {
+               setNodes([createGhostStarterNode()]);
+               setEdges([]);
+             }
+          }
         } else {
-          setNodes(layoutNodesLeftToRight(mappedNodes, mappedEdges));
-          setEdges(mappedEdges);
-        }
-        if ((flowData.nodes || []).length === 0 && nodes.length === 0) {
-          setNodes([
-            {
-              id: 'ghost-starter',
-              type: 'trigger',
-              position: { x: 360, y: 220 },
-              data: {
-                label: 'Add your first node',
-                description: 'Drag a trigger or webhook to start',
-                typeLabel: '',
-                nodeColor: 'trigger',
-                iconName: 'Plus',
-                isGhost: true,
-              },
-              sourcePosition: 'right',
-              targetPosition: 'left',
-            },
-          ]);
+          // Normal hydration
+          if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
+            setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
+            setEdges(initialResult.edges);
+          } else {
+            setNodes([createGhostStarterNode()]);
+            setEdges([]);
+          }
         }
         setIsDirty(false);
       } catch (error) {
@@ -478,33 +467,21 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       const sourceIsFrame = sourceNode?.type === 'frame';
       const targetIsFrame = targetNode?.type === 'frame';
       if (sourceIsGhost || targetIsGhost || sourceIsFrame || targetIsFrame) return;
-      setEdges((eds) =>
-        addEdge(
-          {
-            ...params,
-            type: 'smoothstep',
-            animated: true,
-            style: {
-              stroke: 'var(--color-accent)',
-              strokeWidth: 2,
-              strokeDasharray: '6 6',
-              filter: 'drop-shadow(0 0 6px var(--color-accent))',
-            },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: 'var(--color-accent)',
-            },
-            label: '\u2699',
-            labelStyle: { fill: 'rgba(148,163,184,0.7)', fontSize: 12 },
-            labelBgStyle: { fill: 'transparent' },
-            labelBgPadding: [0, 0],
-          },
-          eds
-        )
-      );
-      setIsDirty(true);
+
+      // Rule: Use mutateFlowGraph for internal connectivity
+      const result = mutateFlowGraph(nodes, edges, {
+        type: 'CONNECT_EDGE',
+        payload: { connection: params }
+      });
+
+      if (result.validation.blockers.length === 0) {
+        setEdges(result.edges);
+        setIsDirty(true);
+      } else {
+        console.error('Connection blocked by validation:', result.validation.blockers);
+      }
     },
-    [setEdges, nodes]
+    [setEdges, nodes, edges]
   );
 
   
@@ -516,25 +493,23 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       x: base.x + offset.x,
       y: base.y + offset.y,
     };
-    const newNode = createNode(nodeTemplate, position);
-    setNodes((nds) => {
-      const ghostIndex = nds.findIndex((node) => node.data?.isGhost);
-      if (ghostIndex >= 0) {
-        const ghost = nds[ghostIndex];
-        const replaced = { ...newNode, position: ghost.position };
-        setLastAddedPosition(ghost.position);
-        return [...nds.slice(0, ghostIndex), replaced, ...nds.slice(ghostIndex + 1)];
-      }
-      setLastAddedPosition(position);
-      return nds.concat(newNode);
+    
+    // Rule: Use mutateFlowGraph for runtime additions
+    const result = mutateFlowGraph(nodes, edges, {
+      type: 'ADD_NODE',
+      payload: { nodeTemplate, position }
     });
-    setIsDirty(true);
-  }, [lastAddedPosition, setNodes]);
+
+    if (result.validation.blockers.length === 0) {
+      setNodes(result.nodes);
+      setLastAddedPosition(position);
+      setIsDirty(true);
+    }
+  }, [lastAddedPosition, nodes, edges, setNodes]);
 
 
   const handleLibraryAddAtViewport = useCallback((nodeTemplate) => {
     if (!nodeTemplate) return;
-    const viewport = viewportRef.current || { x: 0, y: 0, zoom: 1 };
     const wrapper = reactFlowWrapper.current;
     if (!wrapper) return;
     const rect = wrapper.getBoundingClientRect();
@@ -542,30 +517,40 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
     const screenX = rect.left + padding;
     const screenY = rect.bottom - padding;
     const position = reactFlowInstance?.screenToFlowPosition({ x: screenX, y: screenY }) || { x: 0, y: 0 };
-    const newNode = createNode(nodeTemplate, position);
-    setNodes((nds) => {
-      const ghostIndex = nds.findIndex((node) => node.data?.isGhost);
-      if (ghostIndex >= 0) {
-        const ghost = nds[ghostIndex];
-        const replaced = { ...newNode, position: ghost.position };
-        setLastAddedPosition(ghost.position);
-        return [...nds.slice(0, ghostIndex), replaced, ...nds.slice(ghostIndex + 1)];
-      }
-      setLastAddedPosition(position);
-      return nds.concat(newNode);
+    
+    // Rule: Use mutateFlowGraph for runtime additions
+    const result = mutateFlowGraph(nodes, edges, {
+      type: 'ADD_NODE',
+      payload: { nodeTemplate, position }
     });
-    setIsDirty(true);
-  }, [reactFlowInstance, lastAddedPosition, setNodes]);
+
+    if (result.validation.blockers.length === 0) {
+      setNodes(result.nodes);
+      setLastAddedPosition(position);
+      setIsDirty(true);
+    }
+  }, [reactFlowInstance, nodes, edges, setNodes]);
 
 
   const handleDeleteSelectedNode = useCallback(() => {
     if (!selectedNode || selectedNode?.data?.isGhost) return;
     const nodeId = selectedNode.id;
-    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-    setSelectedNode(null);
-    setIsDirty(true);
-  }, [selectedNode, setNodes, setEdges]);
+    
+    // Rule: Use mutateFlowGraph for internal deletions (Prevents orphans)
+    const result = mutateFlowGraph(nodes, edges, {
+      type: 'DELETE_NODE',
+      payload: { nodeId }
+    });
+
+    if (result.validation.blockers.length === 0) {
+      setNodes(result.nodes);
+      setEdges(result.edges);
+      setSelectedNode(null);
+      setIsDirty(true);
+    } else {
+      console.error('Node deletion blocked by validation:', result.validation.blockers);
+    }
+  }, [selectedNode, nodes, edges, setNodes, setEdges]);
 
 // Handle drag over canvas
   const onDragOver = useCallback((event) => {
@@ -588,45 +573,37 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           y: event.clientY,
         }) || { x: 0, y: 0 };
 
-        const newNode = createNode(nodeTemplate, position);
-        setNodes((nds) => {
-          const ghostIndex = nds.findIndex((node) => node.data?.isGhost);
-          if (ghostIndex >= 0) {
-            const ghost = nds[ghostIndex];
-            const replaced = { ...newNode, position: ghost.position };
-            setLastAddedPosition(ghost.position);
-            return [...nds.slice(0, ghostIndex), replaced, ...nds.slice(ghostIndex + 1)];
-          }
-          setLastAddedPosition(position);
-          return nds.concat(newNode);
+        // Rule: Use mutateFlowGraph for runtime drop
+        const result = mutateFlowGraph(nodes, edges, {
+          type: 'ADD_NODE',
+          payload: { nodeTemplate, position }
         });
-        setIsDirty(true);
+        
+        if (result.validation.blockers.length === 0) {
+          setNodes(result.nodes);
+          setIsDirty(true);
+        }
       } catch (error) {
         console.error('Failed to drop node:', error);
       }
     },
-    [reactFlowInstance, setNodes]
+    [reactFlowInstance, nodes, edges, setNodes]
   );
 
   // Handle node click (select for config)
   const onNodeClick = useCallback((event, node) => {
     if (node?.data?.isGhost) {
-      setShowDetails(false);
-      setShowLibrary(true);
+      setLeftPanelOpen(true);
+      setLeftPanelTab('nodes');
       return;
     }
     setSelectedNode(node);
+    // Panel should ONLY open on dbl clk now
   }, []);
 
-  // Handle double-click for popover config (future enhancement)
-  const onNodeContextMenu = useCallback((event, node) => {
-    event.preventDefault();
-    if (node?.data?.isGhost) return;
-    setNodeMenu({
-      node,
-      x: event.clientX,
-      y: event.clientY,
-    });
+  const onNodeDragStart = useCallback((event, node) => {
+    setSelectedNode(node);
+    // Panel should ONLY open on dbl clk now
   }, []);
 
   const onNodeDoubleClick = useCallback((event, node) => {
@@ -642,11 +619,32 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
     }
     setSelectedNode(node);
     setNodeConfigDraft(node?.data?.config || {});
-    setNodeConfigRaw(JSON.stringify(node?.data?.config || {}, null, 2));
-    setNodeConfigRawError('');
-    setNodeModalTab('general');
-    setShowNodeModal(true);
+    setRightPanelOpen(true);
+  }, [setSelectedNode, setRightPanelOpen, setShowNoteEditModal, setNoteEditDraft, setNoteEditingNode]);
+
+  const onNodeContextMenu = useCallback(
+    (event, node) => {
+      event.preventDefault();
+      if (node?.data?.isGhost) return;
+      setNodeMenu({
+        id: node.id,
+        node,
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    [setNodeMenu]
+  );
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+    setRightPanelOpen(false);
   }, []);
+
+  const onEdgeClick = useCallback(() => {
+    setRightPanelOpen(true);
+  }, []);
+
 
   const onEdgeContextMenu = useCallback((event, edge) => {
     event.preventDefault();
@@ -660,72 +658,51 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   // Handle node config save
   const handleConfigSave = useCallback(
     (nodeId, config) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === nodeId) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                config,
-              },
-            };
-          }
-          return node;
-        })
-      );
-      setIsDirty(true);
-      setShowNodeConfig(false);
-      setShowNodeModal(false);
+      // Rule: Use mutateFlowGraph for runtime config updates
+      const result = mutateFlowGraph(nodes, edges, {
+        type: 'UPDATE_NODE_CONFIG',
+        payload: { nodeId, config }
+      });
+
+      if (result.validation.blockers.length === 0) {
+        setNodes(result.nodes);
+        setIsDirty(true);
+        setShowNodeConfig(false);
+        setShowNodeModal(false);
+      } else {
+        console.error('Config save blocked by validation:', result.validation.blockers);
+      }
     },
-    [setNodes]
+    [nodes, edges, setNodes]
   );
 
   const applyDraftToCanvas = useCallback((draft) => {
     if (!draft) return;
-    const draftNodes = (draft.draftSpec?.nodes || []).map((node) => ({
-      ...node,
-      sourcePosition: node.sourcePosition || 'right',
-      targetPosition: node.targetPosition || 'left',
-      data: {
-        ...node.data,
-        typeLabel: node.data?.typeLabel || ({
-          trigger: 'Trigger',
-          action: 'Action',
-          logic: 'Logic',
-          webhook: 'Webhook',
-          socket: 'Socket',
-        }[node.type] || 'Node'),
-      },
-    }));
-    const draftEdges = (draft.draftSpec?.edges || []).map((edge) => ({
-      ...edge,
-      type: edge.type || 'smoothstep',
-      animated: edge.animated ?? true,
-      style: {
-        stroke: 'var(--color-accent)',
-        strokeWidth: 2,
-        strokeDasharray: '6 6',
-        filter: 'drop-shadow(0 0 6px var(--color-accent))',
-        ...(edge.style || {}),
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: 'var(--color-accent)',
-        ...(edge.markerEnd || {}),
-      },
-    }));
-    setNodes(layoutNodesLeftToRight(draftNodes, draftEdges));
-    setEdges(draftEdges);
-    setFlow((prev) => ({
-      ...prev,
-      name: draft.intentSummary || prev?.name,
-      metadata: {
-        ...prev?.metadata,
-        sourceDraftId: draft.id,
-      },
-    }));
-    setIsDirty(true);
+    
+    // Rule: Strict gating for external draft sources
+    const result = ingestFlowSource({
+      nodes: draft.draftSpec?.nodes || [],
+      edges: draft.draftSpec?.edges || [],
+      source: 'draft'
+    });
+    
+    if (result.validation.blockers.length === 0) {
+      if (result.nodes.length > 0) {
+        setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
+        setEdges(result.edges);
+      } else {
+        setNodes([createGhostStarterNode()]);
+        setEdges([]);
+      }
+      setFlow((prev) => ({
+        ...prev,
+        name: draft.intentSummary || prev?.name,
+        metadata: { ...prev?.metadata, sourceDraftId: draft.id },
+      }));
+      setIsDirty(true);
+    } else {
+      console.error('Draft ingestion blocked by validation:', result.validation.blockers);
+    }
   }, [setNodes, setEdges]);
 
   const insertFormTrigger = useCallback((form) => {
@@ -734,20 +711,64 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       x: 240,
       y: 200,
     }) || { x: 200, y: 200 };
-    const triggerNode = createNode(
-      {
-        id: `form-${form.id}`,
-        type: 'trigger',
-        label: `${form.name} Form`,
-        description: 'Form submission trigger',
-        iconName: 'FileText',
-        nodeColor: 'trigger',
-      },
-      position
-    );
-    setNodes((nds) => nds.concat(triggerNode));
+    
+    // Rule: Use mutateFlowGraph for runtime additions
+    const result = mutateFlowGraph(nodes, edges, {
+      type: 'ADD_NODE',
+      payload: {
+        nodeTemplate: {
+          id: `form-${form.id}`,
+          type: 'trigger',
+          label: `${form.name} Form`,
+          description: 'Form submission trigger',
+          iconName: 'FileText',
+          nodeColor: 'trigger',
+        },
+        position
+      }
+    });
+
+    if (result.validation.blockers.length === 0) {
+      setNodes(result.nodes);
+      setIsDirty(true);
+    } else {
+      console.error('Form trigger insertion blocked by validation:', result.validation.blockers);
+    }
+  }, [reactFlowInstance, nodes, edges, setNodes]);
+
+  const applyTemplate = useCallback((template) => {
+    if (!template) return;
+    
+    // Check if mapping is needed
+    if (template.placeholders && template.placeholders.length > 0) {
+      setMappingTemplate(template);
+      setShowMappingModal(true);
+      return;
+    }
+
+    // Direct injection if no placeholders
+    injectTemplateToCanvas(template);
+  }, []);
+
+  const injectTemplateToCanvas = useCallback((template, mappings = {}) => {
+    // Rule: Strict gating for external template sources
+    const result = ingestFlowSource(template, { source: 'template', mappings });
+    
+    if (result.validation.blockers.length > 0) {
+      console.error('Template injection blocked by validation:', result.validation.blockers);
+      return;
+    }
+
+    setNodes((nds) => {
+      const sanitized = nds.filter(n => !n.data?.isGhost);
+      return [...sanitized, ...result.nodes];
+    });
+    setEdges((eds) => [...eds, ...result.edges]);
     setIsDirty(true);
-  }, [reactFlowInstance, setNodes]);
+    
+    setShowMappingModal(false);
+    setMappingTemplate(null);
+  }, [setNodes, setEdges]);
 
   
   const getSanitizedGraph = useCallback(() => {
@@ -788,6 +809,43 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
       console.error('Failed to save flow:', error);
     }
   }, [flow, nodes, edges, getSanitizedGraph]);
+
+  const handleSaveAsTemplate = useCallback(() => {
+    const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
+    
+    // Detect placeholders (any string inside {{}})
+    const placeholders = new Set();
+    sanitizedNodes.forEach(node => {
+      const configStr = JSON.stringify(node.data.config || {});
+      const matches = configStr.match(/{{[a-zA-Z0-9_]+}}/g);
+      if (matches) matches.forEach(m => placeholders.add(m));
+    });
+
+    const newTemplate = {
+      id: `custom-${Date.now()}`,
+      name: `${flow?.name || 'Untitled'} Template`,
+      description: `User-created template from ${flow?.name || 'Untitled Flow'}.`,
+      category: 'Automation',
+      iconName: 'Layers',
+      complexity: 'Intermediate',
+      nodes: sanitizedNodes.map(n => ({
+        id: n.id.split('-')[0], 
+        type: n.type,
+        position: n.position,
+        data: { label: n.data.label, iconName: n.data.iconName }
+      })),
+      edges: sanitizedEdges.map(e => ({
+        ...e,
+        id: e.id.split('-')[0],
+        source: e.source.split('-')[0],
+        target: e.target.split('-')[0]
+      })),
+      placeholders: Array.from(placeholders)
+    };
+
+    setCustomTemplates(prev => [newTemplate, ...prev]);
+    alert('Flow saved as a reusable template!');
+  }, [flow, getSanitizedGraph]);
 
   // Handle toggle flow status
   const handleToggleStatus = useCallback(async () => {
@@ -856,7 +914,7 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] overflow-hidden relative">
+    <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] overflow-hidden relative font-sans">
       <style>{`
         .flow-controls button {
           width: 28px !important;
@@ -876,42 +934,135 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           max-width: 14px !important;
           max-height: 14px !important;
         }
+        .sidebar-transition {
+          transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .flow-control-dock {
+          position: absolute;
+          right: 20px;
+          bottom: 20px;
+          z-index: 50;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 12px;
+          pointer-events: none;
+        }
+        .flow-control-dock > * {
+          pointer-events: auto;
+        }
+        .react-flow__minimap.flow-minimap {
+          width: 200px !important;
+          height: 200px !important;
+          background: var(--color-bg-secondary) !important;
+          border: 1px solid var(--color-border) !important;
+          border-radius: 12px !important;
+          margin: 0 !important;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+        }
+        .react-flow__controls.flow-controls-buttons {
+          margin: 0 !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          border: 1px solid var(--color-border) !important;
+        }
       `}</style>
-      {/* Header */}
+      
       <FlowBuilderHeader
         flowName={flow?.name}
         status={flow?.status}
-        onExit={onExit}
-        onToggleDetails={() => {
-          setShowLibrary(true);
-          setShowDetails((prev) => !prev);
-          setLibraryMode('all');
-        }}
-        isDetailsOpen={showDetails}
+        onToggleDetails={() => setRightPanelOpen(!rightPanelOpen)}
+        isDetailsOpen={rightPanelOpen}
         onOpenHistory={() => setShowHistory(true)}
-        breadcrumbs={[
-          { id: 'editor', label: 'Editor' },
-        ]}
+        breadcrumbs={[{ id: 'editor', label: 'Editor' }]}
         aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
-        onSave={handleConfigSave}
+        onSave={handleSaveFlow}
+        onImport={() => console.log('Import requested')}
       />
 
-      {assistError ? (
-        <div className="mx-4 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+      {assistError && (
+        <div className="mx-4 mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-200 z-50">
           {assistError}
         </div>
-      ) : null}
+      )}
 
-      {/* Main Canvas Area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Center - React Flow Canvas */}
-        <div className="flex-1 relative bg-[var(--color-bg-primary)] overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" ref={reactFlowWrapper}>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
+      {/* Main Layout: 3 Columns */}
+      <div className="flex flex-1 overflow-hidden relative">
+        
+        {/* LEFT: Node & Template Library */}
+        <div 
+          className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border-r border-[var(--color-border)] overflow-hidden ${leftPanelOpen ? 'w-64' : 'w-0 border-none'}`}
+        >
+          <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
+            <button 
+              onClick={() => setLeftPanelTab('nodes')}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+            >
+              Nodes
+            </button>
+            <button 
+              onClick={() => setLeftPanelTab('templates')}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+            >
+              Templates
+            </button>
+          </div>
+
+          <div className="p-2 border-b border-[var(--color-border)] px-3">
+            <button 
+              onClick={() => setShowAiModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg hover:shadow-sky-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              AI Generate Flow
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto crm-scroll-hidden">
+            {leftPanelTab === 'nodes' ? (
+              <NodeLibraryPanel 
+                embedded 
+                onAddNode={handleLibraryAdd}
+                onAddNodeAtViewport={handleLibraryAddAtViewport}
+              />
+            ) : (
+              <TemplateLibraryPanel 
+                onApplyTemplate={applyTemplate}
+                onPreviewTemplate={(template) => console.log('Preview:', template)}
+                customTemplates={customTemplates}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* CENTER: Canvas Wrapper */}
+        <div className="flex-1 relative overflow-hidden bg-[var(--color-bg-primary)]" ref={reactFlowWrapper}>
+          
+          {/* TOP OVERLAY: Stable Floating Controls */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md flex justify-center">
+            <div className="pointer-events-auto flex items-center gap-3 bg-[var(--color-bg-secondary)]/80 backdrop-blur-md border border-[var(--color-border)] rounded-full px-4 py-1.5 shadow-2xl">
+              <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live Engine
+              </div>
+              <div className="h-4 w-[1px] bg-[var(--color-border)]" />
+              <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest">
+                <Bot className="w-3.5 h-3.5 text-sky-400" />
+                Alpha Dispatch
+              </div>
+              <div className="h-4 w-[1px] bg-[var(--color-border)]" />
+              <div className="px-2 py-1 rounded-full bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest border border-white/5">
+                v1.1.0-COMMS
+              </div>
+            </div>
+          </div>
+
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
             onInit={(instance) => {
               setReactFlowInstance(instance);
               viewportRef.current = instance.getViewport();
@@ -919,45 +1070,42 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             onDrop={onDrop}
             onDragOver={onDragOver}
             onNodeClick={onNodeClick}
-              onNodeDoubleClick={onNodeDoubleClick}
-              onNodeContextMenu={onNodeContextMenu}
-              onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
-              onEdgeContextMenu={onEdgeContextMenu}
-              nodeTypes={nodeTypes}
-              fitView
-              connectionRadius={40}
-              proOptions={{ hideAttribution: true }}
-              defaultEdgeOptions={{
-                type: 'smoothstep',
-                animated: true,
-                style: {
-                  stroke: 'var(--color-accent)',
-                  strokeWidth: 2,
-                  strokeDasharray: '6 6',
-                  filter: 'drop-shadow(0 0 6px var(--color-accent))',
-                },
-                markerEnd: {
-                  type: MarkerType.ArrowClosed,
-                  color: 'var(--color-accent)',
-                },
-                label: '\u2699',
-                labelStyle: { fill: 'rgba(148,163,184,0.7)', fontSize: 12 },
-                labelBgStyle: { fill: 'transparent' },
-                labelBgPadding: [0, 0],
-              }}
-            >
-            <Background
-              color="var(--color-grid-strong)"
-              gap={20}
-              size={1.5}
-              variant="dots"
-            />
+            onNodeDragStart={onNodeDragStart}
+            onPaneClick={onPaneClick}
+            onEdgeClick={onEdgeClick}
+            onNodeDoubleClick={onNodeDoubleClick}
+            onNodeContextMenu={onNodeContextMenu}
+            onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
+            onEdgeContextMenu={onEdgeContextMenu}
+            nodeTypes={nodeTypes}
+            fitView
+            connectionRadius={40}
+            proOptions={{ hideAttribution: true }}
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              animated: true,
+              style: {
+                stroke: 'var(--color-accent)',
+                strokeWidth: 2,
+                strokeDasharray: '6 6',
+                filter: 'drop-shadow(0 0 6px var(--color-accent))',
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: 'var(--color-accent)',
+              },
+              label: '\u2699',
+              labelStyle: { fill: 'rgba(148,163,184,0.7)', fontSize: 12 },
+              labelBgStyle: { fill: 'transparent' },
+              labelBgPadding: [0, 0],
+            }}
+            snapToGrid={true}
+            snapGrid={[8, 8]}
+          >
+            {/* Grid points hidden per request, snapping active at 8px for tactile feedback */}
+            
             <div className="flow-control-dock">
-              <Controls
-                showInteractive={false}
-                showFitView={true}
-                className="flow-controls-buttons"
-              />
+              <Controls showInteractive={false} showFitView={true} className="flow-controls-buttons" />
               <MiniMap
                 className="flow-minimap"
                 nodeColor={(node) => {
@@ -976,17 +1124,19 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           </ReactFlow>
         </div>
 
-        {/* Right Panel - Flow Info */}
-        {showLibrary && (
+        {/* RIGHT: Inspector Panel */}
+        <div 
+          className={`sidebar-transition bg-[var(--color-bg-primary)] border-l border-[var(--color-border)] overflow-hidden ${rightPanelOpen ? 'w-80' : 'w-0 border-none'}`}
+        >
           <FlowInfoPanel
             flow={flow}
             onFlowUpdate={handleFlowUpdate}
-            libraryContent={<NodeLibraryPanel embedded openOnlyCategory={libraryMode === 'ai' ? 'AI Agents' : null} />}
             onApplyDraft={applyDraftToCanvas}
             onInsertFormTrigger={insertFormTrigger}
-            showDetails={showDetails}
+            onSaveAsTemplate={handleSaveAsTemplate}
+            showDetails={true}
           />
-        )}
+        </div>
       </div>
 
       {/* Floating Toolbar */}
@@ -1041,7 +1191,13 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             AI node
           </button>
           <button
-            onClick={() => setNodes(layoutNodesLeftToRight(nodes, edges))}
+            onClick={() => {
+              // Rule: Use mutateFlowGraph for internal layout updates
+              const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
+              if (result.validation.blockers.length === 0) {
+                setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
+              }
+            }}
             className="flow-toolbar-btn"
           >
             Align nodes
@@ -1424,13 +1580,20 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
                     }
                   }
                   if (selectedNode) {
-                    setNodes((nds) =>
-                      nds.map((node) =>
-                        node.id === selectedNode.id
-                          ? { ...node, data: { ...selectedNode.data, config: nodeConfigDraft } }
-                          : node
-                      )
-                    );
+                    // Rule: Use mutateFlowGraph for runtime config updates
+                    const result = mutateFlowGraph(nodes, edges, {
+                      type: 'UPDATE_NODE_CONFIG',
+                      payload: { 
+                        nodeId: selectedNode.id, 
+                        config: nodeConfigDraft,
+                        dataUpdates: { config: nodeConfigDraft }
+                      }
+                    });
+                    if (result.validation.blockers.length === 0) {
+                      setNodes(result.nodes);
+                    } else {
+                      console.error('Modal save blocked by validation:', result.validation.blockers);
+                    }
                   }
                   setShowNodeModal(false);
                 }}
@@ -1581,8 +1744,14 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             <button
               onClick={() => {
                 const node = nodeMenu.node;
-                const copied = { ...node, id: `${node.id}-copy-${Date.now()}`, position: { x: node.position.x + 40, y: node.position.y + 40 } };
-                setNodes((nds) => nds.concat(copied));
+                // Rule: Use mutateFlowGraph for internal copy
+                const result = mutateFlowGraph(nodes, edges, {
+                  type: 'COPY_NODE',
+                  payload: { node }
+                });
+                if (result.validation.blockers.length === 0) {
+                  setNodes(result.nodes);
+                }
                 setNodeMenu(null);
               }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
@@ -1594,22 +1763,17 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
               <button
                 onClick={() => {
                   const node = nodeMenu.node;
-                  setNodes((nds) =>
-                    nds.map((n) =>
-                      n.id === node.id
-                        ? {
-                            ...n,
-                            data: {
-                              ...n.data,
-                              config: {
-                                ...n.data?.config,
-                                ignoreErrors: !n.data?.config?.ignoreErrors,
-                              },
-                            },
-                          }
-                        : n
-                    )
-                  );
+                  // Rule: Use mutateFlowGraph for runtime config toggle
+                  const result = mutateFlowGraph(nodes, edges, {
+                    type: 'UPDATE_NODE_CONFIG',
+                    payload: { 
+                      nodeId: node.id, 
+                      config: { ignoreErrors: !node.data?.config?.ignoreErrors } 
+                    }
+                  });
+                  if (result.validation.blockers.length === 0) {
+                    setNodes(result.nodes);
+                  }
                 }}
                 className="w-9 h-5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] relative"
               >
@@ -1622,8 +1786,15 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             <button
               onClick={() => {
                 const node = nodeMenu.node;
-                setNodes((nds) => nds.filter((n) => n.id !== node.id));
-                setEdges((eds) => eds.filter((e) => e.source !== node.id && e.target !== node.id));
+                // Rule: Use mutateFlowGraph for internal delete
+                const result = mutateFlowGraph(nodes, edges, {
+                  type: 'DELETE_NODE',
+                  payload: { nodeId: node.id }
+                });
+                if (result.validation.blockers.length === 0) {
+                  setNodes(result.nodes);
+                  setEdges(result.edges);
+                }
                 setNodeMenu(null);
               }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
@@ -1680,21 +1851,29 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
         <button
           onClick={() => {
             const position = reactFlowInstance?.screenToFlowPosition({ x: 260, y: 220 }) || { x: 260, y: 220 };
-            const noteNode = {
-              id: `note-${Date.now()}`,
-              type: 'note',
-              position,
-              data: {
-                label: noteDraft.label,
-                note: noteDraft.note,
-                color: noteDraft.color,
-              },
-              draggable: true,
-              selectable: true,
-              style: { zIndex: -1, width: 280, height: 160 },
-            };
-            setNodes((nds) => nds.concat(noteNode));
-            setShowNoteModal(false);
+            
+            // Rule: Use mutateFlowGraph for runtime additions
+            const result = mutateFlowGraph(nodes, edges, {
+              type: 'ADD_NODE',
+              payload: {
+                nodeTemplate: {
+                  id: `note-${Date.now()}`,
+                  type: 'note',
+                  data: {
+                    label: noteDraft.label,
+                    note: noteDraft.note,
+                    color: noteDraft.color,
+                  },
+                  style: { zIndex: -1, width: 280, height: 160 },
+                },
+                position
+              }
+            });
+
+            if (result.validation.blockers.length === 0) {
+              setNodes(result.nodes);
+              setShowNoteModal(false);
+            }
           }}
           className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
         >
@@ -1750,22 +1929,30 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
         </button>
         <button
           onClick={() => {
-            setNodes((nds) =>
-              nds.map((node) =>
-                node.id === noteEditingNode.id
-                  ? {
-                      ...node,
-                      data: {
-                        ...node.data,
-                        label: noteEditDraft.label,
-                        note: noteEditDraft.note,
-                        color: noteEditDraft.color,
-                      },
-                    }
-                  : node
-              )
-            );
-            setShowNoteEditModal(false);
+            // Rule: Use mutateFlowGraph for runtime config updates
+            const result = mutateFlowGraph(nodes, edges, {
+              type: 'UPDATE_NODE_CONFIG',
+              payload: {
+                nodeId: noteEditingNode.id,
+                config: {
+                  label: noteEditDraft.label,
+                  note: noteEditDraft.note,
+                  color: noteEditDraft.color,
+                },
+                dataUpdates: {
+                  label: noteEditDraft.label,
+                  note: noteEditDraft.note,
+                  color: noteEditDraft.color,
+                }
+              }
+            });
+            
+            if (result.validation.blockers.length === 0) {
+              setNodes(result.nodes);
+              setShowNoteEditModal(false);
+            } else {
+              console.error('Note update blocked by validation:', result.validation.blockers);
+            }
           }}
           className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
         >
@@ -1843,14 +2030,21 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
               </button>
               <button
                 onClick={() => {
-                  setEdges((eds) =>
-                    eds.map((edge) =>
-                      edge.id === edgeFilterModal.id
-                        ? { ...edge, data: { ...edge.data, filters: edgeFilterModal.data?.filters || '' } }
-                        : edge
-                    )
-                  );
-                  setEdgeFilterModal(null);
+                  // Rule: Use mutateFlowGraph for runtime edge data updates
+                  const result = mutateFlowGraph(nodes, edges, {
+                    type: 'UPDATE_EDGE_DATA',
+                    payload: {
+                      edgeId: edgeFilterModal.id,
+                      data: { filters: edgeFilterModal.data?.filters || '' }
+                    }
+                  });
+
+                  if (result.validation.blockers.length === 0) {
+                    setEdges(result.edges);
+                    setEdgeFilterModal(null);
+                  } else {
+                    console.error('Edge filter update blocked by validation:', result.validation.blockers);
+                  }
                 }}
                 className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
               >
@@ -1907,6 +2101,72 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
           </div>
         </div>
       )}
+      {/* Mapping Modal */}
+      <VariableMappingModal 
+        isOpen={showMappingModal}
+        template={mappingTemplate}
+        onClose={() => { setShowMappingModal(false); setMappingTemplate(null); }}
+        onConfirm={(mappings) => injectTemplateToCanvas(mappingTemplate, mappings)}
+      />
+      {/* AI Generation Modal */}
+      <AiGeneratorModal 
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        onGenerate={(prompt) => {
+          const lower = prompt.toLowerCase();
+          const nodes = [];
+          const edges = [];
+          
+          // Basic keyword mapping
+          if (lower.includes('form') || lower.includes('contact')) {
+            nodes.push({ id: 'n1', type: 'trigger', data: { label: 'New Lead', iconName: 'User' }, position: { x: 50, y: 150 } });
+          } else {
+            nodes.push({ id: 'n1', type: 'trigger', data: { label: 'Manual Start', iconName: 'Play' }, position: { x: 50, y: 150 } });
+          }
+
+          if (lower.includes('ai') || lower.includes('bot') || lower.includes('qualify')) {
+            nodes.push({ id: 'n2', type: 'action', data: { label: 'AI Qualifier', iconName: 'Bot' }, position: { x: 300, y: 150 } });
+          }
+
+          if (lower.includes('wait') || lower.includes('delay')) {
+            const lastId = nodes[nodes.length - 1].id;
+            const nextId = `n${nodes.length + 1}`;
+            nodes.push({ id: nextId, type: 'logic', data: { label: 'Wait/Delay', iconName: 'Clock' }, position: { x: 300 + (nodes.length * 200), y: 150 } });
+          }
+
+          if (lower.includes('email') || lower.includes('send')) {
+            const lastId = nodes[nodes.length - 1].id;
+            nodes.push({ id: 'n-final', type: 'action', data: { label: 'Send Email', iconName: 'Mail' }, position: { x: nodes.length * 250, y: 150 } });
+          }
+
+          if (lower.includes('slack') || lower.includes('notify')) {
+            nodes.push({ id: 'n-slack', type: 'action', data: { label: 'Slack Alert', iconName: 'MessageSquare' }, position: { x: nodes.length * 250, y: 250 } });
+          }
+
+          // Generate simple linear edges
+          for (let i = 0; i < nodes.length - 1; i++) {
+            edges.push({ id: `e${i}-${i+1}`, source: nodes[i].id, target: nodes[i+1].id, animated: true });
+          }
+
+          const aiTemplate = {
+            id: 'ai-gen',
+            name: 'AI Generated Flow',
+            nodes,
+            edges,
+            placeholders: []
+          };
+          
+          // Rule: Strict gating for AI-generated flows
+          const result = ingestFlowSource(aiTemplate, { source: 'ai' });
+          if (result.validation.blockers.length === 0) {
+            setNodes(result.nodes);
+            setEdges(result.edges);
+            setShowAiModal(false);
+          } else {
+            console.error('AI Flow ingestion blocked by validation:', result.validation.blockers);
+          }
+        }}
+      />
     </div>
   );
 };

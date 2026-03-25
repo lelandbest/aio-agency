@@ -15,6 +15,7 @@ const FlowInfoPanel = ({
   libraryContent = null,
   onApplyDraft,
   onInsertFormTrigger,
+  onSaveAsTemplate,
   showDetails = false,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
@@ -163,6 +164,20 @@ const FlowInfoPanel = ({
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-6">
+                <button
+                  onClick={() => onSaveAsTemplate?.()}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] text-[11px] font-black uppercase tracking-widest hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-bg-tertiary)] transition-all shadow-sm"
+                >
+                  <FileText className="w-3.5 h-3.5 text-sky-400" />
+                  Save as Template
+                </button>
+                <p className="mt-2 text-[9px] text-[var(--color-text-tertiary)] text-center uppercase tracking-tight font-bold opacity-60">
+                  Export to Marketplace v1.0
+                </p>
               </div>
 
             </div>

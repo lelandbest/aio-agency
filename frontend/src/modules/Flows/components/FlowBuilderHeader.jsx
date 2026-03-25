@@ -61,13 +61,22 @@ const FlowBuilderHeader = ({
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
         {aiAssistSlot}
+        {onImport && (
+          <button
+            onClick={onImport}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-all shadow-premium border border-[var(--color-border)] font-black uppercase tracking-widest text-[10px]"
+          >
+            <Upload className="w-3.5 h-3.5 text-sky-400" />
+            <span>Import</span>
+          </button>
+        )}
         {onSave && (
           <button
             onClick={onSave}
-            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-all shadow-premium border border-emerald-400/30 font-black uppercase tracking-widest text-[10px]"
           >
             <Save className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Save</span>
+            <span>Save</span>
           </button>
         )}
         {onExport && (
@@ -92,8 +101,8 @@ const FlowBuilderHeader = ({
             onClick={onToggleDetails}
             className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all ${
               isDetailsOpen
-                ? 'text-[var(--color-primary)] bg-[var(--color-primary)]/10'
-                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
+                ? 'text-[var(--color-primary)] bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] border border-transparent'
             }`}
           >
             {isDetailsOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRight className="w-3.5 h-3.5" />}
@@ -101,10 +110,10 @@ const FlowBuilderHeader = ({
           </button>
         )}
         <span
-          className={`text-[10px] font-medium px-2 py-0.5 rounded-full ml-1 ${
+          className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ml-1 border ${
             status === 'Active'
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-              : 'bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)] border border-[var(--color-border)]'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : 'bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)] border-[var(--color-border)]'
           }`}
         >
           {status}
