@@ -879,6 +879,8 @@ class AIAssistService:
                     "",
                 )
 
+        return self._generic_result(field, current_value, context)
+
     def _assist_pipeline(self, surface: str, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:
         normalized_field = _clean(field).lower()
         normalized_surface = _clean(surface).lower()
@@ -1059,6 +1061,215 @@ class AIAssistService:
             return {"steps": valid_steps}
         except Exception:
             return {"steps": []}
+
+    def _post_json(self, url: str, payload: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:
+        resolved_headers = {"Content-Type": "application/json", **(headers or {})}
+        data = json.dumps(payload).encode("utf-8")
+        req = urlrequest.Request(url, data=data, headers=resolved_headers, method="POST")
+        try:
+            with urlrequest.urlopen(req, timeout=30) as response:
+                body = response.read().decode("utf-8")
+                return json.loads(body) if body.strip() else {}
+        except urlerror.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")
+            raise ValueError(f"HTTP {exc.code} from {url}: {detail}") from exc
+        except (urlerror.URLError, TimeoutError, OSError) as exc:
+            raise ValueError(f"Unable to reach {url}: {exc}") from exc
+        except json.JSONDecodeError:
+            return {}
+
+    def _provider_complete(
+        self,
+        provider_config: dict[str, Any] | None,
+        prompt: str,
+        *,
+        system_prompt: str = "",
+    ) -> dict[str, Any] | None:
+        if not provider_config:
+            return None
+        provider_key = _clean(provider_config.get("provider_key")).lower()
+        if not provider_key:
+            return None
+        config = provider_config.get("config") or {}
+        model = _clean(provider_config.get("model"))
+        api_key = _clean(provider_config.get("api_key"))
+        base_url = _provider_base_url(provider_config.get("base_url"), "")
+        try:
+            if provider_key == "ollama":
+                raw_text = self._complete_ollama(
+                    base_url or "http://localhost:11434", model, prompt, system_prompt, api_key, config,
+                )
+            elif provider_key in {"openai", "openrouter", "perplexity"}:
+                defaults = {
+                    "openai": "https://api.openai.com",
+                    "openrouter": "https://openrouter.ai/api",
+                    "perplexity": "https://api.perplexity.ai",
+                }
+                resolved_url = base_url or defaults.get(provider_key, "https://api.openai.com")
+                extra_headers: dict[str, str] = {}
+                if provider_key == "openrouter":
+                    extra_headers["HTTP-Referer"] = _clean(config.get("site_url")) or "https://aiocrm.local"
+                    extra_headers["X-Title"] = _clean(config.get("app_name")) or "AIO CRM"
+                raw_text = self._complete_openai_compat(
+                    resolved_url, api_key, model, prompt, system_prompt, extra_headers,
+                )
+            elif provider_key == "anthropic":
+                raw_text = self._complete_anthropic(
+                    base_url or "https://api.anthropic.com", api_key, model, prompt, system_prompt,
+                )
+            elif provider_key == "google-ai":
+                raw_text = self._complete_google_ai(
+                    base_url or "https://generativelanguage.googleapis.com", api_key, model, prompt, system_prompt,
+                )
+            else:
+                return None
+        except (ValueError, OSError, urlerror.URLError):
+            return None
+        if not raw_text or not raw_text.strip():
+            return None
+        cleaned = raw_text.strip()
+        if "```json" in cleaned:
+            cleaned = cleaned.split("```json")[-1].split("```")[0].strip()
+        elif cleaned.startswith("```"):
+            cleaned = cleaned.split("```", 2)[-1].rsplit("```", 1)[0].strip()
+        try:
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, dict) and "suggestion" in parsed:
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return {"suggestion": raw_text.strip()}
+
+    def _complete_ollama(
+        self, base_url: str, model: str, prompt: str, system_prompt: str, api_key: str, config: dict[str, Any],
+    ) -> str:
+        if not model:
+            return ""
+        payload: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": float(config.get("temperature") or 0.3)},
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+        response = self._post_json(
+            f"{base_url}/api/generate",
+            payload,
+            headers=_ollama_auth_headers(api_key, config.get("username"), config.get("password")),
+        )
+        return _clean(response.get("response"))
+
+    def _complete_openai_compat(
+        self, base_url: str, api_key: str, model: str, prompt: str, system_prompt: str,
+        extra_headers: dict[str, str] | None = None,
+    ) -> str:
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        headers = {"Authorization": f"Bearer {api_key}", **(extra_headers or {})}
+        response = self._post_json(
+            f"{base_url}/v1/chat/completions",
+            {"model": model, "messages": messages, "temperature": 0.3},
+            headers=headers,
+        )
+        choices = response.get("choices") or []
+        if choices:
+            return _clean(choices[0].get("message", {}).get("content"))
+        return ""
+
+    def _complete_anthropic(
+        self, base_url: str, api_key: str, model: str, prompt: str, system_prompt: str,
+    ) -> str:
+        payload: dict[str, Any] = {
+            "model": model or "claude-sonnet-4-20250514",
+            "max_tokens": 2048,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+        response = self._post_json(
+            f"{base_url}/v1/messages",
+            payload,
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+        )
+        content = response.get("content") or []
+        if content and isinstance(content, list):
+            return _clean(content[0].get("text"))
+        return ""
+
+    def _complete_google_ai(
+        self, base_url: str, api_key: str, model: str, prompt: str, system_prompt: str,
+    ) -> str:
+        resolved_model = model or "gemini-2.5-flash"
+        payload: dict[str, Any] = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3},
+        }
+        if system_prompt:
+            payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        url = f"{base_url}/v1beta/models/{resolved_model}:generateContent?key={api_key}"
+        response = self._post_json(url, payload)
+        candidates = response.get("candidates") or []
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts") or []
+            if parts:
+                return _clean(parts[0].get("text"))
+        return ""
+
+    def _assist_with_provider(
+        self,
+        *,
+        provider_config: dict[str, Any] | None,
+        module: str,
+        surface: str,
+        field: str,
+        intent: str,
+        current_value: str,
+        context: dict[str, Any],
+        actor: dict[str, Any],
+        tenant: dict[str, Any],
+        fallback: AssistResult,
+    ) -> AssistResult | None:
+        if not provider_config or not _clean(provider_config.get("provider_key")):
+            return None
+        system_prompt = (
+            "You are an AI assistant for AIO CRM. Return compact JSON only with these exact keys: "
+            "suggestion (str), alternatives (list of str), rationale (str), metadata (dict or null). "
+            "Do not return anything outside of valid JSON."
+        )
+        parts = [f"Module: {module}", f"Surface: {surface}", f"Field: {field}", f"Intent: {intent}"]
+        actor_name = _clean(actor.get("name") or actor.get("email")) or "operator"
+        workspace_name = _clean(tenant.get("name")) or "active workspace"
+        parts.extend([f"Actor: {actor_name}", f"Workspace: {workspace_name}"])
+        if current_value:
+            parts.append(f"Current value: {current_value}")
+        relevant = {k: v for k, v in context.items() if v and k not in ("brain_memory_summary", "profile")}
+        if relevant:
+            parts.append(f"Context: {json.dumps(relevant, default=str)}")
+        prompt = ". ".join(parts) + ". Generate the best value for this field."
+        try:
+            result = self._provider_complete(provider_config, prompt, system_prompt=system_prompt)
+            if not result:
+                return None
+            suggestion = _clean(result.get("suggestion"))
+            if not suggestion:
+                return None
+            alternatives = result.get("alternatives")
+            if not isinstance(alternatives, list) or not alternatives:
+                alternatives = [suggestion]
+            rationale = _clean(result.get("rationale")) or "Generated by the configured AI provider."
+            metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else None
+            return AssistResult(
+                suggestion=suggestion,
+                alternatives=[str(a) for a in alternatives],
+                rationale=rationale,
+                prompt=fallback.prompt if fallback else "",
+                metadata=metadata,
+            )
+        except Exception:
+            return None
 
 
     def _generic_result(self, field: str, current_value: str, context: dict[str, Any]) -> AssistResult:

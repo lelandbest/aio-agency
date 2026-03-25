@@ -25,6 +25,11 @@ from automation_service import test_automation_provider
 from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
+from orchestration import ExecutionEngine
+from backend.agent_definitions import AGENT_DEFINITIONS
+from backend.agent_runtime import AgentRegistry
+from backend.cortext_service import cortext_service
+from backend.tools import AIOToolRegistry
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -605,8 +610,8 @@ def extract_requested_agent(command_text: str = "", explicit: str = "") -> str:
 
 def resolve_permission_tier(command_text: str, field: str = "", intent: str = "") -> str:
     haystack = " ".join([str(command_text or ""), str(field or ""), str(intent or "")]).lower()
-    if any(term in haystack for term in ["wipe", "destroy", "purge", "kill switch", "delete from mailbox", "delete everywhere"]):
-        return "dangerous"
+    if intent == "query_vault":
+        return "safe"
     if any(term in haystack for term in ["assign", "archive", "close", "schedule", "create deal", "run workflow", "trigger workflow", "send "]):
         return "guarded"
     return "safe"
@@ -1609,10 +1614,21 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@app.get("/api/brain/search")
-async def search_brain_memory(request: Request, query: str, limit: int = 6, include_runtime: bool = False):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can query AIO Brain memory.")
-    return {"data": collect_brain_memory_results(query, limit=max(1, limit), include_runtime=include_runtime)}
+@app.get("/api/ai/agents/definitions")
+async def get_agent_definitions(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI Agent definitions.")
+    # Convert dataclasses to dicts for JSON serialization
+    defs = {k: {
+        "name": v.name,
+        "agentId": v.agent_id,
+        "role": v.role,
+        "capabilities": v.capabilities,
+        "tools": v.tools,
+        "rank": v.rank,
+        "subordinates": v.subordinates,
+        "system_prompt": v.system_prompt
+    } for k, v in AGENT_DEFINITIONS.items()}
+    return {"data": defs}
 
 
 # --- Help Desk Endpoints ---
@@ -3413,26 +3429,54 @@ async def list_orders(request: Request):
 # ============ AI ORCHESTRATION ============
 
 class CommandRequest(BaseModel):
-    command: str
+    command: str | None = None
+    mode: str = "parse"
     context: dict[str, Any] | None = None
+    runId: str | None = None
 
 @app.post("/api/ai/command")
-async def parse_ai_command(request: Request, payload: CommandRequest):
-    """Parse a natural language command into structured steps (Parse-first, no execution)."""
+async def api_ai_command(request: Request, payload: CommandRequest):
+    """Execute or plan an AI command via the ExecutionEngine."""
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to execute AI commands.")
     tenant_id = (session.get("tenant") or {}).get("id")
     actor = {"id": session.get("user", {}).get("id"), "email": session.get("user", {}).get("email")}
     config = auth_store.get_active_ai_provider_config_for_tenant(tenant_id)
     
+    command = (payload.command or "").strip()
+    mode = payload.mode.strip().lower()
+    context = payload.context or {}
+    run_id = payload.runId
+
+    if mode not in ("parse", "plan", "execute", "resume"):
+        raise HTTPException(status_code=400, detail="Invalid mode.")
+
+    raw_steps = []
+    if mode != "resume":
+        if not command:
+            raise HTTPException(status_code=400, detail="Command is required for this mode.")
+        try:
+            res = ai_assist_service.parse_command(
+                command=command,
+                context=context,
+                actor=actor,
+                tenant_id=tenant_id,
+                provider_config=config,
+            )
+            raw_steps = res.get("steps", [])
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+            
+    engine = ExecutionEngine(provider)
     try:
-        result = ai_assist_service.parse_command(
-            command=payload.command,
-            context=payload.context or {},
+        return engine.run(
+            raw_steps=raw_steps,
+            mode=mode,
+            command=command,
+            context=context,
             actor=actor,
-            tenant_id=tenant_id,
-            provider_config=config,
+            tenant={"id": tenant_id, "name": "active workspace"},
+            run_id=run_id
         )
-        return {"data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

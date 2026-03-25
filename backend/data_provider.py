@@ -795,6 +795,19 @@ class BaseProvider(ABC):
     def schedule_thread_meeting(self, thread_id: str, scheduled_at: str | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def save_ai_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_ai_run(self, run_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+
 
 class MockProvider(BaseProvider):
     provider_name = "mock"
@@ -2794,6 +2807,15 @@ class MockProvider(BaseProvider):
         ]
         return {"deleted_thread_id": thread_id}
 
+    def save_ai_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError("Not implemented for mock")
+
+    def get_ai_run(self, run_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError("Not implemented for mock")
+
+    def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError("Not implemented for mock")
+
 
 class SQLiteProvider(BaseProvider):
     provider_name = "sqlite"
@@ -2858,6 +2880,7 @@ class SQLiteProvider(BaseProvider):
             "mail_events",
             "help_tickets",
             "broadcast_messages",
+            "ai_runs",
         ]:
             conn.execute(f"UPDATE {table} SET tenant_id = COALESCE(tenant_id, ?)", (tenant_id,))
 
@@ -3004,6 +3027,15 @@ class SQLiteProvider(BaseProvider):
                     content_excerpt TEXT,
                     created_at TEXT,
                     updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS brain_embeddings (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    chunk_id TEXT NOT NULL,
+                    vector_json TEXT NOT NULL,
+                    model TEXT,
+                    created_at TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS forms (
@@ -3256,6 +3288,35 @@ class SQLiteProvider(BaseProvider):
                     created_at TEXT,
                     expires_at TEXT
                 );
+
+                CREATE TABLE IF NOT EXISTS ai_runs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    command TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    steps_json TEXT NOT NULL,
+                    artifacts_json TEXT NOT NULL,
+                    pending_approvals_json TEXT NOT NULL,
+                    routing_json TEXT NOT NULL,
+                    trace_json TEXT NOT NULL DEFAULT '[]',
+                    actor_json TEXT NOT NULL,
+                    context_json TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                
+                CREATE TABLE IF NOT EXISTS ai_audit_logs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    run_id TEXT NOT NULL,
+                    step_id TEXT NOT NULL,
+                    agent TEXT,
+                    agent_id TEXT,
+                    action TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    timestamp TEXT NOT NULL
+                );
                 """
             )
 
@@ -3278,6 +3339,7 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "brain_links", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_ingests", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_chunks", "tenant_id", "TEXT")
+            self._ensure_column(conn, "brain_embeddings", "tenant_id", "TEXT")
             self._ensure_column(conn, "brain_sources", "graph_x", "REAL")
             self._ensure_column(conn, "brain_sources", "graph_y", "REAL")
             self._ensure_column(conn, "brain_items", "graph_x", "REAL")
@@ -3338,6 +3400,9 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "calendar_sources", "last_synced_at", "TEXT")
             self._ensure_column(conn, "calendar_sources", "created_at", "TEXT")
             self._ensure_column(conn, "calendar_sources", "updated_at", "TEXT")
+            self._ensure_column(conn, "ai_runs", "tenant_id", "TEXT")
+            self._ensure_column(conn, "ai_runs", "trace_json", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "ai_audit_logs", "tenant_id", "TEXT")
             conn.execute(
                 """
                 UPDATE mailboxes
@@ -4390,6 +4455,38 @@ class SQLiteProvider(BaseProvider):
                 (item_id, self._tenant_id()),
             )
             conn.commit()
+
+    def save_brain_chunks(self, chunks: list[dict[str, Any]]) -> None:
+        now = utcnow()
+        with self._connect() as conn:
+            for chunk in chunks:
+                conn.execute(
+                    """
+                    INSERT INTO brain_chunks (
+                        id, tenant_id, source_id, ingest_id, ordinal, title, content, content_excerpt, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        chunk.get("id") or f"chunk-{unique_suffix()}",
+                        self._tenant_id(),
+                        chunk["source_id"],
+                        chunk["ingest_id"],
+                        chunk.get("ordinal", 0),
+                        chunk.get("title"),
+                        chunk["content"],
+                        chunk.get("content_excerpt") or summarize_excerpt(chunk["content"]),
+                        now,
+                        now
+                    )
+                )
+            conn.commit()
+
+    def list_brain_chunks(self, ingest_id: str | None = None) -> list[dict[str, Any]]:
+        if ingest_id:
+            rows = self._tenant_rows("SELECT * FROM brain_chunks WHERE tenant_id = ? AND ingest_id = ?", (ingest_id,))
+        else:
+            rows = self._tenant_rows("SELECT * FROM brain_chunks WHERE tenant_id = ?")
+        return [dict(row) for row in rows]
 
     # --- Help Desk Methods ---
 
@@ -6856,6 +6953,76 @@ class SQLiteProvider(BaseProvider):
             conn.commit()
         self.send_thread_message(thread_id, f"CRM action: scheduled a meeting follow-up for {follow_up_at}.", channel_type="internal", sender_name="ALPHA", sender_email="system@aiocrm.local", recipients=["Internal"], direction="system")
         return next(item for item in self._get_thread_context() if item["id"] == thread_id)
+
+    def save_ai_audit_log(self, payload: dict[str, Any]) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO ai_audit_logs (
+                    id, tenant_id, run_id, step_id, agent, agent_id, action, result, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"audit-{unique_suffix()}",
+                    self._tenant_id(),
+                    payload.get("runId"),
+                    payload.get("stepId"),
+                    payload.get("agent"),
+                    payload.get("agentId"),
+                    payload.get("action"),
+                    payload.get("result"),
+                    payload.get("timestamp") or utcnow()
+                )
+            )
+            conn.commit()
+
+    def save_ai_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO ai_runs (
+                    id, tenant_id, command, mode, status, steps_json, 
+                    artifacts_json, pending_approvals_json, routing_json, trace_json, 
+                    actor_json, context_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    payload["id"],
+                    self._tenant_id(),
+                    payload["command"],
+                    payload["mode"],
+                    payload["status"],
+                    payload.get("steps_json", "[]"),
+                    payload.get("artifacts_json", "[]"),
+                    payload.get("pending_approvals_json", "[]"),
+                    payload.get("routing_json", "{}"),
+                    payload.get("trace_json", "[]"),
+                    payload.get("actor_json", "{}"),
+                    payload.get("context_json", "{}"),
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+        res = self.get_ai_run(payload["id"])
+        return res if res else payload
+
+    def get_ai_run(self, run_id: str) -> dict[str, Any] | None:
+        rows = self._tenant_rows("SELECT * FROM ai_runs WHERE tenant_id = ? AND id = ?", (run_id,))
+        return dict(rows[0]) if rows else None
+
+    def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        with self._connect() as conn:
+            updates["updated_at"] = utcnow()
+            set_clause = ", ".join(f"{k} = ?" for k in updates.keys() if k != "id" and k != "tenant_id")
+            values = [v for k, v in updates.items() if k != "id" and k != "tenant_id"]
+            if set_clause:
+                conn.execute(f"UPDATE ai_runs SET {set_clause} WHERE tenant_id = ? AND id = ?", (*values, self._tenant_id(), run_id))
+                conn.commit()
+        res = self.get_ai_run(run_id)
+        return res if res else {}
+
 
 
 def create_provider() -> BaseProvider:
