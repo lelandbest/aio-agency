@@ -122,11 +122,11 @@ const CRMModule = ({ initialContactId = null }) => {
     form_submission_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year']
   };
 
-  const shellPanelClass = 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-[0_14px_34px_rgba(0,0,0,0.14)]';
-  const innerPanelClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]';
-  const softActionClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]';
-  const destructiveActionClass = 'rounded-xl border border-red-500/30 bg-red-500/12 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/18';
-  const primaryActionClass = 'rounded-xl bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-on-primary)] transition hover:bg-[var(--color-primary-hover)]';
+  const shellPanelClass = 'island-panel rounded-[var(--radius-outer)]';
+  const innerPanelClass = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-sm';
+  const softActionClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]';
+  const destructiveActionClass = 'rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20';
+  const primaryActionClass = 'btn-primary-skeuo !px-3 !py-2 !text-xs !font-medium !rounded-[var(--radius-card)]';
 
   useEffect(() => {
     if (!initialContactId || !contacts.length) return;
@@ -1388,7 +1388,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     type="text"
                     value={currentContact[field] || ''}
                     onChange={(e) => handleFieldChange(field, e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    className="mt-1 w-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
                   <p className="mt-1 text-sm text-[var(--color-text-primary)]">{currentContact[field] || '--'}</p>
@@ -1405,7 +1405,7 @@ const CRMModule = ({ initialContactId = null }) => {
                 { icon: Calendar, label: 'Meet' },
                 { icon: FileInput, label: 'Form' }
               ].map((action, idx) => (
-                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex flex-col items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-1 py-1.5 text-[10px] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]">
+                <button key={idx} onClick={() => handleQuickAction(action.label)} className="flex flex-col items-center gap-1 rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-1 py-1.5 text-[10px] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]">
                   <action.icon size={14} />
                   <span>{action.label}</span>
                 </button>
@@ -1437,7 +1437,7 @@ const CRMModule = ({ initialContactId = null }) => {
                 <select
                   value=""
                   onChange={(e) => e.target.value && handleAddTag(e.target.value)}
-                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[9px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[9px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                 >
                   <option value="">+ Add tag...</option>
                   {availableTags.filter(tag => !currentContact.tags?.includes(tag)).map(tag => (
@@ -1460,7 +1460,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     type="email"
                     value={currentContact.email || ''}
                     onChange={(e) => handleFieldChange('email', e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-primary)]"
+                      className="mt-1 w-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
                     <p className="mt-1 flex items-center gap-1 text-sm text-[var(--color-primary)]">
@@ -1475,7 +1475,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     type="tel"
                     value={currentContact.phone || ''}
                     onChange={(e) => handleFieldChange('phone', e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    className="mt-1 w-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
                   <p className="mt-1 text-sm text-[var(--color-text-primary)]">{currentContact.phone || '--'}</p>
@@ -1488,7 +1488,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     type="url"
                     value={currentContact.website || ''}
                     onChange={(e) => handleFieldChange('website', e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    className="mt-1 w-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
                   <p className="mt-1 text-sm text-[var(--color-text-primary)]">{currentContact.website || '--'}</p>
@@ -1500,7 +1500,7 @@ const CRMModule = ({ initialContactId = null }) => {
                   <textarea
                     value={typeof currentContact.address === 'object' ? JSON.stringify(currentContact.address) : (currentContact.address || '')}
                     onChange={(e) => handleFieldChange('address', e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    className="mt-1 w-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                     rows="2"
                   />
                 ) : (
@@ -1536,7 +1536,7 @@ const CRMModule = ({ initialContactId = null }) => {
             {/* Additional Details Dropdown */}
             <button 
               onClick={() => setShowAdditionalDetails(!showAdditionalDetails)}
-              className="w-full flex justify-between items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 text-sm text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/45"
+              className="w-full flex justify-between items-center rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 text-sm text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/45"
             >
               <span>Additional Details</span>
               <ChevronDown size={16} className={showAdditionalDetails ? 'rotate-180' : ''} />
@@ -1607,14 +1607,14 @@ const CRMModule = ({ initialContactId = null }) => {
                     {loadingUserAccess ? 'Loading access...' : (userAccess?.user?.name || 'No login created')}
                   </div>
                 </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-panel)] bg-[var(--color-primary)]/15 text-[var(--color-primary)]">
                   <KeyRound size={18} />
                 </div>
               </div>
 
               {userAccess ? (
                 <>
-                  <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 space-y-1 text-sm">
+                  <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 space-y-1 text-sm">
                     <div className="text-[var(--color-text-secondary)]">Role: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.role || userAccess.user.role || '--'}</span></div>
                     <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.workspace_name || '--'}</span></div>
                     <div className="text-[var(--color-text-secondary)]">Site: <span className="font-medium text-[var(--color-text-primary)]">{window.location.origin}</span></div>
@@ -1622,7 +1622,7 @@ const CRMModule = ({ initialContactId = null }) => {
                   <div className="grid gap-2">
                     <button
                       onClick={openUserAccessModal}
-                      className="w-full rounded-xl bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
+                      className="w-full btn-primary-skeuo px-3 py-2 text-sm font-medium rounded-[var(--radius-panel)]"
                     >
                       User Account Details
                     </button>
@@ -1633,7 +1633,7 @@ const CRMModule = ({ initialContactId = null }) => {
                           handleAdminWorkspaceSwitch(preferredMembership.tenant_id);
                         }
                       }}
-                      className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
+                      className="w-full rounded-[var(--radius-panel)] border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
                     >
                       Login As Admin
                     </button>
@@ -1646,7 +1646,7 @@ const CRMModule = ({ initialContactId = null }) => {
                   </p>
                   <button
                     onClick={() => openCreateUserModal(selectedContact)}
-                    className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
+                    className="w-full rounded-[var(--radius-panel)] border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
                   >
                     Create User Login
                   </button>
@@ -1697,7 +1697,7 @@ const CRMModule = ({ initialContactId = null }) => {
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Add a note... (website links, account info, preferences, etc.)"
-                      className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] resize-none focus:outline-none focus:border-[var(--color-primary)]"
+                      className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] resize-none focus:outline-none focus:border-[var(--color-primary)]"
                       rows={2}
                       disabled={addingNote}
                       onKeyDown={(e) => {
@@ -1709,7 +1709,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     <button
                       onClick={handleAddNote}
                       disabled={!newNote.trim() || addingNote}
-                      className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-text-on-primary)] text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
+                      className="px-4 py-2 rounded-[var(--radius-panel)] bg-[var(--color-primary)] text-[var(--color-text-on-primary)] text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
                     >
                       {addingNote ? 'Adding...' : 'Add Note'}
                     </button>
@@ -1723,8 +1723,8 @@ const CRMModule = ({ initialContactId = null }) => {
                 </div>
               ) : (
                 filteredActivities.map(activity => (
-                  <div key={activity.id} className={`flex gap-3 p-3 rounded-lg border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+                  <div key={activity.id} className={`flex gap-3 p-3 rounded-[var(--radius-panel)] border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
                       {renderTimelineIcon(activity.activity_type)}
                     </div>
                     <div className="flex-1">
@@ -1855,7 +1855,7 @@ const CRMModule = ({ initialContactId = null }) => {
                 <button
                   key={item.id}
                   onClick={() => setBillingModal(item)}
-                  className="w-full flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-left text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  className="w-full flex items-center justify-between rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-left text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 >
                   <span>{item.label}</span>
                   <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px]">{item.count}</span>
@@ -1937,8 +1937,8 @@ const CRMModule = ({ initialContactId = null }) => {
       </div>
     );
 
-    const modalInputClass = "w-full rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm";
-    const modalSelectClass = "w-full rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm";
+    const modalInputClass = "w-full rounded-[var(--radius-panel)] border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm";
+    const modalSelectClass = "w-full rounded-[var(--radius-panel)] border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] backdrop-blur-sm";
 
     const handleSubmit = async (e) => {
       e.preventDefault();
@@ -2633,13 +2633,13 @@ const CRMModule = ({ initialContactId = null }) => {
             )}
           </div>
           <div className="flex justify-end gap-3 border-t border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/50 px-5 py-4 backdrop-blur-sm">
-            <button onClick={closeBulkActionModal} className="rounded-full border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] backdrop-blur-sm">
+            <button onClick={closeBulkActionModal} className="rounded-[var(--radius-panel)] border border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/50 px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] backdrop-blur-sm">
               Cancel
             </button>
             <button
               onClick={applyBulkAction}
               disabled={bulkActionSubmitting}
-              className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+              className="btn-primary-skeuo !px-4 !py-2 !text-sm !font-medium !rounded-[var(--radius-panel)] disabled:opacity-60"
             >
               {bulkActionSubmitting ? 'Applying...' : 'Apply'}
             </button>
@@ -2651,7 +2651,7 @@ const CRMModule = ({ initialContactId = null }) => {
 
   // MAIN RENDER
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden">
       <input
         ref={importInputRef}
         type="file"

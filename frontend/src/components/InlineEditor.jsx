@@ -72,24 +72,24 @@ const InlineEditor = ({
   if (isEditing) {
     return (
       <div className="relative">
-        <div className="flex items-center gap-1 mb-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg p-1">
+        <div className="flex items-center gap-1 mb-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-1 shadow-island-sm">
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Bold"
           >
             <Bold size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Italic"
           >
             <Italic size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Underline"
           >
             <Underline size={14} />
@@ -97,21 +97,21 @@ const InlineEditor = ({
           <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('justifyLeft'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Align Left"
           >
             <AlignLeft size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('justifyCenter'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Align Center"
           >
             <AlignCenter size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('justifyRight'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Align Right"
           >
             <AlignRight size={14} />
@@ -119,21 +119,21 @@ const InlineEditor = ({
           <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('insertUnorderedList'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Bullet List"
           >
             <List size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); execCommand('insertOrderedList'); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Numbered List"
           >
             <ListOrdered size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); handleLink(); }}
-            className="p-1.5 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-white transition"
+            className="p-1.5 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-white transition"
             title="Insert Link"
           >
             <Link size={14} />
@@ -141,14 +141,14 @@ const InlineEditor = ({
           <div className="flex-1" />
           <button
             onMouseDown={(e) => { e.preventDefault(); setLocalValue(value || ''); setIsEditing(false); }}
-            className="p-1.5 hover:bg-red-500/20 rounded text-[var(--color-text-tertiary)] hover:text-red-400 transition"
+            className="p-1.5 hover:bg-red-500/20 rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-red-400 transition"
             title="Cancel"
           >
             <X size={14} />
           </button>
           <button
             onMouseDown={(e) => { e.preventDefault(); handleBlur(); }}
-            className="p-1.5 hover:bg-green-500/20 rounded text-[var(--color-text-tertiary)] hover:text-green-400 transition"
+            className="p-1.5 hover:bg-green-500/20 rounded-[var(--radius-card)] text-[var(--color-text-tertiary)] hover:text-green-400 transition"
             title="Done"
           >
             <Check size={14} />
@@ -161,7 +161,7 @@ const InlineEditor = ({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           onInput={(e) => setLocalValue(e.currentTarget.innerHTML)}
-          className="w-full min-h-[80px] bg-[var(--color-bg-secondary)] border border-[var(--color-primary)] rounded-lg p-3 text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30"
+          className="w-full min-h-[80px] bg-[var(--color-bg-secondary)] border border-[var(--color-primary)] rounded-[var(--radius-panel)] p-3 text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 shadow-island-sm"
           style={{ fontFamily: 'inherit', fontSize: 'inherit', lineHeight: '1.5' }}
           dangerouslySetInnerHTML={{ __html: localValue }}
         />
@@ -173,7 +173,7 @@ const InlineEditor = ({
     <div
       ref={editorRef}
       onDoubleClick={handleDoubleClick}
-      className="cursor-text min-h-[40px] px-2 py-1 rounded hover:bg-[var(--color-hover)] transition-colors"
+      className="cursor-text min-h-[40px] px-2 py-1 rounded-[var(--radius-card)] hover:bg-[var(--color-hover)] transition-colors"
       style={{ fontFamily: 'inherit' }}
     >
       {localValue || <span className="text-[var(--color-text-tertiary)] italic">{placeholder}</span>}

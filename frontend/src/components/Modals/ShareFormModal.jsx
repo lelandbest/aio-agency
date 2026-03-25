@@ -39,9 +39,9 @@ const ShareFormModal = ({ form, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
       <div 
-        className="relative w-full max-w-2xl bg-[var(--color-bg-primary)] rounded-2xl border border-[var(--color-border)] shadow-2xl overflow-hidden"
+        className="relative w-full max-w-2xl bg-[var(--color-bg-primary)] rounded-[var(--radius-panel)] border border-[var(--color-border)] shadow-island overflow-hidden animate-in zoom-in duration-300"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
@@ -49,7 +49,7 @@ const ShareFormModal = ({ form, onClose }) => {
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Share Form</h2>
             <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{form.name}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-[var(--color-hover)] rounded-lg transition">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition">
             <X size={20} className="text-[var(--color-text-secondary)]" />
           </button>
         </div>
@@ -85,11 +85,11 @@ const ShareFormModal = ({ form, onClose }) => {
                     type="text"
                     readOnly
                     value={publicUrl}
-                    className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm text-[var(--color-text-primary)]"
+                    className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] shadow-island-sm"
                   />
                   <button
                     onClick={() => copyToClipboard(publicUrl, 'link')}
-                    className="px-4 py-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg transition flex items-center gap-2"
+                    className="px-4 py-2.5 bg-[var(--color-primary)] hover:opacity-90 text-white rounded-[var(--radius-card)] transition flex items-center gap-2 shadow-island-sm active:scale-95"
                   >
                     {copied === 'link' ? <Check size={16} /> : <Copy size={16} />}
                       {copied === 'link' ? 'Copied' : 'Copy'}
@@ -101,7 +101,7 @@ const ShareFormModal = ({ form, onClose }) => {
                   href={publicUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-[var(--color-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg text-sm transition"
+                  className="flex items-center gap-2 px-4 py-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] rounded-[var(--radius-card)] text-sm transition shadow-island-sm"
                 >
                   <ExternalLink size={14} />
                   Open in New Tab
@@ -114,20 +114,20 @@ const ShareFormModal = ({ form, onClose }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">iFrame Embed Code</label>
-                <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
+                <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4">
                   <pre className="text-xs text-[var(--color-text-secondary)] overflow-x-auto whitespace-pre-wrap font-mono">
                     {embedCode}
                   </pre>
                 </div>
                 <button
                   onClick={() => copyToClipboard(embedCode, 'embed')}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg transition text-sm"
+                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 text-white rounded-[var(--radius-card)] transition text-sm shadow-island-sm active:scale-95"
                 >
                   {copied === 'embed' ? <Check size={14} /> : <Copy size={14} />}
                   {copied === 'embed' ? 'Copied' : 'Copy Embed Code'}
                 </button>
               </div>
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-[var(--radius-card)] p-3 shadow-island-sm">
                 <p className="text-xs text-amber-200">
                   <strong>Tip:</strong> Adjust the width and height attributes to fit your website layout.
                 </p>
@@ -144,11 +144,11 @@ const ShareFormModal = ({ form, onClose }) => {
                     type="text"
                     readOnly
                     value={apiEndpoint}
-                    className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm text-[var(--color-text-primary)] font-mono"
+                    className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] font-mono shadow-island-sm"
                   />
                   <button
                     onClick={() => copyToClipboard(apiEndpoint, 'api')}
-                    className="px-4 py-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg transition flex items-center gap-2"
+                    className="px-4 py-2.5 bg-[var(--color-primary)] hover:opacity-90 text-white rounded-[var(--radius-card)] transition flex items-center gap-2 shadow-island-sm active:scale-95"
                   >
                     {copied === 'api' ? <Check size={16} /> : <Copy size={16} />}
                   </button>
@@ -157,7 +157,7 @@ const ShareFormModal = ({ form, onClose }) => {
               
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase mb-2">Request Example</label>
-                <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
+                <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 shadow-island-sm">
                   <pre className="text-xs text-[var(--color-text-secondary)] overflow-x-auto whitespace-pre-wrap font-mono">
                     {JSON.stringify(apiExample, null, 2)}
                   </pre>
@@ -179,7 +179,7 @@ const ShareFormModal = ({ form, onClose }) => {
                 </div>
               </div>
 
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-[var(--radius-card)] p-3 shadow-island-sm">
                 <p className="text-xs text-blue-200">
                   <strong>System Variables:</strong> Submit form data via POST with JSON body matching field names.
                 </p>

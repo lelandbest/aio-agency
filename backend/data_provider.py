@@ -3015,6 +3015,21 @@ class SQLiteProvider(BaseProvider):
                     created_at TEXT,
                     updated_at TEXT
                 );
+                -- Phase 16: Learning & Outcome persistence
+                CREATE TABLE IF NOT EXISTS ai_step_outcomes (
+                    id TEXT PRIMARY KEY,
+                    run_id TEXT,
+                    intent TEXT,
+                    agent_name TEXT,
+                    agent_id TEXT,
+                    tool_name TEXT,
+                    status TEXT,
+                    error_category TEXT,
+                    recovery_attempted INTEGER DEFAULT 0,
+                    recovery_success INTEGER DEFAULT 0,
+                    duration_ms INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
 
                 CREATE TABLE IF NOT EXISTS brain_chunks (
                     id TEXT PRIMARY KEY,
@@ -4197,6 +4212,48 @@ class SQLiteProvider(BaseProvider):
         else:
             with self._connect() as conn:
                 _seed(conn)
+
+    def save_step_outcome(self, outcome: dict):
+        """Phase 16: Persist structured step outcome for learning."""
+        with self._connect() as conn:
+            conn.execute("""
+                INSERT INTO ai_step_outcomes (
+                    id, run_id, intent, agent_name, agent_id, tool_name, 
+                    status, error_category, recovery_attempted, recovery_success, duration_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                f"out-{uuid4().hex[:8]}",
+                outcome.get("run_id"),
+                outcome.get("intent"),
+                outcome.get("agent_name"),
+                outcome.get("agent_id"),
+                outcome.get("tool_name"),
+                outcome.get("status"),
+                outcome.get("error_category"),
+                1 if outcome.get("recovery_attempted") else 0,
+                1 if outcome.get("recovery_success") else 0,
+                outcome.get("duration_ms", 0)
+            ))
+            conn.commit()
+
+    def get_intent_performance(self, intent: str) -> list[dict]:
+        """Phase 16: Retrieve historical performance for an intent."""
+        with self._connect() as conn:
+            rows = conn.execute("""
+                SELECT agent_name, status, recovery_success, duration_ms
+                FROM ai_step_outcomes
+                WHERE intent = ?
+                ORDER BY created_at DESC
+                LIMIT 50
+            """, (intent,)).fetchall()
+            return [
+                {
+                    "agent_name": r[0],
+                    "status": r[1],
+                    "recovery_success": bool(r[2]),
+                    "duration_ms": r[3]
+                } for r in rows
+            ]
 
     def get_brain_profile(self) -> dict[str, Any]:
         with self._connect() as conn:

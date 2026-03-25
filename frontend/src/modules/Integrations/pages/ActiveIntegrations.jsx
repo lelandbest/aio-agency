@@ -47,19 +47,6 @@ import { openOAuthPopup } from '../../../utils/oauthPopup';
 const DEFAULT_MAILBOX_PROVIDERS = [
   { id: 'local-stub', label: 'Local Stub', fields: [] },
   {
-    id: 'smtp-imap',
-    label: 'SMTP / IMAP',
-    fields: [
-      { key: 'email', label: 'Mailbox Email' },
-      { key: 'username', label: 'Username' },
-      { key: 'password', label: 'Password' },
-      { key: 'incoming_host', label: 'IMAP Host' },
-      { key: 'incoming_port', label: 'IMAP Port' },
-      { key: 'outgoing_host', label: 'SMTP Host' },
-      { key: 'outgoing_port', label: 'SMTP Port' }
-    ]
-  },
-  {
     id: 'gmail-oauth',
     label: 'Gmail OAuth',
     fields: [
@@ -79,11 +66,23 @@ const DEFAULT_MAILBOX_PROVIDERS = [
       { key: 'client_secret', label: 'Client Secret' },
       { key: 'refresh_token', label: 'Refresh Token' }
     ]
+  },
+  {
+    id: 'smtp-imap',
+    label: 'SMTP / IMAP',
+    fields: [
+      { key: 'email', label: 'Mailbox Email' },
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password' },
+      { key: 'incoming_host', label: 'IMAP Host' },
+      { key: 'incoming_port', label: 'IMAP Port' },
+      { key: 'outgoing_host', label: 'SMTP Host' },
+      { key: 'outgoing_port', label: 'SMTP Port' }
+    ]
   }
 ];
 
 const DEFAULT_CALENDAR_PROVIDERS = [
-  { id: 'local-stub', label: 'Local Stub', fields: [] },
   {
     id: 'google-calendar-oauth',
     label: 'Google Calendar',
@@ -96,6 +95,16 @@ const DEFAULT_CALENDAR_PROVIDERS = [
     ]
   },
   {
+    id: 'ics-url',
+    label: 'ICS Feed',
+    fields: [
+      { key: 'feed_url', label: 'ICS Feed URL' },
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password' }
+    ]
+  },
+  { id: 'local-stub', label: 'Local Stub', fields: [] },
+  {
     id: 'microsoft365-calendar',
     label: 'Microsoft 365 Calendar',
     fields: [
@@ -105,19 +114,12 @@ const DEFAULT_CALENDAR_PROVIDERS = [
       { key: 'user_id', label: 'User ID' },
       { key: 'calendar_id', label: 'Calendar ID' }
     ]
-  },
-  {
-    id: 'ics-url',
-    label: 'ICS Feed',
-    fields: [
-      { key: 'feed_url', label: 'ICS Feed URL' },
-      { key: 'username', label: 'Username' },
-      { key: 'password', label: 'Password' }
-    ]
   }
 ];
 
 const DEFAULT_AI_PROVIDER_CATALOG = [
+  { key: 'anthropic', label: 'Anthropic', description: 'Claude models for longer-form reasoning and writing.', default_base_url: 'https://api.anthropic.com', default_model: 'claude-sonnet-4-20250514', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
+  { key: 'google-ai', label: 'Google AI', description: 'Gemini models via Google AI Studio.', default_base_url: 'https://generativelanguage.googleapis.com', default_model: 'gemini-2.5-flash', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
   {
     key: 'ollama',
     label: 'Ollama',
@@ -135,8 +137,6 @@ const DEFAULT_AI_PROVIDER_CATALOG = [
   },
   { key: 'openai', label: 'OpenAI', description: 'External OpenAI models for drafting, reasoning, and operator assist.', default_base_url: 'https://api.openai.com', default_model: 'gpt-4.1-mini', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
   { key: 'openrouter', label: 'OpenRouter', description: 'Broker multi-model access through OpenRouter.', default_base_url: 'https://openrouter.ai/api', default_model: 'openai/gpt-4.1-mini', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }, { key: 'site_url', label: 'Site URL' }, { key: 'app_name', label: 'App Name' }] },
-  { key: 'anthropic', label: 'Anthropic', description: 'Claude models for longer-form reasoning and writing.', default_base_url: 'https://api.anthropic.com', default_model: 'claude-sonnet-4-20250514', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
-  { key: 'google-ai', label: 'Google AI', description: 'Gemini models via Google AI Studio.', default_base_url: 'https://generativelanguage.googleapis.com', default_model: 'gemini-2.5-flash', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
   { key: 'perplexity', label: 'Perplexity', description: 'Perplexity models for research-driven drafting and answers.', default_base_url: 'https://api.perplexity.ai', default_model: 'sonar', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
 ];
 
@@ -358,7 +358,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
 
     try {
-      setMailboxes(await getMailboxesApi());
+      const data = await getMailboxesApi();
+      setMailboxes((data || []).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
       setMailboxes([]);
@@ -372,7 +373,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
 
     try {
-      setCalendarSources(await getCalendarSourcesApi());
+      const data = await getCalendarSourcesApi();
+      setCalendarSources((data || []).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
       setCalendarSources([]);
@@ -496,7 +498,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const automationProviderCatalog = useMemo(
-    () => getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION),
+    () => [...getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION)].sort((a, b) => a.name.localeCompare(b.name)),
     []
   );
 
@@ -1202,7 +1204,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   };
 
   const renderAutomationAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="space-y-3 overflow-auto">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Automation Providers</div>
@@ -1293,7 +1295,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const renderEmailAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -1397,7 +1399,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const renderCalendarAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -1491,7 +1493,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const renderAiAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="space-y-3">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Providers</div>
@@ -1637,7 +1639,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length + mailboxes.filter((mailbox) => mailbox.status !== 'disconnected').length + calendarSources.filter((source) => source.status !== 'disconnected').length + aiProviderConfigs.filter((provider) => provider.enabled).length + paymentProviderConfigs.filter((provider) => provider.enabled).length;
 
   const renderPaymentsAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="space-y-3 overflow-auto">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Payment Providers</div>
@@ -1764,8 +1766,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Categories</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{categories.length}</div></div>
         </div>
         {notice ? <div className={`rounded-lg border p-4 ${toneClass(notice.tone)}`}>{notice.message}</div> : null}
-        <IntegrationTabs categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} counts={categoryCounts} />
-        <div className="flex-1 overflow-hidden">
+        <IntegrationTabs categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} counts={categoryCounts} />        <div className="flex-1 overflow-hidden">
           {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
             ? renderAutomationAdmin()
             : activeCategory === INTEGRATION_CATEGORIES.EMAIL
@@ -1776,7 +1777,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 ? renderAiAdmin()
                 : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS
                   ? renderPaymentsAdmin()
-                  : renderLegacyCategory()}
+                  : activeCategory === INTEGRATION_CATEGORIES.SMS
+                    ? renderLegacyCategory()
+                    : activeCategory === INTEGRATION_CATEGORIES.TRACKING
+                      ? renderLegacyCategory()
+                      : renderLegacyCategory()}
         </div>
         <AddIntegrationPanel isOpen={panelOpen} category={activeCategory} onClose={() => setPanelOpen(false)} onSave={handleAddIntegration} onCategoryChange={setActiveCategory} categories={categories} />
       </div>

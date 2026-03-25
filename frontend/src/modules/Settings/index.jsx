@@ -145,7 +145,7 @@ const GlobalVarsManager = () => {
   };
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Key size={20} className="text-[var(--color-primary)]" /> Global Variables</h2>
         <p className="text-sm text-[var(--color-text-secondary)]">Manage {'{{userVariables}}'} and system keys.</p>
@@ -153,13 +153,13 @@ const GlobalVarsManager = () => {
       <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-[var(--color-bg-primary)]">
         <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg border border-[var(--color-border)] space-y-4">
           <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-3"><input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="Key (e.g. userEmail)" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
-            <div className="col-span-4"><input value={newValue} onChange={e => setNewValue(e.target.value)} type={isSecret ? "password" : "text"} placeholder="Value" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
-            <div className="col-span-3"><input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
+            <div className="col-span-3"><input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="Key (e.g. userEmail)" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
+            <div className="col-span-4"><input value={newValue} onChange={e => setNewValue(e.target.value)} type={isSecret ? "password" : "text"} placeholder="Value" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
+            <div className="col-span-3"><input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" /></div>
             <div className="col-span-2 flex gap-2">
-              <button onClick={() => setIsSecret(!isSecret)} className={`p-2 rounded ${isSecret ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`} title="Secret"><Lock size={16} /></button>
-              <button onClick={() => setIsSystem(!isSystem)} className={`p-2 rounded ${isSystem ? 'bg-blue-500/20 text-blue-300' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`} title="System Variable"><Cog size={16} /></button>
-              <button onClick={addVar} className={saveButtonClassName("flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] text-sm font-medium py-2 rounded", savedAction === 'add-variable')}>{savedAction === 'add-variable' ? 'Saved' : 'Add'}</button>
+              <button onClick={() => setIsSecret(!isSecret)} className={`p-2 rounded-[var(--radius-card)] ${isSecret ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`} title="Secret"><Lock size={16} /></button>
+              <button onClick={() => setIsSystem(!isSystem)} className={`p-2 rounded-[var(--radius-card)] ${isSystem ? 'bg-blue-500/20 text-blue-300' : 'bg-[var(--color-border)] text-[var(--color-text-secondary)]'}`} title="System Variable"><Cog size={16} /></button>
+              <button onClick={addVar} className={saveButtonClassName("flex-1 btn-primary-skeuo text-sm font-medium py-2 rounded-[var(--radius-card)]", savedAction === 'add-variable')}>{savedAction === 'add-variable' ? 'Saved' : 'Add'}</button>
             </div>
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -402,7 +402,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   };
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -415,8 +415,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="text-xs bg-gray-600 hover:bg-gray-500 text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Reset</button>
-            <button className="text-xs bg-blue-600 hover:bg-blue-700 text-[var(--color-text-primary)] px-3 py-1.5 rounded transition font-medium">Save</button>
+            <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] border border-[var(--color-border)] px-3 py-1.5 rounded-[var(--radius-card)] transition">Reset</button>
+            <button className="text-xs btn-primary-skeuo px-3 py-1.5 rounded-[var(--radius-card)] transition font-medium">Save</button>
           </div>
         </div>
       </div>
@@ -461,7 +461,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
               <div className="flex gap-3">
                 <button
                   onClick={() => updateBrandingTheme('light')}
-                  className={`px-4 py-2 rounded text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'light'
+                  className={`px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'light'
                     ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
                     : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                     }`}
@@ -470,7 +470,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
                 </button>
                 <button
                   onClick={() => updateBrandingTheme('dark')}
-                  className={`px-4 py-2 rounded text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'dark'
+                  className={`px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'dark'
                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
                     : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                     }`}
@@ -1303,7 +1303,7 @@ const PersonalSettings = () => {
   };
 
   return (
-    <div className="h-full bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><User size={20} className="text-[var(--color-primary)]" /> Personal Profile</h2>
         <p className="text-sm text-[var(--color-text-secondary)]">Manage your account information, locale defaults, and signature.</p>
@@ -1311,7 +1311,7 @@ const PersonalSettings = () => {
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
         {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
-        <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 flex flex-col md:flex-row gap-8">
+        <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 flex flex-col md:flex-row gap-8">
           <div className="flex flex-col items-center gap-4">
             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-cyan-500 flex items-center justify-center text-3xl font-bold text-[var(--color-text-primary)] border-4 border-[var(--color-border)] shadow-lg">
               {initials}
@@ -1321,26 +1321,26 @@ const PersonalSettings = () => {
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Display Name</label>
-              <input value={form.display_name} onChange={(event) => setForm(current => ({ ...current, display_name: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+              <input value={form.display_name} onChange={(event) => setForm(current => ({ ...current, display_name: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
             </div>
             <div>
               <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Phone</label>
               <div className="relative">
                 <Smartphone size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                <input value={form.phone} onChange={(event) => setForm(current => ({ ...current, phone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <input value={form.phone} onChange={(event) => setForm(current => ({ ...current, phone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Email</label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                <input value={form.email} disabled className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-20 py-2 text-sm text-[var(--color-text-primary)] opacity-80" />
-                <span className="absolute right-3 top-2.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 rounded">Verified</span>
+                <input value={form.email} disabled className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] pl-10 pr-20 py-2 text-sm text-[var(--color-text-primary)] opacity-80" />
+                <span className="absolute right-3 top-2.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 rounded-[var(--radius-card)]">Verified</span>
               </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Language / Locale</label>
-              <select value={form.locale} onChange={(event) => setForm(current => ({ ...current, locale: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+              <select value={form.locale} onChange={(event) => setForm(current => ({ ...current, locale: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
                 <option value="en-US">English (US)</option>
                 <option value="es-US">Spanish (US)</option>
                 <option value="fr-FR">French</option>
@@ -1350,7 +1350,7 @@ const PersonalSettings = () => {
               <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Timezone</label>
               <div className="relative">
                 <Clock size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                <select value={form.timezone} onChange={(event) => setForm(current => ({ ...current, timezone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                <select value={form.timezone} onChange={(event) => setForm(current => ({ ...current, timezone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
                   <option value="America/New_York">Eastern Time</option>
                   <option value="America/Chicago">Central Time</option>
                   <option value="America/Denver">Mountain Time</option>
@@ -1390,7 +1390,7 @@ const BillingSettings = () => {
   });
 
   return (
-    <div className="h-full bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><CreditCard size={20} className="text-yellow-500" /> Billing Settings</h2>
         <p className="text-sm text-[var(--color-text-secondary)]">Manage your subscription and payment methods.</p>
@@ -1420,16 +1420,16 @@ const BillingSettings = () => {
         {/* Payment Method */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Payment Method</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-8 bg-blue-600 rounded flex items-center justify-center text-[var(--color-text-primary)] text-xs font-bold">VISA</div>
+                <div className="w-12 h-8 bg-blue-600 rounded-[var(--radius-card)] flex items-center justify-center text-[var(--color-text-primary)] text-xs font-bold">VISA</div>
                 <div>
                   <div className="text-[var(--color-text-primary)] font-medium">•••• •••• •••• 4242</div>
                   <div className="text-xs text-[var(--color-text-secondary)]">Expires 12/26</div>
                 </div>
               </div>
-              <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-white hover:text-black text-[var(--color-text-primary)] px-3 py-1.5 rounded transition">Update</button>
+              <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-white hover:text-black text-[var(--color-text-primary)] px-3 py-1.5 rounded-[var(--radius-card)] transition">Update</button>
             </div>
           </div>
         </div>
@@ -1521,7 +1521,7 @@ const SecuritySettings = () => {
   };
 
   return (
-    <div className="h-full bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Shield size={20} className="text-red-500" /> Security Settings</h2>
         <p className="text-sm text-[var(--color-text-secondary)]">Manage your account security and access permissions.</p>
@@ -1532,19 +1532,19 @@ const SecuritySettings = () => {
         {/* Password Management */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Password</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Current Password</label>
-                <input type="password" value={passwordForm.current_password} onChange={(event) => setPasswordForm(current => ({ ...current, current_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <input type="password" value={passwordForm.current_password} onChange={(event) => setPasswordForm(current => ({ ...current, current_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">New Password</label>
-                <input type="password" value={passwordForm.new_password} onChange={(event) => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <input type="password" value={passwordForm.new_password} onChange={(event) => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
             </div>
             <div className="flex justify-end">
-              <button onClick={handleChangePassword} className={saveButtonClassName("text-xs bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-3 py-1.5 rounded transition", savedAction === 'update-password')}>{savedAction === 'update-password' ? 'Saved' : 'Update Password'}</button>
+              <button onClick={handleChangePassword} className={saveButtonClassName("text-xs bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-3 py-1.5 rounded-[var(--radius-card)] transition", savedAction === 'update-password')}>{savedAction === 'update-password' ? 'Saved' : 'Update Password'}</button>
             </div>
           </div>
         </div>
@@ -1552,16 +1552,16 @@ const SecuritySettings = () => {
         {/* Two-Factor Authentication */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Two-Factor Authentication</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <div className="text-[var(--color-text-primary)] font-medium">Enable 2FA</div>
                 <div className="text-xs text-[var(--color-text-secondary)]">Add an extra layer of security to your account</div>
               </div>
-              <div className={`w-12 h-6 rounded-full transition cursor-pointer ${twoFactorEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-bg-tertiary)]'}`} onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}></div>
+              <div className={`w-12 h-6 rounded-[var(--radius-card)] transition cursor-pointer ${twoFactorEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-bg-tertiary)]'}`} onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}></div>
             </div>
             {twoFactorEnabled && (
-              <div className="p-3 bg-[var(--color-bg-primary)] border border-[var(--color-primary)]/30 rounded text-sm text-[var(--color-text-primary)]">
+              <div className="p-3 bg-[var(--color-bg-primary)] border border-[var(--color-primary)]/30 rounded-[var(--radius-card)] text-sm text-[var(--color-text-primary)]">
                 Authenticator app enrollment is staged for the post-beta security pass.
               </div>
             )}
@@ -1571,7 +1571,7 @@ const SecuritySettings = () => {
         {/* Active Sessions */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Active Sessions</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
             <div className="divide-y divide-[var(--color-border)]">
               {loadingSessions && <div className="p-4 text-sm text-[var(--color-text-secondary)]">Loading sessions...</div>}
               {!loadingSessions && sessions.map(session => (
@@ -1589,17 +1589,17 @@ const SecuritySettings = () => {
               ))}
             </div>
           </div>
-          <button onClick={handleLogoutOthers} className="w-full px-4 py-2 rounded font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition text-sm flex items-center justify-center gap-2"><LogOut size={14} /> Logout All Other Sessions</button>
+          <button onClick={handleLogoutOthers} className="w-full px-4 py-2 rounded-[var(--radius-card)] font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition text-sm flex items-center justify-center gap-2"><LogOut size={14} /> Logout All Other Sessions</button>
         </div>
 
         {/* Data & Privacy */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Data & Privacy</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-            <button onClick={() => setStatus('Data export will be packaged during the tenancy/commercial pass.')} className="w-full text-left px-4 py-2 rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-sm font-medium transition">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
+            <button onClick={() => setStatus('Data export will be packaged during the tenancy/commercial pass.')} className="w-full text-left px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-sm font-medium transition">
               Download Your Data
             </button>
-            <button className="w-full text-left px-4 py-2 rounded bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-red-500/50 text-red-400 text-sm font-medium transition">
+            <button className="w-full text-left px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-red-500/50 text-red-400 text-sm font-medium transition">
               Delete Account (Staged)
             </button>
           </div>
@@ -1704,7 +1704,7 @@ const OmegaSettings = () => {
   if (!isOwner) {
     return (
       <div className="p-8">
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
+        <div className="rounded-[var(--radius-panel)] border border-red-500/30 bg-red-500/10 p-6 text-sm text-red-200">
           Omega governance is owner-only and does not appear for non-owner workspace roles.
         </div>
       </div>
@@ -1718,22 +1718,22 @@ const OmegaSettings = () => {
     <div className="p-6 space-y-6 bg-[var(--color-bg-primary)]">
       <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 space-y-3">
+          <div className="rounded-[var(--radius-panel)] border border-red-500/30 bg-red-500/10 p-6 space-y-3">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-red-200">Emergency Governance</div>
             <h3 className="text-xl font-semibold text-[var(--color-text-primary)]">OMEGA Kill Switch</h3>
             <p className="text-sm text-[var(--color-text-secondary)]">
               This surface only affects local app data and credentials/config within AIO CRM. It does not delete remote provider data.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+              <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div>
                 <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{omegaStatus}</div>
               </div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+              <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Countdown</div>
                 <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{formatOmegaCountdown(protocol?.execute_at, nowTick)}</div>
               </div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+              <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Scope</div>
                 <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Local app data only</div>
               </div>
@@ -1741,12 +1741,12 @@ const OmegaSettings = () => {
           </div>
 
           {(error || status) && (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+            <div className={`rounded-[var(--radius-panel)] border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
               {error || status}
             </div>
           )}
 
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 space-y-4">
+          <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Arm Sequence</h3>
               <p className="text-sm text-[var(--color-text-secondary)]">Two separate codes are required. Arming starts a fixed 5-minute countdown.</p>
@@ -1759,7 +1759,7 @@ const OmegaSettings = () => {
                   value={armCode}
                   onChange={(event) => setArmCode(event.target.value)}
                   placeholder="Enter arm code"
-                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-red-400 focus:outline-none"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-red-400 focus:outline-none"
                 />
               </div>
               <div className="space-y-2">
@@ -1769,7 +1769,7 @@ const OmegaSettings = () => {
                   value={cancelCode}
                   onChange={(event) => setCancelCode(event.target.value)}
                   placeholder="Enter separate cancel code"
-                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-amber-400 focus:outline-none"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-amber-400 focus:outline-none"
                 />
               </div>
             </div>
@@ -1777,14 +1777,14 @@ const OmegaSettings = () => {
               <button
                 onClick={handleArm}
                 disabled={loading || omegaStatus === 'armed'}
-                className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Arm Omega
               </button>
               <button
                 onClick={handleCancel}
                 disabled={loading || omegaStatus !== 'armed' || !cancelCode.trim()}
-                className="px-4 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-[var(--radius-card)] border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel Omega
               </button>
@@ -1989,7 +1989,7 @@ const WorkspaceSettings = () => {
     <div className="p-6 space-y-6 bg-[var(--color-bg-primary)]">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
             <div>
               <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Control</h3>
               <p className="text-sm text-[var(--color-text-secondary)]">Manage the workspace shown in the top-right switcher and keep ownership clean as Phase 9 hardens.</p>
@@ -2001,7 +2001,7 @@ const WorkspaceSettings = () => {
                 <select
                   value={selectedWorkspaceId}
                   onChange={(event) => handleWorkspaceSelect(event.target.value)}
-                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                 >
                   {(tenants || []).map(workspace => (
                     <option key={workspace.id} value={workspace.id}>
@@ -2013,7 +2013,7 @@ const WorkspaceSettings = () => {
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Your Role</label>
-                <div className="px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-primary)]">
+                <div className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-primary)]">
                   {selectedWorkspace?.role || 'viewer'}
                 </div>
               </div>
@@ -2024,19 +2024,19 @@ const WorkspaceSettings = () => {
                 value={workspaceName}
                 onChange={(event) => setWorkspaceName(event.target.value)}
                 placeholder="Workspace name"
-                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
               />
               <button
                 onClick={handleRenameWorkspace}
                 disabled={!canManageWorkspace}
-                className={saveButtonClassName("px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'save-workspace-name')}
+                className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'save-workspace-name')}
               >
                 {savedAction === 'save-workspace-name' ? 'Saved' : 'Save Name'}
               </button>
             </div>
           </div>
 
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
             <div>
               <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Create Workspace</h3>
               <p className="text-sm text-[var(--color-text-secondary)]">Spin up a new workspace and move into it immediately. This is the first real admin surface for multi-tenant operation.</p>
@@ -2046,12 +2046,12 @@ const WorkspaceSettings = () => {
                 value={newWorkspaceName}
                 onChange={(event) => setNewWorkspaceName(event.target.value)}
                 placeholder="New workspace name"
-                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
               />
               <button
                 onClick={handleCreateWorkspace}
                 disabled={!canCreateWorkspace}
-                className={saveButtonClassName("px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed", savedAction === 'create-workspace')}
+                className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed", savedAction === 'create-workspace')}
               >
                 {savedAction === 'create-workspace' ? 'Created' : 'Create Workspace'}
               </button>
@@ -2065,7 +2065,7 @@ const WorkspaceSettings = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 space-y-3">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-5 space-y-3">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">Phase 9</div>
             <div className="text-sm text-[var(--color-text-primary)]">Workspace switching in the shell now reflects real session membership, not placeholders.</div>
             <div className="text-xs text-[var(--color-text-secondary)]">Current workspace: {tenant?.name || 'Unassigned'}</div>
@@ -2079,7 +2079,7 @@ const WorkspaceSettings = () => {
         </div>
       </div>
 
-      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Members</h3>
@@ -2093,13 +2093,13 @@ const WorkspaceSettings = () => {
             value={newMemberEmail}
             onChange={(event) => setNewMemberEmail(event.target.value)}
             placeholder="existing.user@example.com"
-            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
           />
           <select
             value={newMemberRole}
             onChange={(event) => setNewMemberRole(event.target.value)}
             disabled={!canManageWorkspace}
-            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
           >
             {availableRoleOptions.filter(role => role !== 'owner').map(role => (
               <option key={role} value={role}>{role}</option>
@@ -2108,13 +2108,13 @@ const WorkspaceSettings = () => {
           <button
             onClick={handleAddMember}
             disabled={!canManageWorkspace}
-            className={saveButtonClassName("px-4 py-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'add-member')}
+            className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'add-member')}
           >
             {savedAction === 'add-member' ? 'Added' : 'Add Member'}
           </button>
         </div>
 
-        <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+        <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
           {memberships.map(member => (
             <div key={member.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_180px_auto] gap-3 items-center px-4 py-4 bg-[var(--color-bg-secondary)]">
               <div>
@@ -2126,7 +2126,7 @@ const WorkspaceSettings = () => {
                 value={member.role}
                 disabled={!canManageWorkspace}
                 onChange={(event) => handleRoleChange(member.id, event.target.value)}
-                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
               >
                 {availableRoleOptions.map(role => (
                   <option key={role} value={role}>{role}</option>
@@ -2135,7 +2135,7 @@ const WorkspaceSettings = () => {
               <button
                 onClick={() => handleRemoveMember(member.id)}
                 disabled={!canManageWorkspace || member.user_email === user?.email}
-                className="px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Remove
               </button>
@@ -2212,7 +2212,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2.5 flex items-center gap-2 text-sm font-medium rounded-xl border transition whitespace-nowrap ${activeTab === tab.id
+                className={`px-4 py-2.5 flex items-center gap-2 text-sm font-medium rounded-[var(--radius-panel)] border transition whitespace-nowrap ${activeTab === tab.id
                   ? 'text-[var(--color-text-primary)] border-[var(--color-primary)] bg-[var(--color-primary)]/10'
                   : 'text-[var(--color-text-secondary)] border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
                   }`}

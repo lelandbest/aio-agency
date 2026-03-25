@@ -465,7 +465,7 @@ const CalendarModule = () => {
     if (view === 'month') {
       const days = getDaysInMonth(currentDate);
       return (
-        <div className="grid grid-cols-7 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="bg-[var(--color-bg-primary)] p-2 text-center text-xs text-[var(--color-text-tertiary)] font-medium uppercase">
               {day}
@@ -526,7 +526,7 @@ const CalendarModule = () => {
         <div className="overflow-auto">
           <div className="min-w-[800px]">
             {/* Week header */}
-            <div className="grid grid-cols-8 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-t-lg overflow-hidden">
+            <div className="grid grid-cols-8 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-t-[var(--radius-panel)] overflow-hidden">
               <div className="bg-[var(--color-bg-primary)] p-2"></div>
               {weekDays.map((day, i) => {
                 const isToday = day.toDateString() === new Date().toDateString();
@@ -542,7 +542,7 @@ const CalendarModule = () => {
             </div>
 
             {/* Time slots */}
-            <div className="border border-t-0 border-[var(--color-border)] rounded-b-lg overflow-hidden">
+            <div className="border border-t-0 border-[var(--color-border)] rounded-b-[var(--radius-panel)] overflow-hidden">
               {hours.map(hour => (
                 <div key={hour} className="grid grid-cols-8 gap-px bg-[var(--color-hover)]">
                   <div className="bg-[var(--color-bg-primary)] p-2 text-xs text-[var(--color-text-tertiary)] text-right pr-3">
@@ -584,7 +584,7 @@ const CalendarModule = () => {
       const dayEvents = getEventsForDay(currentDate);
 
       return (
-        <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+        <div className="border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
           <div className="bg-[var(--color-bg-primary)] p-4 border-b border-[var(--color-border)] text-center">
             <div className="text-sm text-[var(--color-text-tertiary)]">
               {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
@@ -660,7 +660,7 @@ const CalendarModule = () => {
           <div className="w-64 border-r border-[var(--color-border)] p-4 hidden md:block calendar-panel-soft">
             <button
               onClick={handleCreateEvent}
-              className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] font-medium py-2 rounded text-sm mb-6"
+              className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] font-medium py-2 rounded-[var(--radius-card)] text-sm mb-6 shadow-island-sm"
             >
               + Create Event
             </button>
@@ -728,7 +728,7 @@ const CalendarModule = () => {
                 </button>
                 <button
                   onClick={() => setView('month')}
-                  className={`px-3 py-1.5 rounded text-xs ${view === 'month' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] font-bold' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'}`}
+                  className={`px-3 py-1.5 rounded-[var(--radius-card)] text-xs font-semibold uppercase tracking-wider ${view === 'month' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
                 >
                   Month
                 </button>
@@ -749,16 +749,16 @@ const CalendarModule = () => {
                 setSelectedBooker(null);
                 setShowBookerModal(true);
               }}
-              className="border-2 border-dashed border-[var(--color-border)] rounded-xl flex flex-col items-center justify-center p-8 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition gap-3 h-48"
+              className="border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-panel)] flex flex-col items-center justify-center p-8 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition gap-3 h-48"
             >
-              <div className="w-10 h-10 rounded-full bg-[var(--color-bg-primary)] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-bg-primary)] flex items-center justify-center border border-[var(--color-border)] shadow-island-sm">
                 <Plus size={20} />
               </div>
               <span className="font-medium">Create Meeting Type</span>
             </button>
 
             {bookingTypes.map(booker => (
-              <div key={booker.id} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl p-5 hover:border-[var(--color-primary)]/50 transition group flex flex-col h-48">
+              <div key={booker.id} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-5 hover:border-[var(--color-primary)]/50 transition group flex flex-col h-48 shadow-island-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">
                     <div className="font-bold text-[var(--color-text-primary)] text-lg mb-1">{booker.name}</div>
@@ -782,26 +782,27 @@ const CalendarModule = () => {
                       setSelectedBookingType(booker);
                       setShowBookingPage(true);
                     }}
-                    className="flex-1 px-3 py-1.5 bg-[var(--color-accent)] hover:opacity-90 text-[var(--color-text-on-primary)] rounded text-xs font-medium flex items-center justify-center gap-1"
+                    className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                    title="Preview"
                   >
                     <Eye size={12} />
-                    Preview
                   </button>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(`${window.location.origin}/book/${booker.slug}`);
                     }}
-                    className="flex-1 px-3 py-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] rounded text-xs font-medium flex items-center justify-center gap-1"
+                    className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                    title="Copy Link"
                   >
                     <Copy size={12} />
-                    Copy Link
                   </button>
                   <button
                     onClick={() => {
                       setSelectedBooker(booker);
                       setShowBookerModal(true);
                     }}
-                    className="px-3 py-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] rounded text-xs"
+                    className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                    title="Edit"
                   >
                     <Edit size={12} />
                   </button>
@@ -863,7 +864,7 @@ const CalendarModule = () => {
                               setSelectedBookingType(booker);
                               setShowBookingPage(true);
                             }}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-accent)] hover:opacity-80"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                             title="Preview"
                           >
                             <Eye size={16} />
@@ -872,7 +873,7 @@ const CalendarModule = () => {
                             onClick={() => {
                               navigator.clipboard.writeText(`${window.location.origin}/book/${booker.slug}`);
                             }}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                             title="Copy Link"
                           >
                             <Copy size={16} />
@@ -882,14 +883,14 @@ const CalendarModule = () => {
                               setSelectedBooker(booker);
                               setShowBookerModal(true);
                             }}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                             title="Edit"
                           >
                             <Edit size={16} />
                           </button>
                           <button
                             onClick={() => handleDeleteBooker(booker.id)}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-danger)]"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                             title="Delete"
                           >
                             <Trash2 size={16} />
@@ -919,7 +920,7 @@ const CalendarModule = () => {
             {events.map(evt => {
               const cal = calendars.find(c => c.id === evt.calendar_id);
               return (
-                <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-xl p-5 transition ${evt.is_backend_artifact ? 'border-[var(--color-success)]/30' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40'}`}>
+                <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-[var(--radius-panel)] p-5 transition shadow-island-sm ${evt.is_backend_artifact ? 'border-[var(--color-success)]/30' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40'}`}>
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-[var(--color-text-primary)] mb-1">{evt.title}</h3>
@@ -935,7 +936,7 @@ const CalendarModule = () => {
                     <select
                       value={evt.status}
                       onChange={(e) => handleStatusChange(evt.id, e.target.value)}
-                      className={`px-2 py-1 rounded text-xs bg-[var(--color-bg-secondary)] border ${getStatusTone(evt.status)}`}
+                      className={`px-2 py-1 rounded-[var(--radius-card)] text-xs bg-[var(--color-bg-secondary)] border ${getStatusTone(evt.status)} focus:outline-none transition`}
                     >
                       <option value="scheduled">Scheduled</option>
                       <option value="confirmed">Confirmed</option>
@@ -1004,7 +1005,7 @@ const CalendarModule = () => {
                       {evt.is_backend_artifact ? (
                         <button
                           onClick={() => handlePushEvent(evt.id)}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-success)]"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-success)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                           title="Push to source"
                         >
                           <ExternalLink size={16} />
@@ -1014,14 +1015,14 @@ const CalendarModule = () => {
                         <>
                           <button
                             onClick={() => handleReconcileEvent(evt.id, 'keep_local')}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                             title="Keep local schedule"
                           >
                             <Copy size={16} />
                           </button>
                           <button
                             onClick={() => handleReconcileEvent(evt.id, 'accept_import')}
-                            className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-warning)]"
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-warning)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                             title="Accept imported schedule"
                           >
                             <Eye size={16} />
@@ -1030,14 +1031,14 @@ const CalendarModule = () => {
                       ) : null}
                       <button
                         onClick={() => handleEditEvent(evt)}
-                        className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                        className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                         title="Edit"
                       >
                         <Edit size={16} />
                       </button>
                       <button
                         onClick={() => handleDeleteEvent(evt.id)}
-                        className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-danger)]"
+                        className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
                         title="Delete"
                       >
                         <Trash2 size={16} />
@@ -1058,7 +1059,7 @@ const CalendarModule = () => {
         // List view
         return (
           <div className="p-6">
-            <div className="border border-[var(--color-border)] rounded-lg overflow-hidden bg-[var(--color-bg-primary)]">
+            <div className="border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden bg-[var(--color-bg-primary)] shadow-island-sm">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] text-xs uppercase font-bold tracking-wider">
                   <tr>
@@ -1103,11 +1104,11 @@ const CalendarModule = () => {
                           </div>
                         </td>
                         <td className="p-4">
-                          <div className="flex flex-col items-start gap-2">
+                          <div className="flex flex-col items-start">
                             <select
                               value={evt.status}
                               onChange={(e) => handleStatusChange(evt.id, e.target.value)}
-                              className={`px-2 py-1 rounded text-xs bg-[var(--color-bg-secondary)] border border-[var(--color-border)] ${getStatusTone(evt.status)}`}
+                              className={`px-2 py-1 rounded-[var(--radius-card)] text-xs bg-[var(--color-bg-secondary)] border border-[var(--color-border)] ${getStatusTone(evt.status)} focus:outline-none transition`}
                             >
                               <option value="scheduled">Scheduled</option>
                               <option value="confirmed">Confirmed</option>
@@ -1189,7 +1190,7 @@ const CalendarModule = () => {
   };
 
   return (
-    <div className="calendar-surface h-full flex flex-col relative rounded-xl overflow-hidden border border-[var(--color-border)] shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+    <div className="calendar-surface h-full flex flex-col relative rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)] shadow-island">
       <ModuleHeader
         title="Calendar"
         titleIcon={CalendarIcon}
@@ -1209,7 +1210,7 @@ const CalendarModule = () => {
               iconType="crosshair"
             />
             {(activeTab === 'bookers' || activeTab === 'bookings') && (
-              <div className="flex gap-1 bg-[var(--color-bg-primary)] rounded p-1">
+              <div className="flex gap-1 bg-[var(--color-bg-primary)] rounded-[var(--radius-card)] p-1">
                 <button
                   onClick={() => setViewMode('list')}
                   className={`px-3 py-1 rounded text-xs ${viewMode === 'list' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
@@ -1219,7 +1220,7 @@ const CalendarModule = () => {
                 </button>
                 <button
                   onClick={() => setViewMode('card')}
-                  className={`px-3 py-1 rounded text-xs ${viewMode === 'card' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+                  className={`px-3 py-1 rounded-[var(--radius-card)] text-xs ${viewMode === 'card' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
                   title="Card View"
                 >
                   Card
@@ -1228,7 +1229,7 @@ const CalendarModule = () => {
             )}
             <button
               onClick={openCalendarAdmin}
-              className="px-3 py-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded text-xs font-medium flex items-center gap-1"
+              className="px-3 py-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] text-xs font-medium flex items-center gap-1"
               title="Manage Calendar Sources"
             >
               <svg className="w-4 h-4 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="currentColor">
@@ -1261,7 +1262,7 @@ const CalendarModule = () => {
 
       {calendarCanvasPrimary ? (
         <div className="calendar-panel-soft border-b border-[var(--color-border)] px-4 py-3 space-y-3">
-          <div className="calendar-panel rounded-2xl border border-[var(--color-border)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <div className="calendar-panel rounded-[var(--radius-panel)] border border-[var(--color-border)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div>
@@ -1271,7 +1272,7 @@ const CalendarModule = () => {
                 <select
                   value={selectedCalendarSourceId || ''}
                   onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
-                  className="min-w-[220px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                  className="min-w-[220px] rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                 >
                   {calendarSources.map((source) => (
                     <option key={source.id} value={source.id}>{source.name}</option>
@@ -1286,16 +1287,16 @@ const CalendarModule = () => {
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync</button>
-                <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Import</button>
-                <button onClick={() => setShowCalendarOps((current) => !current)} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync</button>
+                <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Import</button>
+                <button onClick={() => setShowCalendarOps((current) => !current)} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
                   {showCalendarOps ? 'Hide Source Details' : 'Show Source Details'}
                 </button>
               </div>
             </div>
           </div>
           {selectedCalendarSource && showCalendarOps ? (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+            <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="text-[var(--color-text-primary)] font-medium">{selectedCalendarSource.name}</span>
                 <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
@@ -1313,39 +1314,39 @@ const CalendarModule = () => {
             </div>
           ) : null}
           {selectedCalendarSource && showCalendarOps ? (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+            <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[var(--color-text-primary)] font-semibold">Source Admin</div>
                 <div className="flex items-center gap-2">
-                  <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
-                  <button onClick={openCalendarAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
+                  <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
+                  <button onClick={openCalendarAdmin} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
                   <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSource.provider}</div>
                 </div>
-                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Policy</div>
                   <div className="mt-2 text-sm text-[var(--color-text-primary)]">{sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</div>
                 </div>
               </div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+              <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
                 Calendar credentials, OAuth connection, source creation, and authority settings now live in <span className="font-medium text-[var(--color-text-primary)]">Admin &gt; Integrations</span>. Calendar keeps operational sync and import controls only.
               </div>
             </div>
           ) : null}
           {showSourceComposer && showCalendarOps ? (
-            <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 p-4 space-y-3">
+            <div className="rounded-[var(--radius-panel)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 p-4 space-y-3">
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
                 <label className="space-y-1">
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Source Name</div>
-                  <input value={sourceDraft.name} onChange={(e) => setSourceDraft((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                  <input value={sourceDraft.name} onChange={(e) => setSourceDraft((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
                 </label>
                 <label className="space-y-1">
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
-                  <select value={sourceDraft.provider} onChange={(e) => setSourceDraft((current) => ({ ...current, provider: e.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <select value={sourceDraft.provider} onChange={(e) => setSourceDraft((current) => ({ ...current, provider: e.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
                     {calendarProviders.map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.label}</option>
                     ))}
@@ -1355,7 +1356,7 @@ const CalendarModule = () => {
               <div className="grid sm:grid-cols-2 gap-3 text-sm">
                 <label className="space-y-1">
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Authority Mode</div>
-                  <select value={sourceDraft.config?.authority_mode || 'local-first'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: e.target.value } }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <select value={sourceDraft.config?.authority_mode || 'local-first'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: e.target.value } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
                     <option value="local-first">Local First</option>
                     <option value="mirror">Mirror External</option>
                     <option value="external-first">External First</option>
@@ -1363,7 +1364,7 @@ const CalendarModule = () => {
                 </label>
                 <label className="space-y-1">
                   <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Import Policy</div>
-                  <select value={sourceDraft.config?.import_policy || 'review'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), import_policy: e.target.value } }))} className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                  <select value={sourceDraft.config?.import_policy || 'review'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), import_policy: e.target.value } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
                     <option value="review">Review Before Adopt</option>
                     <option value="auto-merge">Auto Merge</option>
                     <option value="hold">Hold Imported Only</option>
@@ -1384,22 +1385,22 @@ const CalendarModule = () => {
                             [field.key]: e.target.value
                           }
                         }))}
-                        className="w-full rounded-xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                        className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
                       />
                     </label>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Local stub sources are immediately usable for local-first calendar export.</div>
+                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Local stub sources are immediately usable for local-first calendar export.</div>
               )}
               <div className="flex justify-end gap-2">
-                <button onClick={() => { setShowSourceComposer(false); setSourceDraft(createCalendarSourceDraft()); }} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Cancel</button>
-                <button onClick={handleCreateCalendarSource} disabled={!sourceDraft.name.trim()} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium">Create Source</button>
+                <button onClick={() => { setShowSourceComposer(false); setSourceDraft(createCalendarSourceDraft()); }} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Cancel</button>
+                <button onClick={handleCreateCalendarSource} disabled={!sourceDraft.name.trim()} className="px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium">Create Source</button>
               </div>
             </div>
           ) : null}
           {calendarNotice ? (
-            <div className={`rounded-xl border px-3 py-3 text-sm ${calendarNotice.tone === 'success' ? 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)]'}`}>
+            <div className={`rounded-[var(--radius-panel)] border px-3 py-3 text-sm ${calendarNotice.tone === 'success' ? 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)]'}`}>
               {calendarNotice.message}
             </div>
           ) : null}
@@ -1452,8 +1453,8 @@ const CalendarModule = () => {
 
       {/* Google Integration Link Modal */}
       {showIntegrationLink && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-md shadow-island">
             <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
               <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Google Calendar Integration</h3>
               <button onClick={() => setShowIntegrationLink(false)} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
@@ -1464,7 +1465,7 @@ const CalendarModule = () => {
               <p className="text-[var(--color-text-secondary)] text-sm">
                 Connect your Google Calendar to sync events between AIO CRM and Google Calendar.
               </p>
-              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
+              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-4 shadow-island-sm">
                 <div className="flex items-center gap-3 mb-3">
                   <svg className="w-10 h-10 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" />
@@ -1573,8 +1574,8 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-island">
         <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
           <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{booker ? 'Edit' : 'Create'} Meeting Type</h3>
           <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
@@ -1598,7 +1599,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
               placeholder="e.g., 30 Minute Meeting"
             />
           </div>
@@ -1611,7 +1612,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
               rows="3"
               placeholder="Describe this meeting type"
             />
@@ -1627,7 +1628,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
                 step="15"
                 value={formData.duration_minutes}
                 onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
               />
             </div>
             <div>
@@ -1646,7 +1647,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
             <select
               value={formData.location_type}
               onChange={(e) => setFormData({ ...formData, location_type: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
             >
               <option value="zoom">🎥 Zoom</option>
               <option value="google_meet">📹 Google Meet</option>
@@ -1664,7 +1665,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
               type="text"
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
               placeholder={
                 formData.location_type === 'zoom' ? 'Zoom Meeting' :
                   formData.location_type === 'google_meet' ? 'Google Meet' :
@@ -1683,7 +1684,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
                 step="5"
                 value={formData.buffer_before_minutes}
                 onChange={(e) => setFormData({ ...formData, buffer_before_minutes: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
               />
             </div>
             <div>
@@ -1717,13 +1718,13 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-[var(--color-hover)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] rounded text-sm font-medium"
+              className="px-4 py-2 bg-[var(--color-hover)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] rounded-[var(--radius-card)] text-sm font-medium border border-[var(--color-border)] shadow-island-sm transition"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded text-sm font-medium"
+              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium border border-[var(--color-primary)] shadow-island-sm transition"
             >
               {booker ? 'Update' : 'Create'}
             </button>
@@ -1812,7 +1813,7 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-6">
+          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 shadow-island">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-[var(--color-text-primary)]">{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
               <div className="flex gap-2">
@@ -1837,7 +1838,7 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
                     key={i}
                     onClick={() => availableSlots.length > 0 && setSelectedDate(day.fullDate)}
                     disabled={!day.isCurrentMonth || availableSlots.length === 0}
-                    className={`p-2 text-sm rounded ${isSelected ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : availableSlots.length > 0 ? 'hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] cursor-pointer' : 'text-[var(--color-text-secondary)] cursor-not-allowed'} ${!day.isCurrentMonth ? 'opacity-40' : ''}`}
+                    className={`p-2 text-sm rounded-[var(--radius-card)] ${isSelected ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] shadow-island-sm' : availableSlots.length > 0 ? 'hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] cursor-pointer' : 'text-[var(--color-text-secondary)] cursor-not-allowed'} ${!day.isCurrentMonth ? 'opacity-40' : ''} transition`}
                   >
                     {day.date}
                   </button>
@@ -1848,7 +1849,7 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
 
           <div className="space-y-6">
             {selectedDate && (
-              <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-6">
+              <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 shadow-island">
                 <h3 className="font-bold text-[var(--color-text-primary)] mb-4">Available Times - {selectedDate.toLocaleDateString()}</h3>
                 <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                   {getAvailableSlots(selectedDate).map((slot, i) => (
@@ -1861,7 +1862,7 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
             )}
 
             {selectedTime && (
-              <form onSubmit={handleBooking} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-6 space-y-4">
+              <form onSubmit={handleBooking} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4 shadow-island">
                 <h3 className="font-bold text-[var(--color-text-primary)] mb-4">Your Information</h3>
                 <div>
                   <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Name *</label>
@@ -1879,7 +1880,7 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
                   <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Notes</label>
                   <textarea value={guestInfo.notes} onChange={(e) => setGuestInfo({ ...guestInfo, notes: e.target.value })} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" rows="3" />
                 </div>
-                <button type="submit" className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] font-medium py-3 rounded">Confirm Booking</button>
+                <button type="submit" className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] font-medium py-3 rounded-[var(--radius-panel)] shadow-island transition">Confirm Booking</button>
               </form>
             )}
           </div>
@@ -1953,7 +1954,7 @@ const MiniCalendar = ({ selectedDate, onSelect, onClose, position = 'left' }) =>
   const positionClasses = position === 'right' ? 'right-0' : 'left-0';
 
   return (
-    <div className={`absolute top-full ${positionClasses} mt-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg shadow-xl z-50 p-4 w-80`}>
+    <div className={`absolute top-full ${positionClasses} mt-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 p-4 w-80`}>
       <div className="flex justify-between items-center mb-3">
         <h4 className="font-bold text-[var(--color-text-primary)] text-sm">
           {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
@@ -1991,14 +1992,14 @@ const MiniCalendar = ({ selectedDate, onSelect, onClose, position = 'left' }) =>
               key={i}
               type="button"
               onClick={() => handleDateClick(day.fullDate)}
-              className={`p-2 text-xs rounded ${isSelected
-                ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] font-bold'
+              className={`p-2 text-xs rounded-[var(--radius-card)] ${isSelected
+                ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] font-bold shadow-island-sm'
                 : isToday
                   ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-bold'
                   : day.isCurrentMonth
                     ? 'hover:bg-[var(--color-hover)] text-[var(--color-text-primary)]'
                     : 'text-[var(--color-text-secondary)]'
-                }`}
+                } transition`}
             >
               {day.date}
             </button>
@@ -2042,7 +2043,7 @@ const MiniCalendar = ({ selectedDate, onSelect, onClose, position = 'left' }) =>
       <button
         type="button"
         onClick={onClose}
-        className="mt-3 w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] text-sm py-2 rounded font-medium"
+        className="mt-3 w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] text-sm py-2 rounded-[var(--radius-card)] font-medium shadow-island-sm transition"
       >
         Done
       </button>
@@ -2195,8 +2196,8 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-island">
         <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
           <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{readOnly ? 'Event Signal' : event ? 'Edit Event' : 'Create Event'}</h3>
           <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
@@ -2357,7 +2358,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
                   type="button"
                   onClick={() => generateMeetingLink(formData.location_type)}
                   disabled={generatingLink || readOnly}
-                  className="px-4 py-2 bg-[var(--color-accent)] hover:opacity-90 disabled:opacity-50 text-[var(--color-text-on-primary)] rounded text-sm font-medium whitespace-nowrap"
+                  className="px-4 py-2 bg-[var(--color-accent)] hover:opacity-90 disabled:opacity-50 text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium whitespace-nowrap border border-transparent shadow-island-sm transition"
                 >
                   {generatingLink ? '...' : 'Generate'}
                 </button>
@@ -2449,7 +2450,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
             {!readOnly ? (
               <button
                 onClick={handleSubmit}
-              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded text-sm font-medium"
+              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium border border-[var(--color-primary)] shadow-island-sm transition"
               >
                 {event ? 'Update' : 'Create'}
               </button>

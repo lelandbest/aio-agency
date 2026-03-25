@@ -40,7 +40,7 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                 <textarea
                     value={formData[id] || ''}
                     onChange={(e) => handleChange(id, e.target.value)}
-                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none transition-all"
+                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none transition-all shadow-island-sm"
                     placeholder={placeholder}
                     rows={3}
                 />
@@ -49,7 +49,7 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                     type="text"
                     value={formData[id] || ''}
                     onChange={(e) => handleChange(id, e.target.value)}
-                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none transition-all"
+                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none transition-all shadow-island-sm"
                     placeholder={placeholder}
                 />
             )}
@@ -58,7 +58,7 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[3000] p-4">
-            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl w-full max-w-2xl h-[600px] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in duration-300">
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-2xl h-[600px] overflow-hidden flex flex-col shadow-island animate-in zoom-in duration-300">
                 {/* Header with Tabs */}
                 <div className="p-1 px-4 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-tertiary)] flex-shrink-0">
                     <div className="flex gap-1">
@@ -132,14 +132,14 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                     <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--color-text-tertiary)] mr-auto italic opacity-50">Operational DNA Sync v2.1</p>
                     <button
                         onClick={onClose}
-                        className="px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] hover:text-white transition-all"
+                        className="px-6 py-2.5 rounded-[var(--radius-card)] text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] hover:text-white transition-all border border-transparent hover:border-[var(--color-border)]"
                     >
                         Discard
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="flex items-center gap-3 px-8 py-3 bg-[var(--color-primary)] hover:opacity-90 text-[10px] font-black uppercase tracking-widest text-white rounded-full shadow-lg disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
+                        className="flex items-center gap-3 px-8 py-3 bg-[var(--color-primary)] hover:opacity-90 text-[10px] font-black uppercase tracking-widest text-white rounded-[var(--radius-card)] shadow-island disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
                     >
                         <Save size={14} />
                         {submitting ? 'Syncing...' : 'Commit to DNA'}

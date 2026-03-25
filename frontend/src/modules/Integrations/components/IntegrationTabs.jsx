@@ -13,7 +13,7 @@ export const IntegrationTabs = ({
   return (
     <div className="border-b border-[var(--color-border)]">
       <div className="flex gap-1">
-        {categories.map((category) => (
+        {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map((category) => (
           <button
             key={category.id}
             className={`px-4 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer ${

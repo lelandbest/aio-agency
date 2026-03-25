@@ -248,6 +248,12 @@ class ExecutionEngine:
 
     def run(self, raw_steps: list[dict[str, Any]], mode: str, command: str, context: dict[str, Any], actor: dict[str, Any], tenant: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
         import server
+        from backend.adaptive_routing import AdaptiveRouting
+        from backend.failure_analysis import classify_failure
+        from backend.recovery_engine import RecoveryEngine
+        
+        router = AdaptiveRouting(self.provider)
+        recovery_engine = RecoveryEngine(self.executor)
         trace = []
         if mode == "resume" and run_id:
             run_state = getattr(self.provider, "get_ai_run")(run_id)
@@ -270,6 +276,11 @@ class ExecutionEngine:
             else:
                 steps = normalize_parsed_steps(raw_steps)
             
+            # Phase 16: Ensure ID consistency
+            for s in steps:
+                if not s.get("id"):
+                    s["id"] = s.get("stepId") or f"step-{unique_suffix()}"
+
             artifacts = []
             routing = server.resolve_ai_run_routing(
                 module=context.get("module", "comms"),
@@ -291,12 +302,24 @@ class ExecutionEngine:
                 step["assignedAgent"] = step.get("assignedAgent") or specialist or "ALPHA"
                 if not step.get("agentId"):
                     step["agentId"] = f"AGT-{step['assignedAgent'][:3].upper()}-001"
-                step["routing"] = {
-                    "intake": "CHARLIE",
-                    "dispatch": "ALPHA",
-                    "specialist": specialist
-                }
                 
+                # Phase 16: Adaptive Routing
+                best_route = router.select_best_agent_for_step(step, {})
+                if best_route["selectedAgent"] != step["assignedAgent"]:
+                    trace.append({
+                        "action": "adaptive_reroute",
+                        "agent": "ALPHA",
+                        "stepId": step.get("id"),
+                        "details": {
+                            "from": step["assignedAgent"],
+                            "to": best_route["selectedAgent"],
+                            "reason": best_route["reason"]
+                        }
+                    })
+                    step["assignedAgent"] = best_route["selectedAgent"]
+                    step["agentId"] = best_route["agentId"]
+                    step["_routing_rationale"] = best_route["reason"]
+
                 gate = check_step_gate(step, actor, tenant, context)
                 step["requiresApproval"] = gate["requiresApproval"]
                 step["riskLevel"] = gate.get("riskLevel", "low")
@@ -364,12 +387,49 @@ class ExecutionEngine:
             }
             trace.append(trace_entry)
             
-            # Phase 14: Re-sync trace from runtime in case agent added autonomous sub-actions
-            # We filter for new autonomous entries that might have been pushed into runtime['trace']
+            # Phase 16: Self-Healing Loop
+            if res["status"] == "error":
+                failure = classify_failure(step, res.get("error", "unknown"), runtime)
+                healing = recovery_engine.attempt_recovery(step, failure, runtime, context)
+                
+                if healing.get("recoveryAttempted"):
+                    trace.append({
+                        "action": "recovery_attempt",
+                        "agent": step["assignedAgent"],
+                        "stepId": step.get("id"),
+                        "details": {
+                            "failureCategory": failure["category"],
+                            "healingAction": healing["recoveryAction"],
+                            "notes": healing["notes"]
+                        }
+                    })
+                    # Re-queue / Re-run logic: For now, we wrap the execution call
+                    # in a simple one-off retry if successful
+                    logger.info(f"Self-healing: {healing['recoveryAction']}")
+                    res = self.executor.execute(healing["updatedStep"], context, runtime)
+                    step["status"] = res["status"]
+                    step["_recovery_success"] = (res["status"] == "success")
+
+            # Phase 14: Re-sync trace from runtime
             if "trace" in runtime:
                 for entry in runtime["trace"]:
                     if entry not in trace:
                         trace.append(entry)
+            
+            # Phase 16: Persist Outcome
+            outcome = {
+                "run_id": final_run_id,
+                "intent": step["intent"],
+                "agent_name": step["assignedAgent"],
+                "agent_id": step["agentId"],
+                "status": step["status"],
+                "error_category": failure["category"] if res["status"] == "error" else None,
+                "recovery_attempted": step.get("_recovery_attempts", 0) > 0,
+                "recovery_success": step.get("_recovery_success", False),
+                "duration_ms": duration_ms
+            }
+            if hasattr(self.provider, "save_step_outcome"):
+                self.provider.save_step_outcome(outcome)
             
             self._audit_log(final_run_id, step, "execution_completed", step["status"])
             
@@ -389,8 +449,13 @@ class ExecutionEngine:
         if run_state_status == "executing":
             run_state_status = "completed"
 
-        # Update context with shared reasoning notes for persistence
-        context["_sharedContext"] = runtime["sharedContext"]
+        # Phase 16: Post-run reflection summary
+        learning_summary = {
+            "whatWorked": [s["intent"] for s in steps if s["status"] == "success"],
+            "whatFailed": [s["intent"] for s in steps if s["status"] == "error"],
+            "recoveryInsights": [t["details"] for t in trace if t["action"] == "recovery_attempt"]
+        }
+        context["_learningSummary"] = learning_summary
 
         self._persist_run(final_run_id, command, mode, run_state_status, steps, artifacts, routing, trace, actor, tenant, context)
 

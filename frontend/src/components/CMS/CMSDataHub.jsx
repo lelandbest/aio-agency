@@ -65,8 +65,8 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
   }, [cmsTableData, cmsSearchQuery]);
 
   return (
-    <div className="h-full bg-[#0F0F11] rounded-xl border border-[#27272A] flex flex-col overflow-hidden">
-      <div className="p-6 border-b border-[#27272A] bg-[#050505] flex justify-between items-center">
+    <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-panel)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
+      <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-between items-center shadow-premium">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Database size={20} className="text-purple-500" />
@@ -79,7 +79,7 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
                 onExit();
                 setSelectedCmsTable(null);
               }}
-              className="px-4 py-2 bg-[#27272A] hover:bg-[#3f3f46] text-white rounded text-sm font-medium"
+              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-[var(--radius-card)] text-sm font-medium transition-all shadow-premium"
             >
               {exitLabel}
             </button>
@@ -105,14 +105,14 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
             {cmsTables.map((table) => (
               <div
                 key={table.id || table.slug || table.name}
-                className="bg-[#18181B] border border-[#27272A] hover:border-purple-500/50 p-6 rounded-xl transition-all"
+                className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 p-6 rounded-[var(--radius-card)] transition-all shadow-island-sm hover:-translate-y-1"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-400">
+                  <div className="w-10 h-10 bg-[var(--color-accent)]/10 rounded-[var(--radius-card)] flex items-center justify-center text-[var(--color-accent)] border border-[var(--color-accent)]/20 shadow-premium">
                     <Table size={20} />
                   </div>
 
-                  <span className="px-2 py-1 rounded text-[10px] bg-blue-900/20 text-blue-400 uppercase font-bold">
+                  <span className="px-2 py-1 rounded-[var(--radius-card)] text-[10px] bg-blue-500/10 text-blue-400 uppercase font-bold border border-blue-500/20 shadow-premium">
                     {(table.record_count ?? 0)} Records
                   </span>
                 </div>
@@ -123,14 +123,14 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => loadCmsTableData(table)}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-sm font-medium"
+                    className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white px-3 py-2 rounded-[var(--radius-card)] text-sm font-medium transition-all shadow-premium"
                   >
                     View Data
                   </button>
 
                   <button
                     onClick={() => handleExportCMS(table)}
-                    className="bg-[#27272A] hover:bg-[#3f3f46] text-white px-3 py-2 rounded text-sm"
+                    className="bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-3 py-2 rounded-[var(--radius-card)] text-sm transition-all shadow-premium"
                     title="Export CSV"
                   >
                     <Download size={16} />
@@ -155,13 +155,13 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
                     placeholder="Search..."
                     value={cmsSearchQuery}
                     onChange={(e) => setCmsSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 bg-[#18181B] border border-[#27272A] rounded text-white text-sm focus:border-purple-500 focus:outline-none"
+                    className="pl-10 pr-4 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] text-[var(--color-text-primary)] text-sm focus:border-[var(--color-accent)] focus:outline-none transition-all shadow-premium"
                   />
                 </div>
 
                 <button
                   onClick={() => handleExportCMS(selectedCmsTable)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
+                  className="bg-[var(--color-success)]/10 text-[var(--color-success)] hover:bg-[var(--color-success)]/20 border border-[var(--color-success)]/30 px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium flex items-center gap-2 transition-all shadow-premium"
                 >
                   <Download size={16} /> Export CSV
                 </button>
@@ -179,10 +179,10 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
                 <p className="text-gray-400">No submissions yet</p>
               </div>
             ) : (
-              <div className="bg-[#18181B] border border-[#27272A] rounded-xl overflow-hidden">
+              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] overflow-hidden shadow-island-sm">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-[#27272A]">
+                    <thead className="bg-[var(--color-bg-tertiary)]">
                       <tr>
                         {Object.keys(filteredCmsData[0] || {}).map((key) => (
                           <th
@@ -194,9 +194,9 @@ export default function CMSDataHub({ onExit, exitLabel = 'Back' }) {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#27272A]">
+                    <tbody className="divide-y divide-[var(--color-border)]">
                       {filteredCmsData.map((row, idx) => (
-                        <tr key={idx} className="hover:bg-[#27272A]/50">
+                        <tr key={idx} className="hover:bg-[var(--color-hover)] transition-colors">
                           {Object.entries(row || {}).map(([key, value]) => (
                             <td key={key} className="px-4 py-3 text-sm text-gray-300">
                               {key === 'submitted_at' || key === 'created_at'

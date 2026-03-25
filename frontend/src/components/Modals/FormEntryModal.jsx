@@ -30,7 +30,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
     };
 
     const renderField = (field) => {
-        const commonClasses = "w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none";
+        const commonClasses = "w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition-all";
 
         switch (field.type) {
             case 'textarea':
@@ -99,7 +99,7 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-island animate-in zoom-in duration-300">
                 <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center bg-[var(--color-bg-tertiary)]">
                     <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{form.name}</h3>
                     <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
@@ -128,14 +128,14 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                 <div className="p-4 border-t border-[var(--color-border)] flex justify-end gap-2 bg-[var(--color-bg-tertiary)]">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 rounded text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+                        className="px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                        className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium flex items-center gap-2 disabled:opacity-50 transition-all shadow-island-sm hover:scale-[1.02] active:scale-[0.98]"
                     >
                         <Save size={16} />
                         {submitting ? 'Submitting...' : 'Submit Entry'}

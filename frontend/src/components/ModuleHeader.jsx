@@ -8,7 +8,7 @@ const StatusBadge = ({ statusBadge }) => {
   return (
     <div
       className={`
-        px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0
+        px-3 py-1 rounded-[var(--radius-pill)] text-xs font-medium whitespace-nowrap flex-shrink-0 border border-current shadow-premium
         ${statusBadge.color === 'success'
           ? 'bg-green-500/20 text-green-400'
           : statusBadge.color === 'warning'
@@ -49,43 +49,44 @@ const Breadcrumbs = ({ breadcrumbs }) => {
 };
 
 const colorClasses = {
-  emerald: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-400/60',
-  rose: 'border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 hover:border-rose-400/60',
-  violet: 'border-violet-500/40 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 hover:border-violet-400/60',
-  sky: 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 hover:border-sky-400/60',
-  red: 'border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:border-red-400/60',
-  slate: 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50',
-  primary: 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)]',
+  emerald: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25',
+  rose: 'border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25',
+  violet: 'border-violet-500/40 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25',
+  sky: 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25',
+  red: 'border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25',
+  slate: 'btn-secondary',
+  primary: 'btn-primary-skeuo',
 };
 
 const Actions = ({ actions }) => {
   if (!actions.length) return null;
 
   return (
-    <div className="flex gap-1.5 flex-wrap">
+    <div className="flex gap-2 flex-wrap">
       {actions.map((action, idx) => {
         const ActionIcon = action.icon;
         const colorClass = colorClasses[action.color] || colorClasses.slate;
+        const isSkeuo = action.variant === 'primary' || action.color === 'primary';
 
         return (
           <React.Fragment key={idx}>
             {action.groupStart && (
-              <div className="mx-1 hidden h-6 w-px self-center rounded-full bg-slate-700/50 xl:block" />
+              <div className="mx-1 hidden h-6 w-px self-center rounded-[var(--radius-pill)] bg-[var(--color-border)] opacity-30 xl:block" />
             )}
             <button
               onClick={action.onClick}
               disabled={action.disabled}
               className={`
-                px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-all
-                border
-                ${action.variant === 'primary' ? colorClasses.primary : colorClass}
+                ${isSkeuo ? 'btn-primary-skeuo' : 'btn-secondary'}
+                text-[10px] sm:text-xs py-1.5 px-3
+                ${!isSkeuo && action.color && action.color !== 'slate' ? colorClasses[action.color] : ''}
                 disabled:opacity-40 disabled:cursor-not-allowed
                 ${action.className || ''}
               `}
               title={action.title}
             >
               {ActionIcon && <ActionIcon size={12} />}
-              <span>{normalizeDisplayText(action.label)}</span>
+              <span className="font-bold tracking-tight">{normalizeDisplayText(action.label)}</span>
             </button>
           </React.Fragment>
         );
@@ -116,18 +117,21 @@ const ModuleHeader = ({
     return null;
   }
 
+  const containerClass = `border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/80 backdrop-blur-md ${className}`;
+  const paddingClass = "px-6 py-4 sm:py-5";
+
   if (!showTitle) {
     return (
-      <div className={`border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] ${className}`}>
-        <div className="px-6 py-4 flex items-center justify-between gap-4">
+      <div className={containerClass}>
+        <div className={`${paddingClass} flex items-center justify-between gap-4`}>
           <div className="flex min-w-0 flex-1 items-center gap-4 flex-wrap">
             {showCompactTitle ? (
               <div className="min-w-0 mr-2">
-                <div className="text-lg font-bold text-[var(--color-text-primary)] truncate">
+                <div className="text-lg font-black text-[var(--color-text-primary)] truncate uppercase tracking-tight">
                   {normalizeDisplayText(title)}
                 </div>
                 {subtitle ? (
-                  <div className="mt-0.5 text-sm text-[var(--color-text-secondary)] truncate">
+                  <div className="mt-0.5 text-[10px] text-[var(--color-text-secondary)] truncate uppercase tracking-[0.1em] font-bold">
                     {subtitle}
                   </div>
                 ) : null}
@@ -142,14 +146,14 @@ const ModuleHeader = ({
               {toolbarCenterSlot}
             </div>
           ) : null}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             {toolbarRightSlot}
             <StatusBadge statusBadge={statusBadge} />
             {aiAssistSlot}
           </div>
         </div>
         {subtitle && !showCompactTitle ? (
-          <div className="px-6 pb-3 text-sm text-[var(--color-text-secondary)]">
+          <div className="px-6 pb-4 text-xs text-[var(--color-text-secondary)] uppercase tracking-widest font-bold opacity-70">
             {subtitle}
           </div>
         ) : null}
@@ -158,9 +162,9 @@ const ModuleHeader = ({
   }
 
   return (
-    <div className={`border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-col ${className}`}>
+    <div className={`${containerClass} flex flex-col`}>
       {hasToolbar && (
-        <div className="px-6 py-4 flex items-center justify-between gap-4 border-b border-[var(--color-border)]">
+        <div className="px-6 py-3 flex items-center justify-between gap-4 border-b border-[var(--color-border)]/50 shadow-premium">
           <div className="flex min-w-0 flex-1 items-center gap-4 flex-wrap">
             {toolbarLeftSlot}
             <Breadcrumbs breadcrumbs={breadcrumbs} />
@@ -171,7 +175,7 @@ const ModuleHeader = ({
               {toolbarCenterSlot}
             </div>
           ) : null}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             {toolbarRightSlot}
             <StatusBadge statusBadge={statusBadge} />
             {aiAssistSlot}
@@ -179,15 +183,15 @@ const ModuleHeader = ({
         </div>
       )}
 
-      <div className="px-6 py-3 flex items-center justify-between gap-4">
-        <div className="flex items-start gap-2 flex-1 min-w-0">
-          {TitleIcon && <TitleIcon size={20} className="text-[var(--color-primary)] flex-shrink-0" />}
+      <div className={`${paddingClass} flex items-center justify-between gap-4`}>
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          {TitleIcon && <TitleIcon size={24} className="text-[var(--color-primary)] flex-shrink-0 mt-0.5" />}
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-[var(--color-text-primary)] truncate">
+            <h1 className="text-xl sm:text-2xl font-black text-[var(--color-text-primary)] truncate uppercase tracking-tight leading-tight">
               {normalizeDisplayText(title)}
             </h1>
             {subtitle ? (
-              <div className="mt-0.5 text-sm text-[var(--color-text-secondary)] truncate">
+              <div className="mt-1 text-[10px] sm:text-xs text-[var(--color-text-secondary)] truncate uppercase tracking-[0.12em] font-bold opacity-80">
                 {subtitle}
               </div>
             ) : null}

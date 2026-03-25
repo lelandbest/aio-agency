@@ -96,7 +96,7 @@ const AIOAgentsModule = () => {
   };
 
   return (
-     <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] rounded-2xl text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-lg border border-[var(--color-border)]">
+     <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
       <ModuleHeader
         title="AIO Command Center"
         titleIcon={Bot}
@@ -148,13 +148,13 @@ const AIOAgentsModule = () => {
                 }
               `}</style>
               {/* LEFT — Roster */}
-              <div className="flex-1 w-1/2 p-3 lg:p-4 overflow-y-auto no-scrollbar border border-[var(--color-border)] rounded-2xl bg-[var(--color-bg-secondary)] flex flex-col shadow-sm">
+              <div className="flex-1 w-1/2 p-3 lg:p-4 overflow-y-auto no-scrollbar border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] flex flex-col shadow-sm">
 
                 {/* ALPHA — Full-Width Leadership Card */}
                 {alpha && (
                   <div
                     onClick={() => { setActiveAgent(alpha); setView('command'); setMessages([]); }}
-                    className="group mb-3 cursor-pointer rounded-xl border border-green-500/30 bg-gradient-to-br from-green-500/5 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shrink-0 shadow-sm"
+                    className="group mb-3 cursor-pointer rounded-[var(--radius-panel)] border border-green-500/30 bg-gradient-to-br from-green-500/5 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shrink-0 shadow-sm"
                   >
                     <div className="px-3 py-2 flex items-center gap-3 border-b border-green-500/10">
                       {/* Avatar */}
@@ -180,7 +180,7 @@ const AIOAgentsModule = () => {
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={(e) => { e.stopPropagation(); openDraftInFlowBuilder(alpha); }}
-                          className="text-[8px] px-2 py-1.5 rounded bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors font-bold uppercase tracking-wider"
+                          className="text-[8px] px-3 py-1.5 rounded-full btn-secondary !bg-green-500/10 !border-green-500/20 !text-green-400 hover:!bg-green-500/20 transition-colors font-bold uppercase tracking-wider"
                         >
                           Draft Flow
                         </button>
@@ -218,7 +218,7 @@ const AIOAgentsModule = () => {
                 </div>
 
                 {/* Regular Agents Grid */}
-                <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 shrink-0">
                   {regularAgents.map((agent, idx) => {
                     const agentKey = agent.registryKey || agent.registry_key;
                     const colors = [
@@ -240,7 +240,7 @@ const AIOAgentsModule = () => {
                     <div
                       key={agentKey || agent.id || idx}
                       onClick={() => { setActiveAgent(agent); setView('command'); setMessages([]); }}
-                      className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-xl p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
+                      className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
                     >
                       <div className="bg-[var(--color-bg-secondary)] rounded-t-lg p-2 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
                         <div className="flex items-start justify-between">
@@ -277,7 +277,7 @@ const AIOAgentsModule = () => {
                 </div>
 
                 {/* OMEGA — Locked Card */}
-                <div className="relative rounded-xl border border-red-900/40 bg-gradient-to-br from-red-950/20 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] overflow-hidden select-none mt-auto shrink-0 mb-1">
+                <div className="relative rounded-[var(--radius-card)] border border-red-900/40 bg-gradient-to-br from-red-950/20 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] overflow-hidden select-none mt-auto shrink-0 mb-1">
                   <div className="absolute inset-0 pointer-events-none" style={{
                     backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.02) 2px, rgba(255,0,0,0.02) 4px)',
                     zIndex: 1
@@ -286,10 +286,7 @@ const AIOAgentsModule = () => {
                   <div className="relative z-10 px-4 py-3 flex items-center gap-4 border-b border-red-900/20">
                     <div className="relative shrink-0">
                       <div className="w-10 h-10 rounded-full bg-gray-800/40 border-2 border-gray-600/40 flex items-center justify-center shadow-[0_0_15px_rgba(156,163,175,0.15)]">
-                        <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
+                        <ArrowRight className="w-6 h-6 text-gray-400" />
                       </div>
                       <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-600/40 border-2 border-[var(--color-bg-secondary)]" />
                     </div>
@@ -326,13 +323,13 @@ const AIOAgentsModule = () => {
               </div>
 
               {/* RIGHT — Activity Panel (Monitors & Lightbars) */}
-              <div className="flex-1 w-1/2 flex flex-col overflow-hidden bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl shadow-sm">
+              <div className="flex-1 w-1/2 flex flex-col overflow-hidden bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-sm">
                 
                 {/* TOP: COMMAND MONITORS */}
                 <div className="h-[45%] flex gap-2 p-3 border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]/30">
                   
                   {/* USER MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#0a0f0a] rounded-xl border border-green-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(34,197,94,0.03)] relative">
+                  <div className="flex-1 flex flex-col bg-[#0a0f0a] rounded-[var(--radius-card)] border border-green-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(34,197,94,0.03)] relative">
                     <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
                     <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse"></div>
@@ -349,7 +346,7 @@ const AIOAgentsModule = () => {
                   </div>
 
                   {/* CHARLIE MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#0a0a14] rounded-xl border border-blue-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(59,130,246,0.03)] relative">
+                  <div className="flex-1 flex flex-col bg-[#0a0a14] rounded-[var(--radius-card)] border border-blue-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(59,130,246,0.03)] relative">
                     <div className="relative z-10 bg-blue-950/40 border-b border-blue-500/20 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
                       CHARLIE INTAKE
@@ -366,7 +363,7 @@ const AIOAgentsModule = () => {
                    </div>
 
                    {/* ALPHA MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#14140a] rounded-xl border border-yellow-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(234,179,8,0.03)] relative">
+                  <div className="flex-1 flex flex-col bg-[#14140a] rounded-[var(--radius-card)] border border-yellow-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(234,179,8,0.03)] relative">
                     <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #854d0e 1px, #854d0e 2px)', backgroundSize: '100% 2px' }}></div>
                     <div className="relative z-10 bg-yellow-950/40 border-b border-yellow-500/20 p-2 flex items-center justify-center gap-2 text-yellow-400 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
@@ -397,12 +394,11 @@ const AIOAgentsModule = () => {
                     {regularAgents.map((agent, i) => {
                       const agentKey = agent.registryKey || agent.registry_key || agent.name.toUpperCase();
                       const hasActivity = subRuns.some(r => r.agent_role === agentKey);
-                      // Randomize animation duration slightly so they aren't all in sync, but only calculate once per render
                       const animDur = 1.2 + (i % 5) * 0.3; 
                       
                       return (
-                        <div key={agent.id} className="flex items-center gap-3 py-0.5 group">
-                          <div className="w-16 text-[8px] font-black text-[var(--color-text-secondary)] uppercase tracking-[0.15em] text-right group-hover:text-[var(--color-text-primary)] transition-colors">
+                        <div key={agent.id} className="flex items-center gap-3 py-0.5 group shrink-0">
+                          <div className="w-16 text-[8px] font-black text-[var(--color-text-secondary)] uppercase tracking-[0.15em] text-right group-hover:text-[var(--color-text-primary)] transition-colors shrink-0">
                             {agentKey}
                           </div>
                           <div className="flex-1 h-1.5 bg-black/60 rounded-full relative overflow-hidden border border-white/5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]">
@@ -415,7 +411,7 @@ const AIOAgentsModule = () => {
                               <div className="absolute left-0 bottom-0 top-0 w-full bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-50"></div>
                             )}
                           </div>
-                          <div className={`w-10 text-[7px] font-mono tracking-wider ${hasActivity ? 'text-purple-400' : 'text-gray-600'}`}>
+                          <div className={`w-10 text-[7px] font-mono tracking-wider ${hasActivity ? 'text-purple-400' : 'text-gray-600'} shrink-0`}>
                             {hasActivity ? 'SYNCING' : 'IDLE'}
                           </div>
                         </div>
@@ -431,21 +427,21 @@ const AIOAgentsModule = () => {
 
         {/* COMMAND VIEW (Detail/Chat) */}
         {view === 'command' && activeAgent && (
-          <div className="flex-1 flex">
+          <div className="flex-1 flex overflow-hidden">
              {/* Left: Intel / Config */}
-             <div className="w-80 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col">
+             <div className="w-80 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
-                   <h3 className="text-2xl font-bold text-white">{activeAgent.name}</h3>
+                   <h3 className="text-2xl font-bold text-white uppercase tracking-tight">{activeAgent.name}</h3>
                    <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2 py-0.5 bg-purple-900/30 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded">{activeAgent.rank}</span>
-                      <span className="text-xs text-gray-500 font-mono">{activeAgent.model}</span>
+                      <span className="px-2 py-0.5 bg-purple-900/30 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded-full">{activeAgent.rank}</span>
+                      <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest opacity-60">{activeAgent.model}</span>
                    </div>
-                   <div className="mt-3">
-                      <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Remap AI Agent</label>
+                   <div className="mt-6">
+                      <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-black mb-2 opacity-70">Registry Mapping</label>
                       <select
                         value={activeAgent.registryKey || activeAgent.name}
                         onChange={(e) => updateAgentRegistryKey(activeAgent.id, e.target.value)}
-                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)]"
+                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[10px] font-bold text-[var(--color-text-primary)] uppercase tracking-wider focus:outline-none focus:border-[var(--color-primary)]/50"
                       >
                         {Object.keys(SPECIALIST_REGISTRY).filter((key) => SPECIALIST_REGISTRY[key].visibility !== 'hidden').map((key) => (
                           <option key={key} value={key}>{key}</option>
@@ -454,117 +450,102 @@ const AIOAgentsModule = () => {
                    </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
                    {/* Directive */}
                    <div>
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                         <Terminal size={14} /> Prime Directive
+                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                         <Terminal size={14} className="text-purple-500" /> Operational Directive
                       </h4>
-                      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-gray-300 font-mono leading-relaxed">
-                         You are a {activeAgent.rank} level agent specialized in {activeAgent.specialization}. 
-                         Your objective is to execute workflows with precision.
+                      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 text-[11px] text-gray-300 font-mono leading-relaxed shadow-inner">
+                         DESIGNATED AS {activeAgent.rank} SPECIALIST. PRIMARY CAPABILITY: {activeAgent.specialization}. 
+                         EXECUTE WITH MAXIMUM PRECISION.
                       </div>
                    </div>
 
                    {/* Subordinates */}
                    <div>
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                         <Layers size={14} /> Squad (Sub-Agents)
+                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                         <Layers size={14} className="text-blue-500" /> Command Chain
                       </h4>
                       {activeAgent.subordinates && activeAgent.subordinates.length > 0 ? (
-                         <div className="space-y-2">
+                         <div className="grid gap-2">
                             {activeAgent.subordinates.map(subId => {
                                const sub = agents.find(a => a.id === subId);
                                return (
-                                  <div key={subId} className="flex items-center gap-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-2 rounded-lg">
-                                     <div className="w-6 h-6 rounded bg-blue-900/20 flex items-center justify-center text-[10px] font-bold text-blue-400">{sub?.name?.charAt(0)}</div>
-                                     <span className="text-sm text-gray-300">{sub?.name}</span>
+                                  <div key={subId} className="flex items-center gap-3 bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-2 rounded-[var(--radius-card)] hover:border-blue-500/30 transition-colors">
+                                     <div className="w-6 h-6 rounded-full bg-blue-900/20 border border-blue-500/20 flex items-center justify-center text-[10px] font-black text-blue-400">{sub?.name?.charAt(0)}</div>
+                                     <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{sub?.name}</span>
                                   </div>
                                )
                             })}
                          </div>
                       ) : (
-                         <div className="text-xs text-gray-600 italic p-2 border border-dashed border-[var(--color-border)] rounded">No subordinates assigned.</div>
+                         <div className="text-[10px] text-gray-600 italic p-3 border border-dashed border-[var(--color-border)] rounded-lg text-center font-bold">NO SUBORDINATES IN CHAIN</div>
                       )}
-                      <button className="mt-2 w-full py-1.5 border border-[var(--color-border)] hover:border-purple-500 text-[10px] text-gray-400 hover:text-white uppercase font-bold tracking-wider rounded transition">
-                         + Assign Unit
-                      </button>
                    </div>
 
                    {/* Tools */}
                    <div>
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                         <Cpu size={14} /> Equipped Tools
+                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                         <Cpu size={14} className="text-yellow-500" /> Integrated Modules
                       </h4>
                       <div className="flex flex-wrap gap-2">
-                         {(SPECIALIST_REGISTRY[activeAgent?.registryKey || activeAgent?.name]?.tools || []).slice(0, 6).map((tool) => (
+                         {(SPECIALIST_REGISTRY[activeAgent?.registryKey || activeAgent?.name]?.tools || []).map((tool) => (
                            <span
                              key={tool}
-                             className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400"
+                             className="px-3 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-full text-[9px] font-bold text-gray-400 uppercase tracking-wider"
                            >
                              {tool}
                            </span>
                          ))}
-                         {(SPECIALIST_REGISTRY[activeAgent?.registryKey || activeAgent?.name]?.tools || []).length === 0 && (
-                           <>
-                             <span className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400">Web Browser</span>
-                             <span className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400">Code Interpreter</span>
-                             <span className="px-2 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[10px] text-gray-400">CRM Write Access</span>
-                           </>
-                         )}
                       </div>
                    </div>
                 </div>
              </div>
 
              {/* Center: Mission Control (Chat) */}
-             <div className="flex-1 flex flex-col bg-[var(--color-bg-tertiary)] relative">
-                <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between">
+             <div className="flex-1 flex flex-col bg-[var(--color-bg-tertiary)]/30 backdrop-blur-sm relative overflow-hidden">
+                <div className="p-5 border-b border-[var(--color-border)]/50 flex items-center justify-between bg-[var(--color-bg-primary)]/20">
                   <div>
-                    <p className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-widest">Agent Actions</p>
-                    <p className="text-sm text-[var(--color-text-secondary)]">Draft, compile, or run workflows</p>
+                    <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Tactical Interface</h4>
+                    <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">Direct link to {activeAgent.name}</p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => openDraftInFlowBuilder(activeAgent)}
-                      className="px-3 py-2 rounded text-xs font-semibold bg-[var(--color-primary)] text-white hover:opacity-90"
+                      className="btn-primary-skeuo !text-[10px] !px-4 !py-2"
                     >
-                      Compile Draft
+                      Compile Strategy
                     </button>
                     <button
                       onClick={() => openDraftInFlowBuilder(activeAgent)}
-                      className="px-3 py-2 rounded text-xs font-semibold bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-hover)]"
+                      className="btn-secondary !text-[10px] !px-4 !py-2"
                     >
-                      Run in Builder
+                      Active Builder
                     </button>
                   </div>
                 </div>
+
                 {/* Chat Feed */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                   {messages.length === 0 && (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-600 opacity-50">
-                         <ShieldCheck size={64} strokeWidth={1} />
-                         <p className="mt-4 text-sm font-mono uppercase tracking-widest">Secure Link Established</p>
-                      </div>
-                   )}
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
                    {messages.map((msg, i) => (
-                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                         <div className={`max-w-[70%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
-                            <div className="flex items-center gap-2 mb-1">
-                               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                                  {msg.role === 'user' ? 'Operator' : msg.rank}
+                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                         <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
+                            <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                               <span className={`text-[9px] font-black uppercase tracking-widest ${msg.role === 'user' ? 'text-purple-400' : 'text-brass'}`}>
+                                  {msg.role === 'user' ? 'OPERATOR' : msg.rank}
                                </span>
                                {msg.chain ? (
-                                 <span className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                                 <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] opacity-50 px-2 border-l border-[var(--color-border)] font-mono">
                                    {msg.chain}
                                  </span>
                                ) : null}
-                               <span className="text-[10px] text-gray-600 font-mono">{msg.timestamp}</span>
+                               <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{msg.timestamp}]</span>
                             </div>
-                            <div className={`p-4 rounded-xl text-sm leading-relaxed ${
+                            <div className={`p-5 rounded-[var(--radius-panel)] text-sm leading-relaxed shadow-island ${
                                msg.role === 'user' 
-                               ? 'bg-purple-900/20 border border-purple-500/30 text-purple-100 rounded-tr-none' 
-                               : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none'
+                               ? 'bg-purple-900/10 border border-purple-500/40 text-purple-100 rounded-tr-none' 
+                               : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none border-t-white/10'
                             }`}>
                                {msg.content}
                             </div>
@@ -574,29 +555,32 @@ const AIOAgentsModule = () => {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-                   <div className="relative">
+                <div className="p-5 border-t border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/40 backdrop-blur-xl">
+                   <div className="relative group">
                       <input 
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                         type="text" 
-                        placeholder="Transmit orders..." 
-                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg pl-4 pr-12 py-4 text-sm text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono"
+                        placeholder="TRANSMIT OPERATIONAL ORDERS..." 
+                        className="w-full bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-card)] pl-5 pr-14 py-5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[var(--color-primary)]/60 focus:ring-1 focus:ring-[var(--color-primary)]/20 font-mono uppercase tracking-wider transition-all"
                       />
                       <button 
                         onClick={handleSendMessage}
-                        className="absolute right-2 top-2 p-2 bg-purple-600 hover:bg-purple-500 text-white rounded transition"
+                        className="absolute right-3 top-3 p-3 btn-primary-skeuo !rounded-lg"
                       >
-                         <ArrowRight size={16} />
+                         <ArrowRight size={18} />
                       </button>
                    </div>
-                   <div className="flex justify-between items-center mt-3 px-1">
-                      <div className="flex gap-4">
-                         <button className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white flex items-center gap-1"><UploadCloud size={12}/> Upload Intel</button>
-                         <button className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white flex items-center gap-1"><Workflow size={12}/> Attach Workflow</button>
+                   <div className="flex justify-between items-center mt-4 px-1">
+                      <div className="flex gap-6">
+                         <button className="text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-colors"><UploadCloud size={14} className="text-blue-500"/> Intel Upload</button>
+                         <button className="text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-2 transition-colors"><Workflow size={14} className="text-yellow-500"/> Workflow Link</button>
                       </div>
-                      <span className="text-[10px] text-gray-600 font-mono">ENCRYPTED // CHANNEL 01</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                        <span className="text-[8px] text-gray-600 font-mono font-bold tracking-widest uppercase">Channel: Encrypted-Alpha-01</span>
+                      </div>
                    </div>
                 </div>
              </div>
@@ -606,4 +590,5 @@ const AIOAgentsModule = () => {
     </div>
   );
 };
+
 export default AIOAgentsModule;

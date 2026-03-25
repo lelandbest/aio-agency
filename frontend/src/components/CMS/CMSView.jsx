@@ -50,8 +50,8 @@ const CMSView = ({ onBack }) => {
     });
 
     return (
-        <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-between items-center">
+        <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-panel)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
+            <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-between items-center shadow-premium">
                 <div className="flex items-center gap-4">
                     <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
                         <Database size={20} className="text-[var(--color-primary)]" />
@@ -82,13 +82,13 @@ const CMSView = ({ onBack }) => {
                         {cmsTables.map(table => (
                             <div
                                 key={table.id}
-                                className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 p-6 rounded-xl transition-all"
+                                className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 p-6 rounded-[var(--radius-card)] transition-all shadow-island-sm hover:-translate-y-1"
                             >
                                 <div className="flex justify-between items-start mb-4">
-                                    <div className="w-10 h-10 bg-[var(--color-primary)]/10 rounded-lg flex items-center justify-center text-[var(--color-primary)]">
+                                    <div className="w-10 h-10 bg-[var(--color-primary)]/10 rounded-[var(--radius-card)] flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-premium">
                                         <Table size={20} />
                                     </div>
-                                    <span className="px-2 py-1 rounded text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] uppercase font-bold">
+                                    <span className="px-2 py-1 rounded-[var(--radius-card)] text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] uppercase font-bold border border-[var(--color-accent)]/20 shadow-premium">
                                         {table.record_count} Records
                                     </span>
                                 </div>
@@ -97,13 +97,13 @@ const CMSView = ({ onBack }) => {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => loadCmsTableData(table)}
-                                        className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-3 py-2 rounded text-sm font-medium"
+                                        className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-3 py-2 rounded-[var(--radius-card)] text-sm font-medium transition-all shadow-premium"
                                     >
                                         View Data
                                     </button>
                                     <button
                                         onClick={() => handleExportCMS(table)}
-                                        className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-3 py-2 rounded text-sm"
+                                        className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-3 py-2 rounded-[var(--radius-card)] text-sm transition-all shadow-premium"
                                         title="Export CSV"
                                     >
                                         <Download size={16} />
@@ -125,12 +125,12 @@ const CMSView = ({ onBack }) => {
                                         placeholder="Search..."
                                         value={cmsSearchQuery}
                                         onChange={(e) => setCmsSearchQuery(e.target.value)}
-                                        className="pl-10 pr-4 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-sm focus:border-[var(--color-primary)] focus:outline-none"
+                                        className="pl-10 pr-4 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] text-[var(--color-text-primary)] text-sm focus:border-[var(--color-primary)] focus:outline-none transition-all shadow-premium"
                                     />
                                 </div>
                                 <button
                                     onClick={() => handleExportCMS(selectedCmsTable)}
-                                    className="bg-[var(--color-success)] hover:bg-[var(--color-success-hover)] text-[var(--color-text-on-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
+                                    className="bg-[var(--color-success)] hover:opacity-90 text-[var(--color-text-on-primary)] px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium flex items-center gap-2 transition-all shadow-premium"
                                 >
                                     <Download size={16} /> Export CSV
                                 </button>
@@ -147,7 +147,7 @@ const CMSView = ({ onBack }) => {
                                 <p className="text-[var(--color-text-secondary)]">No submissions yet</p>
                             </div>
                         ) : (
-                            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+                            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] overflow-hidden shadow-island-sm">
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
                                         <thead className="bg-[var(--color-bg-tertiary)]">

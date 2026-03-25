@@ -296,7 +296,7 @@ export default function BrainGraphPanel({
 
   return (
     <div 
-      className={`h-full w-full bg-black relative overflow-hidden flex flex-col group/map rounded-[1.5rem] transition-all duration-500 ${!interactionArmed ? 'cursor-pointer' : ''}`}
+      className={`h-full w-full bg-black relative overflow-hidden flex flex-col group/map rounded-[var(--radius-panel)] transition-all duration-500 shadow-island-sm ${!interactionArmed ? 'cursor-pointer' : ''}`}
       onClick={() => { if(!interactionArmed) setInteractionArmed(true); }}
     >
       <BrainAnimations />
@@ -305,7 +305,7 @@ export default function BrainGraphPanel({
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '40px 40px' }} />
       
       {!interactionArmed && (
-        <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm transition-all duration-700 pointer-events-none">
+        <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-700 pointer-events-none">
               <div className="text-[40px] font-black tracking-[0.5em] text-slate-100/90 font-ethnocentric selection:bg-sky-500/20 mb-8">AIO CORTEX</div>
               <div className="text-[14px] font-black tracking-[0.4em] text-sky-400 animate-pulse" style={{ textShadow: '0 0 10px rgba(56, 189, 248, 0.8)' }}>CLICK TO ENTER NEURAL NETWORK</div>
         </div>
@@ -319,12 +319,12 @@ export default function BrainGraphPanel({
 
       {/* Interactive Legend */}
       <div className="absolute top-8 right-8 z-40 flex items-center gap-3">
-        <div className="flex bg-slate-900/80 border border-slate-800/60 rounded-full p-1 backdrop-blur-xl">
+        <div className="flex bg-[var(--color-bg-primary)]/80 border border-[var(--color-border)] rounded-[var(--radius-panel)] p-1 backdrop-blur-xl shadow-island-sm">
           {['all', 'source', 'item'].map(f => (
             <button 
               key={f}
               onClick={() => setNodeFilter(f)}
-              className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${nodeFilter === f ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20' : 'text-slate-500'}`}
+              className={`px-4 py-1.5 rounded-[var(--radius-card)] text-[9px] font-black uppercase tracking-widest transition-all ${nodeFilter === f ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] shadow-island' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
             >
               {f}
             </button>
@@ -408,7 +408,7 @@ export default function BrainGraphPanel({
         {/* Small Details Context Popup */}
         {contextNode && (
           <div 
-            className="absolute z-[100] w-[220px] bg-slate-900/95 border border-slate-800/80 rounded-2xl shadow-2xl backdrop-blur-2xl p-4 animate-in fade-in zoom-in duration-200"
+            className="absolute z-[100] w-[220px] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island backdrop-blur-2xl p-4 animate-in fade-in zoom-in duration-200"
             style={{ left: contextAnchor.x, top: contextAnchor.y }}
           >
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/60">
@@ -427,33 +427,33 @@ export default function BrainGraphPanel({
                   <div className="text-xs font-black text-slate-300 leading-relaxed">{contextNode.label}</div>
                </div>
 
-               {contextNode.type === 'source' && (
-                 <div className="space-y-3">
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border border-slate-800/60">
-                       <Globe size={12} className="text-sky-400" />
-                       <span className="text-[10px] text-slate-400 font-bold uppercase truncate">{contextData?.location || 'Operational Node'}</span>
+                {contextNode.type === 'source' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)] shadow-island-sm">
+                       <Globe size={12} className="text-[var(--color-primary)]" />
+                       <span className="text-[10px] text-[var(--color-text-secondary)] font-bold uppercase truncate">{contextData?.location || 'Operational Node'}</span>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border border-slate-800/60">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)] shadow-island-sm">
                        <Database size={12} className="text-magenta-400" />
-                       <span className="text-[10px] text-slate-400 font-bold uppercase">{contextData?.source_type || 'Nexus'}</span>
+                       <span className="text-[10px] text-[var(--color-text-secondary)] font-bold uppercase">{contextData?.source_type || 'Nexus'}</span>
                     </div>
-                 </div>
-               )}
+                  </div>
+                )}
 
-               {contextNode.type === 'item' && (
-                 <div className="space-y-3">
-                    <div className="text-[10px] text-slate-400 leading-relaxed max-h-32 overflow-y-auto no-scrollbar font-medium">
+                {contextNode.type === 'item' && (
+                  <div className="space-y-3">
+                    <div className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed max-h-32 overflow-y-auto no-scrollbar font-medium">
                        {contextData?.content || 'No detailed DNA metadata synthesized.'}
                     </div>
-                    <div className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800/40 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    <div className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-card)] bg-[var(--color-bg-tertiary)] text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest shadow-island-sm">
                        <FileText size={10} /> {contextData?.category || 'General'}
                     </div>
-                 </div>
-               )}
-               
-               <button className="w-full py-2 rounded-lg bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-white/40 hover:bg-white/10 hover:text-white transition-all flex items-center justify-center gap-2">
-                 <Zap size={10} /> Synthesize Context
-               </button>
+                  </div>
+                )}
+                
+                <button className="w-full py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 text-[9px] font-black uppercase tracking-widest text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 shadow-island-sm">
+                  <Zap size={10} /> Synthesize Context
+                </button>
             </div>
           </div>
         )}
@@ -461,34 +461,34 @@ export default function BrainGraphPanel({
 
       {/* Footer Stats Overlay */}
       <div className="absolute bottom-8 left-8 z-40 pointer-events-none flex gap-4">
-         <div className="px-4 py-2 bg-black/40 border border-slate-800/60 rounded-full backdrop-blur-md">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nodes: <span className="text-white">{nodes.length}</span></span>
+         <div className="px-4 py-2 bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-panel)] backdrop-blur-md shadow-island-sm">
+            <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Nodes: <span className="text-white">{nodes.length}</span></span>
          </div>
-         <div className="px-4 py-2 bg-black/40 border border-slate-800/60 rounded-full backdrop-blur-md">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Connectivity: <span className="text-sky-400">98%</span></span>
+         <div className="px-4 py-2 bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-panel)] backdrop-blur-md shadow-island-sm">
+            <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Connectivity: <span className="text-[var(--color-primary)]">98%</span></span>
          </div>
       </div>
  
       {/* Zoom / Pan Controls */}
       <div className="absolute bottom-8 right-8 z-40 flex flex-col gap-2">
-         <div className="flex flex-col bg-black/40 border border-slate-800/60 rounded-xl backdrop-blur-md overflow-hidden shadow-xl pointer-events-auto">
+         <div className="flex flex-col bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-panel)] backdrop-blur-md overflow-hidden shadow-island-sm pointer-events-auto">
             <button 
               onClick={() => setZoom(z => Math.min(2.5, z + 0.2))}
-              className="p-3 text-slate-400 hover:text-sky-400 hover:bg-white/5 transition-all border-b border-white/5"
+              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-white/5 transition-all border-b border-white/5"
               title="Zoom In"
             >
               <ZoomIn size={18} />
             </button>
             <button 
               onClick={() => setZoom(z => Math.max(0.4, z - 0.2))}
-              className="p-3 text-slate-400 hover:text-sky-400 hover:bg-white/5 transition-all border-b border-white/5"
+              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-white/5 transition-all border-b border-white/5"
               title="Zoom Out"
             >
               <ZoomOut size={18} />
             </button>
             <button 
               onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-              className="p-3 text-slate-400 hover:text-sky-400 hover:bg-white/5 transition-all"
+              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-white/5 transition-all"
               title="Reset View"
             >
               <Maximize size={18} />

@@ -41,9 +41,9 @@ const ownerInitials = (owner) =>
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'AI';
 
-const shellPanelClass = 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-[0_14px_34px_rgba(0,0,0,0.14)]';
-const innerPanelClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]';
-const softActionClass = 'rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]';
+const shellPanelClass = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-island-sm';
+const innerPanelClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
+const softActionClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] shadow-island-sm';
 
 const PipelineModule = () => {
   const [contacts, setContacts] = useState([]);
@@ -246,7 +246,7 @@ const PipelineModule = () => {
         onDragStart={(event) => handleDragStart(event, contact.id, normalizeStageId(contact.pipeline_stage))}
         onDragEnd={handleDragEnd}
         onDoubleClick={() => openCrmRecord(contact.id)}
-        className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 transition hover:border-[var(--color-primary)]/45 hover:shadow-[0_16px_40px_rgba(0,0,0,0.22)]"
+        className="group rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 transition hover:border-[var(--color-primary)]/45 hover:shadow-island"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -261,17 +261,17 @@ const PipelineModule = () => {
               <span>{contact.company || 'Unassigned company'}</span>
             </div>
           </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-[11px] font-bold">
+          <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-card)] bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-[11px] font-bold border border-[var(--color-primary)]/20 shadow-island-sm">
             {ownerInitials(contact.owner)}
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${priorityTone}`}>
+          <span className={`rounded-[var(--radius-card)] border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${priorityTone} shadow-island-sm`}>
             Score {score}
           </span>
           {(contact.tags || []).slice(0, 2).map((tag) => (
-            <span key={tag} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[10px] text-[var(--color-text-secondary)]">
+            <span key={tag} className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[10px] text-[var(--color-text-secondary)] shadow-island-sm">
               {tag}
             </span>
           ))}
@@ -293,20 +293,20 @@ const PipelineModule = () => {
         <div className="mt-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
           <button
             onClick={() => openCrmRecord(contact.id)}
-            className="flex-1 rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+            className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition"
           >
             <ExternalLink size={12} className="mr-1 inline" />
-            Open CRM
+            CRM
           </button>
           <button
             onClick={() => openCommsThread(contact, 'email')}
-            className="rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+            className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition"
           >
             <Mail size={12} />
           </button>
           <button
             onClick={() => openCommsThread(contact, 'sms')}
-            className="rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+            className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition"
           >
             <MessageCircle size={12} />
           </button>
@@ -316,7 +316,7 @@ const PipelineModule = () => {
   };
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <ModuleHeader
         title="Pipelines"
         titleIcon={GitMerge}
@@ -390,7 +390,7 @@ const PipelineModule = () => {
                             if (event.key === 'Enter') saveRenameColumn(column.id);
                             if (event.key === 'Escape') setEditingColumnId(null);
                           }}
-                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                          className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] shadow-island-sm transition"
                           autoFocus
                         />
                         <button onClick={() => saveRenameColumn(column.id)} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
@@ -408,7 +408,7 @@ const PipelineModule = () => {
                     {getColumnHighlight(cards) ? (
                       <button
                         onClick={() => setSelectedCard(getColumnHighlight(cards))}
-                        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)]"
+                        className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] shadow-island-sm"
                       >
                         Top Signal
                       </button>
@@ -440,14 +440,14 @@ const PipelineModule = () => {
                       if (event.key === 'Escape') setShowCreateStage(false);
                     }}
                     placeholder="Stage name"
-                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] shadow-island-sm transition"
                     autoFocus
                   />
                   <div className="flex gap-2">
-                    <button onClick={() => setShowCreateStage(false)} className="flex-1 rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)]">
+                    <button onClick={() => setShowCreateStage(false)} className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
                       Cancel
                     </button>
-                    <button onClick={saveNewColumn} className="flex-1 rounded-xl bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]">
+                    <button onClick={saveNewColumn} className="flex-1 rounded-[var(--radius-card)] bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)] shadow-island transition">
                       Add Stage
                     </button>
                   </div>
@@ -459,7 +459,7 @@ const PipelineModule = () => {
       </div>
 
       {selectedCard ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className={shellPanelClass + ' w-full max-w-lg'}>
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
               <div>
@@ -490,13 +490,13 @@ const PipelineModule = () => {
               </div>
             </div>
             <div className="flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-5 py-4">
-              <button onClick={() => openCrmRecord(selectedCard.id)} className="flex-1 rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]">
-                Open CRM
+              <button onClick={() => openCrmRecord(selectedCard.id)} className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
+                CRM
               </button>
-              <button onClick={() => openCommsThread(selectedCard, 'email')} className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]">
+              <button onClick={() => openCommsThread(selectedCard, 'email')} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
                 Email
               </button>
-              <button onClick={() => openCommsThread(selectedCard, 'sms')} className="rounded-xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]">
+              <button onClick={() => openCommsThread(selectedCard, 'sms')} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
                 SMS
               </button>
             </div>

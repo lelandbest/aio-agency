@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { getCMSTableData } from '../../services/formProcessor';
 export default function CMSDataViewer({ tableSlug, title, className }) {
   const [loading, setLoading] = useState(false);
@@ -33,21 +33,25 @@ export default function CMSDataViewer({ tableSlug, title, className }) {
   }, [rows]);
 
   return (
-    <div className={className}>
-      {loading && <div>Loading…</div>}
-      {!loading && error && <div>{error}</div>}
-      {!loading && !error && rows.length === 0 && <div>No records</div>}
+    <div className={`${className} bg-[var(--color-bg-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] overflow-hidden shadow-island-sm`}>
+      {loading && <div className="p-4 text-sm text-[var(--color-text-tertiary)] animate-pulse">Loading…</div>}
+      {!loading && error && <div className="p-4 text-sm text-red-400 bg-red-400/10">{error}</div>}
+      {!loading && !error && rows.length === 0 && <div className="p-4 text-sm text-[var(--color-text-tertiary)] italic">No records</div>}
       {!loading && !error && rows.length > 0 && (
-        <table>
-          <thead>
-            <tr>{columns.map(c => <th key={c}>{c}</th>)}</tr>
-          </thead>
-          <tbody>
-            {rows.map((r,i) => (
-              <tr key={i}>{columns.map(c => <td key={c}>{String(r[c] ?? '')}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)]">
+              <tr>{columns.map(c => <th key={c} className="px-4 py-2 text-left text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">{c}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border)]">
+              {rows.map((r,i) => (
+                <tr key={i} className="hover:bg-[var(--color-hover)] transition-colors">
+                  {columns.map(c => <td key={c} className="px-4 py-2 text-[var(--color-text-primary)]">{String(r[c] ?? '')}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

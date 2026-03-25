@@ -49,6 +49,18 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-island: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
+  --shadow-premium: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 4px 6px rgba(0, 0, 0, 0.3);
+
+  /* Radius Hierarchy */
+  --radius-outer: 1.5rem;
+  --radius-panel: 1rem;
+  --radius-card: 0.75rem;
+  --radius-pill: 9999px;
+
+  /* Steampunk Accents */
+  --color-brass: #B8860B;
+  --color-copper: #B87333;
 }
 
 html.dark {
@@ -109,7 +121,7 @@ html, body {
   backdrop-filter: blur(calc(var(--glass-blur) * 0.5));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.5));
   border: 1px solid var(--glass-border);
-  border-radius: 1rem;
+  border-radius: var(--radius-panel);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -142,6 +154,86 @@ html.dark .glass-input {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
+/* --- ISLAND PANEL SYSTEM --- */
+.island-panel {
+  background: linear-gradient(180deg, var(--glass-bg), color-mix(in srgb, var(--glass-bg) 95%, black));
+  backdrop-filter: blur(var(--glass-blur));
+  padding: 1.5rem;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-island);
+  border-top-color: rgba(255, 255, 255, 0.1); /* Subtle bevel highlight */
+}
+
+/* --- BUTTON SYSTEM --- */
+.btn-primary-skeuo {
+  background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-premium);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.btn-primary-skeuo:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn-primary-skeuo:active {
+  transform: translateY(1px);
+  border-bottom-width: 1px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-card);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-card);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+}
+
 /* --- NEON & GLOW --- */
 .neon-border-magenta { border-color: var(--color-neon-magenta); box-shadow: 0 0 15px rgba(255, 0, 110, 0.3); }
 .neon-border-cyan { border-color: #00F5FF; box-shadow: 0 0 15px rgba(0, 245, 255, 0.3); }
@@ -157,7 +249,7 @@ html.dark .glass-input {
 /* Flow Components */
 .flow-toolbar-btn {
   padding: 6px 12px;
-  border-radius: 9999px;
+  border-radius: var(--radius-card);
   font-size: 12px;
   font-weight: 600;
   border: 1px solid var(--color-border);
@@ -167,6 +259,52 @@ html.dark .glass-input {
 }
 .flow-toolbar-btn:hover { background: var(--color-hover); }
 .flow-toolbar-btn--primary { background: var(--color-primary); color: var(--color-text-on-primary); border-color: transparent; }
+
+/* --- TAG SYSTEM --- */
+.tag-base {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-card);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.tag-system { 
+  background: var(--color-primary); 
+  color: var(--color-text-on-primary); 
+  border-color: rgba(255, 255, 255, 0.1); 
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.tag-user { 
+  background: var(--color-bg-tertiary); 
+  color: var(--color-text-secondary); 
+  border-color: var(--color-border); 
+}
+
+.tag-custom { 
+  background: var(--color-accent) / 0.1; 
+  color: var(--color-accent); 
+  border-color: var(--color-accent) / 0.2; 
+}
+
+.tag-alert { 
+  background: var(--color-danger) / 0.1; 
+  color: var(--color-danger); 
+  border-color: var(--color-danger) / 0.2; 
+}
+
+.tag-warning { 
+  background: var(--color-warning) / 0.1; 
+  color: var(--color-warning); 
+  border-color: var(--color-warning) / 0.2; 
+}
 
 /* Neurological "Living Entity" Visuals */
 @keyframes neural-pulse {

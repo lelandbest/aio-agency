@@ -30,12 +30,12 @@ const getBinByCategory = (dbCategory) => {
 };
 
 const COMMS_WORKSPACE_SCALE = 0.75;
-const COMMS_PANEL = 'rounded-[1.5rem] border border-white/5 bg-white/[0.02] shadow-[0_18px_40px_rgba(2,6,23,0.22),inset_0_1px_0_rgba(148,163,184,0.05)]';
-const COMMS_SUBPANEL = 'rounded-[1.05rem] border border-white/5 bg-white/5 shadow-[inset_0_1px_0_rgba(148,163,184,0.05)]';
+const COMMS_PANEL = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-island';
+const COMMS_SUBPANEL = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island-sm';
 const COMMS_COLUMN_BG = 'bg-[linear-gradient(180deg,rgba(10,16,28,0.94),rgba(7,11,22,0.98))]';
 const COMMS_MAIN_BG = 'bg-[linear-gradient(180deg,rgba(12,18,31,0.58),rgba(8,12,22,0.34)_35%,rgba(8,12,22,0.2))]';
-const COMMS_TOOLBAR_PRIMARY = 'rounded-xl border border-sky-400/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.28),rgba(12,22,38,0.42))] px-5 text-sky-100 shadow-[inset_0_1px_0_rgba(191,219,254,0.12),0_0_0_1px_rgba(96,165,250,0.08),0_12px_28px_rgba(37,99,235,0.18)] hover:border-sky-300/65 hover:bg-[linear-gradient(180deg,rgba(40,88,154,0.36),rgba(13,24,42,0.48))]';
-const COMMS_TOOLBAR_GHOST = 'rounded-xl border border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.24),rgba(15,23,42,0.12))] px-4 text-slate-300 shadow-[inset_0_1px_0_rgba(148,163,184,0.05)] hover:border-slate-500/70 hover:bg-[linear-gradient(180deg,rgba(15,23,42,0.38),rgba(15,23,42,0.2))] hover:text-slate-100';
+const COMMS_TOOLBAR_PRIMARY = 'rounded-[var(--radius-card)] border border-[var(--color-primary)]/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.28),rgba(12,22,38,0.42))] px-5 text-[var(--color-text-primary)] shadow-island-sm hover:border-[var(--color-primary)]/65 hover:bg-[linear-gradient(180deg,rgba(40,88,154,0.36),rgba(13,24,42,0.48))] transition-all';
+const COMMS_TOOLBAR_GHOST = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 text-[var(--color-text-secondary)] shadow-island-sm hover:border-[var(--color-primary)]/45 hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)] transition-all';
 import { 
   getBrainOverviewApi, 
   updateBrainProfileApi, 
@@ -106,12 +106,12 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
         <div className="p-8 flex-1 space-y-6">
           <div 
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-800 rounded-3xl p-10 flex flex-col items-center justify-center gap-4 hover:border-sky-500/40 hover:bg-sky-500/5 transition-all cursor-pointer group"
+            className="border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-outer)] p-10 flex flex-col items-center justify-center gap-4 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)]/5 transition-all cursor-pointer group shadow-island-sm"
           >
-            <UploadCloud size={40} className="text-slate-700 group-hover:text-sky-400 transition-colors" />
+            <UploadCloud size={40} className="text-[var(--color-text-tertiary)] group-hover:text-[var(--color-primary)] transition-colors" />
             <div className="text-center">
-              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Click to Browse Devices</div>
-              <div className="text-[9px] font-medium text-slate-600 mt-1 uppercase">or drag and drop operational files</div>
+              <div className="text-[11px] font-black uppercase tracking-widest text-[var(--color-text-secondary)]">Click to Browse Devices</div>
+              <div className="text-[9px] font-medium text-[var(--color-text-tertiary)] mt-1 uppercase">or drag and drop operational files</div>
             </div>
             <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileChange} />
           </div>
@@ -134,12 +134,12 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
           )}
         </div>
 
-        <div className="p-6 border-t border-white/5 bg-black/40 flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Cancel</button>
+        <div className="p-6 border-t border-[var(--color-border)] bg-black/40 flex justify-end gap-3">
+          <button onClick={onClose} className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-all">Cancel</button>
           <button 
             onClick={handleSync}
             disabled={selectedFiles.length === 0}
-            className={COMMS_TOOLBAR_PRIMARY + " !px-10 !h-12 !rounded-full disabled:opacity-30"}
+            className={COMMS_TOOLBAR_PRIMARY + " !px-10 !h-12 !rounded-full disabled:opacity-30 border-transparent"}
           >
             Initiate Sync
           </button>
@@ -161,13 +161,13 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
           <select 
             value={activeProviderId}
             onChange={(e) => onProviderChange(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-widest text-slate-300 outline-none focus:border-sky-500/40 transition-all cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.6)] appearance-none"
+            className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] font-black uppercase tracking-widest text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]/40 transition-all cursor-pointer shadow-island-sm appearance-none"
           >
             {providers.filter(p => p.api_key_present || p.provider_key === 'ollama' || p.is_connected).map(p => (
-              <option key={p.provider_key} value={p.provider_key} className="bg-slate-900 text-sm italic">{p.label || p.provider_key}</option>
+              <option key={p.provider_key} value={p.provider_key} className="bg-[var(--color-bg-secondary)] text-sm italic">{p.label || p.provider_key}</option>
             ))}
           </select>
-          <ChevronDown size={16} className="absolute right-4 top-[38px] text-slate-500 pointer-events-none" />
+          <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
         </div>
         <div className="relative">
           <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Nexus Model</div>
@@ -229,9 +229,9 @@ const EditAssetModal = ({ item, isOpen, onClose, onUpdate }) => {
             </select>
           </div>
         </div>
-        <div className="p-6 border-t border-white/5 bg-black/40 flex justify-end gap-3">
-          <button onClick={onClose} className="px-6 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500">Cancel</button>
-          <button onClick={handleSave} className="px-8 py-2 rounded-xl bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-sky-400 transition-all shadow-[0_0_20px_rgba(56,189,248,0.2)]">Persist Changes</button>
+        <div className="p-6 border-t border-[var(--color-border)] bg-black/40 flex justify-end gap-3">
+          <button onClick={onClose} className="px-6 py-2 text-[10px] font-black uppercase tracking-widest text-[var(--color-text-secondary)]">Cancel</button>
+          <button onClick={handleSave} className="px-8 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] text-[var(--color-text-on-primary)] text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-primary-hover)] transition-all shadow-island-sm">Persist Changes</button>
         </div>
       </div>
     </div>
@@ -923,11 +923,11 @@ const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSa
                 key={report.id} 
                 onClick={() => onRunReport(report)} 
                 disabled={activeReportId === report.id} 
-                className={`w-full aspect-square text-center transition-all flex flex-col items-center justify-center p-4 rounded-2xl border ${activeReportId === report.id ? 'bg-sky-500/20 border-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.2)]' : 'bg-white/[0.01] border-white/5 hover:border-sky-500/30 hover:bg-white/[0.03] shadow-sm'} group/card overflow-hidden`}
+                className={`w-full aspect-square text-center transition-all flex flex-col items-center justify-center p-4 rounded-[var(--radius-panel)] border ${activeReportId === report.id ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] shadow-island-sm' : 'bg-white/[0.01] border-white/5 hover:border-[var(--color-primary)]/30 hover:bg-white/[0.03] shadow-sm'} group/card overflow-hidden`}
               >
-                <div className="text-[14px] font-black uppercase tracking-tight leading-none text-slate-500 group-hover/card:text-sky-400 transition-colors mb-3 px-2">{report.label}</div>
-                <div className="text-[11px] font-medium text-slate-300 leading-tight tracking-tight transition-opacity px-2">{report.description}</div>
-                {activeReportId === report.id && <Loader2 size={16} className="text-sky-400 animate-spin mt-2" />}
+                <div className="text-[14px] font-black uppercase tracking-tight leading-none text-[var(--color-text-tertiary)] group-hover/card:text-[var(--color-primary)] transition-colors mb-3 px-2">{report.label}</div>
+                <div className="text-[11px] font-medium text-[var(--color-text-secondary)] leading-tight tracking-tight transition-opacity px-2">{report.description}</div>
+                {activeReportId === report.id && <Loader2 size={16} className="text-[var(--color-primary)] animate-spin mt-2" />}
               </button>
             ))}
           </div>
@@ -941,10 +941,10 @@ const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSa
           />
           
           {/* Bottom Center Controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-2xl bg-slate-900 border border-slate-700/50 shadow-2xl backdrop-blur-md z-[100] transition-all">
-            <button onClick={handleCopy} className="p-2.5 rounded-xl hover:bg-white/5 text-slate-400 hover:text-sky-400 transition-all border border-transparent hover:border-slate-700/50" title="Copy Content"><Code size={18} /></button>
-            <button onClick={handleDownload} className="p-2.5 rounded-xl hover:bg-white/5 text-slate-400 hover:text-magenta-400 transition-all border border-transparent hover:border-slate-700/50" title="Download (.txt)"><Save size={18} /></button>
-            <button onClick={() => setOutput('')} className="p-2.5 rounded-xl hover:bg-white/5 text-slate-400 hover:text-slate-100 transition-all border border-transparent hover:border-slate-700/50" title="Clear Output"><RefreshCcw size={18} /></button>
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-[var(--radius-panel)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] shadow-island backdrop-blur-md z-[100] transition-all">
+            <button onClick={handleCopy} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-all border border-transparent hover:border-[var(--color-border)]" title="Copy Content"><Code size={18} /></button>
+            <button onClick={handleDownload} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-magenta-400 transition-all border border-transparent hover:border-[var(--color-border)]" title="Download (.txt)"><Save size={18} /></button>
+            <button onClick={() => setOutput('')} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all border border-transparent hover:border-[var(--color-border)]" title="Clear Output"><RefreshCcw size={18} /></button>
             <div className="w-[1px] h-6 bg-slate-800 mx-1" />
             <button 
               onClick={onSave} 
@@ -1087,7 +1087,7 @@ const Cortex = () => {
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <div className={`h-full bg-slate-900/50 rounded-[1.75rem] border border-white/10 flex flex-col overflow-hidden shadow-2xl relative`} style={cortexWindowStyle}>
+      <div className={`h-full bg-slate-900/50 rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island relative`} style={cortexWindowStyle}>
       <div className="flex flex-1 overflow-hidden relative min-h-0">
         <aside 
           className={`w-[300px] flex flex-col gap-[25px] p-4 border-r border-slate-800/60 ${COMMS_COLUMN_BG} z-30 h-full shadow-[20px_0_60px_rgba(0,0,0,0.5)] transition-all ${!interactionArmed ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
@@ -1205,16 +1205,16 @@ const Cortex = () => {
           />
         </aside>
 
-        <aside className={`fixed top-0 right-0 bottom-0 w-[420px] z-[100] border-l border-slate-800/80 bg-[linear-gradient(180deg,rgba(12,19,34,0.99),rgba(7,12,24,0.99))] transition-transform duration-500 ${showProfileDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
+        <aside className={`fixed top-0 right-0 bottom-0 w-[420px] z-[100] border-l border-[var(--color-border)] bg-[var(--color-bg-primary)] transition-transform duration-500 shadow-island ${showProfileDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="h-full flex flex-col relative">
-            <button onClick={() => setShowProfileDrawer(!showProfileDrawer)} className="absolute -left-8 top-[75%] -translate-y-1/2 h-16 w-8 bg-slate-800/40 border border-slate-700/60 rounded-l-xl flex items-center justify-center text-slate-400 z-50"><ChevronRight size={18} className={showProfileDrawer ? '' : 'rotate-180'} /></button>
-            <div className="p-6 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400 border border-sky-500/20"><Shield size={18} /></div><div><div className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Business DNA Profile</div><div className="text-[6px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Operational Registry</div></div></div>
+            <button onClick={() => setShowProfileDrawer(!showProfileDrawer)} className="absolute -left-8 top-[75%] -translate-y-1/2 h-16 w-8 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-l-[var(--radius-panel)] flex items-center justify-center text-[var(--color-text-tertiary)] z-50 shadow-island-sm transition"><ChevronRight size={18} className={showProfileDrawer ? '' : 'rotate-180'} /></button>
+            <div className="p-6 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm"><Shield size={18} /></div><div><div className="text-xs font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Business DNA Profile</div><div className="text-[6px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest mt-0.5">Operational Registry</div></div></div>
             <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
-              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-500/80">Core Identity</div><div className="text-lg font-black text-slate-400">{profile.company_name || 'Unidentified'}</div></section>
-              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-500/80">Mission DNA</div><div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 italic text-[12px] text-slate-400 leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
-              <section className="space-y-3"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-500/80">Synthesis Details</div><div className="grid gap-2"><div className="p-3 rounded-lg bg-black/40 border border-slate-800/60"><div className="text-[9px] font-black uppercase tracking-widest text-sky-400 mb-0.5">Target Audience (ICP)</div><div className="text-[12px] text-slate-400 font-medium">{profile.ideal_customer || 'Not defined'}</div></div><div className="p-3 rounded-lg bg-black/40 border border-slate-800/60"><div className="text-[9px] font-black uppercase tracking-widest text-magenta-400 mb-0.5">Voice & Tone</div><div className="text-[12px] text-slate-400 font-medium">{profile.brand_voice || 'Not defined'}</div></div></div></section>
+              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-black text-[var(--color-text-secondary)]">{profile.company_name || 'Unidentified'}</div></section>
+              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Mission DNA</div><div className="p-4 rounded-[var(--radius-card)] bg-white/[0.01] border border-white/5 italic text-[12px] text-[var(--color-text-secondary)] leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
+              <section className="space-y-3"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-2"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-primary)] mb-0.5">Target Audience (ICP)</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.ideal_customer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-magenta-400 mb-0.5">Voice & Tone</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.brand_voice || 'Not defined'}</div></div></div></section>
             </div>
-            <div className="p-6 border-t border-white/5 bg-black/40"><button onClick={() => setShowBrandForm(true)} className={COMMS_TOOLBAR_PRIMARY + " w-full !h-12 !rounded-xl !text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2"}><PenTool size={14} /> Update Operations DNA</button></div>
+            <div className="p-6 border-t border-[var(--color-border)] bg-black/40"><button onClick={() => setShowBrandForm(true)} className={COMMS_TOOLBAR_PRIMARY + " w-full !h-12 !rounded-[var(--radius-card)] !text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 shadow-island-sm"}><PenTool size={14} /> Update Operations DNA</button></div>
           </div>
         </aside>
       </div>

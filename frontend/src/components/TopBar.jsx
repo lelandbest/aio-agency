@@ -82,13 +82,13 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
             <div className="flex items-center gap-3 min-w-0">
                 <button
                     onClick={onToggleMobileMenu}
-                    className="lg:hidden p-2 hover:bg-[var(--color-hover)] rounded-lg text-[var(--color-text-secondary)]"
+                    className="lg:hidden p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] text-[var(--color-text-secondary)]"
                     aria-label="Open navigation menu"
                 >
                     <Menu size={18} />
                 </button>
                 {TitleIcon && (
-                    <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0">
                         <TitleIcon size={20} className="text-sky-400" />
                     </div>
                 )}
@@ -106,19 +106,19 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
 
             <div className="flex items-center gap-4 ml-auto">
                 {showSearch && (
-                    <div className="hidden xl:flex items-center gap-2 min-w-[320px] px-3 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-                        <Search size={16} className="text-[var(--color-text-secondary)]" />
+                    <div className="hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-border)] bg-[#09090b] shadow-premium">
+                        <Search size={16} className="text-white/70" />
                         <input
                             type="text"
                             placeholder={searchPlaceholder}
-                            className="w-full bg-transparent outline-none text-sm text-[var(--color-text-secondary)] placeholder-[var(--color-text-tertiary)]"
+                            className="w-full bg-transparent outline-none text-sm text-white placeholder-white/30"
                         />
                     </div>
                 )}
 
                 <button
                     onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                    className="p-2 hover:bg-[var(--color-hover)] rounded-lg transition text-yellow-500 hover:text-yellow-600"
+                    className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600"
                     title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
                     aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
                 >
@@ -126,7 +126,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 </button>
 
                 <button
-                    className="p-2 hover:bg-[var(--color-hover)] rounded-lg transition text-green-500 hover:text-green-600"
+                    className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-green-500 hover:text-green-600"
                     title="VoIP Phone"
                     aria-label="Open VoIP phone"
                 >
@@ -136,7 +136,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 <div className="relative">
                     <button
                         onClick={() => setShowNotifications(!showNotifications)}
-                        className="p-2 hover:bg-[var(--color-hover)] rounded-lg transition text-yellow-500 hover:text-yellow-600 relative"
+                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600 relative"
                         title="Notifications"
                         aria-label="Open notifications"
                         aria-expanded={showNotifications}
@@ -153,7 +153,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     {showNotifications && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                            <div className="absolute right-0 top-12 w-80 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
+                            <div className="absolute right-0 top-12 w-80 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 overflow-hidden">
                                 <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Notifications</h3>
                                     {unreadCount > 0 && (
@@ -195,13 +195,13 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 <div className="relative">
                     <button
                         onClick={() => setShowTenantDropdown(!showTenantDropdown)}
-                        className="flex items-center gap-3 px-3 py-2 hover:bg-[var(--color-hover)] rounded-xl transition border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-blue-500 hover:text-blue-400 min-w-0"
+                        className="flex items-center gap-3 px-3 py-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-blue-500 hover:text-blue-400 min-w-0 shadow-island-sm"
                         title="Switch Workspace"
                         aria-label="Switch workspace"
                         aria-expanded={showTenantDropdown}
                         aria-haspopup="true"
                     >
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 rounded-[var(--radius-card)] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
                             <Users size={16} className="text-blue-400" />
                         </div>
                         <div className="hidden lg:block text-left min-w-0">
@@ -218,7 +218,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     {showTenantDropdown && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowTenantDropdown(false)} />
-                            <div className="absolute right-0 top-12 w-72 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
+                            <div className="absolute right-0 top-12 w-72 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 overflow-hidden">
                                 <div className="p-4 border-b border-[var(--color-border)]">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Switch Workspace</h3>
                                     <p className="text-xs text-[var(--color-text-secondary)] mt-1">{tenant ? `Current: ${tenant.name}` : 'Select an available workspace'}</p>
@@ -256,13 +256,13 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 <div className="relative">
                     <button
                         onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                        className="p-2 hover:bg-[var(--color-hover)] rounded-lg transition"
+                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition"
                         title="User Menu"
                         aria-label="User menu"
                         aria-expanded={showProfileDropdown}
                         aria-haspopup="true"
                     >
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center text-white">
+                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-[var(--radius-card)] flex items-center justify-center text-white">
                             <User size={18} />
                         </div>
                     </button>
@@ -270,7 +270,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     {showProfileDropdown && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
-                            <div className="absolute right-0 top-12 w-72 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl z-50">
+                            <div className="absolute right-0 top-12 w-72 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 overflow-hidden">
                                 <div className="p-4 border-b border-[var(--color-border)]">
                                     <p className="text-sm font-medium text-[var(--color-text-primary)]">{currentUser.email}</p>
                                 </div>
@@ -319,7 +319,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                                             setShowProfileDropdown(false);
                                             onLogout();
                                         }}
-                                        className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm font-medium rounded transition border border-red-600/30"
+                                        className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm font-medium rounded-[var(--radius-card)] transition border border-red-600/30 shadow-island-sm"
                                     >
                                         Logout
                                     </button>

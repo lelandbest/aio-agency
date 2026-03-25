@@ -49,19 +49,19 @@ const AIAssistButton = ({
         onClick={onAssist}
         disabled={disabled || loading}
         className={`
-          p-2 rounded-lg transition-all relative
+          p-2 rounded-[var(--radius-card)] transition-all relative
           ${loading
             ? 'bg-gray-500/20 text-gray-300 animate-pulse'
             : disabled
             ? 'bg-[var(--color-bg-primary)] text-gray-500 cursor-not-allowed opacity-50'
-            : 'bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 hover:shadow-lg hover:shadow-gray-500/20'
+            : 'bg-gray-500/10 text-gray-300 hover:bg-gray-500/20 hover:shadow-island-sm'
           }
         `}
         title={tooltip}
       >
         {loading && (
-          <div className="absolute inset-0 rounded-lg animate-spin">
-            <div className="absolute inset-0 border-2 border-transparent border-t-gray-400 rounded-lg" />
+          <div className="absolute inset-0 rounded-[var(--radius-card)] animate-spin">
+            <div className="absolute inset-0 border-2 border-transparent border-t-gray-400 rounded-[var(--radius-card)]" />
           </div>
         )}
         <div className={loading ? 'opacity-50' : ''}>
@@ -77,7 +77,7 @@ const AIAssistButton = ({
       onClick={onAssist}
       disabled={disabled || loading}
       className={`
-        p-1.5 rounded transition-all flex-shrink-0
+        p-1.5 rounded-[var(--radius-card)] transition-all flex-shrink-0
         ${loading
           ? 'bg-[var(--color-primary)]/30 text-[var(--color-primary)] animate-pulse'
           : disabled
