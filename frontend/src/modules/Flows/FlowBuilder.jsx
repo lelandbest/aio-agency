@@ -948,35 +948,31 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
             >
             <Background
               color="var(--color-grid-strong)"
-              gap={16}
+              gap={20}
               size={1.5}
               variant="dots"
             />
-            <Controls
-              showInteractive={false}
-              showFitView={false}
-              className="!absolute !bottom-4 !right-4 flow-controls"
-            />
-            <MiniMap
-              className="!absolute !bottom-4 !left-4 !rounded-xl"
-              style={{ 
-                backgroundColor: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border)',
-                minWidth: '120px',
-                minHeight: '80px',
-              }}
-              nodeColor={(node) => {
-                const colorMap = {
-                  trigger: 'var(--node-trigger)',
-                  action: 'var(--node-action)',
-                  logic: 'var(--node-logic)',
-                  webhook: 'var(--node-webhook)',
-                  socket: 'var(--node-socket)',
-                  input: 'var(--node-input)',
-                };
-                return colorMap[node.type] || 'var(--color-border)';
-              }}
-            />
+            <div className="flow-control-dock">
+              <Controls
+                showInteractive={false}
+                showFitView={true}
+                className="flow-controls-buttons"
+              />
+              <MiniMap
+                className="flow-minimap"
+                nodeColor={(node) => {
+                  const colorMap = {
+                    trigger: 'var(--node-trigger)',
+                    action: 'var(--node-action)',
+                    logic: 'var(--node-logic)',
+                    webhook: 'var(--node-webhook)',
+                    socket: 'var(--node-socket)',
+                    input: 'var(--node-input)',
+                  };
+                  return colorMap[node.type] || 'var(--color-border)';
+                }}
+              />
+            </div>
           </ReactFlow>
         </div>
 

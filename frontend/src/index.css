@@ -260,6 +260,61 @@ html.dark .glass-input {
 .flow-toolbar-btn:hover { background: var(--color-hover); }
 .flow-toolbar-btn--primary { background: var(--color-primary); color: var(--color-text-on-primary); border-color: transparent; }
 
+/* Flow Builder Control Dock */
+.flow-control-dock {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.flow-controls-buttons {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.flow-controls-buttons button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+  padding: 6px 10px !important;
+  transition: all 0.15s ease;
+}
+
+.flow-controls-buttons button:last-child {
+  border-bottom: none !important;
+}
+
+.flow-controls-buttons button:hover {
+  background: var(--color-hover) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.flow-controls-buttons button svg {
+  fill: currentColor !important;
+}
+
+.flow-minimap {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  width: 120px !important;
+  height: 80px !important;
+}
+
+.flow-minimap .react-flow__minimap-mask {
+  fill: rgba(0,0,0,0.3);
+}
+
 /* --- TAG SYSTEM --- */
 .tag-base {
   display: inline-flex;

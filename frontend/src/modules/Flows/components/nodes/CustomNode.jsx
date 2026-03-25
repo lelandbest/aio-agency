@@ -43,23 +43,23 @@ const CustomNode = ({ data, selected, isConnectable }) => {
   const iconColor = isGhost ? 'var(--color-text-tertiary)' : colorToken;
   
   const glowColor = getGlowColor(data.nodeColor, data.type);
-  const isAgent = data.nodeColor === 'agent' || data.type === 'agent';
 
   return (
     <div className="relative flex flex-col items-center">
       <div
         className={`
-          relative w-20 h-20 shadow-md border-2 transition-all
+          relative w-[72px] h-[72px] border-2 transition-all
           bg-[var(--color-bg-primary)] dark:bg-[var(--color-bg-secondary)]
-          rounded-full
-          flex items-center justify-center text-center
-          ${selected ? 'ring-2 ring-offset-0' : 'hover:shadow-lg'}
-          ${isGhost ? 'border-dashed opacity-70' : ''}
+          rounded-full flex items-center justify-center text-center
+          ${selected ? 'ring-2 ring-offset-2' : 'hover:ring-1 hover:ring-offset-1'}
+          ${isGhost ? 'border-dashed opacity-60' : ''}
         `}
         style={{
-          borderColor,
-          ringColor: borderColor,
-          boxShadow: isGhost ? 'none' : `0 0 20px ${glowColor.primary}40, 0 0 40px ${glowColor.secondary}20`,
+          borderColor: selected ? glowColor.primary : borderColor,
+          ringColor: glowColor.primary,
+          boxShadow: isGhost ? 'none' : selected 
+            ? `0 0 12px ${glowColor.primary}50, 0 0 24px ${glowColor.secondary}25`
+            : `0 0 8px ${glowColor.primary}25, 0 0 16px ${glowColor.secondary}15`,
         }}
       >
         {/* Left Handle (incoming connection) */}
@@ -67,44 +67,32 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           type="target"
           position={Position.Left}
           isConnectable={isConnectable}
-          className="w-[54px] h-[54px] !border-2 -left-7"
+          className="!w-3 !h-3 !border-2 !rounded-full !-left-0"
           style={{
-            backgroundColor: isGhost ? 'var(--color-border)' : colorToken,
-            borderColor: 'var(--color-border)',
-            boxShadow: isGhost ? 'none' : `0 0 10px ${colorToken}`,
+            borderColor: isGhost ? 'var(--color-border)' : colorToken,
+            backgroundColor: 'var(--color-bg-primary)',
+            zIndex: 10,
           }}
         />
 
-        {/* Icon with glow */}
+        {/* Icon */}
         <div
-          className="flex-shrink-0 p-2 rounded-full relative"
+          className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full"
           style={{
-            backgroundColor: isGhost ? 'transparent' : `${colorToken}25`,
+            backgroundColor: isGhost ? 'transparent' : `${colorToken}20`,
             color: iconColor,
           }}
         >
-          {/* Glow effect behind icon */}
-          {!isGhost && (
-            <div 
-              className="absolute inset-0 rounded-full blur-md"
+          {IconComponent ? (
+            <IconComponent 
+              className="w-8 h-8" 
               style={{
-                backgroundColor: `${glowColor.primary}30`,
-                boxShadow: `0 0 15px ${glowColor.primary}60`,
+                filter: isGhost ? 'none' : `drop-shadow(0 0 4px ${glowColor.primary}60)`,
               }}
             />
+          ) : (
+            <span className="w-8 h-8 flex items-center justify-center text-xs">o</span>
           )}
-          <div className="relative z-10">
-            {IconComponent ? (
-              <IconComponent 
-                className="w-10 h-10" 
-                style={{
-                  filter: isGhost ? 'none' : `drop-shadow(0 0 8px ${glowColor.primary})`,
-                }}
-              />
-            ) : (
-              <span className="w-10 h-10 flex items-center justify-center text-xs">o</span>
-            )}
-          </div>
         </div>
 
         {/* Right Handle (outgoing connection) */}
@@ -112,22 +100,21 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           type="source"
           position={Position.Right}
           isConnectable={isConnectable}
-          className="w-[54px] h-[54px] !border-2 -right-7"
+          className="!w-3 !h-3 !border-2 !rounded-full !-right-0"
           style={{
-            backgroundColor: isGhost ? 'var(--color-border)' : colorToken,
-            borderColor: 'var(--color-border)',
-            boxShadow: isGhost ? 'none' : `0 0 10px ${colorToken}`,
+            borderColor: isGhost ? 'var(--color-border)' : colorToken,
+            backgroundColor: 'var(--color-bg-primary)',
+            zIndex: 10,
           }}
         />
       </div>
 
       {/* Labels below node */}
       <div className="mt-2 min-w-0 text-center">
-        <h3 className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight max-w-[90px]">
+        <h3 className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight max-w-[85px] truncate">
           {data.label}
         </h3>
-
-        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide">
+        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide mt-0.5">
           {data.typeLabel || data.type}
         </p>
       </div>
