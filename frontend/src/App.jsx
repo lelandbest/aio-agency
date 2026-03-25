@@ -86,6 +86,8 @@ const App = () => {
   const [formSlug, setFormSlug] = useState(null);
   const [lastNonFullscreen, setLastNonFullscreen] = useState('aio-brain');
   const [flowId, setFlowId] = useState(null);
+  const [flowAction, setFlowAction] = useState(null);
+  const [flowIntent, setFlowIntent] = useState(null);
   const [commsThreadId, setCommsThreadId] = useState(null);
   const [integrationCategory, setIntegrationCategory] = useState('automation');
   const [crmContactId, setCrmContactId] = useState(null);
@@ -185,6 +187,12 @@ const App = () => {
       }
       if (detail.flowId !== undefined) {
         setFlowId(detail.flowId);
+      }
+      if (detail.action !== undefined) {
+        setFlowAction(detail.action);
+      }
+      if (detail.intent !== undefined) {
+        setFlowIntent(detail.intent);
       }
       if (detail.threadId !== undefined) {
         setCommsThreadId(detail.threadId);
@@ -380,7 +388,7 @@ const App = () => {
       case 'integrations':
         return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':
-        return <FlowsModule flowId={flowId} onExit={() => setActiveModule(lastNonFullscreen || 'dashboard')} />;
+        return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onExit={() => setActiveModule('aio-brain')} />;
       case 'chat':
         return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} />;
       case 'marketplace':
@@ -392,7 +400,7 @@ const App = () => {
       case 'settings':
         return <SettingsModule menuStructure={MENU_STRUCTURE} />;
       case 'aio-help':
-        return <HelpModule />;
+        return <HelpModule activeModule={activeModule} />;
       default:
         return <PlaceholderModule name="Module" />;
     }

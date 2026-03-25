@@ -15,6 +15,7 @@ import {
 } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
@@ -998,94 +999,108 @@ const CRMModule = ({ initialContactId = null }) => {
                 <div className="text-[var(--color-text-secondary)]">Loading contacts...</div>
               </div>
             ) : (
-              <div className={shellPanelClass + ' overflow-hidden'}>
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)]">
-                    <tr>
-                      <th className="px-4 py-3 text-left w-12">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedContacts.size === filteredAndSortedContacts.length && filteredAndSortedContacts.length > 0}
-                          onChange={toggleSelectAll}
-                          className="w-4 h-4" 
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('first_name')}>
-                        <div className="flex items-center gap-2">
-                          NAME {renderSortIcon('first_name')}
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
-                        <div className="flex items-center gap-2">
-                          COMPANY {renderSortIcon('company')}
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('lead_score')}>
-                        <div className="flex items-center gap-2">
-                          SCORE {renderSortIcon('lead_score')}
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
-                        TAGS
-                      </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('created_at')}>
-                        <div className="flex items-center gap-2">
-                          CREATED {renderSortIcon('created_at')}
-                        </div>
-                      </th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updated_at')}>
-                        <div className="flex items-center gap-2">
-                          UPDATED {renderSortIcon('updated_at')}
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAndSortedContacts.map(contact => (
-                      <tr 
-                        key={contact.id} 
-                        className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer"
-                      >
-                        <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
+              filteredAndSortedContacts.length > 0 ? (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)]">
+                      <tr>
+                        <th className="px-4 py-3 text-left w-12">
                           <input 
                             type="checkbox" 
-                            checked={selectedContacts.has(contact.id)}
-                            onChange={() => {}}
-                            className="w-4 h-4"
+                            checked={selectedContacts.size === filteredAndSortedContacts.length && filteredAndSortedContacts.length > 0}
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4" 
                           />
-                        </td>
-                        <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
-                          <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
-                            {contact.first_name} {contact.last_name}
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('first_name')}>
+                          <div className="flex items-center gap-2">
+                            NAME {renderSortIcon('first_name')}
                           </div>
-                          <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)]">
-                            {contact.lead_score || '--'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1 flex-wrap">
-                            {contact.tags?.map((tag, idx) => (
-                              <span key={idx} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)]">
-                                {tag}
-                              </span>
-                            ))}
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
+                          <div className="flex items-center gap-2">
+                            COMPANY {renderSortIcon('company')}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                          {new Date(contact.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                          {new Date(contact.updated_at).toLocaleDateString()}
-                        </td>
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('lead_score')}>
+                          <div className="flex items-center gap-2">
+                            SCORE {renderSortIcon('lead_score')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
+                          TAGS
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('created_at')}>
+                          <div className="flex items-center gap-2">
+                            CREATED {renderSortIcon('created_at')}
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updated_at')}>
+                          <div className="flex items-center gap-2">
+                            UPDATED {renderSortIcon('updated_at')}
+                          </div>
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredAndSortedContacts.map(contact => (
+                        <tr 
+                          key={contact.id} 
+                          className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer"
+                        >
+                          <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
+                            <input 
+                              type="checkbox" 
+                              checked={selectedContacts.has(contact.id)}
+                              onChange={() => {}}
+                              className="w-4 h-4"
+                            />
+                          </td>
+                          <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
+                            <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
+                              {contact.first_name} {contact.last_name}
+                            </div>
+                            <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
+                          </td>
+                          <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)]">
+                              {contact.lead_score || '--'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1 flex-wrap">
+                              {contact.tags?.map((tag, idx) => (
+                                <span key={idx} className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)]">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
+                            {new Date(contact.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
+                            {new Date(contact.updated_at).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <EmptyState 
+                      title={searchTerm || Object.values(filters).some(f => f.active) ? "No matching modules" : "Your Dossier is Empty"}
+                      description={searchTerm || Object.values(filters).some(f => f.active) 
+                        ? "We couldn't find any contacts matching your current search or filter parameters." 
+                        : "You haven't established any relationship dossiers yet. Start building your network to see intel here."}
+                      actions={[
+                        { label: 'Create First Contact', type: 'navigate', payload: { route: '/crm' }, icon: 'Plus' },
+                        { label: 'Import CSV Data', type: 'navigate', payload: { route: '/crm' }, icon: 'Play' },
+                        { label: 'CRM Mastery Guide', type: 'navigate', payload: { route: '/help' }, icon: 'Sparkles' }
+                      ]}
+                    />
+                  </div>
+                )
             )}
           </div>
         </div>

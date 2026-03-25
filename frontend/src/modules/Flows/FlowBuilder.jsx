@@ -51,6 +51,8 @@ import flowDraftRepository from './utils/flowDraftRepository';
 import { buildFlowSpec, validateFlowSpec } from './utils/flowSpec';
 import { ingestFlowSource } from './utils/flowIngestion';
 import { mutateFlowGraph } from './utils/flowMutation';
+import { orchestrateFlowIntent } from './orchestration/alphaFlowOrchestrator';
+import { generateFlowFromIntent } from './utils/flowGenerationService';
 
 // Node type registry
 const nodeTypes = {
@@ -137,7 +139,7 @@ const layoutNodesLeftToRight = (nodes, edges) => {
   return nextNodes;
 };
 
-const FlowBuilder = ({ flowId = null, onExit }) => {
+const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) => {
   const getCssVar = (name, fallback = '') => {
     if (typeof window === 'undefined') return fallback;
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -394,6 +396,19 @@ const FlowBuilder = ({ flowId = null, onExit }) => {
         }
 
         setFlow(flowData);
+
+        // 0. Dynamic Flow Generation (Alpha Orchestration Layer)
+        if (action === 'create_dynamic_flow' && intent) {
+          const alphaPlan = orchestrateFlowIntent(intent);
+          if (alphaPlan.approved) {
+            console.log('[FlowBuilder] Alpha Approved Intent:', alphaPlan.normalizedIntent);
+            // This will internally call flowDraftRepository.saveDraft + setActiveDraft
+            generateFlowFromIntent(alphaPlan);
+          } else {
+            console.warn('[FlowBuilder] Alpha Rejected Intent:', alphaPlan.reason);
+            logToTerminal(`Alpha rejected intent: ${alphaPlan.reason}`, 'error');
+          }
+        }
 
         // 1. Initial Load Ingress (Saved)
         const initialResult = ingestFlowSource({ 

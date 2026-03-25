@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import EmptyState from '../../components/EmptyState';
 import {
   advanceThreadStageApi,
   assignThreadApi,
@@ -1494,7 +1495,19 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                 </div>
               </>
             ) : (
-              <div className="h-full flex items-center justify-center text-[var(--color-text-secondary)]">No threads in this queue.</div>
+              <div className="h-full flex items-center justify-center">
+                <EmptyState 
+                  title={search ? "No matches found" : "Inbox is Silent"}
+                  description={search 
+                    ? "We couldn't find any threads matching your search criteria across your active mailboxes." 
+                    : "Your communication queues are clear. Start a new thread or wait for incoming signals."}
+                  actions={[
+                    { label: 'Start New Thread', type: 'navigate', payload: { route: '/comms' }, icon: 'Plus' },
+                    { label: 'Manage Mailboxes', type: 'navigate', payload: { route: '/comms' }, icon: 'Play' },
+                    { label: 'Comms Strategy Guide', type: 'navigate', payload: { route: '/help' }, icon: 'Sparkles' }
+                  ]}
+                />
+              </div>
             )}
           </main>
 
@@ -1826,7 +1839,15 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-[var(--color-text-secondary)]">Select a thread to inspect context.</div>
+              <div className="h-full flex items-center justify-center">
+                <EmptyState 
+                  title="Context Awaiting"
+                  description="Select a relationship dossier from the inbox to inspect the full AI brief, tracks, and CRM linkage."
+                  actions={[
+                    { label: 'How Comms Works', type: 'navigate', payload: { route: '/help' }, icon: 'Sparkles' }
+                  ]}
+                />
+              </div>
             )}
           </aside>
         </div>

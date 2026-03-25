@@ -1,12 +1,271 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, Users, MessageSquare, Zap, X, 
   BarChart3, Activity, Brain, Target, Send, 
-  Save, Grid3x3, RefreshCw, FileText
+  Save, Grid3x3, RefreshCw, FileText, AlertCircle, 
+  ChevronRight, Play, Wand2, Clock, Star, Settings
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import { assistAiApi, getAiRunsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
+import { executeHelpAction } from '../Help/actions/helpActions';
+
+/**
+ * SIGNAL ENGINE CORE LOGIC
+ * Interprets raw system data into actionable intelligence.
+ */
+const mapDataToSignals = (rawData) => {
+  const { contacts = [], threads = [], aiRuns = [] } = rawData;
+  const signals = [];
+  const now = Date.now();
+
+  // 1. Pipeline Signals (Stalled Deals)
+  const stalledDeals = contacts.filter(c => {
+    if (!c.pipeline_stage || ['Closed Won', 'Closed Lost'].includes(c.pipeline_stage)) return false;
+    const lastUpdate = new Date(c.updated_at || c.created_at).getTime();
+    return (now - lastUpdate) > (48 * 60 * 60 * 1000); // 48h limit
+  });
+
+  if (stalledDeals.length > 0) {
+    signals.push({
+      id: `stalled-deals-${now}`,
+      type: 'pipeline',
+      severity: stalledDeals.length > 2 ? 'critical' : 'attention',
+      title: `${stalledDeals.length} deals stalled for 48+ hours`,
+      description: `Multiple leads in your pipeline haven't moved despite recent activity.`,
+      impact: 'Potential revenue stagnation and decreased conversion probability.',
+      primaryAction: {
+        label: 'Open Pipeline',
+        action: { type: 'open_module', payload: { module: 'pipeline' } }
+      },
+      recommendedActions: [
+        { label: 'Generate Follow-ups', action: { type: 'create_flow_dynamic', payload: { intent: 'follow up with stalled leads in pipeline', source: 'signals' } } },
+        { label: 'Assign Agent', action: { type: 'navigate', payload: { route: '/settings' } } }
+      ],
+      count: stalledDeals.length,
+      entities: stalledDeals,
+      source: 'CRM Pulse',
+      timestamp: now
+    });
+  }
+
+  // 2. Comms Signals (Missed Follow-ups)
+  const unreadThreads = threads.filter(t => t.status === 'unread' || t.lastMessageSource === 'external');
+  if (unreadThreads.length > 0) {
+    signals.push({
+      id: `unread-threads-${now}`,
+      type: 'comms',
+      severity: unreadThreads.length > 5 ? 'critical' : 'attention',
+      title: `${unreadThreads.length} threads require attention`,
+      description: `New messages or unread threads are piling up in your inbox.`,
+      impact: 'Delayed response times impact customer satisfaction and lead trust.',
+      primaryAction: {
+        label: 'Open Inbox',
+        action: { type: 'open_module', payload: { module: 'chat' } }
+      },
+      recommendedActions: [
+        { label: 'AI Draft Replies', action: { type: 'create_flow_dynamic', payload: { intent: 'draft replies for unread messages', source: 'signals' } } }
+      ],
+      count: unreadThreads.length,
+      entities: unreadThreads,
+      source: 'Comms Engine',
+      timestamp: now
+    });
+  }
+
+  // 3. System Signals (AI Efficiency)
+  const failedRuns = aiRuns.filter(r => r.status === 'failed');
+  if (failedRuns.length > 0) {
+    signals.push({
+      id: `failed-runs-${now}`,
+      type: 'system',
+      severity: 'critical',
+      title: `${failedRuns.length} AI automations failed`,
+      description: `Critical workflow nodes failed to execute in the last 24 hours.`,
+      impact: 'Operational breakage in automated lead nurturing pipelines.',
+      primaryAction: {
+        label: 'Review Automation',
+        action: { type: 'open_module', payload: { module: 'flows' } }
+      },
+      recommendedActions: [
+        { label: 'Debug Intent', action: { type: 'create_flow_dynamic', payload: { intent: 'debug the most recent failed automation runs', source: 'signals' } } }
+      ],
+      count: failedRuns.length,
+      source: 'Neural Monitoring',
+      timestamp: now
+    });
+  }
+
+  // 4. Normal Updates (Informational)
+  if (aiRuns.length > 10) {
+    signals.push({
+      id: `ai-velocity-${now}`,
+      type: 'ai',
+      severity: 'normal',
+      title: 'High AI execution velocity',
+      description: `Your neural engine processed ${aiRuns.length} triggers successfully.`,
+      impact: 'System is operating at peak efficiency under current load.',
+      primaryAction: {
+        label: 'View Logs',
+        action: { type: 'open_module', payload: { module: 'flows' } }
+      },
+      source: 'Brain Stats',
+      timestamp: now
+    });
+  }
+
+  return signals;
+};
+
+/**
+ * UI COMPONENTS
+ */
+
+const PrioritySignalStrip = ({ signals }) => {
+  const prioritySignals = signals
+    .filter(s => s.severity === 'critical' || s.severity === 'attention')
+    .slice(0, 3);
+
+  if (prioritySignals.length === 0) return null;
+
+  return (
+    <div className="px-6 py-4 border-b border-[var(--color-border)] bg-red-500/5">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertCircle size={14} className="text-red-400" />
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Priority Signals</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {prioritySignals.map(signal => (
+          <div key={signal.id} className="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/5 shadow-2xl">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black text-white uppercase tracking-widest truncate">{signal.title}</p>
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">{signal.source}</p>
+            </div>
+            <button
+              onClick={() => executeHelpAction(signal.primaryAction.action)}
+              className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-[9px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg"
+            >
+              {signal.primaryAction.label}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const SignalCard = ({ signal }) => {
+  const severityColor = {
+    critical: 'border-red-500/30 bg-red-500/5 text-red-400',
+    attention: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
+    normal: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
+  }[signal.severity];
+
+  const iconColor = {
+    critical: 'text-red-400 bg-red-400/10',
+    attention: 'text-amber-400 bg-amber-400/10',
+    normal: 'text-emerald-400 bg-emerald-400/10',
+  }[signal.severity];
+
+  return (
+    <div className={`p-6 rounded-2xl border ${severityColor} transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl`}>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconColor}`}>
+            <Zap size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">{signal.title}</h3>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]">{signal.source}</p>
+          </div>
+        </div>
+        <div className={`px-2 py-0.5 rounded-md text-[7px] font-black uppercase border ${severityColor}`}>
+          {signal.severity}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-[11px] text-[var(--color-text-secondary)] font-medium leading-relaxed">
+            {signal.description}
+          </p>
+          <div className="pt-2">
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Impact Analysis:</span>
+            <p className="text-[10px] text-white/70 italic">{signal.impact}</p>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-white/5 space-y-3">
+          <button
+            onClick={() => executeHelpAction(signal.primaryAction.action)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] transition-all"
+          >
+            <Play size={10} />
+            {signal.primaryAction.label}
+          </button>
+
+          <div className="flex gap-2">
+            {signal.recommendedActions?.map((action, idx) => (
+              <button
+                key={idx}
+                onClick={() => executeHelpAction(action.action)}
+                className="flex-1 py-2 rounded-lg bg-black/20 border border-white/5 hover:border-[var(--color-primary)] text-slate-400 hover:text-[var(--color-primary)] text-[9px] font-bold uppercase transition-all"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SignalHistory = ({ signals }) => {
+  return (
+    <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl p-6 shadow-xl">
+      <div className="flex items-center gap-2 mb-6">
+        <Clock size={16} className="text-sky-400" />
+        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-text-primary)]">Signal Intelligence Feed</h3>
+      </div>
+      <div className="space-y-6">
+        {signals.length > 0 ? signals.map((signal, i) => (
+          <div key={i} className="group relative flex gap-4">
+            <div className="flex flex-col items-center">
+              <div className={`w-3 h-3 rounded-full border-2 border-black ${
+                signal.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
+                signal.severity === 'attention' ? 'bg-amber-500' : 'bg-emerald-500'
+              }`} />
+              {i < signals.length - 1 && <div className="w-px h-full bg-white/5 my-2" />}
+            </div>
+            <div className="flex-1 pb-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] font-black text-white uppercase tracking-widest group-hover:text-[var(--color-primary)] transition-colors">{signal.title}</p>
+                <span className="text-[8px] font-bold text-slate-600 uppercase">{new Date(signal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed font-medium line-clamp-2">{signal.description}</p>
+              <div className="mt-2 flex items-center gap-3">
+                <span className="text-[7px] font-black text-slate-700 uppercase tracking-widest">{signal.source}</span>
+                <ChevronRight size={10} className="text-slate-800" />
+                <button 
+                  onClick={() => executeHelpAction(signal.primaryAction.action)}
+                  className="text-[7px] font-black text-[var(--color-primary)] uppercase tracking-widest hover:underline"
+                >
+                  EXECUTE {signal.primaryAction.label}
+                </button>
+              </div>
+            </div>
+          </div>
+        )) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
+            <Brain size={32} className="mb-4" />
+            <p className="text-xs font-black uppercase tracking-widest">No Signals Detected</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false }) => {
   const colorClass = {
@@ -19,16 +278,16 @@ const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false })
   }[color] || 'text-purple-400';
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-[var(--color-bg-tertiary)]/50 rounded-lg border border-[var(--color-border)]">
-      <div className={`${colorClass}`}>
+    <div className="flex items-center gap-3 px-4 py-3 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-all">
+      <div className={`${colorClass} shrink-0`}>
         <Icon size={18} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)]">{title}</p>
-        <p className="text-lg font-bold text-[var(--color-text-primary)]">{value}</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">{title}</p>
+        <p className="text-lg font-black text-white">{value}</p>
       </div>
       {live && (
-        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" title="Live" />
+        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
       )}
     </div>
   );
@@ -42,37 +301,19 @@ const PulseBand = ({ stats, loading }) => {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/30">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Activity size={14} className="text-sky-400" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Pulse</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-4 gap-3 animate-pulse">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-16 bg-[var(--color-bg-tertiary)] rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/30">
+    <div className="px-6 py-4 border-b border-[var(--color-border)] bg-black/10">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Activity size={14} className="text-sky-400" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Pulse</span>
+          <Activity size={14} className="text-[var(--color-primary)]" />
+          <span className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.3em]">System Pulse</span>
         </div>
-        <div className="flex items-center gap-1 text-[9px] text-[var(--color-text-tertiary)]">
-          <RefreshCw size={10} />
-          <span>Updated {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        <div className="flex items-center gap-2 text-[8px] font-black text-slate-500 uppercase tracking-widest">
+          <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+          Neural Link: Established
         </div>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} />
         <PulseCard title="Pipeline" value={stats.pipeline} icon={Target} color="green" live={true} />
         <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} />
@@ -82,338 +323,131 @@ const PulseBand = ({ stats, loading }) => {
   );
 };
 
-const BarChart = ({ title, data, color = 'var(--color-primary)' }) => {
-  const maxValue = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
-      <h3 className="text-sm font-bold text-[var(--color-text-secondary)] mb-4">{title}</h3>
-      <div className="space-y-3">
-        {data.map((item, i) => (
-          <div key={i}>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-xs text-[var(--color-text-secondary)]">{item.label}</span>
-              <span className="text-sm font-bold text-[var(--color-text-primary)]">{item.value}</span>
-            </div>
-            <div className="w-full bg-[var(--color-bg-tertiary)] rounded h-2 overflow-hidden">
-              <div 
-                style={{ width: `${(item.value / maxValue) * 100}%`, backgroundColor: color }}
-                className="h-full transition-all"
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const LineChart = ({ title, data, color = 'var(--color-accent)' }) => {
-  const maxValue = Math.max(...data.map(d => d.value), 1);
-  const minValue = Math.min(...data.map(d => d.value), 0);
-  const range = maxValue - minValue || 1;
-  
-  const points = data.map((d, i) => ({
-    x: (i / (data.length - 1 || 1)) * 100,
-    y: 100 - ((d.value - minValue) / range) * 100,
-  }));
-
-  return (
-    <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
-      <h3 className="text-sm font-bold text-[var(--color-text-secondary)] mb-4">{title}</h3>
-      <svg width="100%" height="120" viewBox="0 0 100 120" className="mb-2" preserveAspectRatio="none">
-        <polyline
-          points={points.map(p => `${p.x},${p.y}`).join(' ')}
-          fill="none"
-          stroke={color}
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="flex justify-between text-xs text-[var(--color-text-secondary)]">
-        {data.map((d, i) => (
-          <span key={i}>{d.label}</span>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const ActivityTimeline = ({ activities }) => {
-  return (
-    <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
-      <h3 className="text-sm font-bold text-gray-400 mb-4">Recent Signals</h3>
-      <div className="space-y-4">
-        {activities?.length ? activities.map((activity, i) => (
-          <div key={i} className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <div className={`w-2 h-2 rounded-full ${activity.color || 'bg-sky-500'}`} />
-              {i < activities.length - 1 && <div className="w-0.5 h-6 bg-[var(--color-hover)] my-1" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-white">{activity.title}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{activity.description}</p>
-              <p className="text-xs text-gray-600 mt-1">{activity.time}</p>
-            </div>
-          </div>
-        )) : (
-          <p className="text-sm text-gray-500">No recent signals</p>
-        )}
-      </div>
-    </div>
-  );
-};
-
+/**
+ * MAIN MODULE
+ */
 const SignalsModule = () => {
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [showCustomizePanel, setShowCustomizePanel] = useState(false);
-  const [visibleComponents, setVisibleComponents] = useState({
-    stats: true,
-    charts: true,
-    timeline: true,
-  });
-  const [customActions, setCustomActions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [insight, setInsight] = useState('');
-  
-  const [stats, setStats] = useState({
-    contacts: 0,
-    pipeline: 0,
-    comms: 0,
-    aiRuns: 0,
-  });
-
-  const [chartData, setChartData] = useState({
-    pipeline: [],
-    aiActivity: [],
-  });
-
-  const [activities, setActivities] = useState([]);
-
-  const runDashboardAssist = async () => {
-    try {
-      const response = await assistAiApi({
-        module: 'signals',
-        surface: 'insights',
-        field: 'summary',
-        intent: 'analyze',
-        current_value: '',
-        context: {
-          stats: stats,
-          pipelineStages: chartData.pipeline,
-        }
-      });
-      if (response?.suggestion) {
-        setInsight(response.suggestion);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const [stats, setStats] = useState({ contacts: 0, pipeline: 0, comms: 0, aiRuns: 0 });
+  const [signals, setSignals] = useState([]);
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    const loadSignalsData = async () => {
+    const loadEngineData = async () => {
       setLoading(true);
       try {
         const [contactsRes, commsRes, aiRunsRes] = await Promise.all([
           getContactsApi().catch(() => []),
           getCommsSnapshotApi().catch(() => ({ threads: [] })),
-          getAiRunsApi(20).catch(() => []),
+          getAiRunsApi(50).catch(() => []),
         ]);
 
-        const contacts = contactsRes || [];
-        const threads = commsRes?.threads || commsRes?.allThreads || [];
-        const aiRuns = aiRunsRes || [];
+        const rawData = {
+          contacts: contactsRes || [],
+          threads: commsRes?.threads || commsRes?.allThreads || [],
+          aiRuns: aiRunsRes || []
+        };
 
-        const pipelineStages = {};
-        contacts.forEach(c => {
-          const stage = c.pipeline_stage || 'New';
-          pipelineStages[stage] = (pipelineStages[stage] || 0) + 1;
-        });
-
-        const aiByDay = {};
-        const now = new Date();
-        aiRuns.forEach(run => {
-          const d = new Date(run.created_at);
-          const key = d.toLocaleDateString('en-US', { weekday: 'short' });
-          aiByDay[key] = (aiByDay[key] || 0) + 1;
-        });
-
-        const aiActivity = Object.entries(aiByDay).map(([label, value]) => ({ label, value }));
+        const generatedSignals = mapDataToSignals(rawData);
 
         setStats({
-          contacts: contacts.length,
-          pipeline: contacts.filter(c => c.pipeline_stage && !['Closed Won', 'Closed Lost'].includes(c.pipeline_stage)).length,
-          comms: threads.length,
-          aiRuns: aiRuns.length,
+          contacts: rawData.contacts.length,
+          pipeline: rawData.contacts.filter(c => c.pipeline_stage && !['Closed Won', 'Closed Lost'].includes(c.pipeline_stage)).length,
+          comms: rawData.threads.length,
+          aiRuns: rawData.aiRuns.length,
         });
 
-        setChartData({
-          pipeline: Object.entries(pipelineStages).map(([label, value]) => ({ label, value })),
-          aiActivity,
-        });
+        setSignals(generatedSignals);
+        setHistory(generatedSignals.sort((a, b) => b.timestamp - a.timestamp));
 
-        const recentActivities = [];
-        
-        if (aiRuns.length) {
-          recentActivities.push({
-            title: 'AI Activity',
-            description: `${aiRuns.length} runs this session`,
-            time: new Date(aiRuns[0]?.created_at).toLocaleTimeString(),
-            color: 'bg-cyan-500'
-          });
-        }
-        
-        if (threads.length) {
-          recentActivities.push({
-            title: 'Conversations',
-            description: `${threads.filter(t => t.status === 'active').length} active threads`,
-            time: 'Now',
-            color: 'bg-sky-500'
-          });
-        }
-
-        if (contacts.length) {
-          recentActivities.push({
-            title: 'CRM',
-            description: `${contacts.length} contacts loaded`,
-            time: 'Loaded',
-            color: 'bg-purple-500'
-          });
-        }
-
-        setActivities(recentActivities);
       } catch (err) {
-        console.error('Signals load error:', err);
+        console.error('Signal Engine failure:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadSignalsData();
+    loadEngineData();
   }, []);
 
-  const toggleComponent = (component) => {
-    setVisibleComponents(prev => ({
-      ...prev,
-      [component]: !prev[component]
-    }));
-  };
-
-  const handleQuickAction = async (actionId) => {
-    console.log('Quick action:', actionId);
-  };
-
   const quickActions = [
-    { id: 'new-contact', label: 'New Contact', icon: Users },
-    { id: 'send-msg', label: 'Send Message', icon: Send },
-    { id: 'new-deal', label: 'New Deal', icon: Target },
-    { id: 'brain-seed', label: 'Seed Brain', icon: Brain },
-    { id: 'new-form', label: 'Create Form', icon: FileText },
-    { id: 'new-flow', label: 'Create Flow', icon: Zap },
+    { id: 'new-contact', label: 'New Contact', icon: Users, action: { type: 'navigate', payload: { route: '/crm' } } },
+    { id: 'send-msg', label: 'Send Message', icon: Send, action: { type: 'open_module', payload: { module: 'chat' } } },
+    { id: 'new-deal', label: 'New Deal', icon: Target, action: { type: 'open_module', payload: { module: 'pipeline' } } },
+    { id: 'new-flow', label: 'Create Flow', icon: Zap, action: { type: 'open_module', payload: { module: 'flows' } } },
   ];
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
-      <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-2xl border border-[var(--color-border)] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+      {/* Action Header */}
+      <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4 bg-black/5">
+        <div className="flex items-center gap-3">
           {quickActions.map(action => (
             <button
               key={action.id}
-              onClick={() => handleQuickAction(action.id)}
-              className="w-8 h-8 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center justify-center transition"
+              onClick={() => executeHelpAction(action.action)}
+              className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 hover:border-[var(--color-primary)] text-slate-500 hover:text-[var(--color-primary)] flex items-center justify-center transition-all shadow-sm"
               title={action.label}
             >
               <action.icon size={16} />
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Signal Capacity: Nominal</div>
           <button
-            onClick={() => console.log('Export')}
-            className="px-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] rounded-lg text-sm font-medium flex items-center gap-2 transition"
+            className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 text-slate-500 hover:text-white flex items-center justify-center transition-all"
+            title="System Diagnostics"
           >
-            <BarChart3 size={14} />
-            Export
-          </button>
-          <AIAssistButton
-            onAssist={runDashboardAssist}
-            tooltip="Generate AI Insights"
-            iconType="crosshair"
-          />
-          <button
-            onClick={() => setIsEditMode(!isEditMode)}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center justify-center transition"
-            title={isEditMode ? 'Done' : 'Customize'}
-          >
-            {isEditMode ? <Save size={16} /> : <Grid3x3 size={16} />}
+            <Settings size={16} />
           </button>
         </div>
       </div>
 
       <PulseBand stats={stats} loading={loading} />
+      
+      {!loading && <PrioritySignalStrip signals={signals} />}
 
-      {insight && (
-        <div className="mx-6 mt-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm text-cyan-200">{insight}</p>
-            <button onClick={() => setInsight('')} className="text-cyan-400 hover:text-cyan-200">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto p-6 no-scrollbar">
-        {isEditMode && (
-          <div className="mb-4 flex gap-2 flex-wrap">
-            {Object.entries(visibleComponents).map(([key, visible]) => (
-              <button
-                key={key}
-                onClick={() => toggleComponent(key)}
-                className={`px-3 py-1 rounded text-xs font-bold uppercase ${visible ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
-              >
-                {key}: {visible ? 'ON' : 'OFF'}
-              </button>
-            ))}
-          </div>
-        )}
-
+      <div className="flex-1 overflow-y-auto p-8 no-scrollbar bg-gradient-to-b from-transparent to-black/10">
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]" />
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500">
+            <RefreshCw className="animate-spin" size={24} />
+            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Synching Neural Engine...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column - Key Signals & Charts */}
-            <div>
-              {visibleComponents.charts && chartData.pipeline.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-4">Key Signals</h2>
-                  <div className="space-y-4">
-                    <BarChart 
-                      title="Funnel Movement" 
-                      data={chartData.pipeline} 
-                      color="var(--color-primary)" 
-                    />
-                    <LineChart 
-                      title="AI Activity" 
-                      data={chartData.aiActivity.length ? chartData.aiActivity : [{ label: 'Mon', value: 0 }, { label: 'Tue', value: 0 }, { label: 'Wed', value: 0 }, { label: 'Thu', value: 0 }, { label: 'Fri', value: 0 }]} 
-                      color="#06b6d4" 
-                    />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 max-w-[1600px] mx-auto">
+            {/* Main Intelligence Grid */}
+            <div className="lg:col-span-8 space-y-10">
+              <section className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-6 bg-[var(--color-primary)]" />
+                    <h2 className="text-[12px] font-black text-white uppercase tracking-[0.4em]">Active Signals</h2>
                   </div>
+                  <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{signals.length} Conditions Interpreted</span>
                 </div>
-              )}
-
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {signals.length > 0 ? (
+                    signals.map(signal => (
+                      <SignalCard key={signal.id} signal={signal} />
+                    ))
+                  ) : (
+                    <div className="col-span-full py-20 rounded-3xl border border-dashed border-white/5 flex flex-col items-center justify-center text-slate-600 gap-4">
+                      <TrendingUp size={48} className="opacity-20" />
+                      <div className="text-center">
+                        <p className="text-sm font-black uppercase tracking-widest">AIO Signal Engine: Clear</p>
+                        <p className="text-[10px] uppercase tracking-widest opacity-50">No urgent follow-ups or stalling detected.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
 
-            {/* Right Column - Recent Activity */}
-            <div>
-              {visibleComponents.timeline && (
-                <div className="mb-6">
-                  <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-4">Recent Activity</h2>
-                  <ActivityTimeline activities={activities} />
-                </div>
-              )}
+            {/* Intelligence Feed */}
+            <div className="lg:col-span-4 h-fit sticky top-0">
+              <SignalHistory signals={history} />
             </div>
           </div>
         )}
