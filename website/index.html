@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIO CRM — Neural Operations Platform</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav-main">
+        <div class="nav-container">
+            <a href="#hero" class="nav-brand">
+                <svg class="nav-logo" viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="18" stroke="url(#gearGrad)" stroke-width="2"/>
+                    <circle cx="20" cy="20" r="8" fill="url(#gearGrad)"/>
+                    <circle cx="20" cy="8" r="3" fill="#B87333"/>
+                    <circle cx="20" cy="32" r="3" fill="#B87333"/>
+                    <circle cx="8" cy="20" r="3" fill="#B87333"/>
+                    <circle cx="32" cy="20" r="3" fill="#B87333"/>
+                    <defs>
+                        <linearGradient id="gearGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#B87333"/>
+                            <stop offset="50%" stop-color="#D4AF37"/>
+                            <stop offset="100%" stop-color="#B8860B"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="nav-title">AIO<span class="nav-title-accent">CRM</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="#hero" class="nav-link active">Home</a>
+                <a href="#cortex" class="nav-link">Cortex</a>
+                <a href="#demo" class="nav-link">Demo</a>
+                <a href="#spec" class="nav-link">Spec</a>
+                <a href="#how-it-works" class="nav-link">How</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+                <button class="btn btn-primary nav-signup-btn" onclick="openSignupModal()">Plan Deployment</button>
+            </div>
+            <button class="nav-toggle" aria-label="Toggle navigation">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <section id="hero" class="hero">
+        <div class="container">
+            <div class="hero-center">
+                <p class="hero-tag">Neural Operations Platform</p>
+                <h1 class="hero-title">If your CRM needs Humans to run it, It's Broken...</h1>
+                <p class="hero-desc">
+                    Orchestrate your entire business with AI-powered automation. 
+                    From signal detection to intelligent reporting, AIO CRM thinks 
+                    with you—not for you.
+                </p>
+                <div class="hero-btns">
+                    <a href="#pricing" class="btn btn-primary">Book Discovery</a>
+                    <a href="#cortex" class="btn btn-secondary">See Cortex</a>
+                </div>
+                <div class="hero-features">
+                    <span>14+ AI Models</span>
+                    <span>•</span>
+                    <span>6+ Integrations</span>
+                    <span>•</span>
+                    <span>100% Private</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CORTEX INTELLIGENCE -->
+    <section id="cortex" class="cortex-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Neural Cortex</span>
+                <h2 class="section-title">AI-Powered Intelligence</h2>
+                <p class="section-desc">Twelve specialized insight reports synthesized from your CRM, communications, and signals data.</p>
+            </div>
+            
+            <div class="cortex-grid">
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <h4>Brand Avatar Intelligence</h4>
+                    <p>Synthesize your brand DNA into actionable positioning insights</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </div>
+                    <h4>Awareness & Attention</h4>
+                    <p>Track visibility metrics and market presence analysis</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                        </svg>
+                    </div>
+                    <h4>Content Performance</h4>
+                    <p>ROI tracking and optimization recommendations</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h4>Offer & Conversion</h4>
+                    <p>Revenue pipeline analysis and deal optimization</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                        </svg>
+                    </div>
+                    <h4>Customer Journey Mapping</h4>
+                    <p>Touchpoint analysis and bottleneck detection</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                        </svg>
+                    </div>
+                    <h4>Market Intelligence</h4>
+                    <p>Trend analysis and emerging opportunity detection</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <h4>Competitive Intelligence</h4>
+                    <p>Positioning analysis and gap identification</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                    </div>
+                    <h4>Product Performance</h4>
+                    <p>Feature analysis and portfolio optimization</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h4>Operational Efficiency</h4>
+                    <p>Workflow optimization and bottleneck resolution</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h4>Revenue Intelligence</h4>
+                    <p>Financial forecasting and growth analysis</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h4>Client Retention</h4>
+                    <p>Satisfaction metrics and churn prediction</p>
+                </div>
+                
+                <div class="cortex-card">
+                    <div class="cortex-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                    </div>
+                    <h4>Innovation & Opportunity</h4>
+                    <p>Gap analysis and strategic recommendations</p>
+                </div>
+            </div>
+            
+            <div class="cortex-cta">
+                <p>All reports synthesized by Neural Cortex using your connected AI provider</p>
+                <a href="#spec" class="btn btn-secondary">Learn More</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- DEMO VIDEO -->
+    <section id="demo" class="demo-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">See It In Action</span>
+                <h2 class="section-title">Platform Demo</h2>
+                <p class="section-desc">Watch how AIO CRM orchestrates your business operations with AI-powered intelligence.</p>
+            </div>
+            
+            <div class="demo-container">
+                <div class="demo-placeholder">
+                    <div class="demo-placeholder-content">
+                        <svg class="demo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        <p class="demo-text">Platform Demo</p>
+                        <p class="demo-subtext">Coming Soon — 3 min overview</p>
+                    </div>
+                    <!-- Uncomment and add your video embed when ready -->
+                    <!-- <video controls poster="images/demo-poster.jpg">
+                        <source src="videos/demo.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video> -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SPEC -->
+    <section id="spec" class="spec-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Capabilities</span>
+                <h2 class="section-title">Technical Specification</h2>
+                <p class="section-desc">Enterprise-grade architecture with private AI deployment options.</p>
+            </div>
+            
+            <div class="spec-grid">
+                <div class="spec-card" id="spec-cortex">
+                    <div class="spec-card-header">
+                        <div class="spec-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                        </div>
+                        <h3>Neural Cortex</h3>
+                    </div>
+                    <div class="spec-card-body">
+                        <p>AI-powered intelligence layer that synthesizes insights from your CRM data, communications, and automation patterns.</p>
+                        <ul class="spec-list">
+                            <li><strong>Report Generation:</strong> Automated synthesis of CRM, Comms, and Signals data</li>
+                            <li><strong>ICP Analysis:</strong> Identify highest-value customer segments</li>
+                            <li><strong>Competitive Intelligence:</strong> Positioning analysis and gap identification</li>
+                            <li><strong>Journey Mapping:</strong> Touchpoint analysis and bottleneck detection</li>
+                            <li><strong>Content Performance:</strong> ROI tracking and optimization recommendations</li>
+                        </ul>
+                        <div class="spec-tech">
+                            <span class="spec-tag">OpenAI</span>
+                            <span class="spec-tag">Anthropic</span>
+                            <span class="spec-tag">Ollama</span>
+                            <span class="spec-tag">OpenRouter</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="spec-card" id="spec-orchestration">
+                    <div class="spec-card-header">
+                        <div class="spec-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m14 0h2M3 15h2m14 0h2M7 7h10a2 2 0 012 2v8a2 2 0 01-2 2H7a2 2 0 01-2-2V9a2 2 0 012-2z"/>
+                                <path d="M9 12l2 2 4-4"/>
+                            </svg>
+                        </div>
+                        <h3>Signal Orchestration</h3>
+                    </div>
+                    <div class="spec-card-body">
+                        <p>Intelligent action execution with risk-aware workflows. Every action logged, every outcome tracked.</p>
+                        <ul class="spec-list">
+                            <li><strong>Risk Classification:</strong> Low/Medium/High risk detection</li>
+                            <li><strong>Confirmation Workflows:</strong> User confirmation for sensitive operations</li>
+                            <li><strong>Execution Logging:</strong> Complete audit trail with timestamps</li>
+                            <li><strong>Escalation Hooks:</strong> Configurable escalation triggers</li>
+                            <li><strong>Payload Validation:</strong> Sanitization and normalization</li>
+                        </ul>
+                        <div class="spec-tech">
+                            <span class="spec-tag">FastAPI</span>
+                            <span class="spec-tag">Async</span>
+                            <span class="spec-tag">SQLite</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="spec-card" id="spec-crm">
+                    <div class="spec-card-header">
+                        <div class="spec-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                        <h3>Full CRM Suite</h3>
+                    </div>
+                    <div class="spec-card-body">
+                        <p>Complete customer relationship management with modern workflows.</p>
+                        <ul class="spec-list">
+                            <li><strong>Contact Management:</strong> Profiles, companies, tags</li>
+                            <li><strong>Pipeline Stages:</strong> Customizable deal flows</li>
+                            <li><strong>Lead Scoring:</strong> Automated quality assessment</li>
+                            <li><strong>Source Tracking:</strong> Attribution analytics</li>
+                            <li><strong>Custom Fields:</strong> Extensible data model</li>
+                        </ul>
+                        <div class="spec-tech">
+                            <span class="spec-tag">React</span>
+                            <span class="spec-tag">Tailwind</span>
+                            <span class="spec-tag">Vite</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="spec-card" id="spec-comms">
+                    <div class="spec-card-header">
+                        <div class="spec-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                        </div>
+                        <h3>Comms Hub</h3>
+                    </div>
+                    <div class="spec-card-body">
+                        <p>Unified communications with AI-powered summaries.</p>
+                        <ul class="spec-list">
+                            <li><strong>Thread Management:</strong> Organized conversation threads</li>
+                            <li><strong>AI Briefs:</strong> Automatic conversation summaries</li>
+                            <li><strong>Contact Linking:</strong> Auto-associate with CRM</li>
+                            <li><strong>Action Extraction:</strong> Pull tasks from conversations</li>
+                            <li><strong>Source Integration:</strong> Email sync ready</li>
+                        </ul>
+                        <div class="spec-tech">
+                            <span class="spec-tag">Real-time</span>
+                            <span class="spec-tag">Webhooks</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="spec-card" id="spec-branding">
+                    <div class="spec-card-header">
+                        <div class="spec-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                            </svg>
+                        </div>
+                        <h3>White-Label Ready</h3>
+                    </div>
+                    <div class="spec-card-body">
+                        <p>Complete branding control for enterprise deployment.</p>
+                        <ul class="spec-list">
+                            <li><strong>Custom Logo:</strong> Upload and display your brand</li>
+                            <li><strong>Color Scheme:</strong> Match your identity</li>
+                            <li><strong>Report Letterhead:</strong> Branded document generation</li>
+                            <li><strong>Multi-Tenant:</strong> Isolated workspaces</li>
+                            <li><strong>Domain Ready:</strong> Deploy on your infrastructure</li>
+                        </ul>
+                        <div class="spec-tech">
+                            <span class="spec-tag">CSS Variables</span>
+                            <span class="spec-tag">Theming</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="spec-card" id="spec-ai-providers">
+                    <div class="spec-card-header">
+                        <div class="spec-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                            </svg>
+                        </div>
+                        <h3>Multi-Provider AI</h3>
+                    </div>
+                    <div class="spec-card-body">
+                        <p>Connect to any AI model. Your choice, your data.</p>
+                        <ul class="spec-list">
+                            <li><strong>Ollama (Local):</strong> Private, on-premise deployment</li>
+                            <li><strong>OpenAI:</strong> GPT-4, GPT-3.5-turbo</li>
+                            <li><strong>Anthropic:</strong> Claude 3 Sonnet, Opus</li>
+                            <li><strong>OpenRouter:</strong> Access to 100+ models</li>
+                            <li><strong>Custom Guardrails:</strong> System and task-level instructions</li>
+                        </ul>
+                        <div class="spec-tech">
+                            <span class="spec-tag">REST API</span>
+                            <span class="spec-tag">Streaming</span>
+                            <span class="spec-tag">Guardrails</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section id="how-it-works" class="how-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Workflow</span>
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-desc">Three simple steps to AI-powered business orchestration.</p>
+            </div>
+            
+            <div class="how-grid">
+                <div class="how-card">
+                    <div class="how-number">01</div>
+                    <div class="how-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>
+                        </svg>
+                    </div>
+                    <h3>Connect Your Data</h3>
+                    <p>Integrate contacts, communications, and signals. Our AI learns your business patterns and context.</p>
+                </div>
+                
+                <div class="how-card">
+                    <div class="how-number">02</div>
+                    <div class="how-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                    </div>
+                    <h3>Cortex AI Analyzes</h3>
+                    <p>Neural Cortex synthesizes insights across your CRM, communications, and automation data in real-time.</p>
+                </div>
+                
+                <div class="how-card">
+                    <div class="how-number">03</div>
+                    <div class="how-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3>Orchestrate & Execute</h3>
+                    <p>Signal Orchestration handles risk-aware automation with full audit trails and user confirmation workflows.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- STATUS -->
+    <section id="status" class="status-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">System Health</span>
+                <h2 class="section-title">Operational Status</h2>
+                <p class="section-desc">Real-time system metrics and uptime monitoring.</p>
+            </div>
+            
+            <div class="status-grid">
+                <div class="status-card status-operational">
+                    <div class="status-indicator"></div>
+                    <div class="status-info">
+                        <h4>API Services</h4>
+                        <p>All systems operational</p>
+                    </div>
+                    <div class="status-uptime">99.9%</div>
+                </div>
+                <div class="status-card status-operational">
+                    <div class="status-indicator"></div>
+                    <div class="status-info">
+                        <h4>AI Providers</h4>
+                        <p>Connected and responding</p>
+                    </div>
+                    <div class="status-uptime">99.7%</div>
+                </div>
+                <div class="status-card status-operational">
+                    <div class="status-indicator"></div>
+                    <div class="status-info">
+                        <h4>Database</h4>
+                        <p>SQLite healthy</p>
+                    </div>
+                    <div class="status-uptime">100%</div>
+                </div>
+                <div class="status-card status-operational">
+                    <div class="status-indicator"></div>
+                    <div class="status-info">
+                        <h4>Frontend</h4>
+                        <p>All modules loading</p>
+                    </div>
+                    <div class="status-uptime">99.8%</div>
+                </div>
+            </div>
+            
+            <div class="status-last-updated">
+                <span class="mono">Last checked:</span> 
+                <span class="mono" id="status-time">Loading...</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- MONITORS -->
+    <section id="monitors" class="monitors-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Observability</span>
+                <h2 class="section-title">System Monitors</h2>
+                <p class="section-desc">Live system metrics and health indicators.</p>
+            </div>
+            
+            <div class="monitors-grid">
+                <div class="monitor-card">
+                    <div class="monitor-header">
+                        <h4>Response Times</h4>
+                        <span class="monitor-badge">Live</span>
+                    </div>
+                    <div class="monitor-content">
+                        <div class="monitor-metric">
+                            <span class="metric-label">API Avg</span>
+                            <span class="metric-value">24ms</span>
+                        </div>
+                        <div class="monitor-metric">
+                            <span class="metric-label">AI Generation</span>
+                            <span class="metric-value">1.2s</span>
+                        </div>
+                        <div class="monitor-metric">
+                            <span class="metric-label">Page Load</span>
+                            <span class="metric-value">380ms</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="monitor-card">
+                    <div class="monitor-header">
+                        <h4>Requests (24h)</h4>
+                        <span class="monitor-badge">Live</span>
+                    </div>
+                    <div class="monitor-content">
+                        <div class="monitor-metric">
+                            <span class="metric-label">Total</span>
+                            <span class="metric-value">48.2K</span>
+                        </div>
+                        <div class="monitor-metric">
+                            <span class="metric-label">AI Calls</span>
+                            <span class="metric-value">1,847</span>
+                        </div>
+                        <div class="monitor-metric">
+                            <span class="metric-label">Errors</span>
+                            <span class="metric-value">0.02%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="monitor-card">
+                    <div class="monitor-header">
+                        <h4>Database</h4>
+                        <span class="monitor-badge">Live</span>
+                    </div>
+                    <div class="monitor-content">
+                        <div class="monitor-metric">
+                            <span class="metric-label">Size</span>
+                            <span class="metric-value">24.8 MB</span>
+                        </div>
+                        <div class="monitor-metric">
+                            <span class="metric-label">Contacts</span>
+                            <span class="metric-value">14</span>
+                        </div>
+                        <div class="monitor-metric">
+                            <span class="metric-label">Records</span>
+                            <span class="metric-value">2.4K</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="monitor-card monitor-embed">
+                    <div class="monitor-header">
+                        <h4>Uptime Kuma</h4>
+                        <span class="monitor-badge">External</span>
+                    </div>
+                    <div class="monitor-embed-content">
+                        <!-- Replace the iframe src with your Uptime Kuma public status page URL -->
+                        <!-- Example: src="https://status.yourdomain.com/" -->
+                        <div class="embed-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            <p>Add your Uptime Kuma embed URL here</p>
+                            <code>&lt;iframe src="https://status.example.com"&gt;</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TESTIMONIALS -->
+    <section id="testimonials" class="testimonials-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Operator Feedback</span>
+                <h2 class="section-title">What Operators Say</h2>
+                <p class="section-desc">From solo entrepreneurs to growing teams.</p>
+            </div>
+            
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="testimonial-quote">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/>
+                        </svg>
+                    </div>
+                    <p class="testimonial-text">AIO CRM transformed how I manage client relationships. The Neural Cortex reports give me insights I never had before.</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar">MK</div>
+                        <div class="testimonial-info">
+                            <strong>Marcus Klein</strong>
+                            <span>Independent Consultant</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="testimonial-card">
+                    <div class="testimonial-quote">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/>
+                        </svg>
+                    </div>
+                    <p class="testimonial-text">Signal Orchestration is a game-changer. I finally have full visibility into what's happening across my pipeline.</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar">SR</div>
+                        <div class="testimonial-info">
+                            <strong>Sarah Reeves</strong>
+                            <span>Agency Owner</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="testimonial-card">
+                    <div class="testimonial-quote">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/>
+                        </svg>
+                    </div>
+                    <p class="testimonial-text">Running Ollama locally means my client data never leaves my network. Privacy-first CRM done right.</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar">JT</div>
+                        <div class="testimonial-info">
+                            <strong>James Torres</strong>
+                            <span>IT Director</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PRICING -->
+    <section id="pricing" class="pricing-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Deployment Options</span>
+                <h2 class="section-title">Local-First AI Infrastructure</h2>
+                <p class="section-desc">AIO CRM is deployed—not subscribed to. Choose the system level that matches the operational reality you want to build.</p>
+            </div>
+
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">Foundation</h3>
+                        <div class="pricing-price pricing-price-deployment">
+                            <span class="price-amount">$1.5k–$5k</span>
+                        </div>
+                        <p class="pricing-desc">Deploy your core local-first AI operations stack with CRM, Comms, Signals, and initial model setup.</p>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><span class="check">✓</span> Local-first AIO CRM deployment</li>
+                        <li><span class="check">✓</span> Core modules: CRM, Comms, Signals</li>
+                        <li><span class="check">✓</span> Initial LLM provider setup (local or API)</li>
+                        <li><span class="check">✓</span> Basic automation flows and routing</li>
+                        <li><span class="check">✓</span> Starter Cortex reporting</li>
+                        <li><span class="check">✓</span> Guardrails + baseline system configuration</li>
+                        <li class="dimmed"><span class="x">✗</span> Advanced orchestration design</li>
+                        <li class="dimmed"><span class="x">✗</span> White-label / multi-tenant deployment</li>
+                    </ul>
+                    <button class="btn btn-secondary pricing-btn" onclick="openSignupModal('foundation')">Book Deployment Call</button>
+                </div>
+
+                <div class="pricing-card pricing-featured pricing-card-core">
+                    <div class="pricing-badge">Core Offer</div>
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">Control</h3>
+                        <div class="pricing-price pricing-price-deployment">
+                            <span class="price-amount">$5k–$15k</span>
+                        </div>
+                        <p class="pricing-desc">Build a true AI control layer across your business with Signals, Cortex, flows, provider orchestration, and custom operating logic.</p>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><span class="check">✓</span> Everything in Foundation</li>
+                        <li><span class="check">✓</span> Full Signals + Cortex integration</li>
+                        <li><span class="check">✓</span> Advanced automation and pipeline design</li>
+                        <li><span class="check">✓</span> Multi-provider model orchestration</li>
+                        <li><span class="check">✓</span> Custom guardrails, reporting, and runtime tuning</li>
+                        <li><span class="check">✓</span> Structured data + pipeline implementation</li>
+                        <li><span class="check">✓</span> Operational dashboard and execution workflows</li>
+                        <li><span class="check">✓</span> Guided launch and validation</li>
+                    </ul>
+                    <button class="btn btn-primary pricing-btn" onclick="openSignupModal('control')">Discuss Your Build</button>
+                </div>
+
+                <div class="pricing-card pricing-card-command">
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">Command</h3>
+                        <div class="pricing-price pricing-price-deployment">
+                            <span class="price-amount">$50k+</span>
+                        </div>
+                        <p class="pricing-desc">Deploy a full local-first AI infrastructure layer for agencies, advanced operators, or enterprise teams that need ownership, control, and scale.</p>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><span class="check">✓</span> Everything in Control</li>
+                        <li><span class="check">✓</span> White-label or multi-tenant architecture</li>
+                        <li><span class="check">✓</span> Advanced orchestration and routing systems</li>
+                        <li><span class="check">✓</span> Custom integrations, APIs, and infrastructure design</li>
+                        <li><span class="check">✓</span> Dedicated local / hybrid deployment strategy</li>
+                        <li><span class="check">✓</span> Enterprise reporting and intelligence workflows</li>
+                        <li><span class="check">✓</span> Strategic implementation support</li>
+                        <li><span class="check">✓</span> Built for ownership—not dependency</li>
+                    </ul>
+                    <button class="btn btn-secondary pricing-btn" onclick="openSignupModal('command')">Request Architecture Review</button>
+                </div>
+            </div>
+
+            <div class="pricing-compare">
+                <h3>Deployment Model</h3>
+                <p>This is not commodity SaaS pricing. These are local-first AI infrastructure deployments designed around ownership, control, and operational execution.</p>
+                <div class="pricing-provider-table">
+                    <div class="provider-row header">
+                        <span>Layer</span>
+                        <span>Best Fit</span>
+                        <span>Commercial Model</span>
+                        <span>Notes</span>
+                    </div>
+                    <div class="provider-row">
+                        <span>Foundation</span>
+                        <span>Solo operators / small teams</span>
+                        <span>One-time deployment</span>
+                        <span>Fastest path to a working AI stack</span>
+                    </div>
+                    <div class="provider-row">
+                        <span>Control</span>
+                        <span>Growth-stage operators</span>
+                        <span>One-time deployment</span>
+                        <span>Primary operating-system tier</span>
+                    </div>
+                    <div class="provider-row">
+                        <span>Command</span>
+                        <span>Agencies / enterprise / white-label</span>
+                        <span>Custom infrastructure engagement</span>
+                        <span>High-control, high-complexity deployment</span>
+                    </div>
+                    <div class="provider-row">
+                        <span>Ongoing Support</span>
+                        <span>Optional</span>
+                        <span>Retainer / maintenance</span>
+                        <span>Updates, tuning, and evolution after launch</span>
+                    </div>
+                </div>
+                <p class="provider-note">Model costs are separate and depend on your chosen local or API-backed provider strategy.</p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- FAQ -->
+    <section id="faq" class="faq-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Questions</span>
+                <h2 class="section-title">Frequently Asked</h2>
+                <p class="section-desc">Everything you need to know about AIO CRM.</p>
+            </div>
+            
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <h4 class="faq-question">What AI models does AIO CRM support?</h4>
+                    <p class="faq-answer">AIO CRM connects to Ollama (local), OpenAI, Anthropic, OpenRouter, Google AI, and Perplexity. You can use any combination and switch between providers based on your needs.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h4 class="faq-question">Is my data private?</h4>
+                    <p class="faq-answer">100%. With Ollama, all AI processing happens on your infrastructure. Your CRM data never touches third-party servers unless you choose cloud AI providers.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h4 class="faq-question">How does Signal Orchestration work?</h4>
+                    <p class="faq-answer">Signals detect patterns and changes in your CRM data. Orchestration executes risk-aware actions with configurable confirmation workflows, full audit logging, and escalation hooks.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h4 class="faq-question">Can I customize the AI guardrails?</h4>
+                    <p class="faq-answer">Yes. Professional and Enterprise plans include custom system and task-level guardrails. Define behavior constraints, tone guidelines, and output requirements for your AI.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h4 class="faq-question">What does white-label include?</h4>
+                    <p class="faq-answer">Enterprise white-label covers custom logos, color schemes, report letterhead, and domain deployment. Your clients see your brand, not ours.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <h4 class="faq-question">How do I get started?</h4>
+                    <p class="faq-answer">Start with the free trial. Connect your AI provider, import contacts, and the Neural Cortex starts learning your business immediately. No credit card required.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to Transform Your Operations?</h2>
+                <p>Join operators who demand more from their CRM. AIO CRM adapts to your workflow, not the other way around.</p>
+                <div class="cta-actions">
+                    <a href="#pricing" class="btn btn-primary btn-lg">
+                        <span>Book Discovery</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                    <a href="#spec" class="btn btn-ghost btn-lg">
+                        <span>Explore Spec</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SIGNUP MODAL -->
+    <div id="signup-modal" class="modal">
+        <div class="modal-overlay" onclick="closeSignupModal()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeSignupModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+            <div class="modal-header">
+                <div class="modal-brand">
+                    <svg class="modal-logo" viewBox="0 0 40 40" fill="none">
+                        <circle cx="20" cy="20" r="18" stroke="url(#modalGearGrad)" stroke-width="2"/>
+                        <circle cx="20" cy="20" r="8" fill="url(#modalGearGrad)"/>
+                        <defs>
+                            <linearGradient id="modalGearGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#B87333"/>
+                                <stop offset="50%" stop-color="#D4AF37"/>
+                                <stop offset="100%" stop-color="#B8860B"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2>Join the Waitlist</h2>
+                <p>Get early access to AIO CRM. No credit card required.</p>
+            </div>
+            <form class="signup-form" onsubmit="handleSignupSubmit(event)">
+                <div class="form-group">
+                    <label for="signup-name">Full Name</label>
+                    <input type="text" id="signup-name" name="name" placeholder="Your name" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Work Email</label>
+                    <input type="email" id="signup-email" name="email" placeholder="you@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-company">Company</label>
+                    <input type="text" id="signup-company" name="company" placeholder="Your company name">
+                </div>
+                <div class="form-group">
+                    <label for="signup-plan">Interested Plan</label>
+                    <select id="signup-plan" name="plan">
+                        <option value="starter">Starter — $49/mo</option>
+                        <option value="professional" selected>Professional — $149/mo</option>
+                        <option value="enterprise">Enterprise — $499/mo</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">
+                    <span>Request Access</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+                <p class="form-note">We'll notify you when your access is ready. Typically within 24-48 hours.</p>
+            </form>
+            <!-- Replace with your form embed when ready -->
+            <!-- <div class="form-embed-placeholder">
+                <p>Insert your form embed code here (Typeform, HubSpot, etc.)</p>
+            </div> -->
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#hero" class="footer-logo">
+                        <svg class="footer-logo-icon" viewBox="0 0 40 40" fill="none">
+                            <circle cx="20" cy="20" r="18" stroke="#B87333" stroke-width="2"/>
+                            <circle cx="20" cy="20" r="8" fill="#B87333"/>
+                        </svg>
+                        <span>AIO<span class="footer-logo-accent">CRM</span></span>
+                    </a>
+                    <p class="footer-tagline">Neural Operations Platform</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <a href="#demo">Demo</a>
+                    <a href="#spec">Features</a>
+                    <a href="#how-it-works">How It Works</a>
+                    <a href="#pricing">Pricing</a>
+                    <a href="#faq">FAQ</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <a href="#monitors">Monitors</a>
+                    <a href="#">Documentation</a>
+                    <a href="#">API Reference</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Connect</h4>
+                    <a href="#">GitHub</a>
+                    <a href="#">Discord</a>
+                    <a href="#">Twitter</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 AIO CRM. All rights reserved.</p>
+                <p class="footer-tech">Built with precision engineering</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

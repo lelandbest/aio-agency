@@ -50,11 +50,13 @@ import {
   createBrainItemApi,
   updateBrainItemApi,
   deleteBrainItemApi,
-  getAnalyticsSummaryApi
+  getAnalyticsSummaryApi,
+  generateReportApi
 } from '../../services/backendApi';
 import BrainGraphPanel from './BrainGraphPanel';
 import TabbedBrainFormModal from './TabbedBrainFormModal';
 import { INSIGHT_REPORTS } from './reports';
+import { useBrand } from '../../contexts/BrandContext';
 
 const EMPTY_PROFILE = {
   company_name: '',
@@ -726,7 +728,7 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
   );
 };
 
-const generateReport = (reportId, analytics) => {
+const generateTemplateReport = (reportId, analytics) => {
   const { crm, comms, ai } = analytics || {};
   const c = crm || {};
   const com = comms || {};
@@ -951,7 +953,7 @@ const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSa
               disabled={!output} 
               className="px-6 h-10 rounded-xl bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-sky-400 transition-all disabled:opacity-30 shadow-[0_0_20px_rgba(56,189,248,0.2)]"
             >
-              Commit Signal
+              Commit Report
             </button>
           </div>
 
@@ -985,6 +987,7 @@ const Cortex = () => {
   const [showBrandForm, setShowBrandForm] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const { brandConfig, resolveBrandConfig } = useBrand();
 
   const fetchProviders = async (profileData) => {
     try {
@@ -1166,38 +1169,135 @@ const Cortex = () => {
         >
           <InsightWorkbench 
             activeReportId={activeReportId} 
-            onRunReport={(r) => { 
+            onRunReport={async (r) => { 
+                console.log('[CortexReport] START', { reportId: r.id, label: r.label });
+                
                 setActiveReportId(r.id); 
-                setOutput(`[NEURAL ACTIVATION] Executing: ${r.label}...\n[SEED PROMPT] ${r.prompt}\n\n`); 
-                setTimeout(async () => { 
-                  let reportContent = '';
-                  try {
+                setOutput(`[NEURAL ACTIVATION] Executing: ${r.label}...\n[SEED PROMPT] ${r.prompt}\n\n`);
+                
+                let usedFallback = false;
+                let reportContent = '';
+                
+                try {
+                    console.log('[CortexReport] Fetching analytics...');
                     const analytics = await getAnalyticsSummaryApi();
-                    reportContent = generateReport(r.id, analytics);
+                    const hasContacts = analytics?.crm?.total_contacts > 0;
+                    const hasThreads = analytics?.comms?.total_threads > 0;
+                    console.log('[CortexReport] ANALYTICS', { 
+                        reportId: r.id, 
+                        hasAnalytics: !!analytics,
+                        total_contacts: analytics?.crm?.total_contacts,
+                        total_threads: analytics?.comms?.total_threads,
+                        hasContacts,
+                        hasThreads
+                    });
+                    
+                    if (!analytics || (!hasContacts && !hasThreads)) {
+                        console.log('[CortexReport] No data available, using template fallback');
+                        reportContent = generateTemplateReport(r.id, analytics);
+                        usedFallback = true;
+                    } else {
+                        console.log('[CortexReport] AI_CALL - Generating report via AI');
+                        try {
+                            const result = await generateReportApi({
+                                reportId: r.id,
+                                prompt: r.prompt,
+                                analytics,
+                                context: {}
+                            });
+                            
+                            console.log('[CortexReport] RESPONSE', { success: result?.success, hasData: !!result?.data });
+                            
+                            if (result?.success && result?.data) {
+                                reportContent = result.data;
+                            } else {
+                                console.log('[CortexReport] FALLBACK_USED - AI failed:', result?.error);
+                                reportContent = `[Fallback Report (Template)]\n\n${generateTemplateReport(r.id, analytics)}`;
+                                usedFallback = true;
+                            }
+                        } catch (aiErr) {
+                            console.log('[CortexReport] FALLBACK_USED - AI call failed:', aiErr.message);
+                            reportContent = `[Fallback Report (Template)]\n\n${generateTemplateReport(r.id, analytics)}`;
+                            usedFallback = true;
+                        }
+                    }
+                    
+                    console.log('[CortexReport] RENDER', { usedFallback, contentLength: reportContent.length });
                     setOutput(p => p + reportContent);
-                  } catch (err) {
-                    reportContent = `\n[ERROR] Failed to fetch analytics: ${err.message}`;
+                    
+                } catch (err) {
+                    console.error('[CortexReport] ERROR', { message: err.message });
+                    reportContent = `\n[ERROR] Failed to generate report: ${err.message}`;
                     setOutput(p => p + reportContent);
-                  }
-                  setActiveReportId(''); 
-                  const newItem = { 
-                    label: r.label, 
+                }
+                
+                setActiveReportId(''); 
+                console.log('[CortexReport] END');
+                
+                const resolvedBrand = resolveBrandConfig ? resolveBrandConfig() : brandConfig;
+                
+                const reportMeta = {
+                    reportId: r.id,
+                    reportTitle: r.label,
+                    reportType: r.description,
+                    generatedAt: new Date().toISOString(),
+                    accountName: resolvedBrand.brandName,
+                    isFallback: usedFallback,
+                    templateType: 'standard',
+                    brandSnapshot: {
+                        brandId: resolvedBrand.brandId,
+                        brandName: resolvedBrand.brandName,
+                        logoUrl: resolvedBrand.logoUrl,
+                        primaryColor: resolvedBrand.primaryColor
+                    }
+                };
+                
+                const newItem = { 
+                    title: usedFallback ? `${r.label} (Template)` : r.label, 
                     content: `[NEURAL ACTIVATION] Executing: ${r.label}...\n[SEED PROMPT] ${r.prompt}\n\n${reportContent}`, 
-                    category: 'document'
-                  }; 
-                  const saved = await createBrainItemApi(newItem);
-                  if (saved) await fetchOverview();
-                }, 1500); 
+                    category: 'document',
+                    reportMeta: JSON.stringify(reportMeta),
+                    brandConfig: JSON.stringify(resolvedBrand)
+                }; 
+                
+                try {
+                    const saved = await createBrainItemApi(newItem);
+                    if (saved) await fetchOverview();
+                } catch (saveErr) {
+                    console.error('[CortexReport] Save failed:', saveErr);
+                }
             }} 
             output={output} 
             setOutput={setOutput} 
             onSave={async () => { 
                 if (!output) return; 
-                const label = activeReportId ? INSIGHT_REPORTS.find(r => r.id === activeReportId)?.label : 'Manual Synthesis';
+                const report = activeReportId ? INSIGHT_REPORTS.find(r => r.id === activeReportId) : null;
+                const title = report?.label || 'Manual Synthesis';
+                
+                const resolvedBrand = resolveBrandConfig ? resolveBrandConfig() : brandConfig;
+                
+                const reportMeta = {
+                    reportId: activeReportId || 'manual',
+                    reportTitle: title,
+                    reportType: report?.description || 'Manual Synthesis',
+                    generatedAt: new Date().toISOString(),
+                    accountName: resolvedBrand.brandName,
+                    isFallback: false,
+                    templateType: 'standard',
+                    brandSnapshot: {
+                        brandId: resolvedBrand.brandId,
+                        brandName: resolvedBrand.brandName,
+                        logoUrl: resolvedBrand.logoUrl,
+                        primaryColor: resolvedBrand.primaryColor
+                    }
+                };
+                
                 const newItem = { 
-                  label,
+                  title,
                   content: output, 
-                  category: 'document'
+                  category: 'document',
+                  reportMeta: JSON.stringify(reportMeta),
+                  brandConfig: JSON.stringify(resolvedBrand)
                 }; 
                 const saved = await createBrainItemApi(newItem);
                 if (saved) await fetchOverview();

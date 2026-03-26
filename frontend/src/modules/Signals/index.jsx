@@ -8,7 +8,7 @@ import {
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import { assistAiApi, getAiRunsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
-import { executeHelpAction } from '../Help/actions/helpActions';
+import { dispatchAction } from '../../orchestration';
 
 /**
  * SIGNAL ENGINE CORE LOGIC
@@ -142,7 +142,7 @@ const PrioritySignalStrip = ({ signals }) => {
               <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">{signal.source}</p>
             </div>
             <button
-              onClick={() => executeHelpAction(signal.primaryAction.action)}
+              onClick={() => dispatchAction(signal.primaryAction.action, { ...signal.primaryAction.payload, source: 'signals' })}
               className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-[9px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg"
             >
               {signal.primaryAction.label}
@@ -197,7 +197,7 @@ const SignalCard = ({ signal }) => {
 
         <div className="pt-4 border-t border-white/5 space-y-3">
           <button
-            onClick={() => executeHelpAction(signal.primaryAction.action)}
+            onClick={() => dispatchAction(signal.primaryAction.action, { ...signal.primaryAction.payload, source: 'signals' })}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] transition-all"
           >
             <Play size={10} />
@@ -208,7 +208,7 @@ const SignalCard = ({ signal }) => {
             {signal.recommendedActions?.map((action, idx) => (
               <button
                 key={idx}
-                onClick={() => executeHelpAction(action.action)}
+                onClick={() => dispatchAction(action.action, { ...action.payload, source: 'signals' })}
                 className="flex-1 py-2 rounded-lg bg-black/20 border border-white/5 hover:border-[var(--color-primary)] text-slate-400 hover:text-[var(--color-primary)] text-[9px] font-bold uppercase transition-all"
               >
                 {action.label}
@@ -248,7 +248,7 @@ const SignalHistory = ({ signals }) => {
                 <span className="text-[7px] font-black text-slate-700 uppercase tracking-widest">{signal.source}</span>
                 <ChevronRight size={10} className="text-slate-800" />
                 <button 
-                  onClick={() => executeHelpAction(signal.primaryAction.action)}
+                  onClick={() => dispatchAction(signal.primaryAction.action, { ...signal.primaryAction.payload, source: 'signals' })}
                   className="text-[7px] font-black text-[var(--color-primary)] uppercase tracking-widest hover:underline"
                 >
                   EXECUTE {signal.primaryAction.label}
@@ -385,7 +385,7 @@ const SignalsModule = () => {
           {quickActions.map(action => (
             <button
               key={action.id}
-              onClick={() => executeHelpAction(action.action)}
+              onClick={() => dispatchAction(action.action, { source: 'signals' })}
               className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 hover:border-[var(--color-primary)] text-slate-500 hover:text-[var(--color-primary)] flex items-center justify-center transition-all shadow-sm"
               title={action.label}
             >

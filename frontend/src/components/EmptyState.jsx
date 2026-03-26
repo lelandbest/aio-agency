@@ -1,6 +1,6 @@
 import React from 'react';
 import { HelpCircle, ArrowRight, Sparkles, Plus, Play } from 'lucide-react';
-import { executeHelpAction } from '../modules/Help/actions/helpActions';
+import { dispatchAction } from '../orchestration';
 
 /**
  * Shared EmptyState component linked to the Help System Action Layer.
@@ -41,7 +41,7 @@ const EmptyState = ({
         {actions.map((action, index) => (
           <button
             key={index}
-            onClick={() => executeHelpAction(action)}
+            onClick={() => dispatchAction(action, { source: 'empty_state' })}
             className={`group flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all active:scale-95 ${
               index === 0 
               ? 'bg-[var(--color-primary)] border-[var(--color-primary)]/50 text-white shadow-xl shadow-[var(--color-primary)]/20 hover:bg-[var(--color-primary-hover)]' 

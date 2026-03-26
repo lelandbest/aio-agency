@@ -1,93 +1,28 @@
 /**
  * Centralized Action Registry for the Help System.
- * All help-driven actions must be registered here.
+ * All help-driven actions route through the global dispatcher.
  */
 
-export const helpActions = {
-  /**
-   * Navigate to a specific route within the application.
-   */
-  navigate: ({ route }) => {
-    if (!route) return;
-    window.dispatchEvent(new CustomEvent('aio:navigate', {
-      detail: { module: route.replace('/', '') }
-    }));
-  },
-
-  /**
-   * Trigger a flow creation with a specific template.
-   */
-  create_flow: ({ template }) => {
-    if (!template) return;
-    window.dispatchEvent(new CustomEvent('aio:navigate', {
-      detail: { 
-        module: 'flows',
-        action: 'create_from_template',
-        templateId: template
-      }
-    }));
-  },
-
-  /**
-   * Switch to a specific module.
-   */
-  open_module: ({ module }) => {
-    if (!module) return;
-    window.dispatchEvent(new CustomEvent('aio:navigate', {
-      detail: { module }
-    }));
-  },
-
-  /**
-   * Open the ticket submission form.
-   */
-  open_support: () => {
-    window.dispatchEvent(new CustomEvent('help:open_ticket'));
-  },
-
-  /**
-   * Trigger dynamic flow generation from natural language intent.
-   * Redirects to Flows and initiates Alpha orchestration.
-   */
-  create_flow_dynamic: ({ intent, source = 'helpdesk' }) => {
-    if (!intent) return;
-    window.dispatchEvent(new CustomEvent('aio:navigate', {
-      detail: { 
-        module: 'flows',
-        action: 'create_dynamic_flow',
-        source,
-        intent,
-        requiresOrchestration: true
-      }
-    }));
-  },
-
-  /**
-   * Assign an agent to a specific context (e.g., pipeline signal).
-   */
-  assign_agent: ({ context }) => {
-    if (!context) return;
-    window.dispatchEvent(new CustomEvent('aio:navigate', {
-      detail: { 
-        module: 'settings', 
-        action: 'assign_agent',
-        context 
-      }
-    }));
-  }
-};
+import { dispatchAction } from '../../orchestration';
 
 /**
  * Global executor for help actions.
- * Ensures all actions follow the same validation and logging path.
+ * Routes all actions through the central dispatcher for orchestration.
  */
 export const executeHelpAction = (action) => {
-  if (!action || !action.type || !helpActions[action.type]) {
+  if (!action || !action.type) {
     console.warn(`[HelpAction] Unknown or invalid action type: ${action?.type}`);
     return;
   }
 
-  console.log(`[HelpAction] Executing: ${action.type}`, action.payload);
-  console.log("[Signals Action]", action.type, action.payload);
-  helpActions[action.type](action.payload || {});
+  dispatchAction(action, { source: 'helpdesk' });
+};
+
+export const helpActions = {
+  navigate: (payload) => dispatchAction({ type: 'navigate', payload }, { source: 'helpdesk' }),
+  create_flow: (payload) => dispatchAction({ type: 'create_flow', payload }, { source: 'helpdesk' }),
+  open_module: (payload) => dispatchAction({ type: 'open_module', payload }, { source: 'helpdesk' }),
+  open_support: () => dispatchAction({ type: 'open_support' }, { source: 'helpdesk' }),
+  create_flow_dynamic: (payload) => dispatchAction({ type: 'create_flow_dynamic', payload }, { source: 'helpdesk' }),
+  assign_agent: (payload) => dispatchAction({ type: 'assign_agent', payload }, { source: 'helpdesk' })
 };

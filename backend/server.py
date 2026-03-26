@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -1030,6 +1031,8 @@ class AIProviderUpsertRequest(BaseModel):
     is_default: bool = False
     status: str | None = None
     config: dict[str, Any] | None = None
+    system_guardrails: str | None = None
+    task_guardrails: str | None = None
 
 
 class AutomationProviderUpsertRequest(BaseModel):
@@ -2110,34 +2113,40 @@ async def list_ai_provider_catalog(request: Request):
     return {"data": get_ai_provider_catalog()}
 
 
-@app.get("/api/ai/providers/ollama/models")
-async def list_ollama_provider_models(request: Request, base_url: str | None = None):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI provider options.")
-    try:
-        return {"data": list_ollama_models(base_url)}
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-
 @app.post("/api/ai/providers/ollama/models")
 async def list_ollama_provider_models_post(request: Request, payload: OllamaModelsRequest):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI provider options.")
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
+    
     try:
-        return {
-            "data": list_ollama_models(
-                payload.base_url,
-                payload.api_key,
-                payload.username,
-                payload.password,
+        # Pass explicit base_url if provided, otherwise let list_ollama_models resolve from config
+        if payload.base_url:
+            print(f"[OllamaModels] POST Using explicit base_url: {payload.base_url}")
+            models = list_ollama_models(
+                base_url=payload.base_url,
+                api_key=payload.api_key,
+                username=payload.username,
+                password=payload.password,
             )
-        }
+        else:
+            print(f"[OllamaModels] POST Resolving from config for tenant: {tenant_id}")
+            models = list_ollama_models(
+                tenant_id=tenant_id,
+                api_key=payload.api_key,
+                username=payload.username,
+                password=payload.password,
+            )
+        return {"data": models}
     except ValueError as error:
+        print(f"[OllamaModels] POST ERROR: {error}")
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/ai/providers")
 async def list_ai_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI providers.")
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view LLMs.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -2148,7 +2157,7 @@ async def list_ai_provider_configs(request: Request):
 
 @app.put("/api/ai/providers/{provider_key}")
 async def upsert_ai_provider_config(provider_key: str, request: Request, payload: AIProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage AI providers.")
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage LLMs.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -2160,7 +2169,7 @@ async def upsert_ai_provider_config(provider_key: str, request: Request, payload
 
 @app.delete("/api/ai/providers/{config_id}")
 async def delete_ai_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete AI providers.")
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete LLMs.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -2171,7 +2180,7 @@ async def delete_ai_provider_config(config_id: str, request: Request):
 
 @app.post("/api/ai/providers/{config_id}/test")
 async def test_ai_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test AI providers.")
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test LLMs.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_ai_provider_config_for_tenant(tenant_id, config_id)
     if not config:
@@ -3232,12 +3241,16 @@ async def get_analytics_summary(request: Request):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to access analytics.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id") or "default"
+    token = extract_session_token(request)
+    
+    print(f"[AnalyticsAPI] session tenant: {tenant.get('id')}, effective: {tenant_id}")
     
     try:
         contacts = provider.list_contacts()
+        print(f"[AnalyticsAPI] contacts fetched: {len(contacts)}")
         deals = [c for c in contacts if c.get("pipeline_stage")]
         threads = provider.get_comms_snapshot().get("threads", [])
-        ai_runs = auth_store.list_ai_runs(token=None, limit=100)
+        ai_runs = auth_store.list_ai_runs(token=token, limit=100)
         
         stages = {}
         stage_values = {}
@@ -3305,6 +3318,93 @@ def _group_by_module(runs):
         module = run.get("module", "unknown")
         grouped[module] = grouped.get(module, 0) + 1
     return grouped
+
+
+# ============ CORTEX REPORT GENERATION ============
+
+class CortexReportRequest(BaseModel):
+    reportId: str
+    prompt: str
+    analytics: dict[str, Any] | None = None
+    context: dict[str, Any] | None = None
+
+
+@app.post("/api/cortex/generate-report")
+async def generate_cortex_report(request: Request, payload: CortexReportRequest):
+    """Generate AI-powered report using configured provider."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to generate reports.")
+    tenant = session.get("tenant") or {}
+    user = session.get("user") or {}
+    
+    print(f"[CortexReportAPI] START {payload.reportId}")
+    print(f"[CortexReportAPI] USER {user.get('id', 'none')}")
+    print(f"[CortexReportAPI] TENANT {tenant.get('id', 'none')}")
+    
+    try:
+        tenant_id = tenant.get("id")
+        print(f"[AIProviderResolve] Resolving default provider for tenant: {tenant_id}")
+        
+        all_configs = auth_store.list_ai_provider_configs_for_tenant(tenant_id) if tenant_id else []
+        print(f"[AIProviderResolve] Providers found: {len(all_configs)}")
+        for cfg in all_configs:
+            print(f"[AIProviderResolve]   - {cfg.get('id')}: {cfg.get('provider_key')} (default={cfg.get('is_default')}, enabled={cfg.get('enabled')})")
+        
+        active_config = auth_store.get_default_ai_provider_config_for_tenant(tenant_id) if tenant_id else None
+        
+        if active_config:
+            print(f"[AIProviderResolve] SELECTED: {active_config.get('id')}")
+            print(f"[AIProviderResolve] TYPE: {active_config.get('provider_key')}")
+            print(f"[AIProviderResolve] MODEL: {active_config.get('model')}")
+            print(f"[AIProviderResolve] BASE_URL: {active_config.get('base_url')}")
+        else:
+            print("[AIProviderResolve] No default provider configured")
+        
+        if not active_config:
+            print("[CortexReportAPI] ERROR No AI provider configured")
+            return {"success": False, "error": "No default AI provider configured. Please configure an AI provider in Settings → Integrations.", "data": None}
+        
+        context_text = ""
+        if payload.analytics:
+            crm = payload.analytics.get("crm", {})
+            comms = payload.analytics.get("comms", {})
+            ai_data = payload.analytics.get("ai", {})
+            
+            context_text = f"""
+SYSTEM DATA:
+- CRM: {crm.get('total_contacts', 0)} contacts, {crm.get('total_deals', 0)} deals
+- Stages: {json.dumps(crm.get('stages', {}))}
+- Sources: {json.dumps(crm.get('sources', {}))}
+- Lead Score Distribution: {json.dumps(crm.get('score_distribution', {}))}
+- Comms: {comms.get('total_threads', 0)} threads, {comms.get('active_threads', 0)} active
+- AI: {ai_data.get('total_runs', 0)} runs
+"""
+        
+        full_prompt = f"""{payload.prompt}
+
+{context_text}
+
+Generate a comprehensive, actionable report following the output structure specified above. Use the provided data to inform your analysis."""
+        
+        print(f"[CortexReportAPI] CALL_AI provider={active_config.get('provider_key')}")
+        
+        result = ai_assist_service.generate_report(
+            prompt=full_prompt,
+            context={
+                "analytics": payload.analytics,
+                "reportId": payload.reportId,
+            },
+            actor=user,
+            tenant=tenant,
+            provider_config=active_config,
+        )
+        
+        print("[CortexReportAPI] SUCCESS")
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        print(f"[CortexReportAPI] ERROR {str(e)}")
+        logger.error(f"Report generation failed: {e}")
+        return {"success": False, "error": str(e), "data": None}
 
 
 # ============ EXTERNAL DATA INTAKE ============
@@ -3575,7 +3675,7 @@ class NotificationUpdateRequest(BaseModel):
 @app.get("/api/notifications")
 async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False):
     """Get notifications for the current tenant."""
-    session = require_auth(request)
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
     tenant_id = session.get("tenant_id")
     if not tenant_id:
         tenant_id = session.get("tenant", {}).get("id")
@@ -3593,7 +3693,7 @@ async def list_notifications(request: Request, limit: int = 50, unread_only: boo
 @app.post("/api/notifications")
 async def create_notification(request: Request, payload: NotificationCreateRequest):
     """Create a notification for the current tenant."""
-    session = require_auth(request)
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
     tenant_id = session.get("tenant_id")
     if not tenant_id:
         tenant_id = session.get("tenant", {}).get("id")
@@ -3614,7 +3714,7 @@ async def create_notification(request: Request, payload: NotificationCreateReque
 @app.patch("/api/notifications/{notification_id}")
 async def update_notification(notification_id: str, request: Request, payload: NotificationUpdateRequest):
     """Update a notification (mark as read)."""
-    session = require_auth(request)
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
     tenant_id = session.get("tenant_id")
     if not tenant_id:
         tenant_id = session.get("tenant", {}).get("id")
@@ -3633,7 +3733,7 @@ async def update_notification(notification_id: str, request: Request, payload: N
 @app.post("/api/notifications/read-all")
 async def mark_all_notifications_read(request: Request):
     """Mark all notifications as read for the current tenant."""
-    session = require_auth(request)
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
     tenant_id = session.get("tenant_id")
     if not tenant_id:
         tenant_id = session.get("tenant", {}).get("id")
@@ -3649,7 +3749,7 @@ async def mark_all_notifications_read(request: Request):
 @app.delete("/api/notifications/{notification_id}")
 async def delete_notification(notification_id: str, request: Request):
     """Delete a notification."""
-    session = require_auth(request)
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
     tenant_id = session.get("tenant_id")
     if not tenant_id:
         tenant_id = session.get("tenant", {}).get("id")

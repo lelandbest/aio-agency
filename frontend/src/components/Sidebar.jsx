@@ -5,6 +5,7 @@ import {
     Menu, X, ChevronRight, ExternalLink, HelpCircle
 } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
+import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
 
 /**
  * Sidebar Component
@@ -13,6 +14,10 @@ import { normalizeDisplayText } from '../utils/text';
 const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMobileOpen, menuStructure, iconMap }) => {
     const [expandedGroup, setExpandedGroup] = useState(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const { brandConfig } = useBrand();
+    const displayBrandName = brandConfig?.brandName || DEFAULT_BRAND_CONFIG.brandName;
+    const displayLogoUrl = brandConfig?.logoUrl || DEFAULT_BRAND_CONFIG.logoUrl;
+    
     const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market'];
     const sortByLabel = (items = []) => [...items].sort((a, b) =>
         normalizeDisplayText(a.label || '').localeCompare(normalizeDisplayText(b.label || ''))
@@ -39,11 +44,12 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                 <div className="h-14 border-b border-[var(--color-border)] flex items-center justify-between px-3 flex-shrink-0">
                     <div className={`flex items-center gap-2.5 ${isCollapsed ? 'hidden' : ''}`}>
                         <img
-                            src="/aio-button-192px.png"
-                            alt="AIO CRM"
+                            src={displayLogoUrl}
+                            alt={displayBrandName}
                             className="w-7 h-7 rounded-[var(--radius-card)]"
+                            onError={(e) => { e.target.src = '/aio-button-192px.png'; }}
                         />
-                        <span className="font-bold text-[var(--color-text-primary)] text-sm">AIO CRM</span>
+                        <span className="font-bold text-[var(--color-text-primary)] text-sm">{displayBrandName}</span>
                     </div>
                     <div className="flex items-center gap-1">
                         <button

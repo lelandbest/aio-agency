@@ -3,7 +3,7 @@ import { Bot, CalendarDays, CheckCircle2, Mail, Plus, RefreshCw, ShieldCheck, Tr
 import IntegrationCard from '../components/IntegrationCard';
 import IntegrationTabs from '../components/IntegrationTabs';
 import AddIntegrationPanel from '../components/AddIntegrationPanel';
-import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES } from '../utils/integrationConfigs';
+import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES, normalizeAiField } from '../utils/integrationConfigs';
 import { getBrandIcon } from '../utils/brandIcons.jsx';
 import { mockSupabase } from '../../../lib/mockSupabase';
 import ModuleHeader from '../../../components/ModuleHeader';
@@ -117,38 +117,24 @@ const DEFAULT_CALENDAR_PROVIDERS = [
   }
 ];
 
-const DEFAULT_AI_PROVIDER_CATALOG = [
-  { key: 'anthropic', label: 'Anthropic', description: 'Claude models for longer-form reasoning and writing.', default_base_url: 'https://api.anthropic.com', default_model: 'claude-sonnet-4-20250514', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
-  { key: 'google-ai', label: 'Google AI', description: 'Gemini models via Google AI Studio.', default_base_url: 'https://generativelanguage.googleapis.com', default_model: 'gemini-2.5-flash', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
-  {
-    key: 'ollama',
-    label: 'Ollama',
-    description: 'Local or networked Ollama runtime for private workspace AI.',
-    default_base_url: 'http://localhost:11434',
-    default_model: '',
-    fields: [
-      { key: 'base_url', label: 'Base URL' },
-      { key: 'api_key', label: 'API Key', type: 'password' },
-      { key: 'username', label: 'Username' },
-      { key: 'password', label: 'Password', type: 'password' },
-      { key: 'model', label: 'Model' },
-      { key: 'temperature', label: 'Temperature' }
-    ]
-  },
-  { key: 'openai', label: 'OpenAI', description: 'External OpenAI models for drafting, reasoning, and operator assist.', default_base_url: 'https://api.openai.com', default_model: 'gpt-4.1-mini', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
-  { key: 'openrouter', label: 'OpenRouter', description: 'Broker multi-model access through OpenRouter.', default_base_url: 'https://openrouter.ai/api', default_model: 'openai/gpt-4.1-mini', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }, { key: 'site_url', label: 'Site URL' }, { key: 'app_name', label: 'App Name' }] },
-  { key: 'perplexity', label: 'Perplexity', description: 'Perplexity models for research-driven drafting and answers.', default_base_url: 'https://api.perplexity.ai', default_model: 'sonar', fields: [{ key: 'api_key', label: 'API Key' }, { key: 'base_url', label: 'Base URL' }, { key: 'model', label: 'Model' }] },
-];
+// DEPRECATED: DEFAULT_AI_PROVIDER_CATALOG removed in favor of providerSchema.js
 
-const createAiProviderDraft = (provider) => ({
-  label: provider?.label || '',
-  base_url: provider?.default_base_url || '',
-  model: provider?.default_model || '',
-  api_key: '',
-  enabled: provider?.key === 'ollama',
-  is_default: provider?.key === 'ollama',
-  config: provider?.key === 'ollama' ? { temperature: '0.2', username: '', password: '' } : {}
-});
+const createAiProviderDraft = (provider) => {
+  const fields = provider?.fields || [];
+  const findField = (name) => fields.find(f => f.name === name);
+  
+  return {
+    label: provider?.name || provider?.displayName || '',
+    base_url: provider?.defaultBaseUrl || findField('base_url')?.default || '',
+    model: provider?.defaultModel || findField('model')?.default || '',
+    api_key: '',
+    system_guardrails: '',
+    task_guardrails: '',
+    enabled: provider?.id === 'ollama' || provider?.key === 'ollama',
+    is_default: provider?.id === 'ollama' || provider?.key === 'ollama',
+    config: (provider?.id === 'ollama' || provider?.key === 'ollama') ? { temperature: '0.2', username: '', password: '' } : {}
+  };
+};
 
 const createAutomationProviderDraft = (provider) => ({
   label: provider?.name || '',
@@ -286,7 +272,6 @@ const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, sel
 );
 
 export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AUTOMATION }) => {
-  const categories = getAllCategories();
   const [integrations, setIntegrations] = useState([]);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -315,14 +300,30 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [selectedPaymentProviderKey, setSelectedPaymentProviderKey] = useState('stripe');
   const [paymentProviderForm, setPaymentProviderForm] = useState(() => createPaymentProviderDraft(getProviderConfig('stripe')));
 
-  const [aiProviderCatalog, setAiProviderCatalog] = useState(DEFAULT_AI_PROVIDER_CATALOG);
+  const [aiProviderCatalog, setAiProviderCatalog] = useState(() => getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS));
   const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
-  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => localStorage.getItem('aio_active_provider_id') || DEFAULT_AI_PROVIDER_CATALOG[0].key);
-  const [aiProviderForm, setAiProviderForm] = useState(() => createAiProviderDraft(DEFAULT_AI_PROVIDER_CATALOG[0]));
+  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => localStorage.getItem('aio_active_provider_id') || getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]?.id);
+  const [aiProviderForm, setAiProviderForm] = useState(() => createAiProviderDraft(getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]));
   const [ollamaModels, setOllamaModels] = useState([]);
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
   const [busyAction, setBusyAction] = useState('');
+
+  const categories = useMemo(() => {
+    const base = getAllCategories();
+    return base.map(cat => {
+      let count = 0;
+      if (cat.id === INTEGRATION_CATEGORIES.AUTOMATION) count = automationProviderConfigs.length;
+      if (cat.id === INTEGRATION_CATEGORIES.EMAIL) count = mailboxes.length;
+      if (cat.id === INTEGRATION_CATEGORIES.CALENDAR) count = calendarSources.length;
+      if (cat.id === INTEGRATION_CATEGORIES.LLMS) count = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
+      if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) count = paymentProviderConfigs.length;
+      // SMS and Tracking are currently placeholders/empty in this version
+      if (cat.id === INTEGRATION_CATEGORIES.SMS || cat.id === INTEGRATION_CATEGORIES.TRACKING) count = 0;
+      
+      return { ...cat, providerCount: count };
+    });
+  }, [automationProviderConfigs, mailboxes, calendarSources, aiProviderConfigs, paymentProviderConfigs]);
 
   const selectedAiProviderConfig = useMemo(
     () => aiProviderConfigs.find((provider) => provider.provider_key === selectedAiProviderKey) || null,
@@ -389,9 +390,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
     try {
       const catalog = await getAiProviderCatalogApi();
-      setAiProviderCatalog(catalog?.length ? catalog : DEFAULT_AI_PROVIDER_CATALOG);
+      const localCatalog = getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS);
+      setAiProviderCatalog(catalog?.length ? catalog : localCatalog);
     } catch {
-      setAiProviderCatalog(DEFAULT_AI_PROVIDER_CATALOG);
+      setAiProviderCatalog(getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS));
     }
 
     try {
@@ -493,7 +495,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const selectedAiProviderCatalog = useMemo(
-    () => aiProviderCatalog.find((provider) => provider.key === selectedAiProviderKey) || DEFAULT_AI_PROVIDER_CATALOG[0],
+    () => aiProviderCatalog.find((provider) => provider.key === selectedAiProviderKey) || aiProviderCatalog[0],
     [aiProviderCatalog, selectedAiProviderKey]
   );
 
@@ -589,20 +591,30 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   }, [selectedCalendarSource]);
 
   useEffect(() => {
-    const catalogEntry = selectedAiProviderCatalog || DEFAULT_AI_PROVIDER_CATALOG[0];
+    const catalogEntry = selectedAiProviderCatalog || getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0];
     const existing = selectedAiProviderConfig;
     if (!existing) {
       setAiProviderForm(createAiProviderDraft(catalogEntry));
       return;
     }
+    
+    // Unified form loading using snake_case and normalization fallback
+    const config = existing.config || {};
     setAiProviderForm({
-      label: existing.label || catalogEntry.label,
+      label: existing.label || catalogEntry.name || catalogEntry.label || '',
       base_url: existing.base_url || catalogEntry.default_base_url || '',
-      model: existing.model || catalogEntry.default_model || '',
-      api_key: '',
-      enabled: existing.enabled,
-      is_default: existing.is_default,
-      config: existing.config || {},
+      model: existing.model || catalogEntry.model || '',
+      api_key: '', // Credentials never round-trip into form
+      temperature: existing.temperature || config.temperature || '0.2',
+      username: existing.username || config.username || '',
+      password: '',
+      system_guardrails: existing.system_guardrails || config.system_guardrails || config.systemGuardrails || '',
+      task_guardrails: existing.task_guardrails || config.task_guardrails || config.taskGuardrails || '',
+      site_url: existing.site_url || config.site_url || '',
+      app_name: existing.app_name || config.app_name || 'AIO CRM',
+      enabled: !!existing.enabled,
+      is_default: !!existing.is_default,
+      config: config
     });
   }, [selectedAiProviderCatalog, selectedAiProviderConfig]);
 
@@ -792,22 +804,21 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (data.category === INTEGRATION_CATEGORIES.LLMS) {
       const providerKey = data.providerId;
       const config = data.config || {};
-      const providerCatalogEntry = aiProviderCatalog.find((provider) => provider.key === providerKey);
-        const payload = {
-          label: (config.label || providerCatalogEntry?.label || providerKey).trim(),
-          base_url: (config.base_url || providerCatalogEntry?.default_base_url || '').trim(),
-          model: (config.model || providerCatalogEntry?.default_model || '').trim(),
-          api_key: config.apiKey || undefined,
+      const providerCatalogEntry = getProviderConfig(providerKey);
+      
+      const payload = {
+        label: (config.label || providerCatalogEntry?.name || providerKey).trim(),
+        base_url: (config.base_url || providerCatalogEntry?.default_base_url || '').trim(),
+        model: (config.model || providerCatalogEntry?.default_model || '').trim(),
+        api_key: config.api_key || config.apiKey || undefined,
         enabled: true,
-          is_default: !aiProviderConfigs.some((provider) => provider.is_default),
-          config: {
-            ...(providerKey === 'ollama' && config.temperature ? { temperature: config.temperature } : {}),
-            ...(providerKey === 'ollama' && config.username ? { username: config.username } : {}),
-            ...(providerKey === 'ollama' && config.password ? { password: config.password } : {}),
-            ...(providerKey === 'openrouter' && config.site_url ? { site_url: config.site_url } : {}),
-            ...(providerKey === 'openrouter' && config.app_name ? { app_name: config.app_name } : {}),
-          },
-        };
+        is_default: !aiProviderConfigs.some((provider) => provider.is_default),
+        config: Object.fromEntries(
+          Object.entries(config)
+            .filter(([key]) => !['label', 'base_url', 'model', 'api_key', 'apiKey'].includes(key))
+            .map(([key, val]) => [normalizeAiField(key), val])
+        ),
+      };
 
       try {
         await upsertAiProviderConfigApi(providerKey, payload);
@@ -1063,18 +1074,28 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   };
 
   const handleSaveAiProvider = async () => {
-    if (!selectedAiProviderCatalog?.key) return;
     try {
-      await upsertAiProviderConfigApi(selectedAiProviderCatalog.key, {
-        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.label,
-        base_url: aiProviderForm.base_url.trim(),
-        model: aiProviderForm.model.trim(),
-        api_key: aiProviderForm.api_key || undefined,
-        enabled: aiProviderForm.enabled,
-        is_default: aiProviderForm.is_default,
-        config: aiProviderForm.config || {},
+      const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
+      await upsertAiProviderConfigApi(providerKey, {
+        provider_type: providerKey,
+        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.name || selectedAiProviderCatalog.label,
+        base_url: (aiProviderForm.base_url || '').trim(),
+        model: (aiProviderForm.model || '').trim(),
+        api_key: aiProviderForm.api_key || aiProviderForm.apiKey || undefined,
+        system_guardrails: aiProviderForm.system_guardrails || '',
+        task_guardrails: aiProviderForm.task_guardrails || '',
+        enabled: !!aiProviderForm.enabled,
+        is_default: !!aiProviderForm.is_default,
+        config: {
+          ...(aiProviderForm.config || {}),
+          temperature: aiProviderForm.temperature || '0.2',
+          username: aiProviderForm.username || '',
+          password: aiProviderForm.password || undefined,
+          site_url: aiProviderForm.site_url || '',
+          app_name: aiProviderForm.app_name || 'AIO CRM',
+        },
       });
-      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.label} saved.` });
+      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} saved.` });
       triggerSavedAction('ai-provider-save');
       await loadAll();
     } catch (error) {
@@ -1085,14 +1106,25 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const handleTestAiProvider = async () => {
     setBusyAction('ai-provider-test');
     try {
-      const saved = await upsertAiProviderConfigApi(selectedAiProviderCatalog.key, {
-        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.label,
-        base_url: aiProviderForm.base_url.trim(),
-        model: aiProviderForm.model.trim(),
-        api_key: aiProviderForm.api_key || undefined,
-        enabled: aiProviderForm.enabled,
-        is_default: aiProviderForm.is_default,
-        config: aiProviderForm.config || {},
+      const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
+      const saved = await upsertAiProviderConfigApi(providerKey, {
+        provider_type: providerKey,
+        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.name || selectedAiProviderCatalog.label,
+        base_url: (aiProviderForm.base_url || '').trim(),
+        model: (aiProviderForm.model || '').trim(),
+        api_key: aiProviderForm.api_key || aiProviderForm.apiKey || undefined,
+        system_guardrails: aiProviderForm.system_guardrails || '',
+        task_guardrails: aiProviderForm.task_guardrails || '',
+        enabled: !!aiProviderForm.enabled,
+        is_default: !!aiProviderForm.is_default,
+        config: {
+          ...(aiProviderForm.config || {}),
+          temperature: aiProviderForm.temperature || '0.2',
+          username: aiProviderForm.username || '',
+          password: aiProviderForm.password || undefined,
+          site_url: aiProviderForm.site_url || '',
+          app_name: aiProviderForm.app_name || 'AIO CRM',
+        },
       });
       const response = await testAiProviderConfigApi(saved.id);
       setNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
@@ -1110,7 +1142,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!window.confirm(`Disconnect ${selectedAiProviderCatalog.label}? Saved credentials and runtime preference will be removed for this workspace.`)) return;
     try {
       await deleteAiProviderConfigApi(selectedAiProviderConfig.id);
-      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.label} removed from this workspace.` });
+      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} removed from this workspace.` });
       await loadAll();
     } catch (error) {
       setNotice({ tone: 'error', message: readErrorMessage(error) });
@@ -1496,39 +1528,56 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="space-y-3">
         <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Providers</div>
+          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">LLMs</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Keep one local runtime active for private AI work, and stage external providers here for overflow, experiments, or model-specific tasks.</div>
         </div>
         <div className="space-y-3">
-          {aiProviderCatalog.map((provider) => {
-            const existing = aiProviderConfigs.find((item) => item.provider_key === provider.key);
-            return (
-              <ResourceCard
-                key={provider.key}
-                icon={Bot}
-                logoId={provider.key}
-                title={provider.label}
-                subtitle={provider.key}
-                status={existing?.status || (provider.key === 'ollama' ? 'Local Ready' : 'Not Configured')}
-                detail={existing?.last_error || existing?.config?.connected_identity || provider.description}
-                selected={selectedAiProviderKey === provider.key}
-                onClick={() => setSelectedAiProviderKey(provider.key)}
-                chips={[
-                  existing?.is_default ? 'Active Runtime' : 'Standby',
-                  existing?.enabled ? 'Enabled' : 'Disabled',
-                  existing?.model || provider.default_model || 'No model',
-                ]}
-              />
-            );
-          })}
+          {aiProviderConfigs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-[var(--color-border)] rounded-2xl text-[var(--color-text-secondary)]">
+              <Bot size={40} className="mb-3 opacity-20" />
+              <p className="text-sm">No LLM runtimes configured.</p>
+              <button 
+                onClick={() => setPanelOpen(true)}
+                className="mt-4 text-[var(--color-primary)] text-sm font-semibold hover:underline"
+              >
+                + Add New LLM
+              </button>
+            </div>
+          ) : (
+            aiProviderConfigs.map((config) => {
+              const provider = getProviderConfig(config.provider_key) || { 
+                name: config.label, 
+                description: 'External Provider' 
+              };
+              return (
+                <ResourceCard
+                  key={config.id}
+                  icon={Bot}
+                  logoId={config.provider_key}
+                  title={config.label || provider.name}
+                  subtitle={config.provider_key}
+                  status={config.status || 'Ready'}
+                  detail={config.last_error || config.model || provider.description}
+                  selected={selectedAiProviderKey === config.provider_key}
+                  onClick={() => setSelectedAiProviderKey(config.provider_key)}
+                  chips={[
+                    config.is_default ? 'Active Runtime' : 'Standby',
+                    config.enabled ? 'Enabled' : 'Disabled',
+                    config.model || 'No model',
+                  ]}
+                />
+              );
+            })
+          )}
         </div>
       </div>
       <div className="space-y-4">
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
+        {selectedAiProviderConfig ? (
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">LLM Control Plane</div>
-                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedAiProviderCatalog.label}</h3>
+                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label}</h3>
                 <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{selectedAiProviderCatalog.description}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1542,71 +1591,108 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.status || 'Not configured'}</div></div>
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.is_default ? 'Active' : 'Standby'}</div></div>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.model || selectedAiProviderCatalog.default_model || 'Unset'}</div></div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.model || selectedAiProviderCatalog.defaultModel || selectedAiProviderCatalog.default_model || 'Unset'}</div></div>
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.last_tested_at ? new Date(selectedAiProviderConfig.last_tested_at).toLocaleString() : 'Never'}</div></div>
           </div>
           {selectedAiProviderConfig?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.last_error}</div> : null}
+          
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={aiProviderForm.label} onChange={(event) => setAiProviderForm((current) => ({ ...current, label: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-            <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={aiProviderForm.base_url} onChange={(event) => setAiProviderForm((current) => ({ ...current, base_url: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
             <label className="space-y-1">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div>
-                {selectedAiProviderKey === 'ollama' ? (
-                  <button
-                    type="button"
-                    onClick={() => refreshOllamaModels(aiProviderForm.base_url)}
-                    className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                  >
-                    {ollamaModelsLoading ? 'Refreshing…' : 'Refresh Models'}
-                  </button>
-                ) : null}
-              </div>
-              {selectedAiProviderKey === 'ollama' ? (
-                <select
-                  value={aiProviderForm.model}
-                  onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))}
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
-                >
-                  {ollamaModelsLoading ? <option value="">Loading Ollama models...</option> : null}
-                  {!ollamaModelsLoading && !ollamaModels.length ? <option value="">No models found at this Ollama URL</option> : null}
-                  {ollamaModels.map((model) => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
-                </select>
-              ) : (
-                <input value={aiProviderForm.model} onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" />
-              )}
+              <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div>
+              <input 
+                value={aiProviderForm.label} 
+                onChange={(event) => setAiProviderForm((current) => ({ ...current, label: event.target.value }))} 
+                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" 
+              />
             </label>
-            {selectedAiProviderCatalog.fields?.some((field) => field.key === 'api_key') ? (
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={aiProviderForm.api_key} onChange={(event) => setAiProviderForm((current) => ({ ...current, api_key: event.target.value }))} placeholder={selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : ''} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-            ) : null}
-          </div>
-          {selectedAiProviderCatalog.fields?.some((field) => !['base_url', 'model', 'api_key'].includes(field.key)) ? (
-            <div className="grid gap-3 sm:grid-cols-2 text-sm">
-              {selectedAiProviderCatalog.fields.filter((field) => !['base_url', 'model', 'api_key'].includes(field.key)).map((field) => (
-                <label key={field.key} className="space-y-1">
+
+            {(selectedAiProviderCatalog.fields || []).map((field) => (
+              <label key={field.name || field.key} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
+                <div className="flex items-center justify-between gap-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                  <input type={field.type === 'password' ? 'password' : 'text'} autoComplete={field.type === 'password' ? 'new-password' : undefined} value={aiProviderForm.config?.[field.key] || ''} onChange={(event) => setAiProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" />
-                </label>
-              ))}
+                </div>
+                
+                {field.name === 'model' && selectedAiProviderKey === 'ollama' ? (
+                  <select
+                    value={aiProviderForm.model || ''}
+                    onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))}
+                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
+                  >
+                    {ollamaModelsLoading ? <option value="">Loading Ollama models...</option> : null}
+                    {!ollamaModelsLoading && !ollamaModels.length ? <option value="">No models found at this Ollama URL</option> : null}
+                    {ollamaModels.map((model) => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                ) : field.type === 'textarea' ? (
+                  <textarea
+                    rows={4}
+                    value={aiProviderForm[field.name] || aiProviderForm[normalizeAiField(field.name)] || ''}
+                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [field.name]: event.target.value }))}
+                    placeholder={field.placeholder || ''}
+                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)] resize-none"
+                  />
+                ) : (
+                  <input
+                    type={field.type === 'password' ? 'password' : 'text'}
+                    autoComplete={field.type === 'password' ? 'new-password' : undefined}
+                    value={aiProviderForm[field.name] || aiProviderForm[normalizeAiField(field.name)] || ''}
+                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [field.name]: event.target.value }))}
+                    placeholder={field.name === 'api_key' && selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : field.placeholder || ''}
+                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]">
+              <input 
+                type="checkbox" 
+                checked={!!aiProviderForm.enabled} 
+                onChange={(event) => setAiProviderForm((current) => ({ 
+                  ...current, 
+                  enabled: event.target.checked, 
+                  is_default: event.target.checked ? current.is_default : false // Rule 2: If disabled, cannot be default
+                }))} 
+              /> 
+              Enable provider for this workspace
+            </label>
+            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]">
+              <input 
+                type="checkbox" 
+                checked={!!aiProviderForm.is_default} 
+                onChange={(event) => setAiProviderForm((current) => ({ 
+                  ...current, 
+                  is_default: event.target.checked, 
+                  enabled: event.target.checked ? true : current.enabled // Rule 1: If default, MUST be enabled
+                }))} 
+              /> 
+              Use as the active AI runtime
+            </label>
+          </div>
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+            Bullseye assists across CRM, Forms, Calendar, Flows, and Comms will use the active runtime first, then fall back safely if this provider is unavailable.
+          </div>
+          {selectedAiProviderKey === 'ollama' ? (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+              Use the raw Ollama daemon URL, like <span className="font-medium text-[var(--color-text-primary)]">http://localhost:11434</span> or <span className="font-medium text-[var(--color-text-primary)]">http://LAN-IP:11434</span>. If your Ollama host sits behind a proxy, ensure the Base URL and optional credentials are correct so model refresh and test function as expected.
             </div>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]"><input type="checkbox" checked={!!aiProviderForm.enabled} onChange={(event) => setAiProviderForm((current) => ({ ...current, enabled: event.target.checked, is_default: event.target.checked ? current.is_default : false }))} /> Enable provider for this workspace</label>
-            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]"><input type="checkbox" checked={!!aiProviderForm.is_default} onChange={(event) => setAiProviderForm((current) => ({ ...current, is_default: event.target.checked, enabled: event.target.checked ? true : current.enabled }))} /> Use as the active AI runtime</label>
+
           </div>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-              Bullseye assists across CRM, Forms, Calendar, Flows, and Comms will use the active runtime first, then fall back safely if this provider is unavailable.
-            </div>
-            {selectedAiProviderKey === 'ollama' ? (
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                Use the raw Ollama daemon URL, like <span className="font-medium text-[var(--color-text-primary)]">http://localhost:11434</span> or <span className="font-medium text-[var(--color-text-primary)]">http://LAN-IP:11434</span>. If your Ollama host sits behind a proxy, enter the API key or username/password here so model refresh and test use the same credentials.
-              </div>
-            ) : null}
+        ) : (
+          <div className="h-full rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col items-center justify-center p-12 text-center">
+            <Bot size={64} className="mb-4 opacity-10" />
+            <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Select an LLM Runtime</h3>
+            <p className="mt-2 text-sm text-[var(--color-text-secondary)] max-w-xs">
+              Configure and manage your LLM integrations on the left to see their control plane here.
+            </p>
           </div>
-        </div>
+        )}
       </div>
+    </div>
   );
 
   const renderLegacyCategory = () => (
@@ -1738,7 +1824,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         showTitle={false}
         actions={[
           {
-            label: activeCategory === INTEGRATION_CATEGORIES.EMAIL ? 'New Mailbox' : activeCategory === INTEGRATION_CATEGORIES.CALENDAR ? 'New Source' : activeCategory === INTEGRATION_CATEGORIES.LLMS ? 'Add Provider' : 'Add Integration',
+            label: activeCategory === INTEGRATION_CATEGORIES.EMAIL ? 'New Mailbox' : activeCategory === INTEGRATION_CATEGORIES.CALENDAR ? 'New Source' : activeCategory === INTEGRATION_CATEGORIES.LLMS ? 'Add Integration' : 'Add Integration',
             icon: Plus,
             onClick: () => {
               if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
@@ -1766,7 +1852,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Categories</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{categories.length}</div></div>
         </div>
         {notice ? <div className={`rounded-lg border p-4 ${toneClass(notice.tone)}`}>{notice.message}</div> : null}
-        <IntegrationTabs categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} counts={categoryCounts} />        <div className="flex-1 overflow-hidden">
+        <IntegrationTabs categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} counts={categoryCounts} />
+        <div className="flex-1 overflow-hidden">
           {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
             ? renderAutomationAdmin()
             : activeCategory === INTEGRATION_CATEGORIES.EMAIL

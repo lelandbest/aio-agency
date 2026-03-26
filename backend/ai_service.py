@@ -8,6 +8,42 @@ from urllib import request as urlrequest
 from dataclasses import dataclass
 from typing import Any
 
+# Lazy import to avoid circular dependency
+_auth_store = None
+
+def _get_auth_store():
+    global _auth_store
+    if _auth_store is None:
+        from auth_store import AuthStore, default_auth_db_path
+        _auth_store = AuthStore(default_auth_db_path())
+    return _auth_store
+
+def get_configured_ollama_url(tenant_id: str | None) -> str:
+    """Get the configured Ollama base URL for a tenant.
+    
+    Returns the saved base_url from the default Ollama provider config.
+    Raises ValueError if no Ollama provider is configured.
+    """
+    if not tenant_id:
+        raise ValueError("No tenant ID provided. Configure an Ollama provider first.")
+    
+    auth_store = _get_auth_store()
+    provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant_id)
+    
+    if not provider_config:
+        raise ValueError("No AI provider configured. Please configure an Ollama provider in Settings.")
+    
+    if provider_config.get("provider_key") != "ollama":
+        raise ValueError(f"Default provider is not Ollama (found: {provider_config.get('provider_key')}).")
+    
+    base_url = provider_config.get("base_url") or provider_config.get("config", {}).get("base_url")
+    
+    if not base_url:
+        raise ValueError("Ollama provider has no base URL configured. Please set the Ollama server URL.")
+    
+    print(f"[OllamaConfig] Resolved URL from config: {base_url}")
+    return base_url.rstrip("/")
+
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
@@ -84,7 +120,6 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
             "key": "ollama",
             "label": "Ollama",
             "description": "Local or networked Ollama runtime for private workspace AI.",
-            "default_base_url": "http://localhost:11434",
             "default_model": "",
             "fields": [
                 {"key": "base_url", "label": "Base URL"},
@@ -93,6 +128,8 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
                 {"key": "password", "label": "Password", "type": "password"},
                 {"key": "model", "label": "Model"},
                 {"key": "temperature", "label": "Temperature"},
+                {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
+                {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
             ],
         },
         {
@@ -105,6 +142,8 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
                 {"key": "api_key", "label": "API Key"},
                 {"key": "base_url", "label": "Base URL"},
                 {"key": "model", "label": "Model"},
+                {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
+                {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
             ],
         },
         {
@@ -119,6 +158,8 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
                 {"key": "model", "label": "Model"},
                 {"key": "site_url", "label": "Site URL"},
                 {"key": "app_name", "label": "App Name"},
+                {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
+                {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
             ],
         },
         {
@@ -131,6 +172,8 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
                 {"key": "api_key", "label": "API Key"},
                 {"key": "base_url", "label": "Base URL"},
                 {"key": "model", "label": "Model"},
+                {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
+                {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
             ],
         },
         {
@@ -143,6 +186,8 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
                 {"key": "api_key", "label": "API Key"},
                 {"key": "base_url", "label": "Base URL"},
                 {"key": "model", "label": "Model"},
+                {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
+                {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
             ],
         },
         {
@@ -155,13 +200,31 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
                 {"key": "api_key", "label": "API Key"},
                 {"key": "base_url", "label": "Base URL"},
                 {"key": "model", "label": "Model"},
+                {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
+                {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
             ],
         },
     ]
 
 
-def list_ollama_models(base_url: str | None = None, api_key: str | None = None, username: str | None = None, password: str | None = None) -> list[str]:
-    resolved_base_url = _provider_base_url(base_url, "http://localhost:11434")
+def list_ollama_models(base_url: str | None = None, api_key: str | None = None, username: str | None = None, password: str | None = None, tenant_id: str | None = None) -> list[str]:
+    """List available Ollama models.
+    
+    Args:
+        base_url: Optional Ollama server URL (for manual testing)
+        api_key: Optional API key
+        username: Optional username for auth
+        password: Optional password for auth
+        tenant_id: Optional tenant ID to resolve configured provider URL
+    """
+    # If explicit base_url provided, use it; otherwise resolve from config
+    if base_url:
+        resolved_base_url = _provider_base_url(base_url, "")
+        print(f"[OllamaConfig] Using explicit base_url: {resolved_base_url}")
+    else:
+        resolved_base_url = get_configured_ollama_url(tenant_id)
+        print(f"[OllamaConfig] Using configured base_url: {resolved_base_url}")
+    
     request = urlrequest.Request(
         f"{resolved_base_url}/api/tags",
         headers=_ollama_auth_headers(api_key, username, password),
@@ -288,6 +351,73 @@ class AIAssistService:
         result.prompt = prompt
         return result
 
+    def generate_report(
+        self,
+        *,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        actor: dict[str, Any] | None = None,
+        tenant: dict[str, Any] | None = None,
+        provider_config: dict[str, Any] | None = None,
+    ) -> str:
+        """Generate a long-form report using the configured AI provider.
+        
+        This is a direct generation method, not field assistance.
+        Raises exceptions on failure.
+        
+        Prompt composition order:
+        1. Base system instructions
+        2. Provider system_guardrails (if set)
+        3. Task prompt
+        4. Provider task_guardrails (if set)
+        5. Context data
+        """
+        if not provider_config:
+            raise Exception("No AI provider configured")
+        
+        # Extract guardrails from provider config
+        config = provider_config.get("config") or {}
+        system_guardrails = (config.get("system_guardrails") or "").strip()
+        task_guardrails = (config.get("task_guardrails") or "").strip()
+        
+        # Base system prompt
+        system_prompt_parts = [
+            "You are an expert AI analyst for AIO CRM.",
+            "Generate detailed, actionable reports in clean markdown format.",
+            "Do not wrap output in JSON or code blocks.",
+        ]
+        
+        # Add provider system guardrails if set
+        if system_guardrails:
+            system_prompt_parts.append(f"\n\nAdditional instructions:\n{system_guardrails}")
+        
+        system_prompt = "\n\n".join(system_prompt_parts)
+        
+        actor_name = _clean((actor or {}).get("name") or (actor or {}).get("email")) or "operator"
+        workspace_name = _clean((tenant or {}).get("name")) or "active workspace"
+        
+        # Build full prompt with task guardrails appended
+        full_prompt = f"{prompt}\n\nGenerated by {actor_name} in workspace: {workspace_name}"
+        
+        # Append task guardrails if set
+        if task_guardrails:
+            full_prompt = f"{full_prompt}\n\nTask guidance:\n{task_guardrails}"
+        
+        print(f"[AIProviderResolve] Guardrails - system: {'set' if system_guardrails else 'empty'}, task: {'set' if task_guardrails else 'empty'}")
+        
+        result = self._provider_complete(
+            provider_config=provider_config,
+            prompt=full_prompt,
+            system_prompt=system_prompt,
+        )
+        
+        if not result:
+            raise Exception("Empty AI response from provider")
+        
+        if result.get("suggestion"):
+            return result["suggestion"]
+        raise Exception("AI response missing suggestion field")
+
     def test_provider(self, provider_config: dict[str, Any]) -> dict[str, Any]:
         provider_key = _clean(provider_config.get("provider_key")).lower()
         label = _clean(provider_config.get("label")) or provider_key
@@ -312,7 +442,14 @@ class AIAssistService:
         model = _clean(provider_config.get("model"))
         if not model:
             raise ValueError("Select an Ollama model before testing.")
-        base_url = _provider_base_url(provider_config.get("base_url"), "http://localhost:11434")
+        
+        # Use configured base_url, not localhost fallback
+        base_url = _provider_base_url(provider_config.get("base_url"), "")
+        if not base_url:
+            raise ValueError("Ollama base URL not configured. Please set the Ollama server URL in provider settings.")
+        
+        print(f"[OllamaConfig] Testing provider at: {base_url}")
+        
         response = self._post_json(
             f"{base_url}/api/generate",
             {
@@ -1087,43 +1224,68 @@ class AIAssistService:
     ) -> dict[str, Any] | None:
         if not provider_config:
             return None
+        
         provider_key = _clean(provider_config.get("provider_key")).lower()
         if not provider_key:
             return None
+            
         config = provider_config.get("config") or {}
+        
+        # Globally extract and inject guardrails for ALL providers
+        system_guardrails = (config.get("system_guardrails") or provider_config.get("system_guardrails") or "").strip()
+        task_guardrails = (config.get("task_guardrails") or provider_config.get("task_guardrails") or "").strip()
+        
+        if system_guardrails:
+            system_prompt = f"{system_prompt}\n\nAdditional instructions:\n{system_guardrails}".strip()
+            
+        if task_guardrails:
+            prompt = f"{prompt}\n\nTask guidance:\n{task_guardrails}".strip()
+            
         model = _clean(provider_config.get("model"))
         api_key = _clean(provider_config.get("api_key"))
         base_url = _provider_base_url(provider_config.get("base_url"), "")
+        
+        if provider_key == "ollama" and not base_url:
+            raise ValueError("Ollama base URL not configured. Please set the Ollama server URL in provider settings.")
         try:
             if provider_key == "ollama":
+                if not base_url:
+                    raise ValueError("Ollama base URL not configured. Please set the Ollama server URL in provider settings.")
+                print(f"[AIProviderResolve] {provider_key} using base_url: {base_url}")
                 raw_text = self._complete_ollama(
-                    base_url or "http://localhost:11434", model, prompt, system_prompt, api_key, config,
+                    base_url, model, prompt, system_prompt, api_key, config,
                 )
             elif provider_key in {"openai", "openrouter", "perplexity"}:
-                defaults = {
-                    "openai": "https://api.openai.com",
-                    "openrouter": "https://openrouter.ai/api",
-                    "perplexity": "https://api.perplexity.ai",
+                if not base_url:
+                    raise ValueError(f"{provider_key} base URL not configured. Please set the API endpoint in provider settings.")
+                print(f"[AIProviderResolve] {provider_key} using base_url: {base_url}")
+                extra_headers: dict[str, str] = {
+                    "temperature": str(config.get("temperature") or 0.2)
                 }
-                resolved_url = base_url or defaults.get(provider_key, "https://api.openai.com")
-                extra_headers: dict[str, str] = {}
                 if provider_key == "openrouter":
                     extra_headers["HTTP-Referer"] = _clean(config.get("site_url")) or "https://aiocrm.local"
                     extra_headers["X-Title"] = _clean(config.get("app_name")) or "AIO CRM"
                 raw_text = self._complete_openai_compat(
-                    resolved_url, api_key, model, prompt, system_prompt, extra_headers,
+                    base_url, api_key, model, prompt, system_prompt, extra_headers,
                 )
             elif provider_key == "anthropic":
+                if not base_url:
+                    raise ValueError("Anthropic base URL not configured. Please set the API endpoint in provider settings.")
+                print(f"[AIProviderResolve] {provider_key} using base_url: {base_url}")
                 raw_text = self._complete_anthropic(
-                    base_url or "https://api.anthropic.com", api_key, model, prompt, system_prompt,
+                    base_url, api_key, model, prompt, system_prompt,
                 )
             elif provider_key == "google-ai":
+                if not base_url:
+                    raise ValueError("Google AI base URL not configured. Please set the API endpoint in provider settings.")
+                print(f"[AIProviderResolve] {provider_key} using base_url: {base_url}")
                 raw_text = self._complete_google_ai(
-                    base_url or "https://generativelanguage.googleapis.com", api_key, model, prompt, system_prompt,
+                    base_url, api_key, model, prompt, system_prompt, float(config.get("temperature") or 0.2),
                 )
             else:
-                return None
-        except (ValueError, OSError, urlerror.URLError):
+                raise ValueError(f"Unsupported AI provider type: {provider_key}")
+        except (ValueError, OSError, urlerror.URLError) as e:
+            logger.warning(f"[AI Provider] Call failed: {e}")
             return None
         if not raw_text or not raw_text.strip():
             return None
@@ -1149,7 +1311,7 @@ class AIAssistService:
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": float(config.get("temperature") or 0.3)},
+            "options": {"temperature": float(config.get("temperature") or 0.2)},
         }
         if system_prompt:
             payload["system"] = system_prompt
@@ -1168,10 +1330,15 @@ class AIAssistService:
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
-        headers = {"Authorization": f"Bearer {api_key}", **(extra_headers or {})}
+        
+        # Ensure temperature is passed through extra_headers if not already
+        if extra_headers is None:
+            extra_headers = {}
+            
+        headers = {"Authorization": f"Bearer {api_key}", **{k: v for k, v in extra_headers.items() if k != "temperature"}}
         response = self._post_json(
             f"{base_url}/v1/chat/completions",
-            {"model": model, "messages": messages, "temperature": 0.3},
+            {"model": model, "messages": messages, "temperature": float(extra_headers.get("temperature") or 0.2)},
             headers=headers,
         )
         choices = response.get("choices") or []
@@ -1200,12 +1367,12 @@ class AIAssistService:
         return ""
 
     def _complete_google_ai(
-        self, base_url: str, api_key: str, model: str, prompt: str, system_prompt: str,
+        self, base_url: str, api_key: str, model: str, prompt: str, system_prompt: str, temperature: float = 0.2,
     ) -> str:
         resolved_model = model or "gemini-2.5-flash"
         payload: dict[str, Any] = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3},
+            "generationConfig": {"temperature": temperature},
         }
         if system_prompt:
             payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}

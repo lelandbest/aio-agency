@@ -9,6 +9,8 @@ import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import { clearStoredSessionToken, getStoredSessionToken } from './services/authStorage';
 import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './services/backendApi';
+import { OrchestrationProvider } from './orchestration';
+import { BrandProvider } from './contexts/BrandContext';
 
 // Lazy load modules for code splitting
 const SignalsModule = lazy(() => import('./modules/Signals'));
@@ -408,9 +410,11 @@ const App = () => {
 
   return (
     <ThemeProvider>
-        <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
-        <DbContext.Provider value={{ db, setDb }}>
-          <div className="h-screen flex bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
+      <BrandProvider>
+        <OrchestrationProvider>
+          <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
+          <DbContext.Provider value={{ db, setDb }}>
+            <div className="h-screen flex bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
             {/* Sidebar */}
             {!isFullscreen && (
               <Sidebar
@@ -457,7 +461,9 @@ const App = () => {
             </div>
           </div>
         </DbContext.Provider>
-      </AuthContext.Provider>
+        </AuthContext.Provider>
+      </OrchestrationProvider>
+      </BrandProvider>
     </ThemeProvider>
   );
 };

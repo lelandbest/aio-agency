@@ -14,7 +14,7 @@ import {
   createHelpTicketApi,
   assistAiApi
 } from '../../services/backendApi';
-import { executeHelpAction } from './actions/helpActions';
+import { dispatchAction } from '../../orchestration';
 import { helpTemplates } from './templates/helpTemplates';
 import { 
   getRecentArticles, 
@@ -183,7 +183,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
   };
 
   const handleRunAction = (action, label) => {
-    executeHelpAction(action);
+    dispatchAction(action, { source: 'helpdesk' });
     trackActionExecution(action.type, label);
     setRecentActions(getRecentActions());
   };

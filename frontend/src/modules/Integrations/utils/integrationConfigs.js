@@ -1,12 +1,13 @@
 /**
+/**
  * Integration Configuration Database
  * Defines all available integrations with their metadata and required fields
  */
 
 export const INTEGRATION_CATEGORIES = {
   AUTOMATION: 'automation',
-  CALENDAR: 'calendar',
   EMAIL: 'email',
+  CALENDAR: 'calendar',
   LLMS: 'llms',
   SMS: 'sms',
   TRACKING: 'tracking',
@@ -14,161 +15,136 @@ export const INTEGRATION_CATEGORIES = {
 };
 
 export const integrationConfigs = {
-  // AUTOMATION CATEGORY
-  automation: {
-    id: 'automation',
-    category: INTEGRATION_CATEGORIES.AUTOMATION,
+  [INTEGRATION_CATEGORIES.AUTOMATION]: {
+    id: INTEGRATION_CATEGORIES.AUTOMATION,
     name: 'Automation',
-    description: 'Automation workflows and integrations',
+    icon: 'zap',
+    description: 'Workflow automation and webhook platforms.',
     providers: [
       {
         id: 'n8n',
         name: 'n8n',
         icon: 'n8n',
-        description: 'Self-hosted workflow automation with inbound and outbound webhooks.',
+        description: 'Self-hosted workflow automation tool.',
         fields: [
-          { name: 'baseUrl', label: 'Base URL', type: 'text', required: true, default: 'http://localhost:5678' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: false },
-          { name: 'inboundWebhookUrl', label: 'Inbound Webhook URL', type: 'text', required: false },
-          { name: 'outboundWebhookUrl', label: 'Outbound Webhook URL', type: 'text', required: false },
-          { name: 'signingSecret', label: 'Signing Secret', type: 'password', required: false },
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'n8n Instance' },
+          { name: 'base_url', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://n8n.your-instance.com' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
         ],
-        logo: null,
-      },
-      {
-        id: 'activepieces',
-        name: 'Activepieces',
-        icon: 'activepieces',
-        description: 'Open automation platform with piece-based flows and webhook endpoints.',
-        fields: [
-          { name: 'baseUrl', label: 'Base URL', type: 'text', required: true, default: 'http://localhost:80' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: false },
-          { name: 'projectId', label: 'Project ID', type: 'text', required: false },
-          { name: 'inboundWebhookUrl', label: 'Inbound Webhook URL', type: 'text', required: false },
-          { name: 'outboundWebhookUrl', label: 'Outbound Webhook URL', type: 'text', required: false },
-          { name: 'signingSecret', label: 'Signing Secret', type: 'password', required: false },
-        ],
-        logo: null,
+        config: { mode: 'webhook' },
+        logo: 'https://cdn.worldvectorlogo.com/logos/n8n.svg',
       },
       {
         id: 'make',
-        name: 'Make (Integromat)',
+        name: 'Make.com',
         icon: 'make',
-        description: 'Visual integration and automation platform',
+        description: 'Visual automation platform (formerly Integromat).',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'teamId', label: 'Team ID', type: 'text', required: false },
-          { name: 'inboundWebhookUrl', label: 'Inbound Webhook URL', type: 'text', required: false },
-          { name: 'outboundWebhookUrl', label: 'Outbound Webhook URL', type: 'text', required: false },
-          { name: 'signingSecret', label: 'Signing Secret', type: 'password', required: false },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/make-2.svg',
-      },
-    ],
-  },
-
-  // CALENDAR CATEGORY
-  calendar: {
-    id: 'calendar',
-    category: INTEGRATION_CATEGORIES.CALENDAR,
-    name: 'Calendar',
-    description: 'Calendar integrations and sync',
-    providers: [
-      {
-        id: 'google_calendar',
-        name: 'Google Calendar',
-        icon: 'google',
-        description: 'Sync and manage Google Calendar events',
-        fields: [
-          { name: 'clientId', label: 'Client ID', type: 'text', required: true },
-          { name: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
-          { name: 'refreshToken', label: 'Refresh Token', type: 'password', required: false },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/google-calendar-icon.svg',
-      },
-      {
-        id: 'ms_365',
-        name: 'Microsoft 365 Calendar',
-        icon: 'microsoft',
-        description: 'Sync and manage Microsoft 365 calendar events',
-        fields: [
-          { name: 'clientId', label: 'Client ID', type: 'text', required: true },
-          { name: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
-          { name: 'tenantId', label: 'Tenant ID', type: 'text', required: true },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/microsoft-office-13.svg',
-      },
-    ],
-  },
-
-  // EMAIL CATEGORY
-  email: {
-    id: 'email',
-    category: INTEGRATION_CATEGORIES.EMAIL,
-    name: 'Email',
-    description: 'Email service providers',
-    providers: [
-      {
-        id: 'aws_ses',
-        name: 'AWS SES',
-        icon: 'aws',
-        description: 'Amazon SES for transactional email',
-        fields: [
-          { name: 'accessKeyId', label: 'Access Key ID', type: 'text', required: true },
-          { name: 'secretAccessKey', label: 'Secret Access Key', type: 'password', required: true },
-          { name: 'region', label: 'AWS Region', type: 'text', required: true, default: 'us-east-1' },
-          { name: 'fromEmail', label: 'From Email Address', type: 'email', required: true },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/aws-2.svg',
-      },
-      {
-        id: 'sendgrid',
-        name: 'SendGrid',
-        icon: 'sendgrid',
-        description: 'SendGrid email delivery platform',
-        fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'fromEmail', label: 'From Email Address', type: 'email', required: true },
-          { name: 'fromName', label: 'From Name', type: 'text', required: false },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/sendgrid.svg',
-      },
-      {
-        id: 'mailgun',
-        name: 'Mailgun',
-        icon: 'mailgun',
-        description: 'Mailgun email delivery service',
-        fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'domain', label: 'Domain', type: 'text', required: true },
-          { name: 'fromEmail', label: 'From Email Address', type: 'email', required: true },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/mailgun-1.svg',
-      },
-      {
-        id: 'smtp',
-        name: 'SMTP',
-        icon: 'email',
-        description: 'Generic SMTP server configuration',
-        fields: [
-          { name: 'host', label: 'SMTP Host', type: 'text', required: true },
-          { name: 'port', label: 'Port', type: 'number', required: true, default: 587 },
-          { name: 'username', label: 'Username', type: 'text', required: true },
-          { name: 'password', label: 'Password', type: 'password', required: true },
-          { name: 'fromEmail', label: 'From Email Address', type: 'email', required: true },
-          { name: 'useTls', label: 'Use TLS', type: 'checkbox', required: false, default: true },
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Make.com' },
+          { name: 'base_url', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://hook.make.com/...' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
         ],
         logo: null,
       },
-    ],
+      {
+        id: 'zapier',
+        name: 'Zapier',
+        icon: 'zapier',
+        description: 'Connect your apps and automate workflows.',
+        fields: [
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Zapier' },
+          { name: 'base_url', label: 'Webhook URL', type: 'text', required: true },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+        ],
+        logo: 'https://cdn.worldvectorlogo.com/logos/zapier-1.svg',
+      },
+    ]
   },
 
-  // LLMs CATEGORY
-  llms: {
-    id: 'llms',
-    category: INTEGRATION_CATEGORIES.LLMS,
+  [INTEGRATION_CATEGORIES.EMAIL]: {
+    id: INTEGRATION_CATEGORIES.EMAIL,
+    name: 'Managed Mailboxes',
+    icon: 'mail',
+    description: 'Email accounts and synchronization sources.',
+    providers: [
+      {
+        id: 'gmail',
+        name: 'Gmail',
+        icon: 'gmail',
+        description: 'Google Workspace and personal Gmail accounts.',
+        fields: [],
+        oauth: true,
+        logo: 'https://cdn.worldvectorlogo.com/logos/gmail-icon.svg',
+      },
+      {
+        id: 'outlook',
+        name: 'Outlook / Office 365',
+        icon: 'outlook',
+        description: 'Microsoft 365 and Outlook.com mailboxes.',
+        fields: [],
+        oauth: true,
+        logo: 'https://cdn.worldvectorlogo.com/logos/microsoft-outlook-1.svg',
+      },
+      {
+        id: 'imap',
+        name: 'Custom IMAP/SMTP',
+        icon: 'mail',
+        description: 'Connect any standard email hosting provider.',
+        fields: [
+          { name: 'imap_host', label: 'IMAP Host', type: 'text', required: true },
+          { name: 'imap_port', label: 'IMAP Port', type: 'text', required: true, default: '993' },
+          { name: 'smtp_host', label: 'SMTP Host', type: 'text', required: true },
+          { name: 'smtp_port', label: 'SMTP Port', type: 'text', required: true, default: '465' },
+          { name: 'username', label: 'Username', type: 'text', required: true },
+          { name: 'password', label: 'Password', type: 'password', required: true },
+        ],
+        logo: null,
+      },
+    ]
+  },
+
+  [INTEGRATION_CATEGORIES.CALENDAR]: {
+    id: INTEGRATION_CATEGORIES.CALENDAR,
+    name: 'Calendar Sources',
+    icon: 'calendar',
+    description: 'External calendars and availability feeds.',
+    providers: [
+      {
+        id: 'google-calendar',
+        name: 'Google Calendar',
+        icon: 'calendar',
+        description: 'Sync events and availability with Google.',
+        fields: [],
+        oauth: true,
+        logo: 'https://cdn.worldvectorlogo.com/logos/google-calendar-6.svg',
+      },
+      {
+        id: 'outlook-calendar',
+        name: 'Outlook Calendar',
+        icon: 'calendar',
+        description: 'Sync events and availability with Microsoft 365.',
+        fields: [],
+        oauth: true,
+        logo: 'https://cdn.worldvectorlogo.com/logos/microsoft-outlook-1.svg',
+      },
+      {
+        id: 'calcom',
+        name: 'Cal.com',
+        icon: 'calendar',
+        description: 'Open source scheduling infrastructure.',
+        fields: [
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+        ],
+        logo: null,
+      },
+    ]
+  },
+
+  [INTEGRATION_CATEGORIES.LLMS]: {
+    id: INTEGRATION_CATEGORIES.LLMS,
     name: 'LLMs',
-    description: 'Language Model integrations',
+    icon: 'bot',
+    description: 'Language Model and AI runtime integrations.',
     providers: [
       {
         id: 'ollama',
@@ -176,13 +152,15 @@ export const integrationConfigs = {
         icon: 'ollama',
         description: 'Connect a local or networked Ollama runtime.',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', required: false, default: 'Ollama' },
-          { name: 'base_url', label: 'Base URL', type: 'text', required: true, default: 'http://localhost:11434' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: false },
-          { name: 'username', label: 'Username', type: 'text', required: false },
-          { name: 'password', label: 'Password', type: 'password', required: false },
-          { name: 'model', label: 'Model', type: 'text', required: true, default: '' },
-          { name: 'temperature', label: 'Temperature', type: 'text', required: false, default: '0.2' },
+          { name: 'label', label: 'Provider Label', type: 'text', default: 'Ollama' },
+          { name: 'base_url', label: 'Base URL', type: 'text', required: true, placeholder: 'http://192.168.4.28:11434' },
+          { name: 'api_key', label: 'API Key', type: 'password' },
+          { name: 'username', label: 'Username', type: 'text' },
+          { name: 'password', label: 'Password', type: 'password' },
+          { name: 'model', label: 'Model', type: 'text', required: true },
+          { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea', placeholder: 'Persistent instructions applied to all requests.' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea', placeholder: 'Task-level guidance applied alongside system guardrails.' },
         ],
         logo: null,
       },
@@ -192,10 +170,13 @@ export const integrationConfigs = {
         icon: 'openai',
         description: 'GPT-4, GPT-3.5, and other OpenAI models',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', required: false, default: 'OpenAI' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'base_url', label: 'Base URL', type: 'text', required: false, default: 'https://api.openai.com' },
-          { name: 'model', label: 'Model', type: 'text', required: false, default: 'gpt-4.1-mini' },
+          { name: 'label', label: 'Provider Label', type: 'text', default: 'OpenAI' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.openai.com' },
+          { name: 'model', label: 'Model', type: 'text', default: 'gpt-4.1-mini' },
+          { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/openai-2.svg',
       },
@@ -205,12 +186,15 @@ export const integrationConfigs = {
         icon: 'openrouter',
         description: 'Route AI traffic through OpenRouter-managed models.',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', required: false, default: 'OpenRouter' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'base_url', label: 'Base URL', type: 'text', required: false, default: 'https://openrouter.ai/api' },
-          { name: 'model', label: 'Model', type: 'text', required: true, default: 'openai/gpt-4.1-mini' },
-          { name: 'site_url', label: 'Site URL', type: 'text', required: false },
-          { name: 'app_name', label: 'App Name', type: 'text', required: false, default: 'AIO CRM' },
+          { name: 'label', label: 'Provider Label', type: 'text', default: 'OpenRouter' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://openrouter.ai/api' },
+          { name: 'model', label: 'Model', type: 'text', default: 'openai/gpt-4.1-mini' },
+          { name: 'site_url', label: 'Site URL', type: 'text' },
+          { name: 'app_name', label: 'App Name', type: 'text', default: 'AIO CRM' },
+          { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: null,
       },
@@ -220,10 +204,13 @@ export const integrationConfigs = {
         icon: 'anthropic',
         description: 'Claude language models by Anthropic',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', required: false, default: 'Anthropic Claude' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'base_url', label: 'Base URL', type: 'text', required: false, default: 'https://api.anthropic.com' },
-          { name: 'model', label: 'Model', type: 'text', required: false, default: 'claude-sonnet-4-20250514' },
+          { name: 'label', label: 'Provider Label', type: 'text', default: 'Anthropic Claude' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.anthropic.com' },
+          { name: 'model', label: 'Model', type: 'text', default: 'claude-sonnet-4-20250514' },
+          { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/anthropic.svg',
       },
@@ -233,10 +220,13 @@ export const integrationConfigs = {
         icon: 'google',
         description: 'Google Gemini and other Google AI models',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', required: false, default: 'Google AI' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'base_url', label: 'Base URL', type: 'text', required: false, default: 'https://generativelanguage.googleapis.com' },
-          { name: 'model', label: 'Model', type: 'text', required: false, default: 'gemini-2.5-flash' },
+          { name: 'label', label: 'Provider Label', type: 'text', default: 'Google AI' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://generativelanguage.googleapis.com' },
+          { name: 'model', label: 'Model', type: 'text', default: 'gemini-2.5-flash' },
+          { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/google-2015.svg',
       },
@@ -246,159 +236,152 @@ export const integrationConfigs = {
         icon: 'perplexity',
         description: 'Perplexity language models and API',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', required: false, default: 'Perplexity' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'base_url', label: 'Base URL', type: 'text', required: false, default: 'https://api.perplexity.ai' },
-          { name: 'model', label: 'Model', type: 'text', required: false, default: 'sonar' },
+          { name: 'label', label: 'Provider Label', type: 'text', default: 'Perplexity' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.perplexity.ai' },
+          { name: 'model', label: 'Model', type: 'text', default: 'sonar' },
+          { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: null,
       },
     ],
   },
 
-  // SMS CATEGORY
-  sms: {
-    id: 'sms',
-    category: INTEGRATION_CATEGORIES.SMS,
+  [INTEGRATION_CATEGORIES.SMS]: {
+    id: INTEGRATION_CATEGORIES.SMS,
     name: 'SMS',
-    description: 'SMS and messaging services',
+    icon: 'message-square',
+    description: 'SMS and messaging integrations',
     providers: [
       {
-        id: 'twilio',
-        name: 'Twilio',
-        icon: 'twilio',
-        description: 'Twilio SMS, Voice, and messaging',
-        fields: [
-          { name: 'accountSid', label: 'Account SID', type: 'text', required: true },
-          { name: 'authToken', label: 'Auth Token', type: 'password', required: true },
-          { name: 'phoneNumber', label: 'From Phone Number', type: 'tel', required: true },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/twilio-2.svg',
-      },
-      {
-        id: 'plivo',
-        name: 'Plivo',
-        icon: 'plivo',
-        description: 'Plivo SMS and voice services',
-        fields: [
-          { name: 'authId', label: 'Auth ID', type: 'text', required: true },
-          { name: 'authToken', label: 'Auth Token', type: 'password', required: true },
-          { name: 'sourceNumber', label: 'Source Number', type: 'tel', required: true },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/plivo.svg',
-      },
-      {
-        id: 'sms_everyone',
-        name: 'SMS Everyone',
-        icon: 'sms',
-        description: 'SMS Everyone messaging platform',
-        fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'senderId', label: 'Sender ID', type: 'text', required: true },
-        ],
+        id: 'placeholder-sms',
+        name: 'SMS Placeholder',
+        icon: 'message-square',
+        description: 'SMS functionality is coming soon.',
+        fields: [],
         logo: null,
       },
     ],
   },
 
-  // TRACKING CATEGORY
-  tracking: {
-    id: 'tracking',
-    category: INTEGRATION_CATEGORIES.TRACKING,
+  [INTEGRATION_CATEGORIES.TRACKING]: {
+    id: INTEGRATION_CATEGORIES.TRACKING,
     name: 'Tracking & Analytics',
-    description: 'Tracking pixels and analytics services',
+    icon: 'activity',
+    description: 'External event tracking and performance systems.',
     providers: [
       {
-        id: 'fb_pixel',
-        name: 'Facebook Conversion Pixel',
-        icon: 'facebook',
-        description: 'Facebook conversion tracking pixel',
-        fields: [
-          { name: 'pixelId', label: 'Pixel ID', type: 'text', required: true },
-          { name: 'accessToken', label: 'Access Token', type: 'password', required: false },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/facebook-3.svg',
-      },
-      {
-        id: 'google_analytics',
-        name: 'Google Analytics',
-        icon: 'google',
-        description: 'Google Analytics tracking and reporting',
-        fields: [
-          { name: 'measurementId', label: 'Measurement ID', type: 'text', required: true },
-          { name: 'apiSecret', label: 'API Secret', type: 'password', required: false },
-          { name: 'propertyId', label: 'Property ID', type: 'text', required: false },
-        ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/google-analytics.svg',
+        id: 'placeholder-tracking',
+        name: 'Tracking Placeholder',
+        icon: 'activity',
+        description: 'Tracking functionality is coming soon.',
+        fields: [],
+        logo: null,
       },
     ],
   },
 
-  // PAYMENTS CATEGORY
-  payments: {
-    id: 'payments',
-    category: INTEGRATION_CATEGORIES.PAYMENTS,
+  [INTEGRATION_CATEGORIES.PAYMENTS]: {
+    id: INTEGRATION_CATEGORIES.PAYMENTS,
     name: 'Payments',
-    description: 'Payment processing and commerce integrations',
+    icon: 'credit-card',
+    description: 'Online payment processing for internet businesses.',
     providers: [
       {
         id: 'stripe',
         name: 'Stripe',
-        icon: 'stripe',
+        icon: 'credit-card',
         description: 'Online payment processing for internet businesses.',
         fields: [
-          { name: 'publishableKey', label: 'Publishable Key', type: 'text', required: true },
-          { name: 'secretKey', label: 'Secret Key', type: 'password', required: true },
-          { name: 'webhookSecret', label: 'Webhook Secret', type: 'password', required: false },
-          { name: 'currency', label: 'Default Currency', type: 'text', required: false, default: 'usd' },
+          { name: 'label', label: 'Provider Label', type: 'text', required: true, default: 'Stripe' },
+          { name: 'publishable_key', label: 'Publishable Key', type: 'text', required: true },
+          { name: 'secret_key', label: 'Secret Key', type: 'password', required: true },
+          { 
+            name: 'mode', 
+            label: 'Mode', 
+            type: 'select', 
+            required: true, 
+            default: 'test',
+            options: ['test', 'live']
+          },
+          { 
+            name: 'currency', 
+            label: 'Default Currency', 
+            type: 'select', 
+            required: true, 
+            default: 'usd',
+            options: ['usd', 'eur', 'gbp', 'cad', 'aud']
+          },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/stripe-2.svg',
       },
       {
         id: 'paypal',
         name: 'PayPal',
-        icon: 'paypal',
-        description: 'PayPal checkout and payment processing.',
+        icon: 'credit-card',
+        description: 'Digital payments and commerce platform.',
         fields: [
-          { name: 'clientId', label: 'Client ID', type: 'text', required: true },
-          { name: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
-          { name: 'mode', label: 'Mode', type: 'select', required: true, options: ['sandbox', 'live'], default: 'sandbox' },
-          { name: 'webhookId', label: 'Webhook ID', type: 'text', required: false },
+          { name: 'label', label: 'Provider Label', type: 'text', required: true, default: 'PayPal' },
+          { name: 'client_id', label: 'Client ID', type: 'text', required: true },
+          { name: 'client_secret', label: 'Client Secret', type: 'password', required: true },
+          { 
+            name: 'mode', 
+            label: 'Mode', 
+            type: 'select', 
+            required: true, 
+            default: 'sandbox',
+            options: ['sandbox', 'live']
+          },
         ],
-        logo: 'https://cdn.worldvectorlogo.com/logos/paypal-2.svg',
+        logo: 'https://cdn.worldvectorlogo.com/logos/paypal-3.svg',
       },
-    ],
+    ]
   },
 };
 
-/**
- * Get all providers for a category
- */
-export const getProvidersByCategory = (category) => {
-  const config = integrationConfigs[category];
-  return config ? config.providers : [];
-};
-
-/**
- * Get a specific provider config
- */
 export const getProviderConfig = (providerId) => {
-  for (const category in integrationConfigs) {
-    const providers = integrationConfigs[category].providers;
-    const provider = providers.find((p) => p.id === providerId);
-    if (provider) return provider;
+  for (const category of Object.values(integrationConfigs)) {
+    if (category.providers) {
+      const provider = category.providers.find((p) => p.id === providerId);
+      if (provider) return provider;
+    }
   }
   return null;
 };
 
-/**
- * Get all categories
- */
+export const getProvidersByCategory = (categoryId) => {
+  const category = integrationConfigs[categoryId];
+  if (!category) return [];
+  if (category.providers) return category.providers;
+  return [];
+};
+
 export const getAllCategories = () => {
   return Object.values(integrationConfigs).map((config) => ({
     id: config.id,
     name: config.name,
     description: config.description,
-    providerCount: config.providers.length,
-  }));
+    providerCount: config.providers?.length || 1,
+  })).sort((a, b) => a.name.localeCompare(b.name));
+};
+
+/**
+ * Normalizes field names between frontend (camelCase) and backend (snake_case).
+ * Handles: apiKey -> api_key, baseUrl -> base_url, 
+ * systemGuardrails -> system_guardrails, taskGuardrails -> task_guardrails
+ */
+export const normalizeAiField = (name) => {
+  const mapping = {
+    'apiKey': 'api_key',
+    'baseUrl': 'base_url',
+    'systemGuardrails': 'system_guardrails',
+    'taskGuardrails': 'task_guardrails',
+    'system_guardrails': 'system_guardrails',
+    'task_guardrails': 'task_guardrails',
+    'base_url': 'base_url',
+    'api_key': 'api_key'
+  };
+  return mapping[name] || name;
 };

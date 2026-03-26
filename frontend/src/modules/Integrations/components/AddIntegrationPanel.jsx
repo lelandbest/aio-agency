@@ -20,9 +20,34 @@ export const AddIntegrationPanel = ({
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
 
   const providers = getProvidersByCategory(category);
   const provider = selectedProvider ? getProviderConfig(selectedProvider) : null;
+
+  // Handle Fetching Models for Ollama
+  const handleFetchModels = async () => {
+    const baseUrl = formData.base_url || 'http://192.168.4.28:11434';
+    setFetchingModels(true);
+    setSubmitError('');
+    try {
+      const response = await fetch(`/api/ai/ollama/models?base_url=${encodeURIComponent(baseUrl)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to fetch models');
+      }
+      const result = await response.json();
+      setAvailableModels(result.data || []);
+      if (result.data?.length > 0 && !formData.model) {
+        handleInputChange('model', result.data[0]);
+      }
+    } catch (error) {
+      setSubmitError(`Model Fetch Error: ${error.message}`);
+    } finally {
+      setFetchingModels(false);
+    }
+  };
 
   // Handle form input changes
   const handleInputChange = (fieldName, value) => {
@@ -232,44 +257,85 @@ export const AddIntegrationPanel = ({
               {/* Form Fields */}
               <form className="flex flex-col gap-4">
                 {provider.fields.map((field) => (
-                  <div key={field.name} className="flex flex-col gap-2">
-                    <label htmlFor={field.name} className="text-sm font-semibold text-[var(--color-text-primary)]">
-                      {field.label}
-                      {field.required && <span className="text-red-600 ml-1">*</span>}
-                    </label>
-                    {field.type === 'checkbox' ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id={field.name}
-                          checked={formData[field.name] || false}
-                          onChange={(e) => handleInputChange(field.name, e.target.checked)}
-                          className="w-[18px] h-[18px] cursor-pointer accent-blue-500"
-                        />
-                        <label htmlFor={field.name} className="text-sm text-[var(--color-text-primary)] cursor-pointer">
+                    <div key={field.name} className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <label htmlFor={field.name} className="text-sm font-semibold text-[var(--color-text-primary)]">
                           {field.label}
+                          {field.required && <span className="text-red-600 ml-1">*</span>}
                         </label>
+                        {field.name === 'model' && provider.id === 'ollama' && (
+                          <button
+                            type="button"
+                            onClick={handleFetchModels}
+                            disabled={fetchingModels}
+                            className="bg-transparent border-none text-[var(--color-primary)] text-xs font-semibold cursor-pointer p-0 h-4 flex items-center hover:underline disabled:opacity-50"
+                          >
+                            {fetchingModels ? 'Fetching...' : 'Fetch Models'}
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <input
-                        type={field.type}
-                        id={field.name}
-                        placeholder={field.label}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => handleInputChange(field.name, e.target.value)}
-                        className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] ${
-                          errors[field.name] 
-                            ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
-                            : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
-                        }`}
-                        defaultValue={field.default}
-                      />
-                    )}
-                    {errors[field.name] && (
-                      <span className="text-xs text-red-600">{errors[field.name]}</span>
-                    )}
-                  </div>
+                      {field.type === 'checkbox' ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={field.name}
+                            checked={formData[field.name] || false}
+                            onChange={(e) => handleInputChange(field.name, e.target.checked)}
+                            className="w-[18px] h-[18px] cursor-pointer accent-blue-500"
+                          />
+                          <label htmlFor={field.name} className="text-sm text-[var(--color-text-primary)] cursor-pointer">
+                            {field.label}
+                          </label>
+                        </div>
+                      ) : field.type === 'textarea' ? (
+                        <textarea
+                          id={field.name}
+                          rows={4}
+                          placeholder={field.placeholder || field.label}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] resize-none ${
+                            errors[field.name] 
+                              ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
+                              : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
+                          }`}
+                        />
+                      ) : field.name === 'model' && provider.id === 'ollama' && availableModels.length > 0 ? (
+                        <select
+                          id={field.name}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] ${
+                            errors[field.name] 
+                              ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
+                              : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
+                          }`}
+                        >
+                          {availableModels.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={field.type}
+                          id={field.name}
+                          placeholder={field.placeholder || field.label}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] ${
+                            errors[field.name] 
+                              ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
+                              : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
+                          }`}
+                          defaultValue={field.default}
+                        />
+                      )}
+                      {errors[field.name] && (
+                        <span className="text-xs text-red-600">{errors[field.name]}</span>
+                      )}
+                    </div>
                 ))}
+
 
                 {/* Custom Logo Upload */}
                 <div className="flex flex-col gap-2">
@@ -334,4 +400,3 @@ export const AddIntegrationPanel = ({
 };
 
 export default AddIntegrationPanel;
-

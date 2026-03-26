@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
 import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi } from '../services/backendApi';
@@ -14,6 +15,8 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
     const [unreadCount, setUnreadCount] = useState(0);
     const { theme, setTheme } = useTheme();
     const { user, tenant, tenants = [], switchTenant } = useAuth();
+    const { brandConfig } = useBrand();
+    const fallbackBrandName = brandConfig?.brandName || DEFAULT_BRAND_CONFIG.brandName;
 
     const fetchNotifications = useCallback(async () => {
         try {
@@ -209,7 +212,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                                 Workspace
                             </div>
                             <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate max-w-[180px]">
-                                {tenant?.name || 'AIO CRM'}
+                                {tenant?.name || fallbackBrandName}
                             </div>
                         </div>
                         <ChevronDown size={14} className="hidden lg:block text-[var(--color-text-secondary)] flex-shrink-0" />

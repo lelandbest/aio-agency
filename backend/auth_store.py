@@ -494,6 +494,8 @@ class AuthStore:
             "last_tested_at": record["last_tested_at"],
             "last_error": record["last_error"],
             "config": config,
+            "system_guardrails": config.get("system_guardrails", ""),
+            "task_guardrails": config.get("task_guardrails", ""),
             "api_key_present": bool(record["api_key"]),
             "created_at": record["created_at"],
             "updated_at": record["updated_at"],
@@ -1514,7 +1516,7 @@ class AuthStore:
                     thread_id, contact_id, company_id, command_text, provider_key, provider_label,
                     model, prompt, result, artifacts_json, steps_json, metadata_json, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id,
@@ -2121,16 +2123,38 @@ class AuthStore:
             ).fetchone()
             now = utcnow_iso()
             label = (payload.get("label") or normalized_provider.replace("-", " ").title()).strip()
-            config = payload.get("config") or {}
             base_url = (payload.get("base_url") or "").strip() or None
             model = (payload.get("model") or "").strip() or None
             api_key = payload.get("api_key")
             if api_key is not None:
                 api_key = api_key.strip() or None
-            enabled = 1 if payload.get("enabled") else 0
             is_default = 1 if payload.get("is_default") else 0
+            enabled = 1 if payload.get("enabled") else 0
+            
+            # Lockdown Rules
+            if is_default:
+                enabled = 1  # Rule 1: If default, MUST be enabled
+            if not enabled:
+                is_default = 0  # Rule 2 & 5: If disabled, MUST NOT be default
+
             status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
             last_error = payload.get("last_error")
+            
+            # Merge guardrails into config
+            config = payload.get("config") or {}
+            if existing:
+                try:
+                    existing_config = json.loads(existing["config_json"]) if existing["config_json"] else {}
+                    config = {**existing_config, **config}
+                except json.JSONDecodeError:
+                    pass
+            system_guardrails = (payload.get("system_guardrails") or "").strip()
+            task_guardrails = (payload.get("task_guardrails") or "").strip()
+            if system_guardrails:
+                config["system_guardrails"] = system_guardrails
+            if task_guardrails:
+                config["task_guardrails"] = task_guardrails
+            
             if existing:
                 resolved_api_key = api_key if api_key is not None else existing["api_key"]
                 resolved_last_tested_at = payload.get("last_tested_at", existing["last_tested_at"])

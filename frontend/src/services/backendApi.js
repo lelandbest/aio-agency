@@ -190,6 +190,14 @@ export async function getAnalyticsSummaryApi() {
   return response.data || {};
 }
 
+export async function generateReportApi(payload) {
+  const response = await request('/api/cortex/generate-report', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || response;
+}
+
 export async function ingestExternalDataApi(payload) {
   const response = await request('/api/analytics/external-data', {
     method: 'POST',

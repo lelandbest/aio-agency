@@ -1,0 +1,861 @@
+INFO:     Started server process [23380]
+INFO:     Waiting for application startup.
+2026-03-25 16:06:53,180 - __main__ - INFO - AIO CRM Backend starting up
+2026-03-25 16:06:53,180 - __main__ - INFO - Environment: development
+2026-03-25 16:06:53,180 - __main__ - INFO - Provider: {'provider': 'sqlite', 'status': 'ready', 'db_path': 'D:\\AIOCRM\\backend\\data\\aio_crm.db'}
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56113 - "GET /api/ai/providers HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:56116 - "GET /api/auth/session HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:64060 - "OPTIONS /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51465 - "OPTIONS /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51465 - "GET /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51465 - "GET /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60959 - "GET /api/auth/google/authorize HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61852 - "GET /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61852 - "GET /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55326 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55326 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:55326 - "GET /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55326 - "GET /api/auth/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55210 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:64226 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:64226 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64226 - "OPTIONS /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52384 - "OPTIONS /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64226 - "OPTIONS /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52384 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64226 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52384 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64226 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64539 - "OPTIONS /api/auth/profile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64613 - "OPTIONS /api/auth/profile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64613 - "GET /api/auth/profile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64613 - "GET /api/auth/profile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65045 - "OPTIONS /api/omega/status?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65045 - "OPTIONS /api/omega/status?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65045 - "GET /api/omega/status?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65045 - "GET /api/omega/status?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61071 - "OPTIONS /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52515 - "OPTIONS /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61071 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52515 - "OPTIONS /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61071 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52515 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52515 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52515 - "OPTIONS /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:61071 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRDhHw7hWGToHwVJyLr"}
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRDhnCVLZYUXTinaVZZ"}
+INFO:     127.0.0.1:54509 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:53933 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:58961 - "OPTIONS /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62599 - "OPTIONS /api/automation/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:55658 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "OPTIONS /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "OPTIONS /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "OPTIONS /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "OPTIONS /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55658 - "OPTIONS /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55658 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55658 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:     127.0.0.1:55658 - "OPTIONS /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62599 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:53933 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:58961 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:55970 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54509 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55970 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54418 - "GET /api/brain/overview HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:49986 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49436 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54418 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49986 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49986 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57007 - "OPTIONS /api/analytics/summary HTTP/1.1" 200 OK
+[AnalyticsAPI] session tenant: tenant-primary, effective: tenant-primary
+[AnalyticsAPI] contacts fetched: 14
+INFO:     127.0.0.1:57007 - "GET /api/analytics/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57007 - "OPTIONS /api/brain/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65182 - "POST /api/brain/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65182 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65182 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50282 - "OPTIONS /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51647 - "OPTIONS /api/comms/snapshot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59337 - "OPTIONS /api/ai/runs?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49372 - "OPTIONS /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59715 - "OPTIONS /api/comms/snapshot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60590 - "OPTIONS /api/ai/runs?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50282 - "GET /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51647 - "GET /api/ai/runs?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59337 - "GET /api/comms/snapshot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50282 - "GET /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51647 - "GET /api/ai/runs?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60590 - "GET /api/comms/snapshot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56179 - "OPTIONS /api/companies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51829 - "GET /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52302 - "OPTIONS /api/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53904 - "OPTIONS /api/companies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49279 - "OPTIONS /api/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56179 - "GET /api/companies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52302 - "GET /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51829 - "GET /api/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56179 - "GET /api/companies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51829 - "GET /api/tags HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:58492 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58492 - "GET /api/brain/overview HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:58492 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58492 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58492 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58492 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRNewJPKixxM7y69Luy"}
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRNfNLx3T4NyPGxFWBi"}
+INFO:     127.0.0.1:64701 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:53373 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:52211 - "GET /api/automation/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:62441 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53373 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52211 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52211 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53373 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53373 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52211 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52211 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53373 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53373 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52211 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52211 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53373 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:     127.0.0.1:52211 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:64701 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62441 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:53373 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:58673 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62441 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "OPTIONS /api/ai/providers/ollama HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "PUT /api/ai/providers/ollama HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "OPTIONS /api/ai/providers/ai-provider-0fd5ad35a4818d2c/test HTTP/1.1" 200 OK
+[OllamaConfig] Testing provider at: http://192.168.4.28:11434
+INFO:     127.0.0.1:53806 - "POST /api/ai/providers/ai-provider-0fd5ad35a4818d2c/test HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53806 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:57752 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56710 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:57752 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56710 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57752 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57752 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[AnalyticsAPI] session tenant: tenant-primary, effective: tenant-primary
+[AnalyticsAPI] contacts fetched: 14
+INFO:     127.0.0.1:57535 - "GET /api/analytics/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57535 - "POST /api/brain/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57535 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57535 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[AnalyticsAPI] session tenant: tenant-primary, effective: tenant-primary
+[AnalyticsAPI] contacts fetched: 14
+INFO:     127.0.0.1:63349 - "GET /api/analytics/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63349 - "POST /api/brain/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63349 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63349 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[AnalyticsAPI] session tenant: tenant-primary, effective: tenant-primary
+[AnalyticsAPI] contacts fetched: 14
+INFO:     127.0.0.1:59300 - "GET /api/analytics/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59300 - "POST /api/brain/items HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59300 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59300 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/comms/snapshot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/ai/runs?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/contacts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/comms/snapshot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/ai/runs?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63766 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59670 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63766 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59670 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56195 - "OPTIONS /api/ai/command HTTP/1.1" 200 OK
+2026-03-25 16:24:17,611 - __main__ - ERROR - Unhandled exception: 29 values for 28 columns
+  + Exception Group Traceback (most recent call last):
+  |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+  |     yield
+  |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 190, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\_backends\_asyncio.py", line 783, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    |     await self.simple_response(scope, receive, send, request_headers=headers)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 148, in simple_response
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    |     with collapse_excgroups():
+    |          ~~~~~~~~~~~~~~~~~~^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+    |     ~~~~~~~~~~~~~~^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_utils.py", line 93, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\AIOCRM\backend\server.py", line 1362, in inject_tenant_context
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\exceptions.py", line 65, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 756, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 776, in app
+    |     await route.handle(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 297, in handle
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 77, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 72, in app
+    |     response = await func(request)
+    |                ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 278, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |         dependant=dependant, values=values, is_coroutine=is_coroutine
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     )
+    |     ^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\AIOCRM\backend\server.py", line 2069, in ai_command
+    |     run = auth_store.record_ai_run(
+    |         user_id=user.get("id"),
+    |     ...<31 lines>...
+    |         },
+    |     )
+    |   File "D:\AIOCRM\backend\auth_store.py", line 1511, in record_ai_run
+    |     conn.execute(
+    |     ~~~~~~~~~~~~^
+    |         """
+    |         ^^^
+    |     ...<37 lines>...
+    |         ),
+    |         ^^
+    |     )
+    |     ^
+    | sqlite3.OperationalError: 29 values for 28 columns
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 148, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    with collapse_excgroups():
+         ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_utils.py", line 93, in collapse_excgroups
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\AIOCRM\backend\server.py", line 1362, in inject_tenant_context
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    raise app_exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        dependant=dependant, values=values, is_coroutine=is_coroutine
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\AIOCRM\backend\server.py", line 2069, in ai_command
+    run = auth_store.record_ai_run(
+        user_id=user.get("id"),
+    ...<31 lines>...
+        },
+    )
+  File "D:\AIOCRM\backend\auth_store.py", line 1511, in record_ai_run
+    conn.execute(
+    ~~~~~~~~~~~~^
+        """
+        ^^^
+    ...<37 lines>...
+        ),
+        ^^
+    )
+    ^
+sqlite3.OperationalError: 29 values for 28 columns
+[AIProviderResolve] ollama using base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:62793 - "POST /api/ai/command HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+  |     yield
+  |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 190, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\_backends\_asyncio.py", line 783, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 408, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |         self.scope, self.receive, self.send
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     )
+    |     ^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 84, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\applications.py", line 123, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    |     await self.simple_response(scope, receive, send, request_headers=headers)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 148, in simple_response
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    |     with collapse_excgroups():
+    |          ~~~~~~~~~~~~~~~~~~^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+    |     ~~~~~~~~~~~~~~^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_utils.py", line 93, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\AIOCRM\backend\server.py", line 1362, in inject_tenant_context
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\exceptions.py", line 65, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 756, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 776, in app
+    |     await route.handle(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 297, in handle
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 77, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 72, in app
+    |     response = await func(request)
+    |                ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 278, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |         dependant=dependant, values=values, is_coroutine=is_coroutine
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     )
+    |     ^
+    |   File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    |     return await dependant.call(**values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\AIOCRM\backend\server.py", line 2069, in ai_command
+    |     run = auth_store.record_ai_run(
+    |         user_id=user.get("id"),
+    |     ...<31 lines>...
+    |         },
+    |     )
+    |   File "D:\AIOCRM\backend\auth_store.py", line 1511, in record_ai_run
+    |     conn.execute(
+    |     ~~~~~~~~~~~~^
+    |         """
+    |         ^^^
+    |     ...<37 lines>...
+    |         ),
+    |         ^^
+    |     )
+    |     ^
+    | sqlite3.OperationalError: 29 values for 28 columns
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 408, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 84, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\applications.py", line 123, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\cors.py", line 148, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 189, in __call__
+    with collapse_excgroups():
+         ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_utils.py", line 93, in collapse_excgroups
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\AIOCRM\backend\server.py", line 1362, in inject_tenant_context
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    raise app_exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        dependant=dependant, values=values, is_coroutine=is_coroutine
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\besta\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\AIOCRM\backend\server.py", line 2069, in ai_command
+    run = auth_store.record_ai_run(
+        user_id=user.get("id"),
+    ...<31 lines>...
+        },
+    )
+  File "D:\AIOCRM\backend\auth_store.py", line 1511, in record_ai_run
+    conn.execute(
+    ~~~~~~~~~~~~^
+        """
+        ^^^
+    ...<37 lines>...
+        ),
+        ^^
+    )
+    ^
+sqlite3.OperationalError: 29 values for 28 columns
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRanyL6srBgqmncAUTU"}
+INFO:     127.0.0.1:63110 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRaoP8Z3J53MHZEGESa"}
+INFO:     127.0.0.1:63389 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:53843 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58768 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:     127.0.0.1:63389 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:63110 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:58768 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:65353 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53843 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRkyiGeAuTvH1qdSnZX"}
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRkz9p5R6Y5TUFJcgsh"}
+INFO:     127.0.0.1:63928 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:51036 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:59757 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:     127.0.0.1:51036 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:63928 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:64318 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:51117 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58316 - "GET /api/auth/profile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58316 - "GET /api/auth/profile HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:52287 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58316 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:52287 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58316 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52287 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52287 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRoNn9hKevzyef3tBew"}
+[OllamaModels] POST Using explicit base_url: https://api.anthropic.com
+[OllamaConfig] Using explicit base_url: https://api.anthropic.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.anthropic.com/api/tags: {"type":"error","error":{"type":"not_found_error","message":"Not Found"},"request_id":"req_011CZQRoPCCagyMZrq2jw5UJ"}
+INFO:     127.0.0.1:59703 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:60205 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Resolving from config for tenant: tenant-primary
+[OllamaConfig] Resolved URL from config: http://192.168.4.28:11434
+[OllamaConfig] Using configured base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:60205 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60205 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60205 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60205 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60205 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60205 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60205 - "GET /api/ai/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:     127.0.0.1:58483 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:55532 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:60205 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:51508 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59703 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50560 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50560 - "GET /api/brain/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50560 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50560 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "OPTIONS /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "OPTIONS /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "OPTIONS /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "OPTIONS /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "OPTIONS /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "OPTIONS /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "OPTIONS /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "OPTIONS /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "OPTIONS /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54845 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60401 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "OPTIONS /api/auth/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "GET /api/auth/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "OPTIONS /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "OPTIONS /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61327 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60103 - "GET /api/auth/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60103 - "GET /api/auth/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60103 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50329 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60103 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50329 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "OPTIONS /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "OPTIONS /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "OPTIONS /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "OPTIONS /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "OPTIONS /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "OPTIONS /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "OPTIONS /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "OPTIONS /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "OPTIONS /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64585 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53564 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54252 - "OPTIONS /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: https://api.openai.com
+[OllamaConfig] Using explicit base_url: https://api.openai.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.openai.com/api/tags: 
+INFO:     127.0.0.1:54252 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:54252 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63962 - "GET /api/auth/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63962 - "GET /api/auth/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63962 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52579 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63962 - "GET /api/ai/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52579 - "GET /api/ai/runs?limit=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53822 - "GET /api/payments/providers HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: https://api.openai.com
+[OllamaConfig] Using explicit base_url: https://api.openai.com
+[OllamaModels] POST ERROR: HTTP 404 from https://api.openai.com/api/tags: 
+INFO:     127.0.0.1:62352 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:55126 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+[OllamaModels] POST Using explicit base_url: http://localhost:11434
+[OllamaConfig] Using explicit base_url: http://localhost:11434
+[OllamaModels] POST ERROR: Unable to reach http://localhost:11434/api/tags: [WinError 10061] No connection could be made because the target machine actively refused it
+INFO:     127.0.0.1:64613 - "POST /api/ai/providers/ollama/models HTTP/1.1" 400 Bad Request
+[OllamaModels] POST Using explicit base_url: http://192.168.4.28:11434
+[OllamaConfig] Using explicit base_url: http://192.168.4.28:11434
+INFO:     127.0.0.1:64270 - "POST /api/ai/providers/ollama/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "OPTIONS /api/ai/providers/ollama HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "PUT /api/ai/providers/ollama HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "OPTIONS /api/ai/providers/ai-provider-0fd5ad35a4818d2c/test HTTP/1.1" 200 OK
+[OllamaConfig] Testing provider at: http://192.168.4.28:11434
+INFO:     127.0.0.1:60195 - "POST /api/ai/providers/ai-provider-0fd5ad35a4818d2c/test HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/automation/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/mailboxes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/mailboxes/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/calendar/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/calendar/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/ai/providers/catalog HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60195 - "GET /api/payments/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54737 - "GET /api/ai/providers/catalog HTTP/1.1" 401 Unauthorized
