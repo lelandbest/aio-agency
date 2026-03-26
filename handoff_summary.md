@@ -13,13 +13,11 @@
 - Over-rotated on spacing changes in Agents left column; multiple iterations were needed to satisfy strict padding requirements.
 - Did not immediately respect the user’s directive to modify only Alpha/Omega padding; adjusted other spacing before correction.
 - Frontend/Backend restart commands initially failed due to missing `PYTHONPATH` when launched from wrong CWD; fixed by enforcing cwd checks and relative PYTHONPATH.
-- Apex still appeared at runtime because the backend was not restarted and an existing DB row still uses `registry_key=APEX` (data-state issue, not code).
 
 ## Current State / Notes
 - Backend startup must set `PYTHONPATH=.` and be launched from repo root (`D:\AIOCRM`).
 - Frontend should run from `D:\AIOCRM\frontend` with `npm run dev -- --port 5175`.
 - Agents page still needs final spacing verification for Alpha/Agents/Omega padding per latest screenshots.
-- DB table `agents` contains a row with `registry_key = APEX` (id `AGT-DEV-001`). If runtime reads DB agent list, this can reintroduce APEX unless updated to GHOST.
 
 ## Files Changed (key)
 - backend/ai_service.py

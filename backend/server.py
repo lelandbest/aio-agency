@@ -577,25 +577,7 @@ def collect_brain_memory_results(query: str, limit: int = 6, include_runtime: bo
     return merged
 
 
-_AGENT_KEY_MIGRATION_DONE = False
-
-
-def _ensure_agent_registry_keys() -> None:
-    global _AGENT_KEY_MIGRATION_DONE
-    if _AGENT_KEY_MIGRATION_DONE:
-        return
-    try:
-        conn = sqlite3.connect(provider.db_path)
-        conn.execute("UPDATE agents SET registry_key = 'GHOST' WHERE registry_key = 'APEX'")
-        conn.commit()
-        conn.close()
-    except sqlite3.Error:
-        pass
-    _AGENT_KEY_MIGRATION_DONE = True
-
-
 def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
-    _ensure_agent_registry_keys()
     keys = AGENT_RUNTIME_REGISTRY.keys() if include_hidden else VISIBLE_AGENT_KEYS
     agents = []
     for key in keys:
