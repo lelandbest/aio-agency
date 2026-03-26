@@ -33,8 +33,7 @@ export const initialDb = {
   global_variables: [
     { id: 1, key: 'WEBHOOK_LATENODE', value: 'https://webhook.latenode.com/123', is_secret: true, description: 'Main workflow trigger' },
     { id: 2, key: '{{userGreeting}}', value: 'Hello there!', is_secret: false, description: 'Email greeting template' },
-    { id: 3, key: 'SMTP_HOST', value: 'smtp.sendgrid.net', is_secret: false, description: 'Email Server Host' },
-    { id: 4, key: 'GOOGLE_CLIENT_ID', value: '12345...apps.googleusercontent.com', is_secret: true, description: 'Google Calendar Sync' }
+    { id: 3, key: 'SMTP_HOST', value: 'smtp.sendgrid.net', is_secret: false, description: 'Email Server Host' }
   ],
   contacts: [
     { id: 1, name: "Aaron Riggs", email: "aaron@aioflow.com", phone: "+1 (555) 123-4567", company: "AIO Flow", title: "Owner", lead_score: 95, tags: ["VIP", "Customer"], owner: "System", last_contacted_at: "2026-01-07T10:00:00Z", pipeline_stage: "Closed Won", source: "Referral" },

@@ -88,5 +88,6 @@ android-sdk/ -e
 *.env
 *.env.*
 backend/data/*.db
+backend/*.db
 -e 
 nul
