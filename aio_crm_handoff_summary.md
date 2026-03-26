@@ -1,8 +1,4 @@
-# AIO CRM Handoff Summary:
-
-from pathlib import Path
-
-content = """# AIO CRM — UPDATED DEVELOPMENT HANDOFF SUMMARY
+﻿# AIO CRM - UPDATED DEVELOPMENT HANDOFF SUMMARY
 
 ## Date
 2026-03-25
@@ -29,11 +25,11 @@ The Help system has already evolved from static documentation into an action-dri
 
 Implemented direction includes:
 - Intent Engine (search returns articles + actions + templates)
-- centralized Action Registry (`executeHelpAction`)
+- Centralized Action Registry (`executeHelpAction`)
 - Template bridge
 - Ask Charlie structured outputs
-- recent / recommended state
-- empty-state action triggers
+- Recent / recommended state
+- Empty-state action triggers
 
 This is not a normal helpdesk anymore. It is an execution surface.
 
@@ -41,14 +37,14 @@ This is not a normal helpdesk anymore. It is an execution surface.
 Signals has now been upgraded visually and structurally from passive dashboard behavior toward a true signal engine.
 
 Current direction includes:
-- priority signal strip
-- active signals
-- interpreted signal cards
-- action CTAs from signals
-- Signals → Pipelines routing cleanup
-- pipeline actions targeting `pipelines` as a standalone module
-- placeholder routing removal
-- centralized dispatch via `executeHelpAction`
+- Priority signal strip
+- Active signals
+- Interpreted signal cards
+- Action CTAs from signals
+- Signals -> Pipelines routing cleanup
+- Pipeline actions targeting `pipelines` as a standalone module
+- Placeholder routing removal
+- Centralized dispatch via `executeHelpAction`
 
 ### 3. Pipelines
 Pipelines is confirmed as a standalone module. Do not treat it as a CRM subview unless explicitly redesigning architecture later.
@@ -58,15 +54,15 @@ Correct module key:
 
 ### 4. Module Language / UI Direction
 The product direction is:
-- not generic SaaS
-- not dashboard-first
-- not docs-first
+- Not generic SaaS
+- Not dashboard-first
+- Not docs-first
 
 It is:
-- action-driven
+- Action-driven
 - AI-assisted
-- operational
-- system-oriented
+- Operational
+- System-oriented
 
 Keep the edge. Do not flatten the system into generic naming.
 
@@ -79,16 +75,16 @@ Do **not** remove the term **Intel Modules**.
 The issue was not the label itself. The issue was lack of supporting context.
 
 Correct strategy:
-- keep the label
-- support it with subtitles / helper copy / descriptions
+- Keep the label
+- Support it with subtitles / helper copy / descriptions
 
 ### Icons
 We are **not** adding decorative icons.
 
 We are defining a constrained visual language:
-- microcopy defines meaning
-- icons accelerate recognition
-- color communicates urgency
+- Microcopy defines meaning
+- Icons accelerate recognition
+- Color communicates urgency
 
 The user explicitly pushed back against overdoing icons, and that pushback was correct.
 
@@ -98,7 +94,7 @@ The current mechanical icon reads more like systems / infrastructure than reason
 
 Important distinction:
 - Cortex header brain = clean system identity
-- knowledge graph brain = more networked / connected expression
+- Knowledge graph brain = more networked / connected expression
 
 Do not collapse those meanings.
 
@@ -112,7 +108,7 @@ Working interpretation:
 - Signals detects + surfaces
 - Cortex interprets + decides
 - Signals may display a recommendation sourced from Cortex
-- but Signals itself should stay lightweight
+- But Signals itself should stay lightweight
 
 ---
 
@@ -122,12 +118,12 @@ Working interpretation:
 A lot of orchestration has **already been built indirectly** in previous work:
 - Action Registry
 - Ask Charlie structured outputs
-- dynamic flow generation path
-- hierarchy discussions around:
+- Dynamic flow generation path
+- Hierarchy discussions around:
   `USER -> CHARLIE -> ALPHA -> AGENT`
-- centralized event dispatch patterns
-- flow ingestion safety patterns
-- module dispatch behavior
+- Centralized event dispatch patterns
+- Flow ingestion safety patterns
+- Module dispatch behavior
 
 So this is **not** a greenfield orchestration concept.
 
@@ -139,58 +135,59 @@ Current issue:
 - Signals
 - Empty states
 
-all can trigger actions through the same executor, but not all actions should be treated equally.
+All can trigger actions through the same executor, but not all actions should be treated equally.
 
 ### Recommended Next Step
 Add orchestration classification inside `executeHelpAction` (or equivalent central dispatcher).
 
 Concept:
 
-- **Direct actions**:
-  - `open_module`
-  - `open_support`
-  - low-risk navigation / reveal actions
+Direct actions:
+- `open_module`
+- `open_support`
+- Low-risk navigation / reveal actions
 
-- **Orchestrated actions**:
-  - `create_flow_dynamic`
-  - `assign_agent`
-  - pipeline / follow-up automations
-  - anything that changes execution state or creates system logic
+Orchestrated actions:
+- `create_flow_dynamic`
+- `assign_agent`
+- Pipeline / follow-up automations
+- Anything that changes execution state or creates system logic
 
 ### Target Behavior
 For orchestrated actions:
+- Do not execute immediately
+- Dispatch
 
-- do not execute immediately
-- dispatch
+---
 
- Signal Engine & Dynamic Flows
+## Signal Engine & Dynamic Flows
 
-## 🚀 Accomplishments
+### Accomplishments
 
-### 1. Signal Engine Activation
-- **Passive → Active**: Transformed the Signals dashboard into an action-driven engine.
+#### 1. Signal Engine Activation
+- **Passive -> Active**: Transformed the Signals dashboard into an action-driven engine.
 - **Interpretation Logic**: Integrated `mapDataToSignals` to detect critical conditions (stalled deals, missed follow-ups, failed AI runs).
 - **Priority Strip**: Implemented a high-visibility "Priority Signal Strip" for top-level critical alerts.
 - **Actionable Cards**: Replaced passive metrics with `SignalCard` components featuring Impact Analysis and primary/secondary execution paths.
 
-### 2. Dynamic Flow Generation Layer
-- **Charlie → Alpha Pipeline**: Created a secure multi-stage pipeline for natural language flow generation.
+#### 2. Dynamic Flow Generation Layer
+- **Charlie -> Alpha Pipeline**: Created a secure multi-stage pipeline for natural language flow generation.
 - **Alpha Orchestrator**: Implemented a validation/normalization layer to prevent raw intent from reaching the builder.
 - **Agentic Generation**: Built `flowGenerationService` to produce LLM-influenced drafts from Alpha plans.
 - **Zero-Bypass Ingestion**: Enforced the `ingestFlowSource` pipeline for all generated content.
 
-### 3. Help Desk & Intent Engine
+#### 3. Help Desk & Intent Engine
 - **Search Intent Upgrade**: Charlie now detects flow-related intents and prioritizes "Generate Custom Flow" actions.
 - **Shared Action Registry**: Centralized all help-driven actions in `helpActions.js`.
 - **Empty State Guidance**: Integrated proactive guidance placeholders across CRM and Comms modules.
 
-### 4. Architectural Enforcement
+#### 4. Architectural Enforcement
 - **Safe Hydration**: Standardized all external graph data through one canonical path.
 - **Navigation Safety**: Actions now route through `aio:navigate` with full orchestration context.
 
 ---
 
-## ⚠️ Known Limitations & Failures
+## Known Limitations & Failures
 
 - **ReferenceError (Fixed)**: A one-pass execution oversight led to a `ReferenceError: Settings is not defined` in the Signals module. This was caught and corrected in the subsequent patch.
 - **Regex-Based Orchestration**: The current `Alpha` orchestrator uses sophisticated regex for intent mapping. For more complex/ambiguous requests, a full LLM-based intent parser remains a recommended future upgrade.
@@ -198,7 +195,7 @@ For orchestrated actions:
 
 ---
 
-## 🔒 Final Lockdown Status
+## Final Lockdown Status
 - **Repository**: 100% Clean (git status verified).
 - **Main Branch**: Synchronized with all latest implementation plans and walkthroughs.
 - **Locks**: Verified. No unauthorized file modifications observed.

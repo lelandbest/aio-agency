@@ -1,3 +1,8 @@
+/**
+ * LOCKED: AI Provider Unified Architecture - Phase 1 & 2
+ * Verified Stable: March 25, 2026
+ * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
+ */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, CalendarDays, CheckCircle2, Mail, Plus, RefreshCw, ShieldCheck, Trash2, Zap } from 'lucide-react';
 import IntegrationCard from '../components/IntegrationCard';

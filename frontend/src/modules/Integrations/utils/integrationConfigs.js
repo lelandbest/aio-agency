@@ -1,4 +1,8 @@
 /**
+ * LOCKED: AI Provider Unified Architecture - Phase 1 & 2
+ * Verified Stable: March 25, 2026
+ * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
+ */
 /**
  * Integration Configuration Database
  * Defines all available integrations with their metadata and required fields

@@ -1,3 +1,8 @@
+/**
+ * LOCKED: AI Provider Unified Architecture - Phase 1 & 2
+ * Verified Stable: March 25, 2026
+ * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
+ */
 import React, { useState } from 'react';
 import { getProviderConfig, getProvidersByCategory } from '../utils/integrationConfigs';
 import { getBrandIcon, getBrandColors } from '../utils/brandIcons.jsx';
