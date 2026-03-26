@@ -10,7 +10,8 @@ import {
   PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
   User, Bell, Smartphone, MapPin, Receipt, CreditCard as CardIcon, Cpu, Target, ShieldCheck, Terminal, MessageSquareCode, Layers,
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays,
-  Activity as ActivityIcon, Hash, AtSign, MousePointer, Image, Table, Code, AlignCenter, AlignRight, Bold, Italic, Underline
+  Activity as ActivityIcon, Hash, AtSign, MousePointer, Image, Table, Code, AlignCenter, AlignRight, Bold, Italic, Underline,
+  Brain, AlertTriangle
 } from 'lucide-react';
 
 export const ICON_LIBRARY = {
@@ -21,7 +22,8 @@ export const ICON_LIBRARY = {
   Briefcase, FileInput, Webhook, Link, Power, Download, Package, Clock, Copy,
   Server, Chrome, PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
   User, Bell, Smartphone, MapPin, Receipt, CardIcon, Cpu, Target, ShieldCheck, Terminal, MessageSquareCode, Layers,
-  AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays, GraduationCap
+  AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays, GraduationCap,
+  Brain, AlertTriangle
 };
 
 const TM = '\u2122';
@@ -45,7 +47,7 @@ export const initialDb = {
     { id: 4, name: "DELTA", registryKey: "DELTA", rank: "AI Agent", role: "Coordination", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Visual/Project Coordination", visibility: "visible", capabilityTier: "tier-2" },
     { id: 5, name: "ECHO", registryKey: "ECHO", rank: "AI Agent", role: "Comms", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Email/Comms/Socials", visibility: "visible", capabilityTier: "tier-1" },
     { id: 6, name: "FORGE", registryKey: "FORGE", rank: "AI Agent", role: "Copy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Content/Copywriting", visibility: "visible", capabilityTier: "tier-2" },
-    { id: 7, name: "APEX", registryKey: "APEX", rank: "AI Agent", role: "Engineering", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Coder/IT/Site Dev", visibility: "visible", capabilityTier: "tier-1" },
+    { id: 7, name: "GHOST", registryKey: "GHOST", rank: "AI Agent", role: "Engineering", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Systems Engineering", visibility: "visible", capabilityTier: "tier-1" },
     { id: 8, name: "ARCHER", registryKey: "ARCHER", rank: "AI Agent", role: "Analytics", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Analytics/Financial", visibility: "visible", capabilityTier: "tier-1" },
     { id: 9, name: "RANGER", registryKey: "RANGER", rank: "AI Agent", role: "SEO", status: "Active", model: "GPT-4o", subordinates: [], specialization: "SEO/Content Optimization", visibility: "visible", capabilityTier: "tier-2" },
     { id: 10, name: "SCOUT", registryKey: "SCOUT", rank: "AI Agent", role: "Recruitment", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Hiring/Recruitment", visibility: "visible", capabilityTier: "tier-2" },
@@ -120,8 +122,8 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Main",
     items: [
       { id: "aio-agents", label: "AIO Agents\u2122", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-brain", label: `AIO Cortex${TM}`, icon: "Cpu", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: `Search AIO Cortex${TM}...` },
-      { id: "dashboard", label: "AIO Signals", icon: "Activity", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-brain", label: `AIO Cortex${TM}`, icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: `Search AIO Cortex${TM}...` },
+      { id: "dashboard", label: "AIO Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-systems", label: "AIO Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full AIO system stack and launch each workspace inside the embedded app frame." }
     ]
   },
@@ -139,10 +141,10 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Operations",
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "chat", label: "Comms", icon: "Radio", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "chat", label: "Comms", icon: "MessageSquare", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "flows", label: "Flows", icon: "Zap", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "flows", label: "Flows", icon: "Workflow", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "forms", label: "Forms", icon: "FileText", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "orders", label: "Orders", icon: "ShoppingCart", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "pipelines", label: "Pipelines", icon: "GitMerge", type: "internal", visible: true, iconColor: "#9ca3af" },

@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from automation_service import test_automation_provider
 from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
+from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_config
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
 from orchestration import ExecutionEngine
 from backend.agent_definitions import AGENT_DEFINITIONS
@@ -66,7 +67,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "specialization": "Commander-in-Chief",
         "visibility": "visible",
         "capability_tier": "tier-1",
-        "subordinates": ["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "APEX", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
+        "subordinates": ["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
         "tools": [
             "Mission Brief Generator",
             "Resource Allocation Optimizer",
@@ -130,12 +131,12 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "subordinates": [],
         "tools": ["Article Generator", "Landing Page Copy Generator", "Brand Story Creator"],
     },
-    "APEX": {
-        "registry_key": "APEX",
-        "label": "Coder/IT/Site Dev",
+    "GHOST": {
+        "registry_key": "GHOST",
+        "label": "Systems Engineering",
         "rank": "AI Agent",
         "role": "Engineering",
-        "specialization": "Coder/IT/Site Dev",
+        "specialization": "Systems Engineering",
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
@@ -666,7 +667,7 @@ def choose_specialist_for_command(module: str, surface: str, field: str, command
     if any(term in haystack for term in ["logistics", "deployment", "runbook", "system map", "resource movement", "handoff"]):
         return "ATLAS"
     if any(term in haystack for term in ["api", "code", "devops", "infra", "bug", "engineering", "it ", "site", "automation", "integration"]):
-        return "APEX"
+        return "GHOST"
     if any(term in haystack for term in ["analytics", "financial", "roi", "kpi", "forecast", "reporting", "budget"]):
         return "ARCHER"
     if any(term in haystack for term in ["content", "copy", "article", "landing page", "brand story", "product description"]):
@@ -999,6 +1000,9 @@ class AIAssistRequest(BaseModel):
     intent: str = "draft"
     current_value: str = ""
     context: dict[str, Any] | None = None
+    task: str | None = None
+    route_hints: dict[str, Any] | None = None
+    provider_override: dict[str, Any] | str | None = None
 
 
 class AICommandRequest(BaseModel):
@@ -1033,6 +1037,13 @@ class AIProviderUpsertRequest(BaseModel):
     config: dict[str, Any] | None = None
     system_guardrails: str | None = None
     task_guardrails: str | None = None
+
+
+class AIRoutingConfigRequest(BaseModel):
+    features: dict[str, Any] | None = None
+    tasks: dict[str, Any] | None = None
+    fallback: dict[str, Any] | None = None
+    version: int | None = None
 
 
 class AutomationProviderUpsertRequest(BaseModel):
@@ -1829,9 +1840,26 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can use AI workspace tools.")
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
-    ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+    tenant_id = tenant.get("id")
     resolved_module = (payload.module or "").strip().lower()
     resolved_context = dict(payload.context or {})
+    route_hints = dict(payload.route_hints or {})
+    if isinstance(resolved_context.get("route_hints"), dict):
+        route_hints = {**resolved_context.get("route_hints", {}), **route_hints}
+    provider_override = payload.provider_override or resolved_context.get("provider_override")
+    try:
+        route = resolve_ai_route(
+            tenant_id=tenant_id,
+            feature="ai_assist",
+            task=payload.task,
+            provider_override=provider_override,
+            route_hints=route_hints or None,
+            auth_store=auth_store,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    log_ai_route(route)
+    ai_provider = route.get("provider_config")
     routing = resolve_ai_run_routing(
         payload.module,
         payload.surface,
@@ -1867,6 +1895,15 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
         provider_config=ai_provider,
     )
     response = result.to_dict()
+    response["route"] = {
+        "provider_key": route.get("provider_key"),
+        "provider_label": route.get("provider_label"),
+        "model": route.get("model"),
+        "route_source": route.get("route_source"),
+        "reason": route.get("reason"),
+        "feature": route.get("feature"),
+        "task": route.get("task"),
+    }
     applied_thread = None
     draft_text = ""
     if resolved_module == "comms" and resolved_context.get("thread_id"):
@@ -1902,9 +1939,9 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
         contact_id=str(resolved_context.get("contact_id") or "") or None,
         company_id=str(resolved_context.get("company_id") or "") or None,
         command_text=str(resolved_context.get("command_text") or "").strip() or None,
-        provider_key=(ai_provider or {}).get("provider_key"),
-        provider_label=(ai_provider or {}).get("label"),
-        model=(ai_provider or {}).get("model"),
+        provider_key=route.get("provider_key"),
+        provider_label=route.get("provider_label") or (ai_provider or {}).get("label"),
+        model=route.get("model"),
         prompt=result.prompt,
         result=result.suggestion,
         artifacts=run_artifacts,
@@ -1916,6 +1953,10 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
             "result_metadata": result.metadata or {},
             "brain_query": brain_query,
             "brain_result_count": len(brain_results),
+            "route_source": route.get("route_source"),
+            "route_reason": route.get("reason"),
+            "route_feature": route.get("feature"),
+            "route_task": route.get("task"),
         },
     )
     response["run_id"] = run["id"]
@@ -2111,6 +2152,34 @@ async def ai_command(request: Request, payload: AICommandRequest):
 async def list_ai_provider_catalog(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI provider options.")
     return {"data": get_ai_provider_catalog()}
+
+
+@app.get("/api/ai/routing")
+async def get_ai_routing_config(request: Request):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI routing config.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        record = auth_store.get_ai_routing_record_for_tenant(tenant_id) if tenant_id else None
+        provider_configs = auth_store.list_ai_provider_configs(token, tenant_id)
+        normalized = validate_ai_routing_config((record or {}).get("config"), provider_configs)
+        return {"data": {"config": normalized, "updated_at": (record or {}).get("updated_at")}}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.put("/api/ai/routing")
+async def upsert_ai_routing_config(request: Request, payload: AIRoutingConfigRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage AI routing.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        provider_configs = auth_store.list_ai_provider_configs(token, tenant_id)
+        normalized = validate_ai_routing_config(payload.model_dump(exclude_unset=True), provider_configs)
+        record = auth_store.upsert_ai_routing_config(token, tenant_id, normalized)
+        return {"data": record}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/ai/providers/ollama/models")
@@ -3335,40 +3404,40 @@ async def generate_cortex_report(request: Request, payload: CortexReportRequest)
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to generate reports.")
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
-    
+
     print(f"[CortexReportAPI] START {payload.reportId}")
     print(f"[CortexReportAPI] USER {user.get('id', 'none')}")
     print(f"[CortexReportAPI] TENANT {tenant.get('id', 'none')}")
-    
+
     try:
         tenant_id = tenant.get("id")
-        print(f"[AIProviderResolve] Resolving default provider for tenant: {tenant_id}")
-        
-        all_configs = auth_store.list_ai_provider_configs_for_tenant(tenant_id) if tenant_id else []
-        print(f"[AIProviderResolve] Providers found: {len(all_configs)}")
-        for cfg in all_configs:
-            print(f"[AIProviderResolve]   - {cfg.get('id')}: {cfg.get('provider_key')} (default={cfg.get('is_default')}, enabled={cfg.get('enabled')})")
-        
-        active_config = auth_store.get_default_ai_provider_config_for_tenant(tenant_id) if tenant_id else None
-        
-        if active_config:
-            print(f"[AIProviderResolve] SELECTED: {active_config.get('id')}")
-            print(f"[AIProviderResolve] TYPE: {active_config.get('provider_key')}")
-            print(f"[AIProviderResolve] MODEL: {active_config.get('model')}")
-            print(f"[AIProviderResolve] BASE_URL: {active_config.get('base_url')}")
-        else:
-            print("[AIProviderResolve] No default provider configured")
-        
+        route_hints = {}
+        if isinstance(payload.context, dict) and isinstance(payload.context.get("route_hints"), dict):
+            route_hints = payload.context.get("route_hints", {})
+        provider_override = payload.context.get("provider_override") if isinstance(payload.context, dict) else None
+        try:
+            route = resolve_ai_route(
+                tenant_id=tenant_id,
+                feature="cortex_reports",
+                task="summarization",
+                provider_override=provider_override,
+                route_hints=route_hints or None,
+                auth_store=auth_store,
+            )
+        except ValueError as error:
+            print(f"[CortexReportAPI] ERROR {str(error)}")
+            return {"success": False, "error": str(error), "data": None}
+        log_ai_route(route)
+        active_config = route.get("provider_config")
         if not active_config:
-            print("[CortexReportAPI] ERROR No AI provider configured")
-            return {"success": False, "error": "No default AI provider configured. Please configure an AI provider in Settings → Integrations.", "data": None}
-        
+            return {"success": False, "error": "No AI provider routed.", "data": None}
+
         context_text = ""
         if payload.analytics:
             crm = payload.analytics.get("crm", {})
             comms = payload.analytics.get("comms", {})
             ai_data = payload.analytics.get("ai", {})
-            
+
             context_text = f"""
 SYSTEM DATA:
 - CRM: {crm.get('total_contacts', 0)} contacts, {crm.get('total_deals', 0)} deals
@@ -3378,15 +3447,15 @@ SYSTEM DATA:
 - Comms: {comms.get('total_threads', 0)} threads, {comms.get('active_threads', 0)} active
 - AI: {ai_data.get('total_runs', 0)} runs
 """
-        
+
         full_prompt = f"""{payload.prompt}
 
 {context_text}
 
 Generate a comprehensive, actionable report following the output structure specified above. Use the provided data to inform your analysis."""
-        
+
         print(f"[CortexReportAPI] CALL_AI provider={active_config.get('provider_key')}")
-        
+
         result = ai_assist_service.generate_report(
             prompt=full_prompt,
             context={
@@ -3397,10 +3466,10 @@ Generate a comprehensive, actionable report following the output structure speci
             tenant=tenant,
             provider_config=active_config,
         )
-        
+
         print("[CortexReportAPI] SUCCESS")
         return {"success": True, "data": result}
-        
+
     except Exception as e:
         print(f"[CortexReportAPI] ERROR {str(e)}")
         logger.error(f"Report generation failed: {e}")
@@ -3408,6 +3477,7 @@ Generate a comprehensive, actionable report following the output structure speci
 
 
 # ============ EXTERNAL DATA INTAKE ============
+
 
 class ExternalDataRequest(BaseModel):
     source: str
@@ -3540,12 +3610,26 @@ async def api_ai_command(request: Request, payload: CommandRequest):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to execute AI commands.")
     tenant_id = (session.get("tenant") or {}).get("id")
     actor = {"id": session.get("user", {}).get("id"), "email": session.get("user", {}).get("email")}
-    config = auth_store.get_active_ai_provider_config_for_tenant(tenant_id)
-    
+
     command = (payload.command or "").strip()
     mode = payload.mode.strip().lower()
     context = payload.context or {}
     run_id = payload.runId
+    route_hints = context.get("route_hints") if isinstance(context, dict) else None
+    provider_override = context.get("provider_override") if isinstance(context, dict) else None
+    try:
+        route = resolve_ai_route(
+            tenant_id=tenant_id,
+            feature="ai_assist",
+            task="classification",
+            provider_override=provider_override,
+            route_hints=route_hints or None,
+            auth_store=auth_store,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    log_ai_route(route)
+    config = route.get("provider_config")
 
     if mode not in ("parse", "plan", "execute", "resume"):
         raise HTTPException(status_code=400, detail="Invalid mode.")

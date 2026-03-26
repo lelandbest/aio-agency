@@ -6,7 +6,7 @@ export const SPECIALIST_REGISTRY = {
     specialization: 'Commander-in-Chief',
     visibility: 'visible',
     capabilityTier: 'tier-1',
-    subordinates: ['BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'APEX', 'ARCHER', 'ATLAS', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR'],
+    subordinates: ['BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'GHOST', 'ARCHER', 'ATLAS', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR'],
     tools: [
       'Mission Brief Generator',
       'Resource Allocation Optimizer',
@@ -100,11 +100,11 @@ export const SPECIALIST_REGISTRY = {
       'Value Proposition Builder',
     ],
   },
-  APEX: {
-    label: 'Coder/IT/Site Dev',
+  GHOST: {
+    label: 'Systems Engineering',
     rank: 'AI Agent',
     role: 'Engineering',
-    specialization: 'Coder/IT/Site Dev',
+    specialization: 'Systems Engineering',
     visibility: 'visible',
     capabilityTier: 'tier-1',
     subordinates: [],

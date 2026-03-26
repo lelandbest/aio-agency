@@ -156,7 +156,6 @@ export const integrationConfigs = {
         icon: 'ollama',
         description: 'Connect a local or networked Ollama runtime.',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', default: 'Ollama' },
           { name: 'base_url', label: 'Base URL', type: 'text', required: true, placeholder: 'http://192.168.4.28:11434' },
           { name: 'api_key', label: 'API Key', type: 'password' },
           { name: 'username', label: 'Username', type: 'text' },
@@ -174,7 +173,6 @@ export const integrationConfigs = {
         icon: 'openai',
         description: 'GPT-4, GPT-3.5, and other OpenAI models',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', default: 'OpenAI' },
           { name: 'api_key', label: 'API Key', type: 'password', required: true },
           { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.openai.com' },
           { name: 'model', label: 'Model', type: 'text', default: 'gpt-4.1-mini' },
@@ -190,7 +188,6 @@ export const integrationConfigs = {
         icon: 'openrouter',
         description: 'Route AI traffic through OpenRouter-managed models.',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', default: 'OpenRouter' },
           { name: 'api_key', label: 'API Key', type: 'password', required: true },
           { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://openrouter.ai/api' },
           { name: 'model', label: 'Model', type: 'text', default: 'openai/gpt-4.1-mini' },
@@ -208,7 +205,6 @@ export const integrationConfigs = {
         icon: 'anthropic',
         description: 'Claude language models by Anthropic',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', default: 'Anthropic Claude' },
           { name: 'api_key', label: 'API Key', type: 'password', required: true },
           { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.anthropic.com' },
           { name: 'model', label: 'Model', type: 'text', default: 'claude-sonnet-4-20250514' },
@@ -224,7 +220,6 @@ export const integrationConfigs = {
         icon: 'google',
         description: 'Google Gemini and other Google AI models',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', default: 'Google AI' },
           { name: 'api_key', label: 'API Key', type: 'password', required: true },
           { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://generativelanguage.googleapis.com' },
           { name: 'model', label: 'Model', type: 'text', default: 'gemini-2.5-flash' },
@@ -240,7 +235,6 @@ export const integrationConfigs = {
         icon: 'perplexity',
         description: 'Perplexity language models and API',
         fields: [
-          { name: 'label', label: 'Provider Label', type: 'text', default: 'Perplexity' },
           { name: 'api_key', label: 'API Key', type: 'password', required: true },
           { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.perplexity.ai' },
           { name: 'model', label: 'Model', type: 'text', default: 'sonar' },

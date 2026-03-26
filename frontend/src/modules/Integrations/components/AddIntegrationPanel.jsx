@@ -186,15 +186,15 @@ export const AddIntegrationPanel = ({
                     key={cat.id}
                     className={`flex justify-between items-center px-4 py-3 rounded-lg transition-all cursor-pointer font-medium text-sm ${
                       category === cat.id 
-                        ? 'border-2 border-blue-500 bg-blue-50 dark:bg-purple-950 text-blue-900 dark:text-blue-100' 
-                        : 'border-2 border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-text-secondary)] text-[var(--color-text-primary)]'
+                        ? 'border-2 border-[var(--color-primary)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)]' 
+                        : 'border-2 border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)] text-[var(--color-text-primary)]'
                     }`}
                     onClick={() => onCategoryChange(cat.id)}
                   >
                     <span className="flex-1 text-left">{cat.name}</span>
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
                       category === cat.id 
-                        ? 'bg-purple-200 dark:bg-purple-800 text-blue-900 dark:text-blue-100' 
+                        ? 'bg-[var(--color-primary)]/20 text-[var(--color-text-primary)]' 
                         : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'
                     }`}>{cat.providerCount}</span>
                   </button>
@@ -209,7 +209,7 @@ export const AddIntegrationPanel = ({
                 {providers.map((prov) => (
                   <button
                     key={prov.id}
-                    className="flex items-center gap-3 px-4 py-3 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)] cursor-pointer transition-all hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-purple-950 text-left"
+                    className="flex items-center gap-3 px-4 py-3 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)] cursor-pointer transition-all hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-tertiary)] text-left"
                     onClick={() => setSelectedProvider(prov.id)}
                   >
                     <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)]">
@@ -223,7 +223,7 @@ export const AddIntegrationPanel = ({
                       <p className="m-0 mb-0.5 text-sm font-semibold text-[var(--color-text-primary)]">{prov.name}</p>
                       <p className="m-0 text-xs text-[var(--color-text-secondary)] whitespace-nowrap overflow-hidden text-ellipsis">{prov.description}</p>
                     </div>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--color-text-secondary)] hover:text-blue-500 flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex-shrink-0">
                       <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
                   </button>
@@ -236,7 +236,7 @@ export const AddIntegrationPanel = ({
           {selectedProvider && provider && (
             <div className="flex flex-col">
               {/* Provider Info */}
-              <div className="flex items-center gap-3 px-4 py-4 rounded-lg mb-6 bg-[var(--color-bg-secondary)] relative border-l-4" style={{ borderColor: colors.primary || 'var(--color-primary)' }}>
+              <div className="flex items-center gap-3 px-4 py-4 rounded-2xl mb-6 border border-[var(--color-border)] bg-[var(--color-bg-secondary)] relative border-l-4" style={{ borderColor: colors.primary || 'var(--color-primary)' }}>
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)]">
                   {provider.logo ? (
                     <img src={provider.logo} alt={provider.name} className="w-full h-full object-contain p-1" />
@@ -260,20 +260,24 @@ export const AddIntegrationPanel = ({
               </div>
 
               {/* Form Fields */}
-              <form className="flex flex-col gap-4">
-                {provider.fields.map((field) => (
+              <form className="flex flex-col gap-3">
+                {provider.fields.map((field) => {
+                  const errorClass = errors[field.name] ? 'border-red-500/60' : 'border-[var(--color-border)]';
+                  const inputClass = `w-full rounded-xl border ${errorClass} bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)]`;
+
+                  return (
                     <div key={field.name} className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <label htmlFor={field.name} className="text-sm font-semibold text-[var(--color-text-primary)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <label htmlFor={field.name} className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
                           {field.label}
-                          {field.required && <span className="text-red-600 ml-1">*</span>}
+                          {field.required && <span className="text-red-400 ml-1">*</span>}
                         </label>
                         {field.name === 'model' && provider.id === 'ollama' && (
                           <button
                             type="button"
                             onClick={handleFetchModels}
                             disabled={fetchingModels}
-                            className="bg-transparent border-none text-[var(--color-primary)] text-xs font-semibold cursor-pointer p-0 h-4 flex items-center hover:underline disabled:opacity-50"
+                            className="bg-transparent border-none text-[var(--color-text-secondary)] text-[10px] uppercase tracking-[0.18em] cursor-pointer p-0 h-4 flex items-center hover:text-[var(--color-text-primary)] disabled:opacity-50"
                           >
                             {fetchingModels ? 'Fetching...' : 'Fetch Models'}
                           </button>
@@ -286,7 +290,7 @@ export const AddIntegrationPanel = ({
                             id={field.name}
                             checked={formData[field.name] || false}
                             onChange={(e) => handleInputChange(field.name, e.target.checked)}
-                            className="w-[18px] h-[18px] cursor-pointer accent-blue-500"
+                            className="h-4 w-4 cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] accent-[var(--color-primary)]"
                           />
                           <label htmlFor={field.name} className="text-sm text-[var(--color-text-primary)] cursor-pointer">
                             {field.label}
@@ -296,25 +300,17 @@ export const AddIntegrationPanel = ({
                         <textarea
                           id={field.name}
                           rows={4}
-                          placeholder={field.placeholder || field.label}
+                          placeholder={field.placeholder || ''}
                           value={formData[field.name] || ''}
                           onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] resize-none ${
-                            errors[field.name] 
-                              ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
-                              : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
-                          }`}
+                          className={`${inputClass} resize-none`}
                         />
                       ) : field.name === 'model' && provider.id === 'ollama' && availableModels.length > 0 ? (
                         <select
                           id={field.name}
                           value={formData[field.name] || ''}
                           onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] ${
-                            errors[field.name] 
-                              ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
-                              : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
-                          }`}
+                          className={inputClass}
                         >
                           {availableModels.map((m) => (
                             <option key={m} value={m}>{m}</option>
@@ -322,29 +318,27 @@ export const AddIntegrationPanel = ({
                         </select>
                       ) : (
                         <input
-                          type={field.type}
+                          type={field.type === 'password' ? 'password' : 'text'}
+                          autoComplete={field.type === 'password' ? 'new-password' : undefined}
                           id={field.name}
-                          placeholder={field.placeholder || field.label}
+                          placeholder={field.placeholder || ''}
                           value={formData[field.name] || ''}
                           onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          className={`px-3 py-2.5 border rounded transition-all text-sm font-inherit bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] ${
-                            errors[field.name] 
-                              ? 'border-red-600 focus:outline-none focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]' 
-                              : 'border-[var(--color-border)] focus:outline-none focus:border-[var(--color-primary)] focus:shadow-[0_0_0_3px_var(--color-primary)]'
-                          }`}
+                          className={inputClass}
                           defaultValue={field.default}
                         />
                       )}
                       {errors[field.name] && (
-                        <span className="text-xs text-red-600">{errors[field.name]}</span>
+                        <span className="text-xs text-red-400">{errors[field.name]}</span>
                       )}
                     </div>
-                ))}
+                  );
+                })}
 
 
                 {/* Custom Logo Upload */}
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold text-[var(--color-text-primary)]">Custom Logo (Optional)</label>
+                  <label className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Custom Logo (Optional)</label>
                   <div className="relative">
                     <input
                       type="file"
@@ -355,7 +349,7 @@ export const AddIntegrationPanel = ({
                     />
                     <label 
                       htmlFor="logo-upload" 
-                      className="flex flex-col items-center justify-center gap-2 px-6 py-6 border-2 border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)] cursor-pointer transition-all hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-purple-950 text-sm font-medium text-[var(--color-text-secondary)] hover:text-blue-500"
+                      className="flex flex-col items-center justify-center gap-2 px-6 py-6 border border-dashed border-[var(--color-border)] rounded-xl bg-[var(--color-bg-secondary)] cursor-pointer transition-all text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]"
                     >
                       {customLogo ? (
                         <>
@@ -384,14 +378,14 @@ export const AddIntegrationPanel = ({
         {/* Footer Actions */}
         <div className="px-5 py-4 border-t border-[var(--color-border)] flex gap-3">
           <button 
-            className="flex-1 px-4 py-2.5 border border-[var(--color-border)] rounded text-sm font-semibold cursor-pointer transition-all bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-all"
             onClick={handleClose}
           >
             Cancel
           </button>
           {selectedProvider && (
             <button 
-              className="flex-1 px-4 py-2.5 border-none rounded text-sm font-semibold cursor-pointer transition-all bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-on-primary)] transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={handleSave}
               disabled={saving}
             >

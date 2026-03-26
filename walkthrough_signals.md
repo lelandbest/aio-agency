@@ -4009,7 +4009,7 @@ const CRMModule = ({ initialContactId = null }) => {
     };
     const optionsMap = {
       set_department: filterOptions.department,
-      assign_ai: ['ALPHA', 'APEX', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
+      assign_ai: ['ALPHA', 'GHOST', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
     };
     const options = optionsMap[bulkActionModal.action] || null;
 
@@ -6759,7 +6759,7 @@ const CRMModule = ({ initialContactId = null }) => {
     };
     const optionsMap = {
       set_department: filterOptions.department,
-      assign_ai: ['ALPHA', 'APEX', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
+      assign_ai: ['ALPHA', 'GHOST', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
     };
     const options = optionsMap[bulkActionModal.action] || null;
 
@@ -7002,7 +7002,7 @@ const AGENT_ROLE_HINTS = {
   DELTA: 'Coordinates timelines, milestones, and project movement.',
   ECHO: 'Owns communication craft, channel packaging, and socials output.',
   FORGE: 'Shapes copy, narrative, and content assets.',
-  APEX: 'Owns engineering, IT, integrations, and systems build.',
+  GHOST: 'Owns engineering, IT, integrations, and systems build.',
   ARCHER: 'Handles analytics, finance, ROI, and reporting.',
   ATLAS: 'Owns logistics, deployment coordination, and systems mapping.',
   RANGER: 'Handles SEO, search strategy, and optimization.',
@@ -8845,7 +8845,7 @@ const AGENT_ROLE_HINTS = {
   DELTA: 'Coordinates timelines, milestones, and project movement.',
   ECHO: 'Owns communication craft, channel packaging, and socials output.',
   FORGE: 'Shapes copy, narrative, and content assets.',
-  APEX: 'Owns engineering, IT, integrations, and systems build.',
+  GHOST: 'Owns engineering, IT, integrations, and systems build.',
   ARCHER: 'Handles analytics, finance, ROI, and reporting.',
   ATLAS: 'Owns logistics, deployment coordination, and systems mapping.',
   RANGER: 'Handles SEO, search strategy, and optimization.',

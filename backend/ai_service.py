@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import base64
+import logging
 from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
@@ -10,6 +11,7 @@ from typing import Any
 
 # Lazy import to avoid circular dependency
 _auth_store = None
+logger = logging.getLogger(__name__)
 
 def _get_auth_store():
     global _auth_store
@@ -1244,6 +1246,31 @@ class AIAssistService:
         model = _clean(provider_config.get("model"))
         api_key = _clean(provider_config.get("api_key"))
         base_url = _provider_base_url(provider_config.get("base_url"), "")
+
+        temperature = None
+        if provider_key in {"ollama", "openai", "openrouter", "perplexity", "google-ai"}:
+            temperature = float(config.get("temperature") or 0.2)
+
+        raw_route_source = _clean(provider_config.get("_route_source") or provider_config.get("route_source")).lower()
+        if "task" in raw_route_source:
+            route_source = "task"
+        elif "feature" in raw_route_source:
+            route_source = "feature"
+        elif "workspace" in raw_route_source:
+            route_source = "workspace"
+        elif raw_route_source == "fallback":
+            route_source = "fallback"
+        else:
+            route_source = "unknown"
+
+        logger.info(
+            "[AIRouteRuntime] provider=%s model=%s temperature=%s guardrails=%s routeSource=%s",
+            provider_key,
+            model or "default",
+            temperature if temperature is not None else "n/a",
+            bool(system_guardrails or task_guardrails),
+            route_source,
+        )
         
         if provider_key == "ollama" and not base_url:
             raise ValueError("Ollama base URL not configured. Please set the Ollama server URL in provider settings.")

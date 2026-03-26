@@ -5,7 +5,7 @@ import { validateOrchestrationPayload, normalizeOrchestrationPayload } from './p
 import { logConfirmed, logCanceled, logExecuted, logFailed, ORCHESTRATION_OUTCOMES } from './orchestrationLogger';
 
 const ACTION_LABELS = {
-  create_flow_dynamic: 'Generate Flow',
+  create_flow_dynamic: 'Build Flow',
   assign_agent: 'Assign Agent',
   trigger_automation: 'Trigger Automation',
   create_execution_plan: 'Create Plan'
@@ -67,7 +67,7 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
     } catch (err) {
       console.error('[Orchestrator] Execution failed:', err);
       logFailed(null, action.type, payload?.source || 'orchestrator', err);
-      setValidationError('Execution failed. Please try again.');
+      setValidationError('Execution failed. Retry.');
       setLoading(false);
     }
   };
@@ -95,7 +95,7 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
                   {ACTION_LABELS[action.type] || 'Confirm Action'}
                 </h2>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Orchestrated Execution
+                  Execution Gate
                 </p>
               </div>
             </div>
@@ -140,15 +140,15 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-sky-400" />
-                <span>Charlie will analyze your intent</span>
+                <span>Intent parsed</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-sky-400" />
-                <span>Alpha will validate and normalize</span>
+                <span>Flow drafted</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-sky-400" />
-                <span>Flow will be generated and ingested</span>
+                <span>Flow queued for ingest</span>
               </div>
             </div>
           )}
@@ -157,11 +157,11 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-amber-400" />
-                <span>Agent will be assigned to context</span>
+                <span>Agent assigned</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-amber-400" />
-                <span>Task routing will be updated</span>
+                <span>Routing updated</span>
               </div>
             </div>
           )}

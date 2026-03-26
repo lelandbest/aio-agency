@@ -82,7 +82,7 @@ The live runtime hierarchy is now aligned to the AIO Agents block, not the old t
 
 Visible agents:
 
-- `ALPHA`, `BRAVO`, `CHARLIE`, `DELTA`, `ECHO`, `FORGE`, `APEX`, `ARCHER`, `ATLAS`, `RANGER`, `SCOUT`, `STRIKER`, `VECTOR`
+- `ALPHA`, `BRAVO`, `CHARLIE`, `DELTA`, `ECHO`, `FORGE`, `GHOST`, `ARCHER`, `ATLAS`, `RANGER`, `SCOUT`, `STRIKER`, `VECTOR`
 
 Hidden governance role:
 
@@ -93,7 +93,7 @@ Key rules:
 - `CHARLIE` is the intake/front-door assistant
 - `ALPHA` is the dispatcher and authority layer
 - `ATLAS` owns logistics and systems mapping
-- `APEX` no longer owns logistics
+- `GHOST` no longer owns logistics
 - Brain and MCP are shared infrastructure, not `ECHO`-owned
 - dangerous natural-language requests are blocked and redirected to the Omega admin controls
 

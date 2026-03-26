@@ -126,20 +126,48 @@ const DEFAULT_CALENDAR_PROVIDERS = [
 
 const createAiProviderDraft = (provider) => {
   const fields = provider?.fields || [];
-  const findField = (name) => fields.find(f => f.name === name);
-  
+  const findField = (name) => fields.find((f) => f.name === name);
+  const isOllama = provider?.id === 'ollama' || provider?.key === 'ollama';
+
   return {
-    label: provider?.name || provider?.displayName || '',
     base_url: provider?.defaultBaseUrl || findField('base_url')?.default || '',
     model: provider?.defaultModel || findField('model')?.default || '',
     api_key: '',
+    temperature: findField('temperature')?.default || (isOllama ? '0.2' : ''),
+    username: '',
+    password: '',
     system_guardrails: '',
     task_guardrails: '',
-    enabled: provider?.id === 'ollama' || provider?.key === 'ollama',
-    is_default: provider?.id === 'ollama' || provider?.key === 'ollama',
-    config: (provider?.id === 'ollama' || provider?.key === 'ollama') ? { temperature: '0.2', username: '', password: '' } : {}
+    site_url: '',
+    app_name: 'AIO CRM',
+    enabled: isOllama,
+    is_default: isOllama,
+    config: isOllama ? { temperature: '0.2', username: '', password: '' } : {}
   };
 };
+
+const resolveAiProviderFieldValue = (form, fieldName) => {
+  if (!form) return '';
+  if (Object.prototype.hasOwnProperty.call(form, fieldName)) {
+    return form[fieldName] ?? '';
+  }
+  const normalized = normalizeAiField(fieldName);
+  if (normalized !== fieldName && Object.prototype.hasOwnProperty.call(form, normalized)) {
+    return form[normalized] ?? '';
+  }
+  return '';
+};
+
+const sanitizeAiProviderConfig = (rawConfig = {}) => {
+  const cleaned = { ...rawConfig };
+  ['label', 'api_key', 'apiKey', 'base_url', 'baseUrl', 'model'].forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(cleaned, key)) {
+      delete cleaned[key];
+    }
+  });
+  return cleaned;
+};
+
 
 const createAutomationProviderDraft = (provider) => ({
   label: provider?.name || '',
@@ -249,8 +277,8 @@ const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, sel
     onClick={onClick}
     className={`w-full rounded-2xl border p-4 text-left transition ${
       selected
-        ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10'
-        : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)]/30'
+        ? 'border-[var(--color-primary)] bg-[var(--color-bg-secondary)] shadow-[0_0_0_1px_rgba(59,130,246,0.4),0_18px_36px_rgba(3,7,18,0.45)]'
+        : 'border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75'
     }`}
   >
     <div className="flex items-start gap-3">
@@ -606,17 +634,16 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     // Unified form loading using snake_case and normalization fallback
     const config = existing.config || {};
     setAiProviderForm({
-      label: existing.label || catalogEntry.name || catalogEntry.label || '',
-      base_url: existing.base_url || catalogEntry.default_base_url || '',
-      model: existing.model || catalogEntry.model || '',
+      base_url: existing.base_url || config.base_url || catalogEntry.default_base_url || '',
+      model: existing.model || config.model || catalogEntry.model || catalogEntry.default_model || '',
       api_key: '', // Credentials never round-trip into form
-      temperature: existing.temperature || config.temperature || '0.2',
-      username: existing.username || config.username || '',
+      temperature: config.temperature || '0.2',
+      username: config.username || '',
       password: '',
       system_guardrails: existing.system_guardrails || config.system_guardrails || config.systemGuardrails || '',
       task_guardrails: existing.task_guardrails || config.task_guardrails || config.taskGuardrails || '',
-      site_url: existing.site_url || config.site_url || '',
-      app_name: existing.app_name || config.app_name || 'AIO CRM',
+      site_url: config.site_url || '',
+      app_name: config.app_name || 'AIO CRM',
       enabled: !!existing.enabled,
       is_default: !!existing.is_default,
       config: config
@@ -781,7 +808,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       const config = data.config || {};
       const providerCatalogEntry = getProviderConfig(providerKey);
       const payload = {
-        label: (config.label || providerCatalogEntry?.name || providerKey).trim(),
+        label: (providerCatalogEntry?.name || providerCatalogEntry?.label || providerKey).trim(),
         base_url: (config.baseUrl || '').trim(),
         api_key: config.apiKey || undefined,
         enabled: true,
@@ -812,7 +839,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       const providerCatalogEntry = getProviderConfig(providerKey);
       
       const payload = {
-        label: (config.label || providerCatalogEntry?.name || providerKey).trim(),
+        label: (providerCatalogEntry?.name || providerCatalogEntry?.label || providerKey).trim(),
         base_url: (config.base_url || providerCatalogEntry?.default_base_url || '').trim(),
         model: (config.model || providerCatalogEntry?.default_model || '').trim(),
         api_key: config.api_key || config.apiKey || undefined,
@@ -1081,9 +1108,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const handleSaveAiProvider = async () => {
     try {
       const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
+      const providerLabel = selectedAiProviderCatalog.name || selectedAiProviderCatalog.label || selectedAiProviderCatalog.displayName || providerKey;
+      const sanitizedConfig = sanitizeAiProviderConfig(aiProviderForm.config);
       await upsertAiProviderConfigApi(providerKey, {
         provider_type: providerKey,
-        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.name || selectedAiProviderCatalog.label,
+        label: providerLabel,
         base_url: (aiProviderForm.base_url || '').trim(),
         model: (aiProviderForm.model || '').trim(),
         api_key: aiProviderForm.api_key || aiProviderForm.apiKey || undefined,
@@ -1092,7 +1121,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         enabled: !!aiProviderForm.enabled,
         is_default: !!aiProviderForm.is_default,
         config: {
-          ...(aiProviderForm.config || {}),
+          ...sanitizedConfig,
           temperature: aiProviderForm.temperature || '0.2',
           username: aiProviderForm.username || '',
           password: aiProviderForm.password || undefined,
@@ -1112,9 +1141,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     setBusyAction('ai-provider-test');
     try {
       const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
+      const providerLabel = selectedAiProviderCatalog.name || selectedAiProviderCatalog.label || selectedAiProviderCatalog.displayName || providerKey;
+      const sanitizedConfig = sanitizeAiProviderConfig(aiProviderForm.config);
       const saved = await upsertAiProviderConfigApi(providerKey, {
         provider_type: providerKey,
-        label: aiProviderForm.label.trim() || selectedAiProviderCatalog.name || selectedAiProviderCatalog.label,
+        label: providerLabel,
         base_url: (aiProviderForm.base_url || '').trim(),
         model: (aiProviderForm.model || '').trim(),
         api_key: aiProviderForm.api_key || aiProviderForm.apiKey || undefined,
@@ -1123,7 +1154,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         enabled: !!aiProviderForm.enabled,
         is_default: !!aiProviderForm.is_default,
         config: {
-          ...(aiProviderForm.config || {}),
+          ...sanitizedConfig,
           temperature: aiProviderForm.temperature || '0.2',
           username: aiProviderForm.username || '',
           password: aiProviderForm.password || undefined,
@@ -1602,15 +1633,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           {selectedAiProviderConfig?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.last_error}</div> : null}
           
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            <label className="space-y-1">
-              <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div>
-              <input 
-                value={aiProviderForm.label} 
-                onChange={(event) => setAiProviderForm((current) => ({ ...current, label: event.target.value }))} 
-                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" 
-              />
-            </label>
-
             {(selectedAiProviderCatalog.fields || []).map((field) => (
               <label key={field.name || field.key} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
                 <div className="flex items-center justify-between gap-3">
@@ -1632,7 +1654,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 ) : field.type === 'textarea' ? (
                   <textarea
                     rows={4}
-                    value={aiProviderForm[field.name] || aiProviderForm[normalizeAiField(field.name)] || ''}
+                    value={resolveAiProviderFieldValue(aiProviderForm, field.name)}
                     onChange={(event) => setAiProviderForm((current) => ({ ...current, [field.name]: event.target.value }))}
                     placeholder={field.placeholder || ''}
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)] resize-none"
@@ -1641,7 +1663,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                   <input
                     type={field.type === 'password' ? 'password' : 'text'}
                     autoComplete={field.type === 'password' ? 'new-password' : undefined}
-                    value={aiProviderForm[field.name] || aiProviderForm[normalizeAiField(field.name)] || ''}
+                    value={resolveAiProviderFieldValue(aiProviderForm, field.name)}
                     onChange={(event) => setAiProviderForm((current) => ({ ...current, [field.name]: event.target.value }))}
                     placeholder={field.name === 'api_key' && selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : field.placeholder || ''}
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"

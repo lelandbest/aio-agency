@@ -97,8 +97,8 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
       <div className={COMMS_PANEL + " w-full max-w-lg flex flex-col overflow-hidden animate-in zoom-in duration-300"}>
         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.4em] text-slate-300">Universal Ingest</div>
-            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Multi-Source Intelligence Sync</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.4em] text-slate-300">Ingest</div>
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Multi-source sync</div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-slate-500">
             <X size={20} />
@@ -112,8 +112,8 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
           >
             <UploadCloud size={40} className="text-[var(--color-text-tertiary)] group-hover:text-[var(--color-primary)] transition-colors" />
             <div className="text-center">
-              <div className="text-[11px] font-black uppercase tracking-widest text-[var(--color-text-secondary)]">Click to Browse Devices</div>
-              <div className="text-[9px] font-medium text-[var(--color-text-tertiary)] mt-1 uppercase">or drag and drop operational files</div>
+              <div className="text-[11px] font-black uppercase tracking-widest text-[var(--color-text-secondary)]">Browse files</div>
+              <div className="text-[9px] font-medium text-[var(--color-text-tertiary)] mt-1 uppercase">or drop ops files</div>
             </div>
             <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileChange} />
           </div>
@@ -143,7 +143,7 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
             disabled={selectedFiles.length === 0}
             className={COMMS_TOOLBAR_PRIMARY + " !px-10 !h-12 !rounded-full disabled:opacity-30 border-transparent"}
           >
-            Initiate Sync
+            Start Ingest
           </button>
         </div>
       </div>
@@ -156,10 +156,10 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
   
   return (
     <div className={COMMS_SUBPANEL + " p-5 flex flex-col gap-4 relative z-[200]"}>
-      <SubPanelHeader title="Neural Engine" icon={BrainIcon} />
+      <SubPanelHeader title="Cortex Runtime" icon={BrainIcon} />
       <div className="space-y-4">
         <div className="relative">
-          <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">AI Provider</div>
+          <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Provider</div>
           <select 
             value={activeProviderId}
             onChange={(e) => onProviderChange(e.target.value)}
@@ -172,7 +172,7 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
           <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
         </div>
         <div className="relative">
-          <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Nexus Model</div>
+          <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Model</div>
           <select 
             value={activeModelId}
             onChange={(e) => onModelChange(e.target.value)}
@@ -346,7 +346,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
               </div>
               <div>
                 <div className="text-[16px] font-black uppercase tracking-[0.5em] text-slate-100">{category.bin} Operations</div>
-                <div className="text-[10px] font-bold text-sky-500/60 uppercase tracking-widest mt-1">{category.label} Intelligence Flux</div>
+                <div className="text-[10px] font-bold text-sky-500/60 uppercase tracking-widest mt-1">{category.label} Ingest Queue</div>
               </div>
             </div>
             <button onClick={onClose} className="p-3 hover:bg-white/5 rounded-full text-slate-500 hover:text-white transition-all">
@@ -359,14 +359,14 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Signal Identifier</th>
-                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Intelligence Bin</th>
+                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Asset Bin</th>
                   <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Temporal Stamp</th>
                   <th className="pb-5 text-right text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Operational Controls</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {renderTableRows(uploads, uploads.length > 0 && internal.length > 0 ? "Operational Uploads" : null)}
-                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Intelligence" : null)}
+                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Library" : null)}
                 
                 {allFiltered.length === 0 && (
                   <tr>
@@ -390,7 +390,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
             <div className="p-8 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.4em] text-sky-400">
-                  {selectedItem.category === 'help' ? 'System Intelligence' : 'Database Entry'}
+                  {selectedItem.category === 'help' ? 'System Library' : 'Database Entry'}
                 </div>
                 <div className="text-[20px] font-black text-white uppercase tracking-widest mt-1">{selectedItem.title || selectedItem.label}</div>
               </div>
@@ -405,7 +405,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                   <div className="space-y-4">
                     <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-100">Internal Documentation Pathway</div>
                     <div className="text-[11px] text-slate-400 max-w-sm leading-relaxed font-medium uppercase tracking-widest">
-                      This asset is part of the core AIO Help & Intelligence layer. Operational controls are managed within the Help Docs module.
+                      This asset is part of the core AIO Help & Knowledge layer. Operational controls are managed within the Help Docs module.
                     </div>
                   </div>
                   <button 
@@ -441,7 +441,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                   {/* Media Preview / Content Editor */}
                   <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-100">Live Intelligence Feed</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-100">Live Asset View</div>
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={async () => {
@@ -458,7 +458,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                       {/* Image Preview */}
                       {(selectedItem.content?.startsWith('data:image') || selectedItem.title?.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ? (
                         <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden flex items-center justify-center">
-                          <img src={selectedItem.content} alt="Intelligence Asset" className="max-w-full max-h-full object-contain shadow-2xl" />
+                          <img src={selectedItem.content} alt="Asset Preview" className="max-w-full max-h-full object-contain shadow-2xl" />
                         </div>
                       ) : null}
 
@@ -480,7 +480,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                       {selectedItem.title?.match(/\.(pdf|docx|doc|xls|xlsx|rtf|odt)$/i) && (
                         <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-700/40">
                           <div className="flex items-center justify-between mb-3">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Document Intelligence</div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Document Extract</div>
                             <div className="text-[8px] font-black uppercase tracking-widest text-amber-500/60">Extraction Pending</div>
                           </div>
                           <div className="text-[11px] text-slate-400 font-mono leading-relaxed">
@@ -495,7 +495,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                           value={selectedItem.content || ''}
                           onChange={(e) => setSelectedItem(prev => ({ ...prev, content: e.target.value }))}
                           className="w-full h-[250px] bg-black/40 border border-white/5 rounded-xl p-4 text-[12px] font-mono text-slate-400 outline-none focus:border-sky-500/40 no-scrollbar resize-none font-medium leading-relaxed"
-                          placeholder="Intelligence content manifest..."
+                          placeholder="Content notes..."
                         />
                       )}
                     </div>
@@ -550,7 +550,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
       <div className="p-1 border-b border-white/5 bg-black/20 flex gap-1.5 justify-center">
         {['files', 'web', 'mcp'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`${activeTab === tab ? COMMS_TOOLBAR_PRIMARY : COMMS_TOOLBAR_GHOST} h-9 px-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center whitespace-nowrap min-w-[80px]`}>
-            {tab === 'files' ? 'File Dump' : tab === 'web' ? 'Web Sync' : 'MCP Connect'}
+            {tab === 'files' ? 'File Ingest' : tab === 'web' ? 'Web Ingest' : 'MCP Link'}
           </button>
         ))}
       </div>
@@ -595,7 +595,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
                     <div className="text-[20px] font-black uppercase tracking-[0.5em] text-slate-100/90 selection:bg-sky-500/20 font-ethnocentric">Nexus</div>
                     <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-400 group-hover:text-slate-300 transition-colors">Drop Zone</div>
                   </div>
-                  <div className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-500 transition-colors">Drop Intelligence Assets or Paste JSON/Raw Data</div>
+                  <div className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-500 transition-colors">Drop assets or paste JSON/raw data</div>
                 </div>
 
                 {pendingFile && isAVFile(pendingFile) && (
@@ -938,7 +938,7 @@ const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSa
           <textarea 
             value={output} 
             onChange={(e) => setOutput(e.target.value)} 
-            placeholder="Intelligence output materialized here..." 
+            placeholder="Analysis output appears here..." 
             className="flex-1 w-full bg-transparent p-6 pb-20 text-[12px] font-medium text-slate-400 outline-none resize-none font-mono no-scrollbar selection:bg-sky-500/20" 
           />
           
@@ -959,10 +959,10 @@ const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSa
 
           <div className="px-5 py-3 border-t border-slate-800/40 bg-black/30 flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-slate-600">
             <div className="flex items-center gap-4">
-              <span>Signals: {output.length}</span>
-              {activeReportId && <span className="text-sky-500 animate-pulse">Processing Neural Engine...</span>}
+              <span>Chars: {output.length}</span>
+              {activeReportId && <span className="text-sky-500 animate-pulse">Running analysis...</span>}
             </div>
-            <div className="flex items-center gap-1.5 opacity-60"><div className="h-1 w-1 rounded-full bg-sky-500 animate-pulse" />Cortex Active</div>
+            <div className="flex items-center gap-1.5 opacity-60"><div className="h-1 w-1 rounded-full bg-sky-500 animate-pulse" />Cortex Online</div>
           </div>
         </div>
       </div>
@@ -1070,7 +1070,7 @@ const Cortex = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-sky-500/20 to-transparent animate-pulse rounded-full" style={{ width: 64, height: 64 }} />
         <Loader2 size={64} className="text-sky-400 animate-spin relative z-10" />
       </div>
-      <div className="text-sky-400/60 text-xs font-bold uppercase tracking-[0.3em]">Initializing Neural Engine</div>
+      <div className="text-sky-400/60 text-xs font-bold uppercase tracking-[0.3em]">Starting Cortex runtime</div>
       <div className="flex gap-1 mt-2">
         <div className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '0ms' }} />
         <div className="w-2 h-2 rounded-full bg-sky-400 animate-bounce" style={{ animationDelay: '150ms' }} />

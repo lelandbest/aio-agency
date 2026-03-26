@@ -17,7 +17,7 @@ Visible runtime roster:
 - `DELTA` = coordination
 - `ECHO` = comms, email, socials, channel craft
 - `FORGE` = content and copy
-- `APEX` = engineering, IT, site-dev, systems build
+- `GHOST` = engineering, IT, site-dev, systems build
 - `ARCHER` = analytics and financial
 - `ATLAS` = logistics, deployment coordination, systems mapping
 - `RANGER` = SEO
@@ -82,7 +82,7 @@ Module defaults now align to the full hierarchy:
 - strategy / market framing -> `BRAVO`
 - coordination / milestones / project routing -> `DELTA`
 - logistics / deployment / handoff maps -> `ATLAS`
-- engineering / IT / integrations / systems build -> `APEX`
+- engineering / IT / integrations / systems build -> `GHOST`
 - analytics / finance / KPI / ROI -> `ARCHER`
 - copy / article / landing page / narrative -> `FORGE`
 - SEO / keyword / ranking -> `RANGER`

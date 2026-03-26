@@ -16,13 +16,13 @@ export const toolNodeTemplates = [
   { id: 'echo-post-formatter', label: 'Platform-Specific Post Formatter', description: 'ECHO tool: post formatting', iconName: 'MessageSquare', nodeColor: 'action' },
   { id: 'echo-social-campaign', label: 'Social Campaign Builder', description: 'ECHO tool: campaign builder', iconName: 'MessageSquare', nodeColor: 'action' },
 
-  { id: 'apex-architecture', label: 'System Architecture Planner', description: 'APEX tool: architecture', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-automation', label: 'Automation Playbook Builder', description: 'APEX tool: automation playbook', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-integration-map', label: 'Integration Map Generator', description: 'APEX tool: integration map', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-devops', label: 'DevOps Checklist Generator', description: 'APEX tool: devops', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-incident', label: 'Incident Response Protocol', description: 'APEX tool: incident response', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-cicd', label: 'CI/CD Pipeline Planner', description: 'APEX tool: CI/CD', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-infra', label: 'Infrastructure Blueprint Generator', description: 'APEX tool: infra blueprint', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-api', label: 'API Integration Design', description: 'APEX tool: API design', iconName: 'Settings', nodeColor: 'action' },
-  { id: 'apex-security', label: 'Security Hardening Checklist', description: 'APEX tool: security', iconName: 'Settings', nodeColor: 'action' }
+  { id: 'ghost-architecture', label: 'System Architecture Planner', description: 'GHOST tool: architecture', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-automation', label: 'Automation Playbook Builder', description: 'GHOST tool: automation playbook', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-integration-map', label: 'Integration Map Generator', description: 'GHOST tool: integration map', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-devops', label: 'DevOps Checklist Generator', description: 'GHOST tool: devops', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-incident', label: 'Incident Response Protocol', description: 'GHOST tool: incident response', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-cicd', label: 'CI/CD Pipeline Planner', description: 'GHOST tool: CI/CD', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-infra', label: 'Infrastructure Blueprint Generator', description: 'GHOST tool: infra blueprint', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-api', label: 'API Integration Design', description: 'GHOST tool: API design', iconName: 'Settings', nodeColor: 'action' },
+  { id: 'ghost-security', label: 'Security Hardening Checklist', description: 'GHOST tool: security', iconName: 'Settings', nodeColor: 'action' }
 ];

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  TrendingUp, Users, MessageSquare, Zap, X, 
+  TrendingUp, Users, MessageSquare, AlertTriangle, Zap, X, 
   BarChart3, Activity, Brain, Target, Send, 
   Save, Grid3x3, RefreshCw, FileText, AlertCircle, 
   ChevronRight, Play, Wand2, Clock, Star, Settings
@@ -31,20 +31,20 @@ const mapDataToSignals = (rawData) => {
       id: `stalled-deals-${now}`,
       type: 'pipeline',
       severity: stalledDeals.length > 2 ? 'critical' : 'attention',
-      title: `${stalledDeals.length} deals stalled for 48+ hours`,
-      description: `Multiple leads in your pipeline haven't moved despite recent activity.`,
-      impact: 'Potential revenue stagnation and decreased conversion probability.',
+      title: `${stalledDeals.length} deals stalled 48+ hours`,
+      description: `No stage movement on these deals in 48+ hours.`,
+      impact: 'Revenue at risk as stages age.',
       primaryAction: {
         label: 'Open Pipeline',
         action: { type: 'open_module', payload: { module: 'pipelines' } }
       },
       recommendedActions: [
-        { label: 'Generate Follow-ups', action: { type: 'create_flow_dynamic', payload: { intent: 'follow up stalled deals', source: 'signals' } } },
-        { label: 'Assign Agent', action: { type: 'assign_agent', payload: { context: 'pipeline_signal' } } }
+        { label: 'Draft follow-ups', action: { type: 'create_flow_dynamic', payload: { intent: 'follow up stalled deals', source: 'signals' } } },
+        { label: 'Assign agent', action: { type: 'assign_agent', payload: { context: 'pipeline_signal' } } }
       ],
       count: stalledDeals.length,
       entities: stalledDeals,
-      source: 'CRM Pulse',
+      source: 'CRM Monitor',
       timestamp: now
     });
   }
@@ -56,19 +56,19 @@ const mapDataToSignals = (rawData) => {
       id: `unread-threads-${now}`,
       type: 'comms',
       severity: unreadThreads.length > 5 ? 'critical' : 'attention',
-      title: `${unreadThreads.length} threads require attention`,
-      description: `New messages or unread threads are piling up in your inbox.`,
-      impact: 'Delayed response times impact customer satisfaction and lead trust.',
+      title: `${unreadThreads.length} threads need response`,
+      description: `Unread threads are waiting in Comms.`,
+      impact: 'Response SLAs at risk.',
       primaryAction: {
-        label: 'Open Inbox',
+        label: 'Open Comms',
         action: { type: 'open_module', payload: { module: 'chat' } }
       },
       recommendedActions: [
-        { label: 'AI Draft Replies', action: { type: 'create_flow_dynamic', payload: { intent: 'draft replies for unread messages', source: 'signals' } } }
+        { label: 'Draft replies', action: { type: 'create_flow_dynamic', payload: { intent: 'draft replies for unread messages', source: 'signals' } } }
       ],
       count: unreadThreads.length,
       entities: unreadThreads,
-      source: 'Comms Engine',
+      source: 'Comms Queue',
       timestamp: now
     });
   }
@@ -80,18 +80,18 @@ const mapDataToSignals = (rawData) => {
       id: `failed-runs-${now}`,
       type: 'system',
       severity: 'critical',
-      title: `${failedRuns.length} AI automations failed`,
-      description: `Critical workflow nodes failed to execute in the last 24 hours.`,
-      impact: 'Operational breakage in automated lead nurturing pipelines.',
+      title: `${failedRuns.length} automations failed`,
+      description: `Flow nodes failed in the last 24 hours.`,
+      impact: 'Automations stalled; follow-ups may slip.',
       primaryAction: {
-        label: 'Review Automation',
+        label: 'Open Flows',
         action: { type: 'open_module', payload: { module: 'flows' } }
       },
       recommendedActions: [
-        { label: 'Debug Intent', action: { type: 'create_flow_dynamic', payload: { intent: 'debug the most recent failed automation runs', source: 'signals' } } }
+        { label: 'Review failures', action: { type: 'create_flow_dynamic', payload: { intent: 'debug the most recent failed automation runs', source: 'signals' } } }
       ],
       count: failedRuns.length,
-      source: 'Neural Monitoring',
+      source: 'Runtime Monitor',
       timestamp: now
     });
   }
@@ -102,14 +102,14 @@ const mapDataToSignals = (rawData) => {
       id: `ai-velocity-${now}`,
       type: 'ai',
       severity: 'normal',
-      title: 'High AI execution velocity',
-      description: `Your neural engine processed ${aiRuns.length} triggers successfully.`,
-      impact: 'System is operating at peak efficiency under current load.',
+      title: 'High automation throughput',
+      description: `Automations processed ${aiRuns.length} triggers successfully.`,
+      impact: 'System stable under current load.',
       primaryAction: {
-        label: 'View Logs',
+        label: 'View Runs',
         action: { type: 'open_module', payload: { module: 'flows' } }
       },
-      source: 'Brain Stats',
+      source: 'Runtime Stats',
       timestamp: now
     });
   }
@@ -132,7 +132,7 @@ const PrioritySignalStrip = ({ signals }) => {
     <div className="px-6 py-4 border-b border-[var(--color-border)] bg-red-500/5">
       <div className="flex items-center gap-2 mb-3">
         <AlertCircle size={14} className="text-red-400" />
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Priority Signals</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Urgent Signals</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {prioritySignals.map(signal => (
@@ -166,13 +166,18 @@ const SignalCard = ({ signal }) => {
     attention: 'text-amber-400 bg-amber-400/10',
     normal: 'text-emerald-400 bg-emerald-400/10',
   }[signal.severity];
+  const severityLabel = {
+    critical: 'Emergency',
+    attention: 'Warning',
+    normal: 'Insight'
+  }[signal.severity] || 'Status';
 
   return (
     <div className={`p-6 rounded-2xl border ${severityColor} transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconColor}`}>
-            <Zap size={20} />
+            <AlertTriangle size={20} />
           </div>
           <div>
             <h3 className="text-sm font-black text-white uppercase tracking-widest">{signal.title}</h3>
@@ -180,7 +185,7 @@ const SignalCard = ({ signal }) => {
           </div>
         </div>
         <div className={`px-2 py-0.5 rounded-md text-[7px] font-black uppercase border ${severityColor}`}>
-          {signal.severity}
+          {severityLabel}
         </div>
       </div>
 
@@ -190,7 +195,7 @@ const SignalCard = ({ signal }) => {
             {signal.description}
           </p>
           <div className="pt-2">
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Impact Analysis:</span>
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Impact</span>
             <p className="text-[10px] text-white/70 italic">{signal.impact}</p>
           </div>
         </div>
@@ -226,7 +231,7 @@ const SignalHistory = ({ signals }) => {
     <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl p-6 shadow-xl">
       <div className="flex items-center gap-2 mb-6">
         <Clock size={16} className="text-sky-400" />
-        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-text-primary)]">Signal Intelligence Feed</h3>
+        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-text-primary)]">Signal Feed</h3>
       </div>
       <div className="space-y-6">
         {signals.length > 0 ? signals.map((signal, i) => (
@@ -251,7 +256,7 @@ const SignalHistory = ({ signals }) => {
                   onClick={() => dispatchAction(signal.primaryAction.action, { ...signal.primaryAction.payload, source: 'signals' })}
                   className="text-[7px] font-black text-[var(--color-primary)] uppercase tracking-widest hover:underline"
                 >
-                  EXECUTE {signal.primaryAction.label}
+                  RUN {signal.primaryAction.label}
                 </button>
               </div>
             </div>
@@ -259,7 +264,7 @@ const SignalHistory = ({ signals }) => {
         )) : (
           <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
             <Brain size={32} className="mb-4" />
-            <p className="text-xs font-black uppercase tracking-widest">No Signals Detected</p>
+            <p className="text-xs font-black uppercase tracking-widest">No active signals</p>
           </div>
         )}
       </div>
@@ -306,18 +311,18 @@ const PulseBand = ({ stats, loading }) => {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Activity size={14} className="text-[var(--color-primary)]" />
-          <span className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.3em]">System Pulse</span>
+          <span className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.3em]">Ops Pulse</span>
         </div>
         <div className="flex items-center gap-2 text-[8px] font-black text-slate-500 uppercase tracking-widest">
           <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-          Neural Link: Established
+          Data Link: Online
         </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} />
         <PulseCard title="Pipelines" value={stats.pipeline} icon={Target} color="green" live={true} />
         <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} />
-        <PulseCard title="AI Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} />
+        <PulseCard title="Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} />
       </div>
     </div>
   );
@@ -361,7 +366,7 @@ const SignalsModule = () => {
         setHistory(generatedSignals.sort((a, b) => b.timestamp - a.timestamp));
 
       } catch (err) {
-        console.error('Signal Engine failure:', err);
+        console.error('Signal load failed:', err);
       } finally {
         setLoading(false);
       }
@@ -394,10 +399,10 @@ const SignalsModule = () => {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Signal Capacity: Nominal</div>
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Signal Load: Nominal</div>
           <button
             className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 text-slate-500 hover:text-white flex items-center justify-center transition-all"
-            title="System Diagnostics"
+            title="Diagnostics"
           >
             <Settings size={16} />
           </button>
@@ -412,7 +417,7 @@ const SignalsModule = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500">
             <RefreshCw className="animate-spin" size={24} />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Synching Neural Engine...</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Syncing signal feeds...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 max-w-[1600px] mx-auto">
@@ -424,7 +429,7 @@ const SignalsModule = () => {
                     <div className="w-1.5 h-6 bg-[var(--color-primary)]" />
                     <h2 className="text-[12px] font-black text-white uppercase tracking-[0.4em]">Active Signals</h2>
                   </div>
-                  <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{signals.length} Conditions Interpreted</span>
+                  <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{signals.length} Conditions tracked</span>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -436,8 +441,8 @@ const SignalsModule = () => {
                     <div className="col-span-full py-20 rounded-3xl border border-dashed border-white/5 flex flex-col items-center justify-center text-slate-600 gap-4">
                       <TrendingUp size={48} className="opacity-20" />
                       <div className="text-center">
-                        <p className="text-sm font-black uppercase tracking-widest">AIO Signal Engine: Clear</p>
-                        <p className="text-[10px] uppercase tracking-widest opacity-50">No urgent follow-ups or stalling detected.</p>
+                        <p className="text-sm font-black uppercase tracking-widest">Signals Clear</p>
+                        <p className="text-[10px] uppercase tracking-widest opacity-50">No urgent items detected.</p>
                       </div>
                     </div>
                   )}

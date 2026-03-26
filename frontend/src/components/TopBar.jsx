@@ -109,12 +109,18 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
 
             <div className="flex items-center gap-4 ml-auto">
                 {showSearch && (
-                    <div className="hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-border)] bg-[#09090b] shadow-premium">
-                        <Search size={16} className="text-white/70" />
+                    <div className="hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-premium">
+                        <Search size={16} className="text-[var(--color-text-tertiary)]" />
                         <input
-                            type="text"
+                            type="search"
+                            name="global-search"
                             placeholder={searchPlaceholder}
-                            className="w-full bg-transparent outline-none text-sm text-white placeholder-white/30"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            spellCheck="false"
+                            inputMode="search"
+                            className="w-full bg-transparent outline-none text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)]"
                         />
                     </div>
                 )}

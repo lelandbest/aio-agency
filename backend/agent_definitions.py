@@ -29,7 +29,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
             "Strategic Directive Builder",
             "query_vault", "draft_email"
         ],
-        subordinates=["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "APEX", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
+        subordinates=["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
         system_prompt="You are ALPHA, Commander-in-Chief. You govern all subordinate AI agents and synthesize multi-agent intelligence contexts.",
     ),
     "BRAVO": AgentDefinition(
@@ -77,14 +77,14 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
         tools=["Article Generator", "Product Description Writer", "draft_article"],
         system_prompt="You are FORGE, Content and Copywriting Specialist.",
     ),
-    "APEX": AgentDefinition(
-        name="APEX",
+    "GHOST": AgentDefinition(
+        name="GHOST",
         agent_id="AGT-DEV-007",
         role="Engineering",
         rank="AI Agent",
         capabilities=["Code Architecture", "Automation", "Deployment", "coding"],
         tools=["System Architecture Planner", "Automation Playbook Builder", "API Integration Design", "code_review"],
-        system_prompt="You are APEX, IT and Systems Engineering Specialist.",
+        system_prompt="You are GHOST, Systems Engineering Specialist.",
     ),
     "ARCHER": AgentDefinition(
         name="ARCHER",
@@ -158,4 +158,3 @@ def get_agent_definition(name_or_id: str) -> Optional[AgentDefinition]:
     name_map = {d.agent_id: k for k, d in AGENT_DEFINITIONS.items()}
     name = name_map.get(name_or_id, name_or_id.upper())
     return AGENT_DEFINITIONS.get(name)
-

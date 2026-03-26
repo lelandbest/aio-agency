@@ -74,7 +74,7 @@ const ICON_MAP = {
 };
 
 const MODULE_SUBTITLE_MAP = {
-  chat: 'Thread-first Comms with AI-guided actions and report logging.'
+  chat: 'Thread-first Comms for triage, actions, and audit logs.'
 };
 
 // ============ MAIN APP COMPONENT ============
@@ -449,7 +449,15 @@ const App = () => {
               )}
 
               {/* Module Content */}
-              <div className={`flex-1 bg-[var(--color-bg-primary)] ${activeModule === 'flows' ? 'overflow-hidden p-0' : 'overflow-auto p-6'}`}>
+              <div
+                className={`flex-1 bg-[var(--color-bg-primary)] ${
+                  activeModule === 'flows'
+                    ? 'overflow-hidden p-0'
+                    : activeModule === 'aio-agents'
+                    ? 'overflow-hidden p-4'
+                    : 'overflow-auto p-6'
+                }`}
+              >
                 <Suspense key={activeModule} fallback={
                   <div className="h-full flex items-center justify-center">
                     <LoadingSpinner size="lg" message="Loading module..." />

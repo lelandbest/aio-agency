@@ -143,6 +143,15 @@ class AuthStore:
                     UNIQUE(tenant_id, provider_key)
                 );
 
+                CREATE TABLE IF NOT EXISTS ai_routing_configs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL UNIQUE,
+                    config_json TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+
                 CREATE TABLE IF NOT EXISTS automation_provider_configs (
                     id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL,
@@ -1831,6 +1840,57 @@ class AuthStore:
                 raise ValueError("Session not found or expired.")
             self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
         return self.list_ai_provider_configs_for_tenant(tenant_id)
+
+    def get_ai_routing_record_for_tenant(self, tenant_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM ai_routing_configs WHERE tenant_id = ? LIMIT 1",
+                (tenant_id,),
+            ).fetchone()
+        if not row:
+            return None
+        config = json.loads(row["config_json"]) if row["config_json"] else {}
+        return {
+            "id": row["id"],
+            "tenant_id": row["tenant_id"],
+            "config": config,
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def get_ai_routing_config_for_tenant(self, tenant_id: str) -> dict[str, Any] | None:
+        record = self.get_ai_routing_record_for_tenant(tenant_id)
+        return record.get("config") if record else None
+
+    def upsert_ai_routing_config(self, token: str | None, tenant_id: str, config: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            existing = conn.execute("SELECT * FROM ai_routing_configs WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            now = utcnow_iso()
+            config_json = json.dumps(config or {})
+            if existing:
+                conn.execute("""
+                    UPDATE ai_routing_configs
+                    SET config_json = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (config_json, now, existing["id"]),
+                )
+            else:
+                config_id = f"ai-routing-{secrets.token_hex(8)}"
+                conn.execute("""
+                    INSERT INTO ai_routing_configs (id, tenant_id, config_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (config_id, tenant_id, config_json, now, now),
+                )
+            conn.commit()
+        return self.get_ai_routing_record_for_tenant(tenant_id) or {"tenant_id": tenant_id, "config": config}
 
     def list_automation_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:

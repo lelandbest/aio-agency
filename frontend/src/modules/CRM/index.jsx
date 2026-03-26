@@ -2594,7 +2594,7 @@ const CRMModule = ({ initialContactId = null }) => {
     };
     const optionsMap = {
       set_department: filterOptions.department,
-      assign_ai: ['ALPHA', 'APEX', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
+      assign_ai: ['ALPHA', 'GHOST', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
     };
     const options = optionsMap[bulkActionModal.action] || null;
 

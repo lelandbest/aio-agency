@@ -87,7 +87,7 @@ const AGENT_ROLE_HINTS = {
   DELTA: 'Coordinates timelines, milestones, and project movement.',
   ECHO: 'Owns communication craft, channel packaging, and socials output.',
   FORGE: 'Shapes copy, narrative, and content assets.',
-  APEX: 'Owns engineering, IT, integrations, and systems build.',
+  GHOST: 'Owns engineering, IT, integrations, and systems build.',
   ARCHER: 'Handles analytics, finance, ROI, and reporting.',
   ATLAS: 'Owns logistics, deployment coordination, and systems mapping.',
   RANGER: 'Handles SEO, search strategy, and optimization.',

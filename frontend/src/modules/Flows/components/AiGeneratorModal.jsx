@@ -41,10 +41,10 @@ const AiGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
                 <Bot className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-white uppercase tracking-widest leading-none mb-1">Neural Flow Engine</h2>
+                <h2 className="text-lg font-black text-white uppercase tracking-widest leading-none mb-1">Flow Generator</h2>
                 <div className="flex items-center gap-2">
                   <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <p className="text-[10px] text-sky-400 font-black uppercase tracking-[0.2em]">Ready for Generation</p>
+                  <p className="text-[10px] text-sky-400 font-black uppercase tracking-[0.2em]">Ready</p>
                 </div>
               </div>
             </div>
@@ -68,14 +68,14 @@ const AiGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
               />
               <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-800 px-2 py-1 rounded-md border border-white/5">
-                  Natural Language v2.0
+                  Freeform input
                 </span>
               </div>
             </div>
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Example Queries</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Examples</label>
             <div className="flex flex-wrap gap-2">
               {suggestions.map((s) => (
                 <button
@@ -96,7 +96,7 @@ const AiGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
             disabled={generating}
             className="flex-1 py-3.5 rounded-2xl bg-slate-800 text-slate-400 text-[11px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-white/5"
           >
-            Load from Vault
+            Load Draft
           </button>
           <button
             onClick={handleGenerate}
@@ -110,12 +110,12 @@ const AiGeneratorModal = ({ isOpen, onClose, onGenerate }) => {
             {generating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Architecting Flow...
+                Building Flow...
               </>
             ) : (
               <>
                 <Wand2 className="w-4 h-4" />
-                Generate Instant Flow
+                Generate Flow
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
