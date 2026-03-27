@@ -651,16 +651,15 @@ const AIOAgentsModule = () => {
         command: nextMessage,
         ...(selectedAgent ? { agent: selectedAgent } : {}),
         ...(collabAgents.length ? { collabAgents } : {}),
-        ...(selectedFlow ? { flowId: selectedFlow.id, flowMode: 'execute' } : {}),
+        ...(selectedFlow ? { flow_id: selectedFlow.id } : {}),
         context: {
           module: 'agents',
           surface: 'command',
           requested_agent: selectedAgent || '',
           active_agent: selectedAgent || activeRun?.executing_agent || activeRun?.agent_role || '',
           collab_agents: collabAgents,
-          flowId: selectedFlow?.id || null,
-          flowMode: selectedFlow ? 'execute' : null,
-          flowName: selectedFlow?.name || null,
+          flow_id: selectedFlow?.id || null,
+          flow_name: selectedFlow?.name || null,
         }
       });
       const runId = response?.run_id || response?.run?.id || '';
@@ -824,7 +823,7 @@ const AIOAgentsModule = () => {
       : hasActiveRun
         ? 'bg-green-500'
         : 'bg-gray-500';
-  const activeFlowLabel = activeRun?.flowName || activeRun?.flow_name || activeRun?.metadata?.flowName || selectedFlow?.name || '';
+  const activeFlowLabel = activeRun?.flow?.name || activeRun?.flowName || activeRun?.flow_name || activeRun?.metadata?.flowName || selectedFlow?.name || '';
   const collabAgentKeys = (() => {
     const commandPostOrder = agents
       .map((agent) => agent.registryKey || agent.registry_key || agent.name || '')

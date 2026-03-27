@@ -778,6 +778,168 @@ def build_ai_run_steps(
     return steps
 
 
+def extract_run_result_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        return "\n".join(filter(None, (extract_run_result_text(item) for item in value))).strip()
+    if isinstance(value, dict):
+        for key in ("message", "suggestion", "summary", "content", "result", "output", "answer"):
+            text = extract_run_result_text(value.get(key))
+            if text:
+                return text
+        return "\n".join(
+            filter(
+                None,
+                (
+                    f"{str(key).replace('_', ' ').title()}: {extract_run_result_text(item)}".strip()
+                    for key, item in value.items()
+                ),
+            )
+        ).strip()
+    return ""
+
+
+def derive_agent_chain_from_steps(steps: list[dict[str, Any]]) -> list[str]:
+    chain: list[str] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        agent = str(step.get("assignedAgent") or step.get("agent") or "").strip().upper()
+        if agent and agent not in chain:
+            chain.append(agent)
+    return chain
+
+
+def extract_flow_graph(flow: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    spec = flow.get("spec") if isinstance(flow.get("spec"), dict) else {}
+    spec_nodes = spec.get("nodes") if isinstance(spec.get("nodes"), list) else []
+    spec_edges = spec.get("edges") if isinstance(spec.get("edges"), list) else []
+    nodes = spec_nodes or (flow.get("nodes") if isinstance(flow.get("nodes"), list) else [])
+    edges = spec_edges or (flow.get("edges") if isinstance(flow.get("edges"), list) else [])
+    return nodes, edges
+
+
+def order_flow_nodes(nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not nodes:
+        return []
+    node_map = {str(node.get("id")): node for node in nodes if node.get("id")}
+    ordered_ids: list[str] = []
+    indegree = {node_id: 0 for node_id in node_map}
+    adjacency = {node_id: [] for node_id in node_map}
+
+    for edge in edges:
+        source = str(edge.get("source") or "").strip()
+        target = str(edge.get("target") or "").strip()
+        if source in adjacency and target in indegree:
+            adjacency[source].append(target)
+            indegree[target] += 1
+
+    queue = [node_id for node_id, degree in indegree.items() if degree == 0]
+    queue.sort(key=lambda node_id: next((index for index, node in enumerate(nodes) if str(node.get("id")) == node_id), 0))
+
+    while queue:
+        node_id = queue.pop(0)
+        ordered_ids.append(node_id)
+        for target in adjacency.get(node_id, []):
+            indegree[target] -= 1
+            if indegree[target] == 0:
+                queue.append(target)
+
+    for node in nodes:
+        node_id = str(node.get("id") or "").strip()
+        if node_id and node_id not in ordered_ids:
+            ordered_ids.append(node_id)
+
+    return [node_map[node_id] for node_id in ordered_ids if node_id in node_map]
+
+
+def infer_flow_step_agent(node: dict[str, Any], fallback_agent: str = "") -> str:
+    data = node.get("data") if isinstance(node.get("data"), dict) else {}
+    for candidate in (
+        data.get("assignedAgent"),
+        data.get("agent"),
+        data.get("agentKey"),
+        data.get("selectedAgent"),
+        node.get("assignedAgent"),
+        node.get("agent"),
+    ):
+        normalized = normalize_agent_key(candidate)
+        if normalized:
+            return normalized
+
+    haystacks = [
+        str(node.get("id") or ""),
+        str(node.get("type") or ""),
+        str(data.get("label") or ""),
+        str(data.get("description") or ""),
+        str(data.get("typeLabel") or ""),
+    ]
+    for agent_name in AGENT_DEFINITIONS.keys():
+        for haystack in haystacks:
+            if re.search(rf"\b{re.escape(agent_name)}\b", haystack, flags=re.IGNORECASE):
+                return agent_name
+    return normalize_agent_key(fallback_agent) or "ALPHA"
+
+
+def build_flow_execution_steps(flow: dict[str, Any], command_text: str, fallback_agent: str = "") -> tuple[list[dict[str, Any]], list[str]]:
+    nodes, edges = extract_flow_graph(flow)
+    ordered_nodes = order_flow_nodes(nodes, edges)
+    executable_nodes = [
+        node for node in ordered_nodes
+        if str(node.get("type") or "").lower() not in {"trigger", "frame", "note"}
+    ]
+    raw_steps: list[dict[str, Any]] = []
+    agent_chain: list[str] = []
+    flow_id = str(flow.get("id") or "").strip()
+    flow_name = str(flow.get("name") or "Untitled Flow").strip() or "Untitled Flow"
+    step_count = len(executable_nodes)
+
+    for index, node in enumerate(executable_nodes, start=1):
+        data = node.get("data") if isinstance(node.get("data"), dict) else {}
+        node_label = str(data.get("label") or node.get("label") or f"Step {index}").strip() or f"Step {index}"
+        node_description = str(data.get("description") or "").strip()
+        assigned_agent = infer_flow_step_agent(node, fallback_agent)
+        agent_definition = AGENT_DEFINITIONS.get(assigned_agent) or AGENT_DEFINITIONS["ALPHA"]
+        step_command_parts = [
+            f"Flow {flow_name} step {index} of {step_count}: {node_label}.",
+            f"Operator command: {command_text}",
+        ]
+        if node_description:
+            step_command_parts.append(f"Node description: {node_description}")
+        if data.get("configuration"):
+            step_command_parts.append(f"Node configuration: {data.get('configuration')}")
+        if data.get("actionType"):
+            step_command_parts.append(f"Action type: {data.get('actionType')}")
+        if assigned_agent not in agent_chain:
+            agent_chain.append(assigned_agent)
+        raw_steps.append(
+            {
+                "id": str(node.get("id") or f"flow-step-{index}"),
+                "intent": "agent_task",
+                "parameters": {
+                    "command": " ".join(part for part in step_command_parts if part).strip(),
+                    "original_command": command_text,
+                    "flow_id": flow_id,
+                    "flow_name": flow_name,
+                    "node_id": str(node.get("id") or f"flow-node-{index}"),
+                    "node_type": str(node.get("type") or "action"),
+                    "node_label": node_label,
+                    "node_description": node_description,
+                    "step_index": index,
+                    "step_count": step_count,
+                },
+                "assignedAgent": assigned_agent,
+                "agentId": agent_definition.agent_id,
+            }
+        )
+    return raw_steps, agent_chain
+
+
 def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | None:
     if not run:
         return None
@@ -793,7 +955,7 @@ def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | No
     last_success_data = last_success.get("data") if isinstance(last_success, dict) and isinstance(last_success.get("data"), dict) else {}
     last_error_text = str((last_error or {}).get("error") or "").strip()
     result_text = (
-        str(last_success_data.get("message") or last_success_data.get("suggestion") or last_success_data.get("content") or "").strip()
+        extract_run_result_text(last_success_data)
         or last_error_text
         or ""
     )
@@ -801,8 +963,38 @@ def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | No
     if not isinstance(delegate_chain, list):
         delegate_chain = []
     executing_agent = routing.get("executing_agent") or ""
+    agent_chain = derive_agent_chain_from_steps(steps)
+    for agent in agent_chain:
+        if agent not in delegate_chain:
+            delegate_chain.append(agent)
     if executing_agent and executing_agent not in delegate_chain:
         delegate_chain = [*delegate_chain, executing_agent]
+    flow_id = str(
+        context.get("flow_id")
+        or context.get("flowId")
+        or ((context.get("flow") or {}).get("id") if isinstance(context.get("flow"), dict) else "")
+        or ""
+    ).strip()
+    flow_name = str(
+        context.get("flow_name")
+        or context.get("flowName")
+        or ((context.get("flow") or {}).get("name") if isinstance(context.get("flow"), dict) else "")
+        or ""
+    ).strip()
+    flow = {"id": flow_id, "name": flow_name} if flow_id else None
+    projected_steps: list[dict[str, Any]] = []
+    for index, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            continue
+        step_parameters = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
+        projected_steps.append(
+            {
+                **step,
+                "step_index": step.get("step_index") or step.get("stepIndex") or step_parameters.get("step_index") or index,
+                "agent": step.get("assignedAgent") or step.get("agent"),
+                "output": extract_run_result_text(step.get("data")),
+            }
+        )
     return {
         "id": run.get("id"),
         "tenant_id": run.get("tenant_id"),
@@ -817,6 +1009,7 @@ def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | No
         "executing_agent": executing_agent or None,
         "requested_agent": routing.get("requested_agent"),
         "delegate_chain": delegate_chain,
+        "agent_chain": agent_chain or delegate_chain,
         "permission_tier": routing.get("permission_tier"),
         "thread_id": str(context.get("thread_id") or "") or None,
         "contact_id": str(context.get("contact_id") or "") or None,
@@ -827,8 +1020,15 @@ def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | No
         "model": ((context.get("_provider_config") or {}).get("model") if isinstance(context.get("_provider_config"), dict) else None),
         "prompt": run.get("command"),
         "result": result_text,
+        "output": result_text,
         "artifacts": artifacts,
-        "steps": steps,
+        "steps": projected_steps,
+        "step_count": int(context.get("step_count") or len(projected_steps) or 0),
+        "flow": flow,
+        "flow_id": flow_id or None,
+        "flow_name": flow_name or None,
+        "flowId": flow_id or None,
+        "flowName": flow_name or None,
         "metadata": {
             "projection_source": "ai_engine_runs",
             "legacy_ai_runs_adapter": True,
@@ -1089,6 +1289,10 @@ class AIAssistRequest(BaseModel):
 class AICommandRequest(BaseModel):
     command: str
     context: dict[str, Any] | None = None
+    agent: str | None = None
+    collabAgents: list[str] | None = None
+    flow_id: str | None = None
+    flowId: str | None = None
 
 
 class OmegaArmRequest(BaseModel):
@@ -2214,7 +2418,23 @@ async def ai_command(request: Request, payload: AICommandRequest):
         raise HTTPException(status_code=400, detail="Command is required.")
     module = str(resolved_context.get("module") or "agents")
     surface = str(resolved_context.get("surface") or "command")
-    requested_agent = normalize_agent_key(resolved_context.get("requested_agent"))
+    requested_agent = normalize_agent_key(payload.agent or resolved_context.get("requested_agent"))
+    collab_agents = [
+        agent
+        for agent in (
+            normalize_agent_key(value)
+            for value in (payload.collabAgents or resolved_context.get("collab_agents") or [])
+        )
+        if agent
+    ]
+    flow_id = str(payload.flow_id or payload.flowId or resolved_context.get("flow_id") or resolved_context.get("flowId") or "").strip() or None
+    selected_flow = provider.get_flow(flow_id) if flow_id else None
+    if flow_id and not selected_flow:
+        return {
+            "status": "error",
+            "result": {"routing": None, "run": None, "run_id": None},
+            "message": f"Flow '{flow_id}' is not available in the current workspace.",
+        }
     if requested_agent == "OMEGA":
         return {
             "status": "error",
@@ -2243,7 +2463,18 @@ async def ai_command(request: Request, payload: AICommandRequest):
     )
     if routing["permission_tier"] == "dangerous":
         raise HTTPException(status_code=403, detail="Dangerous commands are blocked from natural-language routing. Use the dedicated Omega admin controls.")
-    executing_agent = requested_agent or routing["executing_agent"]
+    flow_raw_steps: list[dict[str, Any]] = []
+    flow_agent_chain: list[str] = []
+    if selected_flow:
+        flow_raw_steps, flow_agent_chain = build_flow_execution_steps(selected_flow, command_text, requested_agent or routing["executing_agent"])
+        if not flow_raw_steps:
+            return {
+                "status": "error",
+                "result": {"routing": routing, "run": None, "run_id": None},
+                "message": f"Flow '{selected_flow.get('name') or flow_id}' has no executable steps.",
+            }
+
+    executing_agent = requested_agent or (flow_agent_chain[-1] if flow_agent_chain else routing["executing_agent"])
     agent_definition = AGENT_DEFINITIONS.get(executing_agent)
     if not agent_definition:
         return {
@@ -2256,8 +2487,19 @@ async def ai_command(request: Request, payload: AICommandRequest):
     resolved_context["requested_agent"] = requested_agent or routing["requested_agent"] or ""
     resolved_context["active_agent"] = resolved_context.get("active_agent") or executing_agent
     resolved_context["_provider_config"] = ai_provider
-    resolved_context["_requested_agent_locked"] = bool(requested_agent)
+    resolved_context["_requested_agent_locked"] = bool(requested_agent or selected_flow)
     resolved_context["field"] = "command"
+    if collab_agents:
+        resolved_context["collab_agents"] = collab_agents
+    if selected_flow:
+        resolved_context["flow_id"] = selected_flow.get("id")
+        resolved_context["flow_name"] = selected_flow.get("name") or "Untitled Flow"
+        resolved_context["flow"] = {
+            "id": selected_flow.get("id"),
+            "name": selected_flow.get("name") or "Untitled Flow",
+        }
+        resolved_context["step_count"] = len(flow_raw_steps)
+        resolved_context["agent_chain"] = flow_agent_chain
     brain_query = build_brain_assist_query(command_text, resolved_context, tenant)
     brain_results: list[dict[str, Any]] = []
     if brain_query:
@@ -2268,7 +2510,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 [f"{entry.get('title')}: {entry.get('excerpt')}" for entry in brain_results]
             )
             resolved_context["brain_memory_query"] = brain_query
-    raw_steps = [
+    raw_steps = flow_raw_steps or [
         {
             "id": f"cmd-{uuid4().hex[:10]}",
             "intent": "agent_task",
@@ -2312,7 +2554,13 @@ async def ai_command(request: Request, payload: AICommandRequest):
             agent_message = text
             break
     resolved_routing = engine_result.get("routing") or routing
-    delegate_chain = list(dict.fromkeys((resolved_routing.get("delegate_chain") or []) + [executing_agent]))
+    delegate_chain = list(
+        dict.fromkeys(
+            (resolved_routing.get("delegate_chain") or [])
+            + flow_agent_chain
+            + [executing_agent]
+        )
+    )
     run_status = "completed"
     response_status = "success"
     response_message = None
@@ -2363,6 +2611,14 @@ async def ai_command(request: Request, payload: AICommandRequest):
             "agentId": agent_definition.agent_id,
             "label": agent_definition.label,
         },
+        "flow": (
+            {
+                "id": selected_flow.get("id"),
+                "name": selected_flow.get("name") or "Untitled Flow",
+            }
+            if selected_flow
+            else None
+        ),
         "metadata": {
             "brain_query": brain_query,
             "brain_result_count": len(brain_results),

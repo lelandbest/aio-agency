@@ -290,6 +290,14 @@ class ExecutionEngine:
                 command_text=command,
                 context=context
             )
+            flow_id = context.get("flow_id") or context.get("flowId")
+            flow_agent_chain = context.get("agent_chain") if isinstance(context.get("agent_chain"), list) else []
+            if flow_id:
+                routing["requested_agent"] = context.get("requested_agent") or routing.get("requested_agent")
+                routing["executing_agent"] = flow_agent_chain[-1] if flow_agent_chain else context.get("active_agent") or routing.get("executing_agent")
+                routing["delegate_chain"] = list(
+                    dict.fromkeys((routing.get("delegate_chain") or []) + flow_agent_chain)
+                )
             for step in steps:
                 step_command = f"{step['intent']} {' '.join(str(v) for v in step.get('parameters', {}).values())}"
                 specialist = server.choose_specialist_for_command(
@@ -304,7 +312,7 @@ class ExecutionEngine:
                     step["agentId"] = f"AGT-{step['assignedAgent'][:3].upper()}-001"
                 
                 # Phase 16: Adaptive Routing
-                requested_agent_locked = bool(context.get("_requested_agent_locked"))
+                requested_agent_locked = bool(context.get("_requested_agent_locked") or flow_id)
                 best_route = router.select_best_agent_for_step(step, {})
                 if not requested_agent_locked and best_route["selectedAgent"] != step["assignedAgent"]:
                     trace.append({

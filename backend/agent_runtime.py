@@ -106,7 +106,7 @@ class BaseAgent:
     def _execute_with_provider(self, step: dict, context: dict, runtime: dict, chosen_tool: str | None) -> dict:
         provider_config = runtime.get("providerConfig")
         command = " ".join(
-            str(runtime.get("command") or step.get("parameters", {}).get("command") or "").split()
+            str(step.get("parameters", {}).get("command") or runtime.get("command") or "").split()
         ).strip()
         if not command:
             return {
@@ -123,6 +123,32 @@ class BaseAgent:
                 "data": None,
             }
 
+        completed_step_outputs = []
+        for completed_index, completed_step in enumerate(runtime.get("steps") or [], start=1):
+            if not isinstance(completed_step, dict):
+                continue
+            if completed_step.get("status") != "success" or completed_step.get("id") == step.get("id"):
+                continue
+            completed_data = completed_step.get("data") if isinstance(completed_step.get("data"), dict) else {}
+            completed_text = " ".join(
+                str(
+                    completed_data.get("message")
+                    or completed_data.get("suggestion")
+                    or completed_data.get("content")
+                    or completed_data.get("result")
+                    or ""
+                ).split()
+            ).strip()
+            if not completed_text:
+                continue
+            completed_step_outputs.append(
+                {
+                    "step_index": completed_index,
+                    "agent": completed_step.get("assignedAgent"),
+                    "output": completed_text,
+                }
+            )
+
         context_payload = {
             "module": context.get("module"),
             "surface": context.get("surface"),
@@ -130,6 +156,12 @@ class BaseAgent:
             "active_agent": context.get("active_agent"),
             "brain_memory": context.get("brain_memory") or [],
             "shared_plan": (runtime.get("sharedContext") or {}).get("plan") or [],
+            "flow": context.get("flow") or (
+                {"id": context.get("flow_id"), "name": context.get("flow_name")}
+                if context.get("flow_id")
+                else None
+            ),
+            "completed_step_outputs": completed_step_outputs,
         }
         prompt = "\n".join(
             [
