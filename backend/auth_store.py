@@ -53,6 +53,7 @@ class AuthStore:
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     slug TEXT NOT NULL UNIQUE,
+                    settings_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -237,8 +238,22 @@ class AuthStore:
                     updated_at TEXT NOT NULL,
                     UNIQUE(tenant_id, template_key)
                 );
+
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    priority TEXT NOT NULL DEFAULT 'normal',
+                    link TEXT,
+                    read INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
+            self._ensure_column(conn, "tenants", "settings_json", "TEXT NOT NULL DEFAULT '{}'")
             self._ensure_column(conn, "app_users", "username", "TEXT")
             self._ensure_column(conn, "app_users", "phone", "TEXT")
             self._ensure_column(conn, "app_users", "locale", "TEXT")
@@ -263,6 +278,7 @@ class AuthStore:
             self._ensure_column(conn, "ai_runs", "model", "TEXT")
             self._ensure_column(conn, "ai_runs", "artifacts_json", "TEXT")
             self._ensure_column(conn, "ai_runs", "steps_json", "TEXT")
+            conn.execute("UPDATE tenants SET settings_json = COALESCE(settings_json, '{}')")
             self._backfill_usernames(conn)
             self._backfill_default_workspace(conn)
             self._seed_default_system_email_templates(conn)
@@ -281,8 +297,8 @@ class AuthStore:
             tenant_id = "tenant-primary"
             tenant_name = "AIO CRM Workspace"
             conn.execute(
-                "INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                (tenant_id, tenant_name, slugify(tenant_name), now, now),
+                "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (tenant_id, tenant_name, slugify(tenant_name), "{}", now, now),
             )
             tenant_row = conn.execute("SELECT * FROM tenants WHERE id = ?", (tenant_id,)).fetchone()
 
@@ -441,18 +457,24 @@ class AuthStore:
         }
 
     def _public_tenant(self, membership: sqlite3.Row | dict[str, Any], selected: bool = False) -> dict[str, Any]:
+        raw_settings = membership["settings_json"] if "settings_json" in membership.keys() else membership.get("settings_json")
+        try:
+            settings = json.loads(raw_settings) if raw_settings else {}
+        except Exception:
+            settings = {}
         return {
             "id": membership["tenant_id"],
             "name": membership["tenant_name"],
             "slug": membership["tenant_slug"],
             "role": membership["membership_role"],
+            "settings": settings,
             "selected": selected,
         }
 
     def _tenant_memberships(self, conn: sqlite3.Connection, user_id: str, current_tenant_id: str | None) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
         rows = conn.execute(
             """
-            SELECT m.tenant_id, m.role AS membership_role, t.name AS tenant_name, t.slug AS tenant_slug
+            SELECT m.tenant_id, m.role AS membership_role, t.name AS tenant_name, t.slug AS tenant_slug, t.settings_json
             FROM memberships m
             JOIN tenants t ON t.id = m.tenant_id
             WHERE m.user_id = ?
@@ -833,8 +855,8 @@ class AuthStore:
             workspace_id = f"tenant-{secrets.token_hex(6)}"
             now = utcnow_iso()
             conn.execute(
-                "INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                (workspace_id, workspace_name, f"{slugify(workspace_name)}-{secrets.token_hex(3)}", now, now),
+                "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (workspace_id, workspace_name, f"{slugify(workspace_name)}-{secrets.token_hex(3)}", "{}", now, now),
             )
             conn.execute(
                 """
@@ -853,12 +875,14 @@ class AuthStore:
                 "session": self.get_session(token),
             }
 
-    def rename_workspace(self, token: str | None, tenant_id: str, name: str) -> dict[str, Any]:
+    def rename_workspace(self, token: str | None, tenant_id: str, name: str | None = None, settings: dict[str, Any] | None = None) -> dict[str, Any]:
         if not token:
             raise ValueError("Session token is required.")
         workspace_name = (name or "").strip()
-        if len(workspace_name) < 2:
+        if name is not None and len(workspace_name) < 2:
             raise ValueError("Workspace name must be at least 2 characters.")
+        if name is None and settings is None:
+            raise ValueError("No workspace changes provided.")
         with self._connect() as conn:
             session = conn.execute(
                 "SELECT * FROM app_sessions WHERE token = ? LIMIT 1",
@@ -868,10 +892,16 @@ class AuthStore:
                 raise ValueError("Session not found or expired.")
             self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
             now = utcnow_iso()
-            conn.execute(
-                "UPDATE tenants SET name = ?, updated_at = ? WHERE id = ?",
-                (workspace_name, now, tenant_id),
-            )
+            assignments: list[str] = ["updated_at = ?"]
+            params: list[Any] = [now]
+            if name is not None:
+                assignments.append("name = ?")
+                params.append(workspace_name)
+            if settings is not None:
+                assignments.append("settings_json = ?")
+                params.append(json.dumps(settings))
+            params.append(tenant_id)
+            conn.execute(f"UPDATE tenants SET {', '.join(assignments)} WHERE id = ?", params)
             conn.commit()
         return {"workspace": self.get_workspace(tenant_id)}
 
@@ -880,7 +910,179 @@ class AuthStore:
             row = conn.execute("SELECT * FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
         if not row:
             raise ValueError("Workspace not found.")
-        return {"id": row["id"], "name": row["name"], "slug": row["slug"], "created_at": row["created_at"], "updated_at": row["updated_at"]}
+        try:
+            settings = json.loads(row["settings_json"]) if row["settings_json"] else {}
+        except Exception:
+            settings = {}
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "slug": row["slug"],
+            "settings": settings,
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def list_notifications(self, token: str | None, tenant_id: str, limit: int = 50, unread_only: bool = False) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            query = "SELECT * FROM notifications WHERE tenant_id = ?"
+            params: list[Any] = [tenant_id]
+            if unread_only:
+                query += " AND read = 0"
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(max(1, min(limit, 100)))
+            rows = conn.execute(query, params).fetchall()
+            unread_count = conn.execute(
+                "SELECT COUNT(*) AS count FROM notifications WHERE tenant_id = ? AND read = 0",
+                (tenant_id,),
+            ).fetchone()["count"]
+        return {
+            "notifications": [
+                {
+                    "id": row["id"],
+                    "type": row["type"],
+                    "title": row["title"],
+                    "message": row["message"],
+                    "priority": row["priority"],
+                    "link": row["link"],
+                    "read": bool(row["read"]),
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+                for row in rows
+            ],
+            "unread_count": unread_count,
+        }
+
+    def create_notification(self, token: str | None, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            now = utcnow_iso()
+            notification = {
+                "id": f"notif-{secrets.token_hex(8)}",
+                "tenant_id": tenant_id,
+                "type": (payload.get("type") or "info").strip() or "info",
+                "title": (payload.get("title") or "").strip(),
+                "message": (payload.get("message") or "").strip(),
+                "priority": (payload.get("priority") or "normal").strip() or "normal",
+                "link": (payload.get("link") or "").strip() or None,
+                "read": 0,
+                "created_at": now,
+                "updated_at": now,
+            }
+            if not notification["title"] or not notification["message"]:
+                raise ValueError("Notification title and message are required.")
+            conn.execute(
+                """
+                INSERT INTO notifications (id, tenant_id, type, title, message, priority, link, read, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    notification["id"],
+                    notification["tenant_id"],
+                    notification["type"],
+                    notification["title"],
+                    notification["message"],
+                    notification["priority"],
+                    notification["link"],
+                    notification["read"],
+                    notification["created_at"],
+                    notification["updated_at"],
+                ),
+            )
+            conn.execute(
+                """
+                DELETE FROM notifications
+                WHERE id IN (
+                    SELECT id FROM notifications
+                    WHERE tenant_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT -1 OFFSET 100
+                )
+                """,
+                (tenant_id,),
+            )
+            conn.commit()
+        notification["read"] = False
+        return notification
+
+    def update_notification(self, token: str | None, tenant_id: str, notification_id: str, read: bool | None = None) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            row = conn.execute(
+                "SELECT * FROM notifications WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (notification_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Notification not found.")
+            now = utcnow_iso()
+            if read is not None:
+                conn.execute(
+                    "UPDATE notifications SET read = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                    (1 if read else 0, now, notification_id, tenant_id),
+                )
+            conn.commit()
+        return {
+            "id": row["id"],
+            "type": row["type"],
+            "title": row["title"],
+            "message": row["message"],
+            "priority": row["priority"],
+            "link": row["link"],
+            "read": bool(read if read is not None else row["read"]),
+            "created_at": row["created_at"],
+            "updated_at": now if read is not None else row["updated_at"],
+        }
+
+    def mark_all_notifications_read(self, token: str | None, tenant_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            now = utcnow_iso()
+            conn.execute(
+                "UPDATE notifications SET read = 1, updated_at = ? WHERE tenant_id = ?",
+                (now, tenant_id),
+            )
+            conn.commit()
+        return {"success": True}
+
+    def delete_notification(self, token: str | None, tenant_id: str, notification_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            row = conn.execute(
+                "SELECT id FROM notifications WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (notification_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Notification not found.")
+            conn.execute("DELETE FROM notifications WHERE id = ? AND tenant_id = ?", (notification_id, tenant_id))
+            conn.commit()
+        return {"success": True}
 
     def list_workspace_memberships(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
         if not token:
@@ -986,8 +1188,8 @@ class AuthStore:
                 target_tenant_id = f"tenant-{secrets.token_hex(6)}"
                 workspace_slug = f"{slugify(workspace_label)}-{secrets.token_hex(3)}"
                 conn.execute(
-                    "INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (target_tenant_id, workspace_label, workspace_slug, now, now),
+                    "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (target_tenant_id, workspace_label, workspace_slug, "{}", now, now),
                 )
                 target_role = "owner"
                 existing_owner_membership = conn.execute(
@@ -1510,85 +1712,9 @@ class AuthStore:
         steps: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        run_id = f"airun-{secrets.token_hex(8)}"
-        created_at = utcnow_iso()
-        metadata_json = json.dumps(metadata or {})
-        artifacts_json = json.dumps(artifacts or [])
-        steps_json = json.dumps(steps or [])
-        delegate_chain_json = json.dumps(delegate_chain or [])
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO ai_runs (
-                    id, tenant_id, user_id, module, surface, field, intent, status, agent_role,
-                    intake_agent, dispatcher_agent, executing_agent, requested_agent, delegate_chain_json, permission_tier,
-                    thread_id, contact_id, company_id, command_text, provider_key, provider_label,
-                    model, prompt, result, artifacts_json, steps_json, metadata_json, created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    run_id,
-                    tenant_id,
-                    user_id,
-                    module,
-                    surface,
-                    field,
-                    intent,
-                    status,
-                    agent_role,
-                    intake_agent,
-                    dispatcher_agent,
-                    executing_agent,
-                    requested_agent,
-                    delegate_chain_json,
-                    permission_tier,
-                    thread_id,
-                    contact_id,
-                    company_id,
-                    command_text,
-                    provider_key,
-                    provider_label,
-                    model,
-                    prompt,
-                    result,
-                    artifacts_json,
-                    steps_json,
-                    metadata_json,
-                    created_at,
-                ),
-            )
-            conn.commit()
-        return {
-            "id": run_id,
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "module": module,
-            "surface": surface,
-            "field": field,
-            "intent": intent,
-            "status": status,
-            "agent_role": agent_role,
-            "intake_agent": intake_agent,
-            "dispatcher_agent": dispatcher_agent,
-            "executing_agent": executing_agent,
-            "requested_agent": requested_agent,
-            "delegate_chain": delegate_chain or [],
-            "permission_tier": permission_tier,
-            "thread_id": thread_id,
-            "contact_id": contact_id,
-            "company_id": company_id,
-            "command_text": command_text,
-            "provider_key": provider_key,
-            "provider_label": provider_label,
-            "model": model,
-            "prompt": prompt,
-            "result": result,
-            "artifacts": artifacts or [],
-            "steps": steps or [],
-            "metadata": metadata or {},
-            "created_at": created_at,
-        }
+        raise NotImplementedError(
+            "Legacy ai_runs persistence is disabled. Use the canonical ai_engine_runs store with a read-only projection adapter."
+        )
 
     def list_ai_runs(self, token: str | None, limit: int = 50) -> list[dict[str, Any]]:
         if not token:

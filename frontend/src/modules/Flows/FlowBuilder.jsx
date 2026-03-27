@@ -139,7 +139,7 @@ const layoutNodesLeftToRight = (nodes, edges) => {
   return nextNodes;
 };
 
-const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) => {
+const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContextChange = null, onExit }) => {
   const getCssVar = (name, fallback = '') => {
     if (typeof window === 'undefined') return fallback;
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -385,17 +385,20 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
         let flowData;
         if (flowId) {
           // Load existing flow
-          flowData = flowRepository.getFlowById(flowId);
+          flowData = await flowRepository.getFlowById(flowId);
           if (!flowData) {
             console.warn(`Flow ${flowId} not found, creating new`);
-            flowData = flowRepository.createNewFlow();
+            flowData = await flowRepository.createNewFlow();
           }
         } else {
           // Create new flow
-          flowData = flowRepository.createNewFlow();
+          flowData = await flowRepository.createNewFlow();
         }
 
         setFlow(flowData);
+        if (flowData?.id && flowData.id !== flowId) {
+          onFlowContextChange?.({ flowId: flowData.id, action: null, intent: null });
+        }
 
         // 0. Dynamic Flow Generation (Alpha Orchestration Layer)
         if (action === 'create_dynamic_flow' && intent) {
@@ -403,7 +406,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
           if (alphaPlan.approved) {
             console.log('[FlowBuilder] Alpha Approved Intent:', alphaPlan.normalizedIntent);
             // This will internally call flowDraftRepository.saveDraft + setActiveDraft
-            generateFlowFromIntent(alphaPlan);
+            await generateFlowFromIntent(alphaPlan);
           } else {
             console.warn('[FlowBuilder] Alpha Rejected Intent:', alphaPlan.reason);
             logToTerminal(`Alpha rejected intent: ${alphaPlan.reason}`, 'error');
@@ -418,7 +421,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
         });
         
         // 2. Draft Ingress (Priority)
-        const activeDraft = flowDraftRepository.getActiveDraft();
+        const activeDraft = await flowDraftRepository.getActiveDraft();
         if (activeDraft && (!flowId || !flowData?.metadata?.sourceDraftId)) {
           const draftResult = ingestFlowSource({ 
             nodes: activeDraft.draftSpec?.nodes || activeDraft.nodes || [], 
@@ -440,7 +443,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
               name: activeDraft.intentSummary || flowData.name,
               metadata: { ...flowData.metadata, sourceDraftId: activeDraft.id },
             });
-            flowDraftRepository.clearActiveDraft();
+            await flowDraftRepository.clearActiveDraft();
           } else {
              // Fallback to initialResult
              if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
@@ -470,7 +473,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
     };
 
     initFlow();
-  }, [flowId, setNodes, setEdges]);
+  }, [action, flowId, intent, onFlowContextChange, setNodes, setEdges]);
 
   // Handle edge connection
   const onConnect = useCallback(
@@ -765,6 +768,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
     injectTemplateToCanvas(template);
   }, []);
 
+  const openNodeLibrary = useCallback(() => {
+    setLeftPanelOpen(true);
+    setLeftPanelTab('nodes');
+  }, []);
+
   const injectTemplateToCanvas = useCallback((template, mappings = {}) => {
     // Rule: Strict gating for external template sources
     const result = ingestFlowSource(template, { source: 'template', mappings });
@@ -817,13 +825,17 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
         },
       };
 
-      flowRepository.saveFlow(updatedFlow);
-      setFlow(updatedFlow);
+      const savedFlow = await flowRepository.saveFlow(updatedFlow);
+      const persistedFlow = savedFlow || updatedFlow;
+      setFlow(persistedFlow);
+      if (persistedFlow?.id) {
+        onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
+      }
       setIsDirty(false);
     } catch (error) {
       console.error('Failed to save flow:', error);
     }
-  }, [flow, nodes, edges, getSanitizedGraph]);
+  }, [flow, nodes, edges, getSanitizedGraph, onFlowContextChange]);
 
   const handleSaveAsTemplate = useCallback(() => {
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
@@ -886,8 +898,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
       updatedAt: new Date().toISOString(),
       spec,
     };
-    flowRepository.saveFlow(updatedFlow);
-    setFlow(updatedFlow);
+    flowRepository.saveFlow(updatedFlow).then((savedFlow) => setFlow(savedFlow || updatedFlow));
     setShowActivateModal(false);
   }, [flow, nodes, edges, getSanitizedGraph]);
 
@@ -898,8 +909,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
       status: 'Draft',
       updatedAt: new Date().toISOString(),
     };
-    flowRepository.saveFlow(updatedFlow);
-    setFlow(updatedFlow);
+    flowRepository.saveFlow(updatedFlow).then((savedFlow) => setFlow(savedFlow || updatedFlow));
     setShowDeactivateModal(false);
   }, [flow]);
 
@@ -993,7 +1003,6 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
         breadcrumbs={[{ id: 'editor', label: 'Editor' }]}
         aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
         onSave={handleSaveFlow}
-        onImport={() => console.log('Import requested')}
       />
 
       {assistError && (
@@ -1056,9 +1065,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
           {/* TOP OVERLAY: Stable Floating Controls */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md flex justify-center">
             <div className="pointer-events-auto flex items-center gap-3 bg-[var(--color-bg-secondary)]/80 backdrop-blur-md border border-[var(--color-border)] rounded-full px-4 py-1.5 shadow-2xl">
-              <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+              <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-400 uppercase tracking-widest">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Engine
+                Builder Only
               </div>
               <div className="h-4 w-[1px] bg-[var(--color-border)]" />
               <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest">
@@ -1157,23 +1166,25 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
       {/* Floating Toolbar */}
       <div className="pointer-events-none absolute left-1/2 bottom-4 -translate-x-1/2 z-40">
         <div className="pointer-events-auto flex items-center gap-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-full px-3 py-2 shadow-lg">
-          <button className="flow-toolbar-btn flow-toolbar-btn--success">
-            Run Flow
+          <button type="button" disabled className="flow-toolbar-btn flow-toolbar-btn--success opacity-60 cursor-not-allowed">
+            Run Disabled
           </button>
-          <button className="flow-toolbar-btn">
-            Deploy
+          <button type="button" disabled className="flow-toolbar-btn opacity-60 cursor-not-allowed">
+            Deploy Disabled
           </button>
           <button
+            type="button"
             onClick={handleSaveFlow}
             className="flow-toolbar-btn"
           >
             Save
           </button>
           <button
-            onClick={handleToggleStatus}
-            className="flow-toolbar-btn flow-toolbar-btn--success flex items-center gap-2"
+            type="button"
+            disabled
+            className="flow-toolbar-btn flow-toolbar-btn--success flex items-center gap-2 opacity-60 cursor-not-allowed"
           >
-            <span>Activate</span>
+            <span>Activation Disabled</span>
             <span
               className={`w-9 h-5 rounded-full border border-[var(--color-border)] relative transition-colors ${
                 flow?.status === 'Active' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-bg-secondary)]'
@@ -1186,26 +1197,25 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
             </span>
           </button>
           <button
+            type="button"
             onClick={() => {
-              setShowDetails(false);
-              setLibraryMode('all');
-              setShowLibrary(true);
+              openNodeLibrary();
             }}
             className="flow-toolbar-btn flow-toolbar-btn--purple"
           >
-            + Add node
+            Add Node
           </button>
           <button
+            type="button"
             className="flow-toolbar-btn"
             onClick={() => {
-              setShowDetails(false);
-              setLibraryMode('ai');
-              setShowLibrary(true);
+              openNodeLibrary();
             }}
           >
-            AI node
+            AI Node
           </button>
           <button
+            type="button"
             onClick={() => {
               // Rule: Use mutateFlowGraph for internal layout updates
               const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
@@ -1215,15 +1225,17 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
             }}
             className="flow-toolbar-btn"
           >
-            Align nodes
+            Align Nodes
           </button>
           <button
+            type="button"
             className="flow-toolbar-btn flow-toolbar-btn--neutral-light"
             onClick={() => setShowNoteModal(true)}
           >
             Add Note
           </button>
           <button
+            type="button"
             className="flow-toolbar-btn flow-toolbar-btn--danger"
             onClick={handleDeleteSelectedNode}
           >
@@ -1752,9 +1764,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onExit }) =>
               onClick={() => {
                 setNodeMenu(null);
               }}
-              className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
+              className="px-3 py-2 rounded text-[var(--color-text-tertiary)] w-full text-left cursor-not-allowed"
             >
-              Run node once
+              Run node disabled
             </button>
             <button
               onClick={() => {

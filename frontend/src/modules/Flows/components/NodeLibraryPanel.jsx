@@ -12,7 +12,7 @@ import { nodeLibrary, getIconComponent, triggerNodes } from '../data/nodeLibrary
 const NodeLibraryPanel = ({ embedded = false, openOnlyCategory = null, onAddNode = null, onAddNodeAtViewport = null }) => {
   const [expandedCategories, setExpandedCategories] = useState(
     Object.keys(nodeLibrary).reduce((acc, category) => {
-      acc[category] = category === 'Webhook/API';
+      acc[category] = category === 'Webhook/API' || category === 'AI Agents';
       return acc;
     }, {})
   );

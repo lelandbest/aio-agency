@@ -1,6 +1,9 @@
+import json
 import logging
-from typing import Any, Dict, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
+
+from ai_service import ai_assist_service, list_ollama_models
 from backend.agent_definitions import get_agent_definition, AGENT_DEFINITIONS
 
 logger = logging.getLogger(__name__)
@@ -68,16 +71,13 @@ class BaseAgent:
                 if delegated_step_result:
                     return delegated_step_result
 
-        # --- 5. ACT (Tool Selection) ---
-        chosen_tool = None
-        if self.definition and self.definition.tools:
-            intent = step.get("intent", "").lower().replace("_", "")
-            for tool_name in self.definition.tools:
-                if intent in tool_name.lower().replace("_", ""):
-                    chosen_tool = tool_name
-                    break
+        # --- 5. ACT (Tool Selection + Provider Execution) ---
+        chosen_tool = self._select_tool(step, runtime)
 
         self._add_note(runtime, f"Executing with tool: {chosen_tool or 'internal'}")
+        provider_result = self._execute_with_provider(step, context, runtime, chosen_tool)
+        if provider_result.get("status") != "success":
+            return provider_result
 
         return {
             "status": "success",
@@ -86,7 +86,161 @@ class BaseAgent:
             "stepId": step.get("id"),
             "chosenTool": chosen_tool,
             "intelligenceSummary": "Retrieved additional context autonomously" if needs_more_context else "Used existing context",
-            "data": {}
+            "data": provider_result.get("data") or {}
+        }
+
+    def _select_tool(self, step: dict, runtime: dict) -> str | None:
+        if not self.definition or not self.definition.tools:
+            return None
+        intent = step.get("intent", "").lower().replace("_", "")
+        command = " ".join(str(runtime.get("command") or "").lower().split())
+        for tool_name in self.definition.tools:
+            normalized_tool = tool_name.lower().replace("_", " ")
+            normalized_tool_compact = normalized_tool.replace(" ", "")
+            if intent and intent in normalized_tool_compact:
+                return tool_name
+            if command and any(token for token in normalized_tool.split() if token and token in command):
+                return tool_name
+        return self.definition.tools[0]
+
+    def _execute_with_provider(self, step: dict, context: dict, runtime: dict, chosen_tool: str | None) -> dict:
+        provider_config = runtime.get("providerConfig")
+        command = " ".join(
+            str(runtime.get("command") or step.get("parameters", {}).get("command") or "").split()
+        ).strip()
+        if not command:
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": "ExecutionEngine received an empty command.",
+                "data": None,
+            }
+        if not provider_config:
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": "No active AI provider is configured for agent execution.",
+                "data": None,
+            }
+
+        context_payload = {
+            "module": context.get("module"),
+            "surface": context.get("surface"),
+            "requested_agent": context.get("requested_agent"),
+            "active_agent": context.get("active_agent"),
+            "brain_memory": context.get("brain_memory") or [],
+            "shared_plan": (runtime.get("sharedContext") or {}).get("plan") or [],
+        }
+        prompt = "\n".join(
+            [
+                f"Operator command: {command}",
+                f"Assigned agent: {self.name}",
+                f"Agent role: {self.definition.role if self.definition else self.name}",
+                f"Selected tool: {chosen_tool or 'internal reasoning'}",
+                f"Execution context: {json.dumps(context_payload, default=str)}",
+                "Respond directly to the operator with a concrete result. Do not repeat the command verbatim.",
+            ]
+        )
+        system_prompt = (
+            f"{self.definition.system_prompt if self.definition else f'You are {self.name}.'}\n"
+            "You are executing inside the Cortex ExecutionEngine.\n"
+            "Produce a useful operator-facing answer.\n"
+            "Do not echo the operator command.\n"
+            "If required information is missing, state the missing requirement explicitly."
+        )
+
+        try:
+            ai_response = ai_assist_service._provider_complete(
+                provider_config,
+                prompt,
+                system_prompt=system_prompt,
+            )
+        except Exception as exc:
+            logger.error("Agent %s provider execution failed: %s", self.name, exc)
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": str(exc),
+                "data": None,
+            }
+
+        if not ai_response:
+            provider_key = str(provider_config.get("provider_key") or "").strip().lower()
+            base_url = str(provider_config.get("base_url") or "").strip()
+            model = str(provider_config.get("model") or "").strip()
+            provider_settings = provider_config.get("config") or {}
+            if provider_key == "ollama" and base_url and model:
+                try:
+                    models = list_ollama_models(
+                        base_url,
+                        provider_config.get("api_key"),
+                        provider_settings.get("username"),
+                        provider_settings.get("password"),
+                    )
+                except Exception as exc:
+                    return {
+                        "status": "error",
+                        "stepId": step.get("id"),
+                        "error": f"Ollama provider check failed: {exc}",
+                        "data": None,
+                    }
+                available_models = []
+                for item in models or []:
+                    if isinstance(item, dict):
+                        name = str(item.get("name") or item.get("model") or "").strip()
+                    else:
+                        name = str(item or "").strip()
+                    if name:
+                        available_models.append(name)
+                if model not in available_models:
+                    return {
+                        "status": "error",
+                        "stepId": step.get("id"),
+                        "error": f"Ollama model '{model}' is not available on {base_url}. Available models: {', '.join(available_models) or 'none'}",
+                        "data": None,
+                    }
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": f"{self.name} provider returned no output.",
+                "data": None,
+            }
+
+        suggestion = " ".join(str((ai_response or {}).get("suggestion") or "").split()).strip()
+        if not suggestion:
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": f"{self.name} returned no output.",
+                "data": None,
+            }
+        if suggestion.casefold() == command.casefold():
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": f"{self.name} returned an echo response instead of an execution result.",
+                "data": None,
+            }
+
+        alternatives = (ai_response or {}).get("alternatives")
+        metadata = (ai_response or {}).get("metadata") if isinstance((ai_response or {}).get("metadata"), dict) else {}
+        rationale = str((ai_response or {}).get("rationale") or "").strip()
+        return {
+            "status": "success",
+            "stepId": step.get("id"),
+            "data": {
+                "message": suggestion,
+                "suggestion": suggestion,
+                "content": suggestion,
+                "rationale": rationale,
+                "alternatives": alternatives if isinstance(alternatives, list) else [],
+                "metadata": {
+                    **metadata,
+                    "agent": self.name,
+                    "agentId": self.definition.agent_id if self.definition else None,
+                    "tool": chosen_tool,
+                },
+            },
         }
 
     def _add_note(self, runtime: dict, note: str):

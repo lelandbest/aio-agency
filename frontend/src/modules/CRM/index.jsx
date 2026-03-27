@@ -45,6 +45,7 @@ const CRMModule = ({ initialContactId = null }) => {
   const [activityTab, setActivityTab] = useState('Activity');
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
+  const [noteError, setNoteError] = useState('');
   const [formsSubmitted, setFormsSubmitted] = useState([]);
   const [userAccess, setUserAccess] = useState(null);
   const [loadingUserAccess, setLoadingUserAccess] = useState(false);
@@ -1316,18 +1317,18 @@ const CRMModule = ({ initialContactId = null }) => {
     const handleAddNote = async () => {
       if (!newNote.trim() || !selectedContact) return;
       setAddingNote(true);
+      setNoteError('');
       try {
-        const newActivity = await createContactActivityApi(selectedContact.id, {
+        await createContactActivityApi(selectedContact.id, {
           activity_type: 'note',
           title: 'Note',
           description: newNote.trim()
         });
-        if (newActivity) {
-          setActivities(prev => [newActivity, ...prev]);
-        }
+        const refreshedActivities = await getContactActivitiesApi(selectedContact.id);
+        setActivities(refreshedActivities || []);
         setNewNote('');
       } catch (error) {
-        console.error('Failed to add note:', error);
+        setNoteError(error.message || 'Failed to add note.');
       } finally {
         setAddingNote(false);
       }
@@ -1716,12 +1717,14 @@ const CRMModule = ({ initialContactId = null }) => {
                       rows={2}
                       disabled={addingNote}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
                           handleAddNote();
                         }
                       }}
                     />
                     <button
+                      type="button"
                       onClick={handleAddNote}
                       disabled={!newNote.trim() || addingNote}
                       className="px-4 py-2 rounded-[var(--radius-panel)] bg-[var(--color-primary)] text-[var(--color-text-on-primary)] text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
@@ -1729,7 +1732,8 @@ const CRMModule = ({ initialContactId = null }) => {
                       {addingNote ? 'Adding...' : 'Add Note'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Ctrl+Enter to submit</p>
+                  <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">Press Enter to add the note. Use Shift+Enter for a new line.</p>
+                  {noteError ? <p className="text-[10px] text-red-400 mt-1">{noteError}</p> : null}
                 </div>
               )}
               {filteredActivities.length === 0 ? (

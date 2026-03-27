@@ -304,8 +304,9 @@ class ExecutionEngine:
                     step["agentId"] = f"AGT-{step['assignedAgent'][:3].upper()}-001"
                 
                 # Phase 16: Adaptive Routing
+                requested_agent_locked = bool(context.get("_requested_agent_locked"))
                 best_route = router.select_best_agent_for_step(step, {})
-                if best_route["selectedAgent"] != step["assignedAgent"]:
+                if not requested_agent_locked and best_route["selectedAgent"] != step["assignedAgent"]:
                     trace.append({
                         "action": "adaptive_reroute",
                         "agent": "ALPHA",
@@ -335,6 +336,10 @@ class ExecutionEngine:
         
         runtime = {
             "runId": final_run_id,
+            "command": command,
+            "providerConfig": context.get("_provider_config"),
+            "actor": actor,
+            "tenant": tenant,
             "steps": steps,
             "artifacts": artifacts,
             "trace": trace,

@@ -221,7 +221,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
     },
 }
 
-VISIBLE_AGENT_KEYS = [key for key, value in AGENT_RUNTIME_REGISTRY.items() if value.get("visibility") != "hidden"]
+VISIBLE_AGENT_KEYS = [key for key, value in AGENT_DEFINITIONS.items() if value.visibility != "hidden"]
 
 
 def utcnow_iso() -> str:
@@ -578,23 +578,39 @@ def collect_brain_memory_results(query: str, limit: int = 6, include_runtime: bo
 
 
 def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
-    keys = AGENT_RUNTIME_REGISTRY.keys() if include_hidden else VISIBLE_AGENT_KEYS
+    keys = list(AGENT_DEFINITIONS.keys()) if include_hidden else VISIBLE_AGENT_KEYS
     agents = []
-    for key in keys:
-        agent = {**AGENT_RUNTIME_REGISTRY[key]}
-        conn = sqlite3.connect(provider.db_path)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT id FROM agents WHERE registry_key = ?", (key,)).fetchone()
+    conn = sqlite3.connect(provider.db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        for key in keys:
+            definition = AGENT_DEFINITIONS[key]
+            agent = {
+                "registry_key": definition.name,
+                "name": definition.name,
+                "label": definition.label,
+                "rank": definition.rank,
+                "role": definition.role,
+                "specialization": definition.specialization,
+                "visibility": definition.visibility,
+                "capability_tier": definition.capability_tier,
+                "subordinates": definition.subordinates,
+                "tools": definition.tools,
+                "capabilities": definition.capabilities,
+                "agent_id": definition.agent_id,
+            }
+            row = conn.execute("SELECT id FROM agents WHERE registry_key = ?", (key,)).fetchone()
+            if row:
+                agent["id"] = row["id"]
+            agents.append(agent)
+    finally:
         conn.close()
-        if row:
-            agent["id"] = row["id"]
-        agents.append(agent)
     return agents
 
 
 def normalize_agent_key(value: Any) -> str:
     resolved = " ".join(str(value or "").split()).strip().upper()
-    return resolved if resolved in AGENT_RUNTIME_REGISTRY else ""
+    return resolved if resolved in AGENT_DEFINITIONS else ""
 
 
 def extract_requested_agent(command_text: str = "", explicit: str = "") -> str:
@@ -762,6 +778,70 @@ def build_ai_run_steps(
     return steps
 
 
+def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not run:
+        return None
+    routing = run.get("routing") if isinstance(run.get("routing"), dict) else {}
+    context = run.get("context") if isinstance(run.get("context"), dict) else {}
+    steps = run.get("steps") if isinstance(run.get("steps"), list) else []
+    artifacts = run.get("artifacts") if isinstance(run.get("artifacts"), list) else []
+    trace = run.get("trace") if isinstance(run.get("trace"), list) else []
+    pending_approvals = run.get("pending_approvals") if isinstance(run.get("pending_approvals"), list) else []
+
+    last_success = next((step for step in reversed(steps) if step.get("status") == "success"), None)
+    last_error = next((step for step in reversed(steps) if step.get("status") == "error"), None)
+    last_success_data = last_success.get("data") if isinstance(last_success, dict) and isinstance(last_success.get("data"), dict) else {}
+    last_error_text = str((last_error or {}).get("error") or "").strip()
+    result_text = (
+        str(last_success_data.get("message") or last_success_data.get("suggestion") or last_success_data.get("content") or "").strip()
+        or last_error_text
+        or ""
+    )
+    delegate_chain = routing.get("delegate_chain")
+    if not isinstance(delegate_chain, list):
+        delegate_chain = []
+    executing_agent = routing.get("executing_agent") or ""
+    if executing_agent and executing_agent not in delegate_chain:
+        delegate_chain = [*delegate_chain, executing_agent]
+    return {
+        "id": run.get("id"),
+        "tenant_id": run.get("tenant_id"),
+        "module": str(context.get("module") or "agents"),
+        "surface": str(context.get("surface") or "command"),
+        "field": str(context.get("field") or "command"),
+        "intent": str(context.get("intent") or ("assist" if str(run.get("mode") or "").strip().lower() == "assist" else "command")),
+        "status": run.get("status") or "completed",
+        "agent_role": executing_agent or routing.get("requested_agent") or "ALPHA",
+        "intake_agent": routing.get("intake_agent"),
+        "dispatcher_agent": routing.get("dispatcher_agent"),
+        "executing_agent": executing_agent or None,
+        "requested_agent": routing.get("requested_agent"),
+        "delegate_chain": delegate_chain,
+        "permission_tier": routing.get("permission_tier"),
+        "thread_id": str(context.get("thread_id") or "") or None,
+        "contact_id": str(context.get("contact_id") or "") or None,
+        "company_id": str(context.get("company_id") or "") or None,
+        "command_text": run.get("command"),
+        "provider_key": ((context.get("_provider_config") or {}).get("provider_key") if isinstance(context.get("_provider_config"), dict) else None),
+        "provider_label": ((context.get("_provider_config") or {}).get("label") if isinstance(context.get("_provider_config"), dict) else None),
+        "model": ((context.get("_provider_config") or {}).get("model") if isinstance(context.get("_provider_config"), dict) else None),
+        "prompt": run.get("command"),
+        "result": result_text,
+        "artifacts": artifacts,
+        "steps": steps,
+        "metadata": {
+            "projection_source": "ai_engine_runs",
+            "legacy_ai_runs_adapter": True,
+            "scheduled_removal": "Remove compatibility projection after UI history consumers read ai_engine_runs natively.",
+            "trace": trace,
+            "context": context,
+            "pending_approvals": pending_approvals,
+        },
+        "created_at": run.get("created_at"),
+        "updated_at": run.get("updated_at"),
+    }
+
+
 def build_ai_run_artifacts(*, draft_text: str = "", thread: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     artifacts: list[dict[str, Any]] = []
     if draft_text:
@@ -860,7 +940,8 @@ class WorkspaceCreateRequest(BaseModel):
 
 
 class WorkspaceUpdateRequest(BaseModel):
-    name: str
+    name: str | None = None
+    settings: dict[str, Any] | None = None
 
 
 class WorkspaceMemberRequest(BaseModel):
@@ -1006,10 +1087,7 @@ class AIAssistRequest(BaseModel):
 
 
 class AICommandRequest(BaseModel):
-    module: str
-    surface: str
-    command_text: str
-    requested_agent: str | None = None
+    command: str
     context: dict[str, Any] | None = None
 
 
@@ -1133,7 +1211,7 @@ class CalendarEventUpdateRequest(BaseModel):
 
 class CalendarSourceCreateRequest(BaseModel):
     name: str
-    provider: str = "local-stub"
+    provider: str = "google-calendar-oauth"
     sync_direction: str = "two-way"
     config: dict[str, Any] | None = None
 
@@ -1158,7 +1236,7 @@ class CalendarEventReconcileRequest(BaseModel):
 class MailboxCreateRequest(BaseModel):
     name: str
     address: str
-    provider: str = "local-stub"
+    provider: str = "gmail-oauth"
     inbound_enabled: bool = True
     outbound_enabled: bool = True
     config: dict[str, Any] | None = None
@@ -1193,6 +1271,42 @@ class TagUpdateRequest(BaseModel):
     label: str | None = None
     description: str | None = None
     color: str | None = None
+
+
+class ContactActivityCreateRequest(BaseModel):
+    activity_type: str = "note"
+    title: str = "Note"
+    description: str = ""
+    metadata: dict[str, Any] | None = None
+
+
+class FlowSaveRequest(BaseModel):
+    id: str | None = None
+    name: str = "Untitled Flow"
+    status: str = "Draft"
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    spec: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
+    createdAt: str | None = None
+    updatedAt: str | None = None
+    createdBy: str | None = None
+    lastEditedBy: str | None = None
+
+
+class FlowDraftRequest(BaseModel):
+    id: str | None = None
+    createdAt: str | None = None
+    createdBy: str | None = None
+    intentSummary: str | None = None
+    assumptions: list[str] | None = None
+    requiredInputs: list[Any] | None = None
+    draftSpec: dict[str, Any] | None = None
+    validationPlan: dict[str, Any] | None = None
+    activationChecklist: list[str] | None = None
+    agentSnapshot: dict[str, Any] | None = None
+    source: str | None = None
+    metadata: dict[str, Any] | None = None
 
 class MailSendRequest(BaseModel):
     mailbox_id: str
@@ -1635,10 +1749,14 @@ async def get_agent_definitions(request: Request):
     defs = {k: {
         "name": v.name,
         "agentId": v.agent_id,
+        "label": v.label,
         "role": v.role,
+        "specialization": v.specialization,
         "capabilities": v.capabilities,
         "tools": v.tools,
         "rank": v.rank,
+        "visibility": v.visibility,
+        "capability_tier": v.capability_tier,
         "subordinates": v.subordinates,
         "system_prompt": v.system_prompt
     } for k, v in AGENT_DEFINITIONS.items()}
@@ -1683,12 +1801,6 @@ async def update_help_ticket(request: Request, ticket_id: str, payload: HelpTick
     require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can update tickets.")
     ticket = provider.update_help_ticket(ticket_id, payload.dict(exclude_unset=True))
     return {"data": ticket}
-
-
-@app.get("/api/help/articles")
-async def list_help_articles(request: Request):
-    articles = provider.list_brain_items(limit=100, tenant_id="tenant-primary")
-    return {"data": articles}
 
 
 @app.get("/api/help/broadcasts")
@@ -1920,45 +2032,64 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
             response["draft"] = draft_text
     run_artifacts = build_ai_run_artifacts(draft_text=draft_text, thread=applied_thread)
     run_steps = build_ai_run_steps(brain_results=brain_results, applied_thread=applied_thread, draft_text=draft_text)
-    run = auth_store.record_ai_run(
-        user_id=user.get("id"),
-        tenant_id=tenant.get("id"),
-        module=payload.module,
-        surface=payload.surface,
-        field=payload.field,
-        intent=payload.intent,
-        status="completed",
-        agent_role=resolved_agent_role,
-        intake_agent=routing["intake_agent"],
-        dispatcher_agent=routing["dispatcher_agent"],
-        executing_agent=routing["executing_agent"],
-        requested_agent=routing["requested_agent"],
-        delegate_chain=routing["delegate_chain"],
-        permission_tier=routing["permission_tier"],
-        thread_id=str(resolved_context.get("thread_id") or "") or None,
-        contact_id=str(resolved_context.get("contact_id") or "") or None,
-        company_id=str(resolved_context.get("company_id") or "") or None,
-        command_text=str(resolved_context.get("command_text") or "").strip() or None,
-        provider_key=route.get("provider_key"),
-        provider_label=route.get("provider_label") or (ai_provider or {}).get("label"),
-        model=route.get("model"),
-        prompt=result.prompt,
-        result=result.suggestion,
-        artifacts=run_artifacts,
-        steps=run_steps,
-        metadata={
-            "alternatives": result.alternatives,
-            "rationale": result.rationale,
-            "context": resolved_context,
-            "result_metadata": result.metadata or {},
-            "brain_query": brain_query,
-            "brain_result_count": len(brain_results),
-            "route_source": route.get("route_source"),
-            "route_reason": route.get("reason"),
-            "route_feature": route.get("feature"),
-            "route_task": route.get("task"),
+    run_steps = [
+        *run_steps,
+        {
+            "kind": "assist",
+            "status": "completed",
+            "label": "Assist response",
+            "summary": result.suggestion,
+            "agent": resolved_agent_role,
+            "data": {
+                "message": result.suggestion,
+                "suggestion": result.suggestion,
+                "content": result.suggestion,
+                "metadata": result.metadata or {},
+                "alternatives": result.alternatives,
+                "rationale": result.rationale,
+            },
         },
+    ]
+    canonical_run_id = f"run-{uuid4().hex[:10]}"
+    canonical_context = {
+        **resolved_context,
+        "module": payload.module,
+        "surface": payload.surface,
+        "field": payload.field,
+        "intent": payload.intent,
+        "_provider_config": {
+            "provider_key": route.get("provider_key"),
+            "label": route.get("provider_label") or (ai_provider or {}).get("label"),
+            "model": route.get("model"),
+        },
+    }
+    provider.save_ai_run(
+        {
+            "id": canonical_run_id,
+            "command": str(payload.current_value or resolved_context.get("command_text") or "").strip() or f"{payload.module}:{payload.surface}:{payload.field}",
+            "mode": "assist",
+            "status": "completed",
+            "steps_json": json.dumps(run_steps),
+            "artifacts_json": json.dumps(run_artifacts),
+            "pending_approvals_json": json.dumps([]),
+            "routing_json": json.dumps(routing),
+            "trace_json": json.dumps(
+                [
+                    {
+                        "action": "assist_response",
+                        "agent": resolved_agent_role,
+                        "provider_key": route.get("provider_key"),
+                        "provider_label": route.get("provider_label") or (ai_provider or {}).get("label"),
+                        "model": route.get("model"),
+                        "timestamp": utcnow_iso(),
+                    }
+                ]
+            ),
+            "actor_json": json.dumps({"id": user.get("id"), "email": user.get("email")}),
+            "context_json": json.dumps(canonical_context),
+        }
     )
+    run = project_engine_run_for_ui(provider.get_ai_run(canonical_run_id))
     response["run_id"] = run["id"]
     response["run"] = run
     return {"data": response, "run": run}
@@ -1967,10 +2098,10 @@ async def ai_assist(request: Request, payload: AIAssistRequest):
 @app.get("/api/ai/runs")
 async def list_ai_runs(request: Request, limit: int = 50):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view AI activity.")
-    token = extract_session_token(request)
     try:
-        return {"data": auth_store.list_ai_runs(token, limit=limit)}
-    except ValueError as error:
+        runs = [project_engine_run_for_ui(run) for run in provider.list_ai_runs(limit=limit)]
+        return {"data": [run for run in runs if run]}
+    except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
@@ -2059,19 +2190,56 @@ async def ai_command(request: Request, payload: AICommandRequest):
     user = session.get("user") or {}
     ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
     resolved_context = dict(payload.context or {})
+    command_text = (payload.command or "").strip()
+    if not command_text:
+        raise HTTPException(status_code=400, detail="Command is required.")
+    module = str(resolved_context.get("module") or "agents")
+    surface = str(resolved_context.get("surface") or "command")
+    requested_agent = normalize_agent_key(resolved_context.get("requested_agent"))
+    if requested_agent == "OMEGA":
+        return {
+            "status": "error",
+            "result": {"routing": None, "run": None, "run_id": None},
+            "message": "OMEGA cannot be executed through the natural-language agent shell.",
+        }
+    if resolved_context.get("requested_agent") and not requested_agent:
+        return {
+            "status": "error",
+            "result": {"routing": None, "run": None, "run_id": None},
+            "message": f"Unknown agent '{resolved_context.get('requested_agent')}'.",
+        }
+    if not ai_provider:
+        return {
+            "status": "error",
+            "result": {"routing": None, "run": None, "run_id": None},
+            "message": "No active AI provider is configured for agent execution.",
+        }
     routing = resolve_ai_run_routing(
-        payload.module,
-        payload.surface,
+        module,
+        surface,
         field="command",
         intent="command",
-        command_text=payload.command_text,
-        context={**resolved_context, "requested_agent": payload.requested_agent},
+        command_text=command_text,
+        context={**resolved_context, "requested_agent": requested_agent},
     )
     if routing["permission_tier"] == "dangerous":
         raise HTTPException(status_code=403, detail="Dangerous commands are blocked from natural-language routing. Use the dedicated Omega admin controls.")
+    executing_agent = requested_agent or routing["executing_agent"]
+    agent_definition = AGENT_DEFINITIONS.get(executing_agent)
+    if not agent_definition:
+        return {
+            "status": "error",
+            "result": {"routing": routing, "run": None, "run_id": None},
+            "message": f"Agent '{executing_agent}' is not available in the canonical runtime registry.",
+        }
     resolved_context.update(routing)
-    resolved_context["command_text"] = payload.command_text
-    brain_query = build_brain_assist_query(payload.command_text, resolved_context, tenant)
+    resolved_context["command_text"] = command_text
+    resolved_context["requested_agent"] = requested_agent or routing["requested_agent"] or ""
+    resolved_context["active_agent"] = resolved_context.get("active_agent") or executing_agent
+    resolved_context["_provider_config"] = ai_provider
+    resolved_context["_requested_agent_locked"] = bool(requested_agent)
+    resolved_context["field"] = "command"
+    brain_query = build_brain_assist_query(command_text, resolved_context, tenant)
     brain_results: list[dict[str, Any]] = []
     if brain_query:
         brain_results = collect_brain_memory_results(brain_query, limit=5, include_runtime=True)
@@ -2081,71 +2249,113 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 [f"{entry.get('title')}: {entry.get('excerpt')}" for entry in brain_results]
             )
             resolved_context["brain_memory_query"] = brain_query
-    result = ai_assist_service.assist(
-        module=payload.module,
-        surface=payload.surface,
-        field=routing["executing_agent"].lower(),
-        intent="command",
-        current_value=payload.command_text,
-        context=resolved_context,
-        actor=user,
-        tenant=tenant,
-        provider_config=ai_provider,
-    )
-    response = result.to_dict()
-    applied_thread = None
-    draft_text = ""
-    if (payload.module or "").strip().lower() == "comms" and resolved_context.get("thread_id"):
-        applied = provider.apply_thread_ai_result(
-            thread_id=str(resolved_context["thread_id"]),
-            mode="summary" if routing["executing_agent"] in {"CHARLIE", "ECHO"} else "draft",
-            suggestion=result.suggestion,
-            metadata=result.metadata or {},
+    raw_steps = [
+        {
+            "id": f"cmd-{uuid4().hex[:10]}",
+            "intent": "agent_task",
+            "parameters": {
+                "command": command_text,
+                "module": module,
+                "surface": surface,
+            },
+            "assignedAgent": executing_agent,
+            "agentId": agent_definition.agent_id,
+        }
+    ]
+    engine = ExecutionEngine(provider)
+    try:
+        engine_result = engine.run(
+            raw_steps=raw_steps,
+            mode="execute",
+            command=command_text,
+            context=resolved_context,
+            actor=user,
+            tenant=tenant,
         )
-        applied_thread = applied.get("thread")
-        response["thread"] = applied_thread
-        if applied.get("draft"):
-            draft_text = str(applied["draft"])
-            response["draft"] = draft_text
-    run = auth_store.record_ai_run(
-        user_id=user.get("id"),
-        tenant_id=tenant.get("id"),
-        module=payload.module,
-        surface=payload.surface,
-        field="command",
-        intent="command",
-        status="completed",
-        agent_role=routing["executing_agent"],
-        intake_agent=routing["intake_agent"],
-        dispatcher_agent=routing["dispatcher_agent"],
-        executing_agent=routing["executing_agent"],
-        requested_agent=routing["requested_agent"],
-        delegate_chain=routing["delegate_chain"],
-        permission_tier=routing["permission_tier"],
-        thread_id=str(resolved_context.get("thread_id") or "") or None,
-        contact_id=str(resolved_context.get("contact_id") or "") or None,
-        company_id=str(resolved_context.get("company_id") or "") or None,
-        command_text=payload.command_text.strip(),
-        provider_key=(ai_provider or {}).get("provider_key"),
-        provider_label=(ai_provider or {}).get("label"),
-        model=(ai_provider or {}).get("model"),
-        prompt=result.prompt,
-        result=result.suggestion,
-        artifacts=build_ai_run_artifacts(draft_text=draft_text, thread=applied_thread),
-        steps=build_ai_run_steps(brain_results=brain_results, applied_thread=applied_thread, draft_text=draft_text),
-        metadata={
-            "alternatives": result.alternatives,
-            "rationale": result.rationale,
-            "context": resolved_context,
-            "result_metadata": result.metadata or {},
+    except Exception as error:
+        logger.exception("ExecutionEngine command run failed")
+        return {
+            "status": "error",
+            "result": {"routing": routing, "run": None, "run_id": None},
+            "message": str(error),
+        }
+
+    engine_steps = engine_result.get("steps") or []
+    primary_step = next((step for step in reversed(engine_steps) if step.get("status") == "success"), None)
+    error_step = next((step for step in engine_steps if step.get("status") == "error"), None)
+    primary_data = primary_step.get("data") if isinstance(primary_step, dict) else {}
+    if not isinstance(primary_data, dict):
+        primary_data = {}
+    agent_message = ""
+    for key in ("message", "suggestion", "content"):
+        text = " ".join(str(primary_data.get(key) or "").split()).strip()
+        if text:
+            agent_message = text
+            break
+    resolved_routing = engine_result.get("routing") or routing
+    delegate_chain = list(dict.fromkeys((resolved_routing.get("delegate_chain") or []) + [executing_agent]))
+    run_status = "completed"
+    response_status = "success"
+    response_message = None
+    if engine_result.get("status") != "completed":
+        run_status = "failed"
+        response_status = "error"
+        response_message = str((error_step or {}).get("error") or "").strip()
+        if not response_message and engine_result.get("pendingApprovals"):
+            response_message = "Execution is blocked pending approval."
+        if not response_message:
+            response_message = f"ExecutionEngine ended with status '{engine_result.get('status')}'."
+    elif not agent_message:
+        run_status = "failed"
+        response_status = "error"
+        response_message = "ExecutionEngine completed without agent output."
+
+    engine_run = provider.get_ai_run(engine_result.get("runId"))
+    if engine_run:
+        run = project_engine_run_for_ui(engine_run)
+    else:
+        run = project_engine_run_for_ui(
+            {
+                "id": engine_result.get("runId"),
+                "tenant_id": tenant.get("id"),
+                "command": command_text,
+                "status": run_status,
+                "routing": {**resolved_routing, "executing_agent": executing_agent, "requested_agent": requested_agent or resolved_routing.get("requested_agent"), "delegate_chain": delegate_chain},
+                "steps": engine_steps,
+                "artifacts": engine_result.get("artifacts") or [],
+                "trace": engine_result.get("trace") or [],
+                "pending_approvals": engine_result.get("pendingApprovals") or [],
+                "context": resolved_context,
+                "created_at": utcnow_iso(),
+                "updated_at": utcnow_iso(),
+            }
+        )
+    response = {
+        "message": agent_message,
+        "suggestion": agent_message,
+        "result": primary_data,
+        "routing": {**resolved_routing, "executing_agent": executing_agent, "requested_agent": requested_agent or resolved_routing.get("requested_agent"), "delegate_chain": delegate_chain},
+        "steps": engine_steps,
+        "artifacts": engine_result.get("artifacts") or [],
+        "trace": engine_result.get("trace") or [],
+        "pendingApprovals": engine_result.get("pendingApprovals") or [],
+        "agent": {
+            "name": executing_agent,
+            "agentId": agent_definition.agent_id,
+            "label": agent_definition.label,
+        },
+        "metadata": {
             "brain_query": brain_query,
             "brain_result_count": len(brain_results),
+            "brain_memory": brain_results,
+            "selected_agent_locked": bool(requested_agent),
+            "result_metadata": primary_data.get("metadata") or {},
+            "projection_source": "ai_engine_runs",
         },
-    )
-    response["routing"] = routing
-    response["run"] = run
-    response["run_id"] = run["id"]
-    return {"data": response, "run": run}
+        "run": run,
+        "run_id": run["id"],
+    }
+    return {"status": response_status, "result": response, "message": response_message}
 
 
 @app.get("/api/ai/providers/catalog")
@@ -2363,7 +2573,7 @@ async def rename_workspace(workspace_id: str, request: Request, payload: Workspa
     require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can rename a workspace.")
     token = extract_session_token(request)
     try:
-        return auth_store.rename_workspace(token, workspace_id, payload.name)
+        return auth_store.rename_workspace(token, workspace_id, payload.name, payload.settings)
     except ValueError as error:
         detail = str(error)
         status_code = 403 if "permission" in detail.lower() else 400
@@ -2663,6 +2873,15 @@ async def list_contact_activities(contact_id: str):
     return {"data": provider.list_contact_activities(contact_id)}
 
 
+@app.post("/api/contacts/{contact_id}/activities")
+async def create_contact_activity(contact_id: str, request: Request, payload: ContactActivityCreateRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can add CRM activities.")
+    try:
+        return {"data": provider.create_contact_activity(contact_id, payload.model_dump())}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.get("/api/contacts/{contact_id}/form-submissions")
 async def list_contact_form_submissions(contact_id: str):
     return {"data": provider.list_form_submissions(contact_id)}
@@ -2671,6 +2890,49 @@ async def list_contact_form_submissions(contact_id: str):
 @app.get("/api/companies")
 async def list_companies():
     return {"data": provider.list_companies()}
+
+
+@app.get("/api/flows")
+async def list_flows(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view flows.")
+    return {"data": provider.list_flows()}
+
+
+@app.get("/api/flows/{flow_id}")
+async def get_flow(flow_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view flows.")
+    flow = provider.get_flow(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+    return {"data": flow}
+
+
+@app.put("/api/flows/{flow_id}")
+async def save_flow(flow_id: str, request: Request, payload: FlowSaveRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save flows.")
+    return {"data": provider.save_flow({**payload.model_dump(), "id": flow_id})}
+
+
+@app.post("/api/flow-drafts")
+async def save_flow_draft(request: Request, payload: FlowDraftRequest):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save flow drafts.")
+    return {"data": provider.save_flow_draft(payload.model_dump())}
+
+
+@app.get("/api/flow-drafts/{draft_id}")
+async def get_flow_draft(draft_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view flow drafts.")
+    draft = provider.get_flow_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Flow draft not found.")
+    return {"data": draft}
+
+
+@app.delete("/api/flow-drafts/{draft_id}")
+async def delete_flow_draft(draft_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage flow drafts.")
+    provider.delete_flow_draft(draft_id)
+    return {"success": True}
 
 
 @app.get("/api/calendars")
@@ -3319,7 +3581,8 @@ async def get_analytics_summary(request: Request):
         print(f"[AnalyticsAPI] contacts fetched: {len(contacts)}")
         deals = [c for c in contacts if c.get("pipeline_stage")]
         threads = provider.get_comms_snapshot().get("threads", [])
-        ai_runs = auth_store.list_ai_runs(token=token, limit=100)
+        ai_runs = [project_engine_run_for_ui(run) for run in provider.list_ai_runs(limit=100)]
+        ai_runs = [run for run in ai_runs if run]
         
         stages = {}
         stage_values = {}
@@ -3595,76 +3858,6 @@ async def list_orders(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-
-# ============ AI ORCHESTRATION ============
-
-class CommandRequest(BaseModel):
-    command: str | None = None
-    mode: str = "parse"
-    context: dict[str, Any] | None = None
-    runId: str | None = None
-
-@app.post("/api/ai/command")
-async def api_ai_command(request: Request, payload: CommandRequest):
-    """Execute or plan an AI command via the ExecutionEngine."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to execute AI commands.")
-    tenant_id = (session.get("tenant") or {}).get("id")
-    actor = {"id": session.get("user", {}).get("id"), "email": session.get("user", {}).get("email")}
-
-    command = (payload.command or "").strip()
-    mode = payload.mode.strip().lower()
-    context = payload.context or {}
-    run_id = payload.runId
-    route_hints = context.get("route_hints") if isinstance(context, dict) else None
-    provider_override = context.get("provider_override") if isinstance(context, dict) else None
-    try:
-        route = resolve_ai_route(
-            tenant_id=tenant_id,
-            feature="ai_assist",
-            task="classification",
-            provider_override=provider_override,
-            route_hints=route_hints or None,
-            auth_store=auth_store,
-        )
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    log_ai_route(route)
-    config = route.get("provider_config")
-
-    if mode not in ("parse", "plan", "execute", "resume"):
-        raise HTTPException(status_code=400, detail="Invalid mode.")
-
-    raw_steps = []
-    if mode != "resume":
-        if not command:
-            raise HTTPException(status_code=400, detail="Command is required for this mode.")
-        try:
-            res = ai_assist_service.parse_command(
-                command=command,
-                context=context,
-                actor=actor,
-                tenant_id=tenant_id,
-                provider_config=config,
-            )
-            raw_steps = res.get("steps", [])
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
-            
-    engine = ExecutionEngine(provider)
-    try:
-        return engine.run(
-            raw_steps=raw_steps,
-            mode=mode,
-            command=command,
-            context=context,
-            actor=actor,
-            tenant={"id": tenant_id, "name": "active workspace"},
-            run_id=run_id
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
 # ============ PAYMENT PROVIDERS ============
 
 class PaymentProviderUpsertRequest(BaseModel):
@@ -3715,35 +3908,6 @@ async def test_payment_provider_config(config_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Payment provider config not found")
     return {"result": {"success": True, "message": "Payment provider routed (Simulation)."}, "data": config}
 
-
-# Notification Store (in-memory, per-tenant)
-_notification_store: dict[str, list[dict]] = {}
-
-def _get_tenant_notifications(tenant_id: str) -> list[dict]:
-    if tenant_id not in _notification_store:
-        _notification_store[tenant_id] = []
-    return _notification_store[tenant_id]
-
-def push_notification(tenant_id: str, notification_type: str, title: str, message: str, priority: str = "normal", link: str | None = None):
-    """Push a notification to a tenant's notification store."""
-    notifications = _get_tenant_notifications(tenant_id)
-    notification = {
-        "id": str(uuid4()),
-        "type": notification_type,
-        "title": title,
-        "message": message,
-        "priority": priority,
-        "link": link,
-        "read": False,
-        "created_at": datetime.now(UTC).isoformat(),
-    }
-    notifications.insert(0, notification)
-    # Keep only last 100 notifications per tenant
-    if len(notifications) > 100:
-        notifications[:] = notifications[:100]
-    return notification
-
-
 class NotificationCreateRequest(BaseModel):
     type: str
     title: str
@@ -3760,92 +3924,76 @@ class NotificationUpdateRequest(BaseModel):
 async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False):
     """Get notifications for the current tenant."""
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
-    tenant_id = session.get("tenant_id")
-    if not tenant_id:
-        tenant_id = session.get("tenant", {}).get("id")
+    token = extract_session_token(request)
+    tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
         return {"data": [], "unread_count": 0}
-    
-    notifications = _get_tenant_notifications(tenant_id)
-    result = notifications[:limit]
-    if unread_only:
-        result = [n for n in result if not n.get("read")]
-    unread_count = len([n for n in notifications if not n.get("read")])
-    return {"data": result, "unread_count": unread_count}
+    try:
+        result = auth_store.list_notifications(token, tenant_id, limit=limit, unread_only=unread_only)
+        return {"data": result["notifications"], "unread_count": result["unread_count"]}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/notifications")
 async def create_notification(request: Request, payload: NotificationCreateRequest):
     """Create a notification for the current tenant."""
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
-    tenant_id = session.get("tenant_id")
-    if not tenant_id:
-        tenant_id = session.get("tenant", {}).get("id")
+    token = extract_session_token(request)
+    tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="No tenant context")
-    
-    notification = push_notification(
-        tenant_id=tenant_id,
-        notification_type=payload.type,
-        title=payload.title,
-        message=payload.message,
-        priority=payload.priority,
-        link=payload.link,
-    )
-    return {"data": notification}
+    try:
+        notification = auth_store.create_notification(token, tenant_id, payload.model_dump())
+        return {"data": notification}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.patch("/api/notifications/{notification_id}")
 async def update_notification(notification_id: str, request: Request, payload: NotificationUpdateRequest):
     """Update a notification (mark as read)."""
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
-    tenant_id = session.get("tenant_id")
-    if not tenant_id:
-        tenant_id = session.get("tenant", {}).get("id")
+    token = extract_session_token(request)
+    tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="No tenant context")
-    
-    notifications = _get_tenant_notifications(tenant_id)
-    for n in notifications:
-        if n["id"] == notification_id:
-            if payload.read is not None:
-                n["read"] = payload.read
-            return {"data": n}
-    raise HTTPException(status_code=404, detail="Notification not found")
+    try:
+        return {"data": auth_store.update_notification(token, tenant_id, notification_id, payload.read)}
+    except ValueError as error:
+        detail = str(error)
+        status_code = 404 if "not found" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 @app.post("/api/notifications/read-all")
 async def mark_all_notifications_read(request: Request):
     """Mark all notifications as read for the current tenant."""
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
-    tenant_id = session.get("tenant_id")
-    if not tenant_id:
-        tenant_id = session.get("tenant", {}).get("id")
+    token = extract_session_token(request)
+    tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="No tenant context")
-    
-    notifications = _get_tenant_notifications(tenant_id)
-    for n in notifications:
-        n["read"] = True
-    return {"success": True}
+    try:
+        return auth_store.mark_all_notifications_read(token, tenant_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.delete("/api/notifications/{notification_id}")
 async def delete_notification(notification_id: str, request: Request):
     """Delete a notification."""
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
-    tenant_id = session.get("tenant_id")
-    if not tenant_id:
-        tenant_id = session.get("tenant", {}).get("id")
+    token = extract_session_token(request)
+    tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="No tenant context")
-    
-    notifications = _get_tenant_notifications(tenant_id)
-    for i, n in enumerate(notifications):
-        if n["id"] == notification_id:
-            notifications.pop(i)
-            return {"success": True}
-    raise HTTPException(status_code=404, detail="Notification not found")
+    try:
+        return auth_store.delete_notification(token, tenant_id, notification_id)
+    except ValueError as error:
+        detail = str(error)
+        status_code = 404 if "not found" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 if __name__ == "__main__":

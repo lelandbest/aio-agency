@@ -142,7 +142,10 @@ export async function runAiCommandApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  if ((response?.status || '').toLowerCase() !== 'success') {
+    throw new Error(response?.message || 'AI command failed.');
+  }
+  return response.result || null;
 }
 
 export async function getAiRunsApi(limit = 50) {
@@ -330,6 +333,43 @@ export async function getUserAccessApi(email) {
   }
   const response = await request(`/api/users/access?email=${encodeURIComponent(email)}`);
   return response.data || null;
+}
+
+export async function getFlowsApi() {
+  const response = await request('/api/flows');
+  return response.data || [];
+}
+
+export async function getFlowApi(flowId) {
+  const response = await request(`/api/flows/${encodeURIComponent(flowId)}`);
+  return response.data || null;
+}
+
+export async function saveFlowApi(flowId, payload) {
+  const response = await request(`/api/flows/${encodeURIComponent(flowId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function saveFlowDraftApi(payload) {
+  const response = await request('/api/flow-drafts', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function getFlowDraftApi(draftId) {
+  const response = await request(`/api/flow-drafts/${encodeURIComponent(draftId)}`);
+  return response.data || null;
+}
+
+export async function deleteFlowDraftApi(draftId) {
+  return request(`/api/flow-drafts/${encodeURIComponent(draftId)}`, {
+    method: 'DELETE'
+  });
 }
 
 export async function addWorkspaceMemberApi(workspaceId, payload) {

@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { mockSupabase } from '../../../lib/mockSupabase';
+import React, { useEffect, useState } from 'react';
+import {
+  getAutomationProviderConfigsApi,
+  getAiProviderConfigsApi,
+  getCalendarSourcesApi,
+  getMailboxesApi,
+  getPaymentProviderConfigsApi,
+} from '../../../services/backendApi';
 
 /**
  * IntegrationStatusWidget Component
@@ -9,36 +15,52 @@ export const IntegrationStatusWidget = ({ onViewAllClick }) => {
   const [integrations, setIntegrations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load integrations on mount
   useEffect(() => {
+    let cancelled = false;
+
+    const loadIntegrations = async () => {
+      try {
+        setLoading(true);
+        const [automation, aiProviders, calendarSources, mailboxes, payments] = await Promise.all([
+          getAutomationProviderConfigsApi().catch(() => []),
+          getAiProviderConfigsApi().catch(() => []),
+          getCalendarSourcesApi().catch(() => []),
+          getMailboxesApi().catch(() => []),
+          getPaymentProviderConfigsApi().catch(() => []),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const normalized = [
+          ...automation.map((item) => ({ id: item.id, providerId: item.provider_key, category: 'automation', enabled: !!item.enabled })),
+          ...aiProviders.map((item) => ({ id: item.id, providerId: item.provider_key, category: 'llms', enabled: !!item.enabled })),
+          ...calendarSources.map((item) => ({ id: item.id, providerId: item.provider, category: 'calendar', enabled: item.status === 'connected' || item.status === 'ready' })),
+          ...mailboxes.map((item) => ({ id: item.id, providerId: item.provider, category: 'email', enabled: item.status === 'connected' || item.status === 'ready' })),
+          ...payments.map((item) => ({ id: item.id, providerId: item.provider_key, category: 'payments', enabled: !!item.enabled })),
+        ];
+
+        setIntegrations(normalized);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     loadIntegrations();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadIntegrations = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await mockSupabase.from('integrations').select('*');
-      if (error) {
-        console.error('Error loading integrations:', error);
-        setIntegrations([]);
-        return;
-      }
-      setIntegrations(data || []);
-    } catch (err) {
-      console.error('Error loading integrations:', err);
-      setIntegrations([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const totalIntegrations = integrations.length;
-  const activeIntegrations = integrations.filter((int) => int.enabled).length;
+  const activeIntegrations = integrations.filter((item) => item.enabled).length;
   const inactiveIntegrations = totalIntegrations - activeIntegrations;
 
   return (
     <div className="bg-[var(--color-bg-primary)] rounded-lg border border-[var(--color-border)] p-5 flex flex-col gap-4">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <h3 className="m-0 text-base font-semibold text-[var(--color-text-primary)]">Integration Status</h3>
         <button
@@ -65,7 +87,6 @@ export const IntegrationStatusWidget = ({ onViewAllClick }) => {
         </div>
       ) : (
         <>
-          {/* Status Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3 bg-[var(--color-bg-secondary)] rounded border-l-4 border-[var(--color-border)] text-center">
               <div className="text-xl font-bold text-[var(--color-text-primary)] leading-none">{totalIntegrations}</div>
@@ -81,7 +102,6 @@ export const IntegrationStatusWidget = ({ onViewAllClick }) => {
             </div>
           </div>
 
-          {/* Progress Bar */}
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-center text-xs">
               <span className="text-[var(--color-text-secondary)] font-medium">Active Rate</span>
@@ -92,42 +112,31 @@ export const IntegrationStatusWidget = ({ onViewAllClick }) => {
             <div className="h-2 bg-[var(--color-border)] rounded overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-300"
-                style={{
-                  width: `${(activeIntegrations / totalIntegrations) * 100}%`,
-                }}
+                style={{ width: `${(activeIntegrations / totalIntegrations) * 100}%` }}
               ></div>
             </div>
           </div>
 
-          {/* Recent Integrations */}
-          {integrations.length > 0 && (
-            <div className="flex flex-col gap-2 pt-2 border-t border-[var(--color-border)]">
-              <h4 className="m-0 text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Recent</h4>
-              <div className="flex flex-col gap-2">
-                {integrations.slice(0, 3).map((integration) => (
-                  <div key={integration.id} className="flex items-center gap-2.5 p-2 rounded bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] transition-all">
-                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          integration.enabled
-                            ? 'bg-purple-500 animate-pulse'
-                            : 'bg-red-500'
-                        }`}
-                      ></div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="m-0 mb-0.5 text-xs font-semibold text-[var(--color-text-primary)] whitespace-nowrap overflow-hidden text-ellipsis capitalize">
-                        {integration.providerId}
-                      </p>
-                      <p className="m-0 text-xs text-[var(--color-text-tertiary)] whitespace-nowrap overflow-hidden text-ellipsis capitalize">
-                        {integration.category}
-                      </p>
-                    </div>
+          <div className="flex flex-col gap-2 pt-2 border-t border-[var(--color-border)]">
+            <h4 className="m-0 text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Recent</h4>
+            <div className="flex flex-col gap-2">
+              {integrations.slice(0, 3).map((integration) => (
+                <div key={integration.id} className="flex items-center gap-2.5 p-2 rounded bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)] transition-all">
+                  <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                    <div className={`w-2 h-2 rounded-full ${integration.enabled ? 'bg-purple-500 animate-pulse' : 'bg-red-500'}`}></div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="m-0 mb-0.5 text-xs font-semibold text-[var(--color-text-primary)] whitespace-nowrap overflow-hidden text-ellipsis capitalize">
+                      {integration.providerId}
+                    </p>
+                    <p className="m-0 text-xs text-[var(--color-text-tertiary)] whitespace-nowrap overflow-hidden text-ellipsis capitalize">
+                      {integration.category}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
         </>
       )}
     </div>
@@ -135,4 +144,3 @@ export const IntegrationStatusWidget = ({ onViewAllClick }) => {
 };
 
 export default IntegrationStatusWidget;
-

@@ -156,7 +156,7 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
   
   return (
     <div className={COMMS_SUBPANEL + " p-5 flex flex-col gap-4 relative z-[200]"}>
-      <SubPanelHeader title="Cortex Runtime" icon={BrainIcon} />
+      <SubPanelHeader title="Neural Engine" icon={BrainIcon} />
       <div className="space-y-4">
         <div className="relative">
           <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Provider</div>
@@ -978,8 +978,8 @@ const Cortex = () => {
   const [links, setLinks] = useState([]);
   const [providers, setProviders] = useState([]);
   const [interactionArmed, setInteractionArmed] = useState(false);
-  const [activeProviderId, setActiveProviderId] = useState(() => localStorage.getItem('aio_active_provider_id') || '');
-  const [activeModelId, setActiveModelId] = useState(() => localStorage.getItem('aio_active_model_id') || '');
+  const [activeProviderId, setActiveProviderId] = useState('');
+  const [activeModelId, setActiveModelId] = useState('');
   const [output, setOutput] = useState('');
   const [activeReportId, setActiveReportId] = useState('');
   const [savedIntelligence, setSavedIntelligence] = useState([]);
@@ -999,12 +999,11 @@ const Cortex = () => {
       }));
       setProviders(normalized);
       
-      // Prioritize profile data, then localStorage, then first available
-      const savedProvider = profileData?.active_provider || localStorage.getItem('aio_active_provider_id');
+      const savedProvider = profileData?.active_provider || normalized.find((provider) => provider.is_default)?.provider_key;
       if (savedProvider && normalized.find(p => p.provider_key === savedProvider)) {
         setActiveProviderId(savedProvider);
         const p = normalized.find(p => p.provider_key === savedProvider);
-        const savedModel = profileData?.active_model || localStorage.getItem('aio_active_model_id');
+        const savedModel = profileData?.active_model;
         if (savedModel && p.models?.includes(savedModel)) {
           setActiveModelId(savedModel);
         } else if (p.models?.length > 0) {
@@ -1041,28 +1040,6 @@ const Cortex = () => {
 
   useEffect(() => { fetchOverview(); }, []);
   useEffect(() => { if (activeProviderId === 'ollama') fetchOllamaModels(); }, [activeProviderId]);
-
-  // Dual-way sync for AI Provider/Model
-  useEffect(() => {
-    if (activeProviderId) localStorage.setItem('aio_active_provider_id', activeProviderId);
-  }, [activeProviderId]);
-
-  useEffect(() => {
-    if (activeModelId) localStorage.setItem('aio_active_model_id', activeModelId);
-  }, [activeModelId]);
-
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'aio_active_provider_id' && e.newValue && e.newValue !== activeProviderId) {
-        setActiveProviderId(e.newValue);
-      }
-      if (e.key === 'aio_active_model_id' && e.newValue && e.newValue !== activeModelId) {
-        setActiveModelId(e.newValue);
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [activeProviderId, activeModelId]);
 
   if (loading) return (
     <div className="flex flex-col h-screen items-center justify-center bg-black gap-4">
@@ -1109,7 +1086,6 @@ const Cortex = () => {
                   await upsertAiProviderConfigApi(id, { ...p, provider_key: id, is_default: true, enabled: true });
                   // Brain specific update
                   await updateBrainProfileApi({ ...profile, active_provider: id }); 
-                  localStorage.setItem('aio_active_provider_id', id);
                   fetchProviders(); // Refresh to get updated is_default status
                 } catch (err) { console.error(err); }
               }
@@ -1124,7 +1100,6 @@ const Cortex = () => {
                 }
                 // Brain specific update
                 await updateBrainProfileApi({ ...profile, active_model: model });
-                localStorage.setItem('aio_active_model_id', model);
                 fetchProviders();
               } catch (err) { console.error(err); }
             }}
@@ -1193,32 +1168,22 @@ const Cortex = () => {
                     });
                     
                     if (!analytics || (!hasContacts && !hasThreads)) {
-                        console.log('[CortexReport] No data available, using template fallback');
-                        reportContent = generateTemplateReport(r.id, analytics);
-                        usedFallback = true;
+                        throw new Error('Report generation is disabled until live CRM or Comms data is available.');
                     } else {
                         console.log('[CortexReport] AI_CALL - Generating report via AI');
-                        try {
-                            const result = await generateReportApi({
-                                reportId: r.id,
-                                prompt: r.prompt,
-                                analytics,
-                                context: {}
-                            });
-                            
-                            console.log('[CortexReport] RESPONSE', { success: result?.success, hasData: !!result?.data });
-                            
-                            if (result?.success && result?.data) {
-                                reportContent = result.data;
-                            } else {
-                                console.log('[CortexReport] FALLBACK_USED - AI failed:', result?.error);
-                                reportContent = `[Fallback Report (Template)]\n\n${generateTemplateReport(r.id, analytics)}`;
-                                usedFallback = true;
-                            }
-                        } catch (aiErr) {
-                            console.log('[CortexReport] FALLBACK_USED - AI call failed:', aiErr.message);
-                            reportContent = `[Fallback Report (Template)]\n\n${generateTemplateReport(r.id, analytics)}`;
-                            usedFallback = true;
+                        const result = await generateReportApi({
+                            reportId: r.id,
+                            prompt: r.prompt,
+                            analytics,
+                            context: {}
+                        });
+                        
+                        console.log('[CortexReport] RESPONSE', { success: result?.success, hasData: !!result?.data });
+                        
+                        if (result?.success && result?.data) {
+                            reportContent = result.data;
+                        } else {
+                            throw new Error(result?.error || 'Report generation did not return live output.');
                         }
                     }
                     
@@ -1227,12 +1192,15 @@ const Cortex = () => {
                     
                 } catch (err) {
                     console.error('[CortexReport] ERROR', { message: err.message });
-                    reportContent = `\n[ERROR] Failed to generate report: ${err.message}`;
-                    setOutput(p => p + reportContent);
+                    reportContent = '';
+                    setOutput(`\n[ERROR] ${err.message}`);
                 }
                 
                 setActiveReportId(''); 
                 console.log('[CortexReport] END');
+                if (!reportContent) {
+                    return;
+                }
                 
                 const resolvedBrand = resolveBrandConfig ? resolveBrandConfig() : brandConfig;
                 

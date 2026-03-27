@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Layers, Search, Workflow, X } from 'lucide-react';
-import { categories, templates as flowTemplates } from '../data/templates';
+import { ArrowRight, FileText, Layers, Search, X } from 'lucide-react';
+import { formTemplateCategories, formTemplates } from './formTemplates';
 
 const complexityTone = {
   Basic: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
@@ -8,15 +8,15 @@ const complexityTone = {
   Advanced: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-200',
 };
 
-const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
+const FormTemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTemplateId, setSelectedTemplateId] = useState(flowTemplates[0]?.id || null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(formTemplates[0]?.id || null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const filteredTemplates = useMemo(() => {
-    return flowTemplates.filter((template) => {
+    return formTemplates.filter((template) => {
       const matchesCategory = selectedCategory === 'All' || template.category === selectedCategory;
       const query = searchQuery.trim().toLowerCase();
       const matchesSearch =
@@ -30,20 +30,14 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
 
   useEffect(() => {
     if (!isOpen) {
-      return;
-    }
-    if (filteredTemplates.some((template) => template.id === selectedTemplateId)) {
-      return;
-    }
-    setSelectedTemplateId(filteredTemplates[0]?.id || null);
-  }, [filteredTemplates, isOpen, selectedTemplateId]);
-
-  useEffect(() => {
-    if (!isOpen) {
       setError('');
       setSubmitting(false);
+      return;
     }
-  }, [isOpen]);
+    if (!filteredTemplates.some((template) => template.id === selectedTemplateId)) {
+      setSelectedTemplateId(filteredTemplates[0]?.id || null);
+    }
+  }, [filteredTemplates, isOpen, selectedTemplateId]);
 
   if (!isOpen) {
     return null;
@@ -61,7 +55,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
       await onSelectTemplate?.(previewTemplate);
       onClose?.();
     } catch (selectError) {
-      setError(selectError.message || 'Unable to create flow from template.');
+      setError(selectError.message || 'Unable to create form from template.');
     } finally {
       setSubmitting(false);
     }
@@ -76,7 +70,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
               <Layers size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Flow Template Library</h2>
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Form Template Library</h2>
               <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Start from a template or build from scratch.</p>
             </div>
           </div>
@@ -97,12 +91,12 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search templates by name, category, or purpose..."
+                placeholder="Search form templates..."
                 className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
+              {formTemplateCategories.map((category) => (
                 <button
                   key={category}
                   type="button"
@@ -147,7 +141,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                     </div>
                     <p className="mt-3 text-sm text-[var(--color-text-secondary)]">{template.description}</p>
                     <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-tertiary)]">
-                      <span>{template.nodes.length} nodes</span>
+                      <span>{template.fields.length} fields</span>
                       <span className={`rounded-full border px-2 py-1 font-semibold uppercase tracking-[0.16em] ${complexityTone[template.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
                         {template.complexity}
                       </span>
@@ -172,7 +166,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
               <>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
-                    <Workflow size={18} />
+                    <FileText size={18} />
                   </div>
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Preview</div>
@@ -180,7 +174,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                   </div>
                 </div>
 
-                  <p className="mt-4 text-sm text-[var(--color-text-secondary)]">{previewTemplate.description}</p>
+                <p className="mt-4 text-sm text-[var(--color-text-secondary)]">{previewTemplate.description}</p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
@@ -190,38 +184,20 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                     {previewTemplate.complexity}
                   </span>
                   <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
-                    {previewTemplate.nodes.length} Nodes
+                    {previewTemplate.fields.length} Fields
                   </span>
                 </div>
 
                 <div className="mt-6">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Node Outline</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Field Outline</div>
                   <div className="mt-3 space-y-2">
-                    {previewTemplate.nodes.map((node, index) => (
-                      <div key={`${previewTemplate.id}-${node.id}`} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Step {index + 1}</div>
-                        <div className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">{node.data?.label || node.id}</div>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{node.type}</div>
+                    {previewTemplate.fields.map((field, index) => (
+                      <div key={`${previewTemplate.id}-${field.label}-${index}`} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Field {index + 1}</div>
+                        <div className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">{field.label}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{field.type}</div>
                       </div>
                     ))}
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Template Variables</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(previewTemplate.placeholders || []).length > 0 ? (
-                      previewTemplate.placeholders.map((placeholder) => (
-                        <span
-                          key={placeholder}
-                          className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[11px] text-[var(--color-text-secondary)]"
-                        >
-                          {placeholder}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-sm text-[var(--color-text-secondary)]">No runtime placeholders required.</span>
-                    )}
                   </div>
                 </div>
 
@@ -238,10 +214,10 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                     disabled={submitting}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {submitting ? 'Creating Flow...' : 'Use Template'}
+                    {submitting ? 'Creating Form...' : 'Use Template'}
                     <ArrowRight size={16} />
                   </button>
-                  <p className="mt-3 text-xs text-[var(--color-text-tertiary)]">Creates a new flow.</p>
+                  <p className="mt-3 text-xs text-[var(--color-text-tertiary)]">Creates a new form.</p>
                 </div>
               </>
             ) : (
@@ -256,4 +232,4 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
   );
 };
 
-export default TemplateGallery;
+export default FormTemplateGallery;

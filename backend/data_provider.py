@@ -368,6 +368,34 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def create_contact_activity(self, contact_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_flows(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_flow(self, flow_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_flow(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_flow_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_flow_draft(self, draft_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_flow_draft(self, draft_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
         raise NotImplementedError
 
@@ -597,7 +625,11 @@ class BaseProvider(ABC):
         label = "Healthy"
         detail = "Inbound and outbound flows look ready."
 
-        if mailbox.get("status") in {"needs_config", "error"}:
+        if mailbox.get("status") in {"disconnected"}:
+            state = "limited"
+            label = "Not Connected"
+            detail = "No live mailbox is connected for this workspace."
+        elif mailbox.get("status") in {"needs_config", "error"}:
             state = "attention"
             label = "Needs Config"
             detail = latest_test.get("payload", {}).get("message") if latest_test else "Mailbox configuration needs attention."
@@ -649,6 +681,10 @@ class BaseProvider(ABC):
 
         summaries: list[dict[str, Any]] = []
         for mailbox in sorted(mailboxes, key=lambda item: (item.get("name") or "").lower()):
+            effective_mailbox = dict(mailbox)
+            if effective_mailbox.get("provider") == "local-stub":
+                effective_mailbox["provider"] = "not-connected"
+                effective_mailbox["status"] = "disconnected"
             mailbox_threads = threads_by_mailbox.get(mailbox["id"], [])
             queue_counts = {
                 queue_id: sum(1 for thread in mailbox_threads if queue_id in (thread.get("queueIds") or []))
@@ -671,10 +707,10 @@ class BaseProvider(ABC):
             summaries.append(
                 self.mail_adapter.describe_mailbox(
                     {
-                        **mailbox,
+                        **effective_mailbox,
                         "stats": stats,
                         "queue_counts": queue_counts,
-                        "health": self._mailbox_health_summary(mailbox, events_by_mailbox.get(mailbox["id"], [])),
+                        "health": self._mailbox_health_summary(effective_mailbox, events_by_mailbox.get(mailbox["id"], [])),
                         "latest_thread_at": latest_thread.get("last_activity_at") if latest_thread else None,
                     }
                 )
@@ -688,6 +724,10 @@ class BaseProvider(ABC):
     ) -> list[dict[str, Any]]:
         summaries: list[dict[str, Any]] = []
         for source in sorted(sources, key=lambda item: (item.get("name") or "").lower()):
+            effective_source = dict(source)
+            if effective_source.get("provider") == "local-stub":
+                effective_source["provider"] = "not-connected"
+                effective_source["status"] = "disconnected"
             source_events = [event for event in events if (event.get("source_id") or "calendar-source-local") == source["id"]]
             synced_count = sum(1 for event in source_events if event.get("sync_status") in {"synced", "local"})
             imported_count = sum(1 for event in source_events if event.get("sync_status") == "imported")
@@ -697,6 +737,7 @@ class BaseProvider(ABC):
             summaries.append(
                 {
                     **get_calendar_adapter(source.get("provider")).describe_source(source),
+                    **({"provider": "not-connected"} if source.get("provider") == "local-stub" else {}),
                     "authority_mode": authority_mode,
                     "import_policy": import_policy,
                     "event_counts": {
@@ -707,16 +748,16 @@ class BaseProvider(ABC):
                         "pending": max(len(source_events) - synced_count, 0),
                     },
                     "health": {
-                        "state": "healthy" if source.get("status") == "connected" else "attention" if source.get("status") == "needs_config" else "limited",
-                        "label": "Connected" if source.get("status") == "connected" else "Needs Config" if source.get("status") == "needs_config" else "Ready to Test",
+                        "state": "healthy" if effective_source.get("status") == "connected" else "attention" if effective_source.get("status") == "needs_config" else "limited",
+                        "label": "Connected" if effective_source.get("status") == "connected" else "Needs Config" if effective_source.get("status") == "needs_config" else "Not Connected",
                         "detail": (
                             f"Authority {authority_mode}. Import policy {import_policy}. {conflict_count} conflicts awaiting review."
                             if conflict_count
                             else f"Authority {authority_mode}. Import policy {import_policy}. Calendar source is ready for export."
-                            if source.get("status") == "connected"
+                            if effective_source.get("status") == "connected"
                             else "Complete configuration and run a test."
-                            if source.get("status") == "needs_config"
-                            else f"Authority {authority_mode}. Import policy {import_policy}. Configuration exists but has not been tested yet."
+                            if effective_source.get("status") == "needs_config"
+                            else "No calendar source is connected yet."
                         ),
                     },
                 }
@@ -805,6 +846,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_ai_runs(self, limit: int = 50) -> list[dict[str, Any]]:
         raise NotImplementedError
 
 
@@ -996,6 +1041,9 @@ class MockProvider(BaseProvider):
             {"id": "form-folder-default", "name": "My Forms", "user_id": "1", "created_at": now, "expanded": True}
         ]
         self.form_submissions: list[dict[str, Any]] = []
+        self.contact_activities: list[dict[str, Any]] = []
+        self.flows: dict[str, dict[str, Any]] = {}
+        self.flow_drafts: dict[str, dict[str, Any]] = {}
         self.mailboxes = [
             {"id": "mailbox-primary", "name": "Relationship HQ", "address": "mission@aiocrm.local", "provider": "local-stub", "status": "connected", "inbound_enabled": True, "outbound_enabled": True, "last_synced_at": now, "config": {"adapter": "local-stub"}},
             {"id": "mailbox-growth", "name": "Growth Desk", "address": "growth@aiocrm.local", "provider": "local-stub", "status": "connected", "inbound_enabled": True, "outbound_enabled": True, "last_synced_at": now, "config": {"adapter": "local-stub"}},
@@ -1644,6 +1692,7 @@ class MockProvider(BaseProvider):
 
     def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
         activities: list[dict[str, Any]] = []
+        activities.extend([dict(activity) for activity in self.contact_activities if activity.get("contact_id") == contact_id])
         for thread in self._hydrate_threads():
             if thread["contact_id"] != contact_id:
                 continue
@@ -1708,6 +1757,62 @@ class MockProvider(BaseProvider):
                     }
                 )
         return sorted(activities, key=lambda item: item["created_at"], reverse=True)
+
+    def create_contact_activity(self, contact_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        contact = next((item for item in self.contacts if item["id"] == contact_id), None)
+        if not contact:
+            raise ValueError("Contact not found.")
+        now = utcnow()
+        activity = {
+            "id": payload.get("id") or f"contact-activity-{unique_suffix()}",
+            "contact_id": contact_id,
+            "user_id": str(payload.get("user_id") or "user-1"),
+            "activity_type": str(payload.get("activity_type") or "note"),
+            "title": str(payload.get("title") or "Note"),
+            "description": str(payload.get("description") or "").strip(),
+            "metadata": payload.get("metadata") or {},
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        if not activity["description"]:
+            raise ValueError("Activity description is required.")
+        self.contact_activities.append(activity)
+        contact["updated_at"] = now
+        return dict(activity)
+
+    def list_flows(self) -> list[dict[str, Any]]:
+        return sorted([dict(flow) for flow in self.flows.values()], key=lambda item: item.get("updatedAt") or "", reverse=True)
+
+    def get_flow(self, flow_id: str) -> dict[str, Any] | None:
+        flow = self.flows.get(flow_id)
+        return dict(flow) if flow else None
+
+    def save_flow(self, payload: dict[str, Any]) -> dict[str, Any]:
+        flow_id = payload.get("id") or f"flow-{unique_suffix()}"
+        flow = {
+            **payload,
+            "id": flow_id,
+            "updatedAt": payload.get("updatedAt") or utcnow(),
+        }
+        self.flows[flow_id] = flow
+        return dict(flow)
+
+    def save_flow_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        draft_id = payload.get("id") or f"flow-draft-{unique_suffix()}"
+        draft = {
+            **payload,
+            "id": draft_id,
+            "updatedAt": payload.get("updatedAt") or utcnow(),
+        }
+        self.flow_drafts[draft_id] = draft
+        return dict(draft)
+
+    def get_flow_draft(self, draft_id: str) -> dict[str, Any] | None:
+        draft = self.flow_drafts.get(draft_id)
+        return dict(draft) if draft else None
+
+    def delete_flow_draft(self, draft_id: str) -> None:
+        self.flow_drafts.pop(draft_id, None)
 
     def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
         submissions = self.form_submissions
@@ -2816,6 +2921,9 @@ class MockProvider(BaseProvider):
     def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError("Not implemented for mock")
 
+    def list_ai_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        raise NotImplementedError("Not implemented for mock")
+
 
 class SQLiteProvider(BaseProvider):
     provider_name = "sqlite"
@@ -3091,6 +3199,42 @@ class SQLiteProvider(BaseProvider):
                     submitted_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS contact_activities (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    contact_id TEXT NOT NULL,
+                    user_id TEXT,
+                    activity_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS flows (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    nodes_json TEXT NOT NULL,
+                    edges_json TEXT NOT NULL,
+                    spec_json TEXT,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    created_by TEXT,
+                    last_edited_by TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS flow_drafts (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    draft_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS orders (
                     id TEXT PRIMARY KEY,
                     tenant_id TEXT,
@@ -3304,7 +3448,7 @@ class SQLiteProvider(BaseProvider):
                     expires_at TEXT
                 );
 
-                CREATE TABLE IF NOT EXISTS ai_runs (
+                CREATE TABLE IF NOT EXISTS ai_engine_runs (
                     id TEXT PRIMARY KEY,
                     tenant_id TEXT,
                     command TEXT NOT NULL,
@@ -3415,8 +3559,8 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "calendar_sources", "last_synced_at", "TEXT")
             self._ensure_column(conn, "calendar_sources", "created_at", "TEXT")
             self._ensure_column(conn, "calendar_sources", "updated_at", "TEXT")
-            self._ensure_column(conn, "ai_runs", "tenant_id", "TEXT")
-            self._ensure_column(conn, "ai_runs", "trace_json", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "ai_engine_runs", "tenant_id", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "trace_json", "TEXT DEFAULT '[]'")
             self._ensure_column(conn, "ai_audit_logs", "tenant_id", "TEXT")
             conn.execute(
                 """
@@ -5320,6 +5464,21 @@ class SQLiteProvider(BaseProvider):
 
     def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
         activities: list[dict[str, Any]] = []
+        rows = self._rows(
+            """
+            SELECT * FROM contact_activities
+            WHERE tenant_id = ? AND contact_id = ?
+            ORDER BY created_at DESC
+            """,
+            (self._tenant_id(), contact_id),
+        )
+        for row in rows:
+            activities.append(
+                {
+                    **row,
+                    "metadata": json_loads(row.pop("metadata_json"), {}),
+                }
+            )
         for thread in self._get_thread_context():
             if thread["contact_id"] != contact_id:
                 continue
@@ -5384,6 +5543,183 @@ class SQLiteProvider(BaseProvider):
                     }
                 )
         return sorted(activities, key=lambda item: item["created_at"], reverse=True)
+
+    def create_contact_activity(self, contact_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        contact = next((item for item in self.list_contacts() if item["id"] == contact_id), None)
+        if not contact:
+            raise ValueError("Contact not found.")
+        description = str(payload.get("description") or "").strip()
+        if not description:
+            raise ValueError("Activity description is required.")
+        now = utcnow()
+        activity = {
+            "id": payload.get("id") or f"contact-activity-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "contact_id": contact_id,
+            "user_id": str(payload.get("user_id") or "user-1"),
+            "activity_type": str(payload.get("activity_type") or "note"),
+            "title": str(payload.get("title") or "Note"),
+            "description": description,
+            "metadata": payload.get("metadata") or {},
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO contact_activities (
+                    id, tenant_id, contact_id, user_id, activity_type, title, description, metadata_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    activity["id"],
+                    activity["tenant_id"],
+                    activity["contact_id"],
+                    activity["user_id"],
+                    activity["activity_type"],
+                    activity["title"],
+                    activity["description"],
+                    json.dumps(activity["metadata"]),
+                    activity["created_at"],
+                    activity["updated_at"],
+                ),
+            )
+            conn.execute(
+                "UPDATE contacts SET updated_at = ? WHERE id = ? AND tenant_id = ?",
+                (now, contact_id, self._tenant_id()),
+            )
+            conn.commit()
+        return activity
+
+    def list_flows(self) -> list[dict[str, Any]]:
+        rows = self._rows(
+            """
+            SELECT * FROM flows
+            WHERE tenant_id = ?
+            ORDER BY updated_at DESC, created_at DESC
+            """,
+            (self._tenant_id(),),
+        )
+        return [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "status": row["status"],
+                "nodes": json_loads(row["nodes_json"], []),
+                "edges": json_loads(row["edges_json"], []),
+                "spec": json_loads(row["spec_json"], None),
+                "metadata": json_loads(row["metadata_json"], {}),
+                "createdAt": row["created_at"],
+                "updatedAt": row["updated_at"],
+                "createdBy": row.get("created_by"),
+                "lastEditedBy": row.get("last_edited_by"),
+            }
+            for row in rows
+        ]
+
+    def get_flow(self, flow_id: str) -> dict[str, Any] | None:
+        row = next((item for item in self._rows("SELECT * FROM flows WHERE id = ? AND tenant_id = ? LIMIT 1", (flow_id, self._tenant_id(),))), None)
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "status": row["status"],
+            "nodes": json_loads(row["nodes_json"], []),
+            "edges": json_loads(row["edges_json"], []),
+            "spec": json_loads(row["spec_json"], None),
+            "metadata": json_loads(row["metadata_json"], {}),
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
+            "createdBy": row.get("created_by"),
+            "lastEditedBy": row.get("last_edited_by"),
+        }
+
+    def save_flow(self, payload: dict[str, Any]) -> dict[str, Any]:
+        flow_id = payload.get("id") or f"flow-{unique_suffix()}"
+        now = utcnow()
+        existing = self.get_flow(flow_id)
+        record = {
+            "id": flow_id,
+            "name": payload.get("name") or "Untitled Flow",
+            "status": payload.get("status") or "Draft",
+            "nodes": payload.get("nodes") or [],
+            "edges": payload.get("edges") or [],
+            "spec": payload.get("spec"),
+            "metadata": payload.get("metadata") or {},
+            "createdAt": payload.get("createdAt") or (existing or {}).get("createdAt") or now,
+            "updatedAt": payload.get("updatedAt") or now,
+            "createdBy": payload.get("createdBy") or (existing or {}).get("createdBy") or "Current User",
+            "lastEditedBy": payload.get("lastEditedBy") or "Current User",
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO flows (
+                    id, tenant_id, name, status, nodes_json, edges_json, spec_json, metadata_json,
+                    created_at, updated_at, created_by, last_edited_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    status = excluded.status,
+                    nodes_json = excluded.nodes_json,
+                    edges_json = excluded.edges_json,
+                    spec_json = excluded.spec_json,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at,
+                    last_edited_by = excluded.last_edited_by
+                """,
+                (
+                    record["id"],
+                    self._tenant_id(),
+                    record["name"],
+                    record["status"],
+                    json.dumps(record["nodes"]),
+                    json.dumps(record["edges"]),
+                    json.dumps(record["spec"]) if record["spec"] is not None else None,
+                    json.dumps(record["metadata"]),
+                    record["createdAt"],
+                    record["updatedAt"],
+                    record["createdBy"],
+                    record["lastEditedBy"],
+                ),
+            )
+            conn.commit()
+        return record
+
+    def save_flow_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        draft_id = payload.get("id") or f"flow-draft-{unique_suffix()}"
+        now = utcnow()
+        draft = {
+            **payload,
+            "id": draft_id,
+            "createdAt": payload.get("createdAt") or now,
+            "updatedAt": payload.get("updatedAt") or now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO flow_drafts (id, tenant_id, draft_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    draft_json = excluded.draft_json,
+                    updated_at = excluded.updated_at
+                """,
+                (draft_id, self._tenant_id(), json.dumps(draft), draft["createdAt"], draft["updatedAt"]),
+            )
+            conn.commit()
+        return draft
+
+    def get_flow_draft(self, draft_id: str) -> dict[str, Any] | None:
+        rows = self._rows("SELECT draft_json FROM flow_drafts WHERE id = ? AND tenant_id = ? LIMIT 1", (draft_id, self._tenant_id()))
+        if not rows:
+            return None
+        return json_loads(rows[0]["draft_json"], None)
+
+    def delete_flow_draft(self, draft_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM flow_drafts WHERE id = ? AND tenant_id = ?", (draft_id, self._tenant_id()))
+            conn.commit()
 
     def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM form_submissions WHERE tenant_id = ?"
@@ -7038,7 +7374,7 @@ class SQLiteProvider(BaseProvider):
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO ai_runs (
+                INSERT INTO ai_engine_runs (
                     id, tenant_id, command, mode, status, steps_json, 
                     artifacts_json, pending_approvals_json, routing_json, trace_json, 
                     actor_json, context_json, created_at, updated_at
@@ -7065,9 +7401,28 @@ class SQLiteProvider(BaseProvider):
         res = self.get_ai_run(payload["id"])
         return res if res else payload
 
+    def _deserialize_ai_engine_run_row(self, row: sqlite3.Row | None) -> dict[str, Any] | None:
+        if not row:
+            return None
+        parsed = dict(row)
+        for key, default in [
+            ("steps_json", []),
+            ("artifacts_json", []),
+            ("pending_approvals_json", []),
+            ("routing_json", {}),
+            ("trace_json", []),
+            ("actor_json", {}),
+            ("context_json", {}),
+        ]:
+            try:
+                parsed[key[:-5] if key.endswith("_json") else key] = json.loads(parsed.get(key) or json.dumps(default))
+            except json.JSONDecodeError:
+                parsed[key[:-5] if key.endswith("_json") else key] = default
+        return parsed
+
     def get_ai_run(self, run_id: str) -> dict[str, Any] | None:
-        rows = self._tenant_rows("SELECT * FROM ai_runs WHERE tenant_id = ? AND id = ?", (run_id,))
-        return dict(rows[0]) if rows else None
+        rows = self._tenant_rows("SELECT * FROM ai_engine_runs WHERE tenant_id = ? AND id = ?", (run_id,))
+        return self._deserialize_ai_engine_run_row(rows[0] if rows else None)
 
     def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         with self._connect() as conn:
@@ -7075,10 +7430,23 @@ class SQLiteProvider(BaseProvider):
             set_clause = ", ".join(f"{k} = ?" for k in updates.keys() if k != "id" and k != "tenant_id")
             values = [v for k, v in updates.items() if k != "id" and k != "tenant_id"]
             if set_clause:
-                conn.execute(f"UPDATE ai_runs SET {set_clause} WHERE tenant_id = ? AND id = ?", (*values, self._tenant_id(), run_id))
+                conn.execute(f"UPDATE ai_engine_runs SET {set_clause} WHERE tenant_id = ? AND id = ?", (*values, self._tenant_id(), run_id))
                 conn.commit()
         res = self.get_ai_run(run_id)
         return res if res else {}
+
+    def list_ai_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        rows = self._tenant_rows(
+            """
+            SELECT *
+            FROM ai_engine_runs
+            WHERE tenant_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (max(1, min(limit, 200)),),
+        )
+        return [self._deserialize_ai_engine_run_row(row) for row in rows if row]
 
 
 

@@ -24,7 +24,7 @@ const NODE_TEMPLATES = {
   'assign-owner': { id: 'assign-owner', type: 'action', label: 'Assign Owner', description: 'Route to correct agent', iconName: 'Bot', nodeColor: 'action' },
 };
 
-export const generateFlowFromIntent = (alphaPlan) => {
+export const generateFlowFromIntent = async (alphaPlan) => {
   if (!alphaPlan || !alphaPlan.approved || !alphaPlan.executionPlan) {
     throw new Error('Invalid or unapproved Alpha plan provided to generation service.');
   }
@@ -82,7 +82,7 @@ export const generateFlowFromIntent = (alphaPlan) => {
     }
   };
 
-  const savedDraft = flowDraftRepository.saveDraft(draft);
+  const savedDraft = await flowDraftRepository.saveDraft(draft);
   flowDraftRepository.setActiveDraft(savedDraft.id);
   return savedDraft;
 };

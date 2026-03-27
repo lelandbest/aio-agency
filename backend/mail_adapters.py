@@ -57,6 +57,7 @@ def get_provider_catalog() -> list[dict[str, Any]]:
     return [
         {"id": provider_id, "label": provider_id.replace("-", " ").title(), "fields": fields}
         for provider_id, fields in PROVIDER_FIELDS.items()
+        if provider_id != "local-stub"
     ]
 
 

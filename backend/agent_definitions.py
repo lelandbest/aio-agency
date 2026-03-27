@@ -6,10 +6,14 @@ from dataclasses import dataclass, field
 class AgentDefinition:
     name: str
     agent_id: str
+    label: str
     role: str
+    specialization: str
     capabilities: List[str]
     tools: List[str]
     rank: str
+    visibility: str = "visible"
+    capability_tier: str = "tier-2"
     subordinates: List[str] = field(default_factory=list)
     system_prompt: str = ""
 
@@ -18,8 +22,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "ALPHA": AgentDefinition(
         name="ALPHA",
         agent_id="AGT-CMD-001",
+        label="Commander-in-Chief",
         role="Command",
+        specialization="Commander-in-Chief",
         rank="Commander-in-Chief",
+        capability_tier="tier-1",
         capabilities=["Routing", "Strategic Planning", "Resource Optimization"],
         tools=[
             "Mission Brief Generator",
@@ -35,7 +42,9 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "BRAVO": AgentDefinition(
         name="BRAVO",
         agent_id="AGT-STR-002",
+        label="Business Strategy",
         role="Strategy",
+        specialization="Business Strategy",
         rank="AI Agent",
         capabilities=["Business Analysis", "Market Research", "swot_analysis"],
         tools=["Strategic Plan Generator", "SWOT Analysis Builder", "Market Research Template", "market_research"],
@@ -44,8 +53,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "CHARLIE": AgentDefinition(
         name="CHARLIE",
         agent_id="AGT-CS-003",
+        label="Customer Support",
         role="Support",
+        specialization="Customer Support",
         rank="AI Agent",
+        capability_tier="tier-1",
         capabilities=["Customer Support", "Ticket Resolution", "support_ticket"],
         tools=["Support Script Generator", "FAQ Builder", "Customer Response Templates", "add_crm_note"],
         system_prompt="You are CHARLIE, Customer Support Specialist.",
@@ -53,7 +65,9 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "DELTA": AgentDefinition(
         name="DELTA",
         agent_id="AGT-CRD-004",
+        label="Visual/Project Coordination",
         role="Coordination",
+        specialization="Visual/Project Coordination",
         rank="AI Agent",
         capabilities=["Project Management", "Visual Tracking", "schedule_calendar"],
         tools=["Project Timeline Generator", "Resource Allocation Matrix", "schedule_meeting"],
@@ -62,8 +76,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "ECHO": AgentDefinition(
         name="ECHO",
         agent_id="AGT-COMMS-002",  # Frontend matches this
+        label="Email/Comms/Socials",
         role="Comms",
+        specialization="Email/Comms/Socials",
         rank="AI Agent",
+        capability_tier="tier-1",
         capabilities=["Email Drafts", "Social Media", "Newsletters"],
         tools=["Email Template Generator", "Newsletter Builder", "Communication Plan Creator", "draft_email", "query_vault"],
         system_prompt="You are ECHO, Communications and Email Specialist.",
@@ -71,7 +88,9 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "FORGE": AgentDefinition(
         name="FORGE",
         agent_id="AGT-CPY-006",
+        label="Content/Copywriting",
         role="Copy",
+        specialization="Content/Copywriting",
         rank="AI Agent",
         capabilities=["Copywriting", "Article Generation"],
         tools=["Article Generator", "Product Description Writer", "draft_article"],
@@ -80,8 +99,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "GHOST": AgentDefinition(
         name="GHOST",
         agent_id="AGT-DEV-007",
+        label="Systems Engineering",
         role="Engineering",
+        specialization="Systems Engineering",
         rank="AI Agent",
+        capability_tier="tier-1",
         capabilities=["Code Architecture", "Automation", "Deployment", "coding"],
         tools=["System Architecture Planner", "Automation Playbook Builder", "API Integration Design", "code_review"],
         system_prompt="You are GHOST, Systems Engineering Specialist.",
@@ -89,8 +111,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "ARCHER": AgentDefinition(
         name="ARCHER",
         agent_id="AGT-FIN-008",
+        label="Analytics/Financial",
         role="Analytics",
+        specialization="Analytics/Financial",
         rank="AI Agent",
+        capability_tier="tier-1",
         capabilities=["Financial Modeling", "KPI Tracking", "financial_analysis"],
         tools=["KPI Dashboard Generator", "Financial Report Builder", "ROI Calculator", "kpi_track"],
         system_prompt="You are ARCHER, Analytics and Financial Specialist.",
@@ -98,8 +123,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "ATLAS": AgentDefinition(
         name="ATLAS",
         agent_id="AGT-LOG-009",
+        label="Logistics/Systems Mapping",
         role="Logistics",
+        specialization="Logistics/Systems Mapping",
         rank="AI Agent",
+        capability_tier="tier-1",
         capabilities=["Systems Mapping", "Deployment Planning"],
         tools=["Deployment Coordination Plan", "Systems Map Builder", "Resource Movement Tracker"],
         system_prompt="You are ATLAS, Logistics Specialist.",
@@ -107,7 +135,9 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "RANGER": AgentDefinition(
         name="RANGER",
         agent_id="AGT-SEO-010",
+        label="SEO/Content Optimization",
         role="SEO",
+        specialization="SEO/Content Optimization",
         rank="AI Agent",
         capabilities=["SEO Optimization", "Keyword Tactics", "seo_audit"],
         tools=["SEO Blog Writer", "SEO Auditor", "Keyword Research Generator"],
@@ -116,7 +146,9 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "SCOUT": AgentDefinition(
         name="SCOUT",
         agent_id="AGT-HR-011",
+        label="Hiring/Recruitment",
         role="Recruitment",
+        specialization="Hiring/Recruitment",
         rank="AI Agent",
         capabilities=["Hiring", "Onboarding", "recruitment"],
         tools=["Job Description Generator", "Interview Question Builder", "Candidate Assessment Template", "hiring"],
@@ -125,8 +157,11 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "STRIKER": AgentDefinition(
         name="STRIKER",
         agent_id="AGT-SLS-012",
+        label="Sales/Negotiation",
         role="Sales",
+        specialization="Sales/Negotiation",
         rank="AI Agent",
+        capability_tier="tier-1",
         capabilities=["Sales", "Outbound", "Negotiation"],
         tools=["Cold Email Generator", "Discovery Call Script Writer", "Proposal Builder", "draft_email", "query_vault", "add_contact"],
         system_prompt="You are STRIKER, Sales and Negotiation Specialist.",
@@ -134,7 +169,9 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "VECTOR": AgentDefinition(
         name="VECTOR",
         agent_id="AGT-DES-013",
+        label="Graphics/Design",
         role="Design",
+        specialization="Graphics/Design",
         rank="AI Agent",
         capabilities=["Graphics", "Visual Generation"],
         tools=["Image Generation", "Upscale Image", "Brand Style Guide Generator"],
@@ -143,8 +180,12 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "OMEGA": AgentDefinition(
         name="OMEGA",
         agent_id="AGT-OMG-999",
+        label="Emergency Governance",
         role="Governance",
+        specialization="Emergency Local Purge Control",
         rank="Shadow Authority",
+        visibility="hidden",
+        capability_tier="restricted",
         capabilities=["Emergency Governance"],
         tools=["Emergency Purge Arming", "Purge Countdown Control"],
         system_prompt="You are OMEGA. Restricted access.",

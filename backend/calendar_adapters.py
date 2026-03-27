@@ -200,7 +200,7 @@ class ExternalCalendarAdapter(BaseCalendarAdapter):
         validation = self.validate_source(source)
         if not validation["ok"]:
           return {"status": "needs_config", "message": validation["message"]}
-        return {"status": "ok", "message": f"{self.label} credentials look valid. Connection stub passed."}
+        return {"status": "ok", "message": f"{self.label} configuration validated. Live sync will complete after the first real provider exchange."}
 
     def sync_source(self, source: dict) -> dict:
         if source.get("status") != "connected":
@@ -680,4 +680,4 @@ def get_calendar_adapter(provider_name: str | None) -> BaseCalendarAdapter:
 
 
 def get_calendar_provider_catalog() -> list[dict[str, object]]:
-    return [adapter.provider_descriptor() for adapter in ADAPTERS.values()]
+    return [adapter.provider_descriptor() for adapter in ADAPTERS.values() if adapter.provider_name != "local-stub"]

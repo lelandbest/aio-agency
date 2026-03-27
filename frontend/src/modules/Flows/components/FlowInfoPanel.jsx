@@ -5,9 +5,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Edit2, User, Clock, Hash, Bot, FileText } from 'lucide-react';
-import { mockSupabase } from '../../../services/mockSupabase';
-import flowDraftRepository from '../utils/flowDraftRepository';
+import { Edit2, User, Clock, Hash, FileText } from 'lucide-react';
+import { getFormsApi } from '../../../services/backendApi';
 
 const FlowInfoPanel = ({
   flow,
@@ -20,7 +19,6 @@ const FlowInfoPanel = ({
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(flow?.name || 'Untitled Flow');
-  const [agents, setAgents] = useState([]);
   const [forms, setForms] = useState([]);
   const [selectedForm, setSelectedForm] = useState(null);
 
@@ -35,8 +33,7 @@ const FlowInfoPanel = ({
   };
 
   useEffect(() => {
-    mockSupabase.from('aio_agents').select().then(({ data }) => setAgents(data || []));
-    mockSupabase.from('forms').select().then(({ data }) => setForms(data || []));
+    getFormsApi().then((data) => setForms(data || [])).catch(() => setForms([]));
   }, []);
 
   useEffect(() => {

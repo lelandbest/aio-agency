@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow, Activity, Radiation, Lock } from 'lucide-react';
-import { mockSupabase } from '../../services/mockSupabase';
 import { getAiAgentsApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
-import flowDraftRepository from '../Flows/utils/flowDraftRepository';
 import { SPECIALIST_REGISTRY } from './data/agentRegistry';
 
 const ROW_COLOR_LANES = [
@@ -29,6 +27,91 @@ const ROW_COLOR_LANES = [
   ],
 ];
 
+const RESPONSE_TEXT_KEYS = ['message', 'suggestion', 'summary', 'text', 'content', 'result', 'output', 'answer'];
+
+const formatResponseKey = (value) =>
+  String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const indentLines = (value) =>
+  String(value || '')
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
+
+const formatStructuredResponse = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => formatStructuredResponse(item))
+      .filter(Boolean);
+    return items
+      .map((item) => (item.includes('\n') ? `- ${item.replace(/\n/g, '\n  ')}` : `- ${item}`))
+      .join('\n');
+  }
+  if (typeof value === 'object') {
+    for (const key of RESPONSE_TEXT_KEYS) {
+      const preferred = value[key];
+      if (typeof preferred === 'string' && preferred.trim()) {
+        return preferred.trim();
+      }
+    }
+    return Object.entries(value)
+      .map(([key, entryValue]) => {
+        const formatted = formatStructuredResponse(entryValue);
+        if (!formatted) {
+          return '';
+        }
+        return formatted.includes('\n')
+          ? `${formatResponseKey(key)}:\n${indentLines(formatted)}`
+          : `${formatResponseKey(key)}: ${formatted}`;
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+};
+
+const normalizeAgentResponse = (response) => {
+  const candidates = [
+    response?.message,
+    response?.suggestion,
+    response?.result,
+    response?.alternatives,
+    response?.metadata,
+  ];
+
+  for (const candidate of candidates) {
+    const formatted = formatStructuredResponse(candidate);
+    if (formatted) {
+      return formatted;
+    }
+  }
+
+  return 'No agent output returned.';
+};
+
+const normalizeDelegateChain = (value) => {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join(' -> ');
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return '';
+};
+
 // 8. AIO AGENTS MODULE
 const AIOAgentsModule = () => {
   const [activeAgent, setActiveAgent] = useState(null);
@@ -51,9 +134,7 @@ const AIOAgentsModule = () => {
   useEffect(() => {
     getAiAgentsApi()
       .then((data) => setAgents(Array.isArray(data) ? data.map(normalizeAgentRecord) : []))
-      .catch(() => {
-        mockSupabase.from('aio_agents').select().then(({ data }) => setAgents((data || []).map(normalizeAgentRecord)));
-      });
+      .catch(() => setAgents([]));
     getAiRunsApi(12)
       .then((data) => setAiRuns(Array.isArray(data) ? data : []))
       .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
@@ -66,24 +147,24 @@ const AIOAgentsModule = () => {
     setChatInput('');
     try {
       const response = await runAiCommandApi({
-        module: 'agents',
-        surface: 'command',
-        command_text: nextMessage,
-        requested_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || null,
+        command: nextMessage,
         context: {
+          module: 'agents',
+          surface: 'command',
           requested_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || '',
           active_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || '',
         }
       });
       const routing = response?.routing || {};
+      const normalizedContent = normalizeAgentResponse(response);
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: response?.suggestion || 'No agent output returned.',
+          content: normalizedContent,
           timestamp: 'Now',
           rank: routing.executing_agent || activeAgent?.name || 'AI',
-          chain: (response?.run?.delegate_chain || routing.delegate_chain || []).join(' -> ')
+          chain: normalizeDelegateChain(response?.run?.delegate_chain || routing.delegate_chain)
         }
       ]);
       const latestRuns = await getAiRunsApi(12);
@@ -112,12 +193,6 @@ const AIOAgentsModule = () => {
     }
   };
 
-  const openDraftInFlowBuilder = (agent) => {
-    const draft = flowDraftRepository.createDraftFromAgent(agent, `Draft from ${agent.name}`);
-    flowDraftRepository.setActiveDraft(draft.id);
-    window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'flows', flowId: null } }));
-  };
-
   return (
      <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
       <ModuleHeader
@@ -133,7 +208,7 @@ const AIOAgentsModule = () => {
             variant: view === 'barracks' ? 'primary' : 'secondary'
           },
           {
-            label: 'Add Agent',
+            label: 'Add Agent Disabled',
             icon: Plus,
             onClick: () => {},
             variant: 'secondary'
@@ -250,10 +325,11 @@ const AIOAgentsModule = () => {
                       {/* Action */}
                       <div className="flex items-center gap-2 shrink-0">
                         <button
-                          onClick={(e) => { e.stopPropagation(); openDraftInFlowBuilder(alpha); }}
-                          className="text-[8px] px-3 py-1.5 rounded-full btn-secondary !bg-green-500/10 !border-green-500/20 !text-green-400 hover:!bg-green-500/20 transition-colors font-bold uppercase tracking-wider"
+                          type="button"
+                          disabled
+                          className="text-[8px] px-3 py-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] cursor-not-allowed font-bold uppercase tracking-wider"
                         >
-                          Draft Flow
+                          Draft Flow Disabled
                         </button>
                         <div className="text-yellow-400/70 text-[8px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                           Run <ArrowRight size={8} />
@@ -601,16 +677,18 @@ const AIOAgentsModule = () => {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => openDraftInFlowBuilder(activeAgent)}
-                      className="btn-primary-skeuo !text-[10px] !px-4 !py-2"
+                      type="button"
+                      disabled
+                      className="btn-primary-skeuo !text-[10px] !px-4 !py-2 opacity-60 cursor-not-allowed"
                     >
-                      Draft Flow
+                      Draft Flow Disabled
                     </button>
                     <button
-                      onClick={() => openDraftInFlowBuilder(activeAgent)}
-                      className="btn-secondary !text-[10px] !px-4 !py-2"
+                      type="button"
+                      disabled
+                      className="btn-secondary !text-[10px] !px-4 !py-2 opacity-60 cursor-not-allowed"
                     >
-                      Open Builder
+                      Builder Disabled
                     </button>
                   </div>
                 </div>
@@ -636,7 +714,7 @@ const AIOAgentsModule = () => {
                                ? 'bg-purple-900/10 border border-purple-500/40 text-purple-100 rounded-tr-none' 
                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none border-t-white/10'
                             }`}>
-                               {msg.content}
+                               <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                             </div>
                          </div>
                       </div>
@@ -663,8 +741,8 @@ const AIOAgentsModule = () => {
                    </div>
                    <div className="flex justify-between items-center mt-4 px-1">
                       <div className="flex gap-6">
-                         <button className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] flex items-center gap-2 transition-colors"><UploadCloud size={14} className="text-blue-500"/> Upload Brief</button>
-                         <button className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] flex items-center gap-2 transition-colors"><Workflow size={14} className="text-yellow-500"/> Link Flow</button>
+                         <button type="button" disabled className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] flex items-center gap-2 cursor-not-allowed"><UploadCloud size={14} className="text-blue-500"/> Upload Brief Disabled</button>
+                         <button type="button" disabled className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] flex items-center gap-2 cursor-not-allowed"><Workflow size={14} className="text-yellow-500"/> Link Flow Disabled</button>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>

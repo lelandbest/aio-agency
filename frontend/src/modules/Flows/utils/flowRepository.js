@@ -1,59 +1,41 @@
 /**
  * Flow Repository Pattern
- * Adapter interface for flow persistence (localStorage -> API later)
+ * Backend-backed flow persistence.
  */
 
+import { getFlowApi, getFlowsApi, saveFlowApi } from '../../../services/backendApi';
 import { generateULID } from './ulid';
 
 export const createFlowRepository = () => {
-  const STORAGE_KEY = 'aio_flows';
+  const getAllFlows = async () => {
+    const flows = await getFlowsApi();
+    return Object.fromEntries((flows || []).map((flow) => [flow.id, flow]));
+  };
 
-  const getAllFlows = () => {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : {};
-    } catch (error) {
-      console.error('Failed to load flows:', error);
-      return {};
+  const getFlowById = async (flowId) => {
+    if (!flowId) {
+      return null;
     }
+    return getFlowApi(flowId);
   };
 
-  const getFlowById = (flowId) => {
-    const flows = getAllFlows();
-    return flows[flowId] || null;
+  const saveFlow = async (flow) => {
+    const flowId = flow?.id || generateULID();
+    return saveFlowApi(flowId, {
+      ...flow,
+      id: flowId,
+      updatedAt: new Date().toISOString(),
+    });
   };
 
-  const saveFlow = (flow) => {
-    try {
-      const flows = getAllFlows();
-      flows[flow.id] = {
-        ...flow,
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(flows));
-      return flow;
-    } catch (error) {
-      console.error('Failed to save flow:', error);
-      throw error;
-    }
+  const deleteFlow = async () => {
+    throw new Error('Flow deletion is not enabled.');
   };
 
-  const deleteFlow = (flowId) => {
-    try {
-      const flows = getAllFlows();
-      delete flows[flowId];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(flows));
-    } catch (error) {
-      console.error('Failed to delete flow:', error);
-      throw error;
-    }
-  };
-
-  const createNewFlow = (name = 'Untitled Flow') => {
+  const createNewFlow = async (name = 'Untitled Flow') => {
     const flowId = generateULID();
     const now = new Date().toISOString();
-    
-    const newFlow = {
+    return saveFlow({
       id: flowId,
       name,
       status: 'Draft',
@@ -74,9 +56,7 @@ export const createFlowRepository = () => {
         nodeCount: 0,
       },
       spec: null,
-    };
-
-    return saveFlow(newFlow);
+    });
   };
 
   return {

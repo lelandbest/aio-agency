@@ -10,7 +10,6 @@ import IntegrationTabs from '../components/IntegrationTabs';
 import AddIntegrationPanel from '../components/AddIntegrationPanel';
 import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES, normalizeAiField } from '../utils/integrationConfigs';
 import { getBrandIcon } from '../utils/brandIcons.jsx';
-import { mockSupabase } from '../../../lib/mockSupabase';
 import ModuleHeader from '../../../components/ModuleHeader';
 import AIAssistButton from '../../../components/AIAssistButton';
 import {
@@ -50,7 +49,6 @@ import {
 import { openOAuthPopup } from '../../../utils/oauthPopup';
 
 const DEFAULT_MAILBOX_PROVIDERS = [
-  { id: 'local-stub', label: 'Local Stub', fields: [] },
   {
     id: 'gmail-oauth',
     label: 'Gmail OAuth',
@@ -108,7 +106,6 @@ const DEFAULT_CALENDAR_PROVIDERS = [
       { key: 'password', label: 'Password' }
     ]
   },
-  { id: 'local-stub', label: 'Local Stub', fields: [] },
   {
     id: 'microsoft365-calendar',
     label: 'Microsoft 365 Calendar',
@@ -194,7 +191,7 @@ const createPaymentProviderDraft = (provider) => ({
   )
 });
 
-const createMailboxDraft = (provider = 'local-stub') => ({
+const createMailboxDraft = (provider = 'gmail-oauth') => ({
   name: '',
   address: '',
   provider,
@@ -203,7 +200,7 @@ const createMailboxDraft = (provider = 'local-stub') => ({
   config: {}
 });
 
-const createCalendarSourceDraft = (provider = 'local-stub') => ({
+const createCalendarSourceDraft = (provider = 'google-calendar-oauth') => ({
   name: '',
   provider,
   sync_direction: 'two-way',
@@ -335,7 +332,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const [aiProviderCatalog, setAiProviderCatalog] = useState(() => getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS));
   const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
-  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => localStorage.getItem('aio_active_provider_id') || getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]?.id);
+  const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]?.id);
   const [aiProviderForm, setAiProviderForm] = useState(() => createAiProviderDraft(getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]));
   const [ollamaModels, setOllamaModels] = useState([]);
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
@@ -370,19 +367,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const loadAll = async () => {
     setLoading(true);
     let nextNotice = null;
-
-    try {
-      const { data, error } = await mockSupabase.from('integrations').select('*');
-      if (error) {
-        nextNotice = { tone: 'warning', message: 'Legacy integration catalog could not be loaded.' };
-        setIntegrations([]);
-      } else {
-        setIntegrations(data || []);
-      }
-    } catch {
-      nextNotice = { tone: 'warning', message: 'Legacy integration catalog could not be loaded.' };
-      setIntegrations([]);
-    }
+    setIntegrations([]);
 
     try {
       setAutomationProviderConfigs(await getAutomationProviderConfigsApi());
@@ -450,38 +435,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     loadAll();
   }, []);
 
-  // Dual-way sync for AI Provider
-  useEffect(() => {
-    if (selectedAiProviderKey) localStorage.setItem('aio_active_provider_id', selectedAiProviderKey);
-  }, [selectedAiProviderKey]);
-
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'aio_active_provider_id' && e.newValue && e.newValue !== selectedAiProviderKey) {
-        setSelectedAiProviderKey(e.newValue);
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [selectedAiProviderKey]);
-
-  // Dual-way sync for AI Model
-  useEffect(() => {
-    if (selectedAiProviderConfig?.model) localStorage.setItem('aio_active_model_id', selectedAiProviderConfig.model);
-  }, [selectedAiProviderConfig?.model]);
-
-  useEffect(() => {
-    const handleModelStorageChange = (e) => {
-      if (e.key === 'aio_active_model_id' && e.newValue && e.newValue !== selectedAiProviderConfig?.model) {
-        if (selectedAiProviderConfig) {
-          setAiProviderForm(prev => ({ ...prev, model: e.newValue }));
-        }
-      }
-    };
-    window.addEventListener('storage', handleModelStorageChange);
-    return () => window.removeEventListener('storage', handleModelStorageChange);
-  }, [selectedAiProviderConfig]);
-
   useEffect(() => {
     if (!mailboxes.length) {
       setSelectedMailboxId(null);
@@ -512,10 +465,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   useEffect(() => {
     if (!aiProviderCatalog.length) return;
+    const defaultProvider = aiProviderConfigs.find((provider) => provider.is_default)?.provider_key;
+    if (defaultProvider && defaultProvider !== selectedAiProviderKey) {
+      setSelectedAiProviderKey(defaultProvider);
+      return;
+    }
     if (!aiProviderCatalog.some((provider) => provider.key === selectedAiProviderKey)) {
       setSelectedAiProviderKey(aiProviderCatalog[0].key);
     }
-  }, [aiProviderCatalog, selectedAiProviderKey]);
+  }, [aiProviderCatalog, aiProviderConfigs, selectedAiProviderKey]);
 
   const selectedMailbox = useMemo(
     () => mailboxes.find((mailbox) => mailbox.id === selectedMailboxId) || null,
@@ -598,7 +556,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     setMailboxForm({
       name: selectedMailbox.name || '',
       address: selectedMailbox.address || '',
-      provider: selectedMailbox.provider || 'local-stub',
+      provider: selectedMailbox.provider || 'gmail-oauth',
       status: selectedMailbox.status || 'connected',
       inbound_enabled: selectedMailbox.inbound_enabled !== false,
       outbound_enabled: selectedMailbox.outbound_enabled !== false,
@@ -613,7 +571,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
     setCalendarSourceForm({
       name: selectedCalendarSource.name || '',
-      provider: selectedCalendarSource.provider || 'local-stub',
+      provider: selectedCalendarSource.provider || 'google-calendar-oauth',
       sync_direction: selectedCalendarSource.sync_direction || 'two-way',
       config: {
         authority_mode: selectedCalendarSource.authority_mode || selectedCalendarSource.config?.authority_mode || 'local-first',
@@ -744,8 +702,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     [mailboxes, selectedMailboxId]
   );
   const calendarSourceDeleteTarget = useMemo(
-    () => calendarSources.find((source) => source.id !== selectedCalendarSourceId && source.provider !== 'local-stub')
-      || calendarSources.find((source) => source.id !== selectedCalendarSourceId)
+    () => calendarSources.find((source) => source.id !== selectedCalendarSourceId)
       || null,
     [calendarSources, selectedCalendarSourceId]
   );
@@ -774,32 +731,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
 
   const handleToggleIntegration = async (integrationId) => {
-    try {
-      const integration = integrations.find((item) => item.id === integrationId);
-      if (!integration) return;
-      const updated = { ...integration, enabled: !integration.enabled };
-      setIntegrations((current) => current.map((item) => item.id === integrationId ? updated : item));
-      const { error } = await mockSupabase.from('integrations').update(integrationId, updated);
-      if (error) {
-        throw new Error(error);
-      }
-    } catch (error) {
-      setNotice({ tone: 'error', message: `Failed to update integration: ${readErrorMessage(error)}` });
-      loadAll();
-    }
+    setNotice({ tone: 'warning', message: 'Legacy integration toggles are disabled until backed by workspace APIs.' });
   };
 
   const handleRemoveIntegration = async (integrationId) => {
     if (!window.confirm('Remove this integration?')) return;
-    try {
-      const { error } = await mockSupabase.from('integrations').delete(integrationId);
-      if (error) {
-        throw new Error(error);
-      }
-      setIntegrations((current) => current.filter((item) => item.id !== integrationId));
-    } catch (error) {
-      setNotice({ tone: 'error', message: `Failed to remove integration: ${readErrorMessage(error)}` });
-    }
+    setNotice({ tone: 'warning', message: 'Legacy integration removal is disabled until backed by workspace APIs.' });
   };
 
   const handleAddIntegration = async (data) => {
@@ -864,28 +801,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       }
     }
 
-    try {
-      const newIntegration = {
-        id: Date.now().toString(),
-        providerId: data.providerId,
-        category: data.category,
-        config: data.config,
-        customLogo: data.customLogo,
-        enabled: true,
-        createdAt: new Date().toISOString(),
-        configuredAt: new Date().toISOString()
-      };
-      const { error } = await mockSupabase.from('integrations').insert([newIntegration]);
-      if (error) {
-        throw new Error(error);
-      }
-      setIntegrations((current) => [...current, newIntegration]);
-      setNotice({ tone: 'success', message: 'Integration added.' });
-      return true;
-    } catch (error) {
-      setNotice({ tone: 'error', message: `Failed to add integration: ${readErrorMessage(error)}` });
-      throw error;
-    }
+    setNotice({ tone: 'warning', message: 'This integration category is disabled until a workspace API exists for it.' });
+    return false;
   };
 
   const handleSaveMailbox = async () => {

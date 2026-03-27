@@ -12,7 +12,7 @@ import { dispatchAction } from '../../orchestration';
 
 /**
  * SIGNAL ENGINE CORE LOGIC
- * Interprets raw system data into actionable intelligence.
+ * Interprets raw workspace data into operator-facing heuristics.
  */
 const mapDataToSignals = (rawData) => {
   const { contacts = [], threads = [], aiRuns = [] } = rawData;
@@ -39,8 +39,8 @@ const mapDataToSignals = (rawData) => {
         action: { type: 'open_module', payload: { module: 'pipelines' } }
       },
       recommendedActions: [
-        { label: 'Draft follow-ups', action: { type: 'create_flow_dynamic', payload: { intent: 'follow up stalled deals', source: 'signals' } } },
-        { label: 'Assign agent', action: { type: 'assign_agent', payload: { context: 'pipeline_signal' } } }
+        { label: 'Review CRM', action: { type: 'open_module', payload: { module: 'crm' } } },
+        { label: 'Open Comms', action: { type: 'open_module', payload: { module: 'chat' } } }
       ],
       count: stalledDeals.length,
       entities: stalledDeals,
@@ -64,7 +64,7 @@ const mapDataToSignals = (rawData) => {
         action: { type: 'open_module', payload: { module: 'chat' } }
       },
       recommendedActions: [
-        { label: 'Draft replies', action: { type: 'create_flow_dynamic', payload: { intent: 'draft replies for unread messages', source: 'signals' } } }
+        { label: 'Open CRM', action: { type: 'open_module', payload: { module: 'crm' } } }
       ],
       count: unreadThreads.length,
       entities: unreadThreads,
@@ -73,7 +73,7 @@ const mapDataToSignals = (rawData) => {
     });
   }
 
-  // 3. System Signals (AI Efficiency)
+  // 3. System Signals (Run Health)
   const failedRuns = aiRuns.filter(r => r.status === 'failed');
   if (failedRuns.length > 0) {
     signals.push({
@@ -102,9 +102,9 @@ const mapDataToSignals = (rawData) => {
       id: `ai-velocity-${now}`,
       type: 'ai',
       severity: 'normal',
-      title: 'High automation throughput',
-      description: `Automations processed ${aiRuns.length} triggers successfully.`,
-      impact: 'System stable under current load.',
+      title: 'High run throughput',
+      description: `${aiRuns.length} recorded runs completed recently.`,
+      impact: 'Recent execution volume is elevated.',
       primaryAction: {
         label: 'View Runs',
         action: { type: 'open_module', payload: { module: 'flows' } }
@@ -315,7 +315,7 @@ const PulseBand = ({ stats, loading }) => {
         </div>
         <div className="flex items-center gap-2 text-[8px] font-black text-slate-500 uppercase tracking-widest">
           <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-          Data Link: Online
+          Workspace Data Feed
         </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -379,7 +379,6 @@ const SignalsModule = () => {
     { id: 'new-contact', label: 'New Contact', icon: Users, action: { type: 'open_module', payload: { module: 'crm' } } },
     { id: 'send-msg', label: 'Send Message', icon: Send, action: { type: 'open_module', payload: { module: 'chat' } } },
     { id: 'new-deal', label: 'New Deal', icon: Target, action: { type: 'open_module', payload: { module: 'pipelines' } } },
-    { id: 'new-flow', label: 'Create Flow', icon: Zap, action: { type: 'open_module', payload: { module: 'flows' } } },
   ];
 
   return (
@@ -399,7 +398,7 @@ const SignalsModule = () => {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Signal Load: Nominal</div>
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Heuristic Feed</div>
           <button
             className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 text-slate-500 hover:text-white flex items-center justify-center transition-all"
             title="Diagnostics"

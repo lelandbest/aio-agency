@@ -18,28 +18,6 @@ export const DEFAULT_BRAND_CONFIG = {
   templateType: 'standard'
 };
 
-const STORAGE_KEY = 'aio_brand_config';
-
-const loadBrandConfig = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      return { ...DEFAULT_BRAND_CONFIG, ...JSON.parse(saved) };
-    }
-  } catch (e) {
-    console.warn('[BrandContext] Failed to load brand config');
-  }
-  return { ...DEFAULT_BRAND_CONFIG };
-};
-
-const saveBrandConfig = (config) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  } catch (e) {
-    console.warn('[BrandContext] Failed to save brand config');
-  }
-};
-
 const BrandContext = createContext(null);
 
 export const useBrand = () => {
@@ -57,19 +35,20 @@ export const useBrand = () => {
 
 export const BrandProvider = ({ children, initialConfig = {} }) => {
   const [brandConfig, setBrandConfigState] = useState(() => {
-    const loaded = loadBrandConfig();
-    
-    if (!loaded.brandId) {
-      loaded.brandId = generateBrandId();
-      saveBrandConfig(loaded);
-    }
-    
     return {
       ...DEFAULT_BRAND_CONFIG,
-      ...loaded,
-      ...initialConfig
+      ...initialConfig,
+      brandId: initialConfig?.brandId || generateBrandId(),
     };
   });
+
+  useEffect(() => {
+    setBrandConfigState((current) => ({
+      ...current,
+      ...DEFAULT_BRAND_CONFIG,
+      ...initialConfig
+    }));
+  }, [initialConfig]);
 
   const setBrandConfig = useCallback((updates) => {
     setBrandConfigState(prev => {
@@ -78,8 +57,6 @@ export const BrandProvider = ({ children, initialConfig = {} }) => {
       if (!updated.brandId) {
         updated.brandId = generateBrandId();
       }
-      
-      saveBrandConfig(updated);
       return updated;
     });
   }, []);
@@ -89,7 +66,6 @@ export const BrandProvider = ({ children, initialConfig = {} }) => {
       ...DEFAULT_BRAND_CONFIG, 
       brandId: generateBrandId() 
     };
-    saveBrandConfig(fresh);
     setBrandConfigState(fresh);
   }, []);
 
@@ -115,14 +91,6 @@ export const BrandProvider = ({ children, initialConfig = {} }) => {
     
     return resolved;
   }, [brandConfig]);
-
-  useEffect(() => {
-    const loaded = loadBrandConfig();
-    if (loaded.brandId && loaded.brandId !== brandConfig.brandId) {
-      setBrandConfigState(prev => ({ ...prev, ...loaded }));
-    }
-  }, []);
-
   return (
     <BrandContext.Provider value={{ 
       brandConfig, 
@@ -136,7 +104,7 @@ export const BrandProvider = ({ children, initialConfig = {} }) => {
 };
 
 export const getBrandConfig = () => {
-  return loadBrandConfig();
+  return { ...DEFAULT_BRAND_CONFIG };
 };
 
 export default BrandContext;

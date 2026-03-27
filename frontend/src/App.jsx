@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { ThemeProvider } from './lib/ThemeContext';
 import AuthContext from './contexts/AuthContext';
 import DbContext from './contexts/DbContext';
@@ -38,6 +38,42 @@ const AcceptableUsePage = lazy(() => import('./pages/AcceptableUse'));
 const PublicForm = lazy(() => import('./pages/PublicForm'));
 
 import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
+
+const DEFAULT_ACTIVE_MODULE = 'aio-brain';
+const DEFAULT_INTEGRATION_CATEGORY = 'automation';
+
+const normalizeNavigationValue = (value) => {
+  if (typeof value !== 'string') {
+    return value ?? null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const readNavigationStateFromUrl = () => {
+  if (typeof window === 'undefined') {
+    return {
+      activeModule: DEFAULT_ACTIVE_MODULE,
+      flowId: null,
+      flowAction: null,
+      flowIntent: null,
+      commsThreadId: null,
+      integrationCategory: DEFAULT_INTEGRATION_CATEGORY,
+      crmContactId: null,
+    };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    activeModule: normalizeNavigationValue(params.get('module')) || DEFAULT_ACTIVE_MODULE,
+    flowId: normalizeNavigationValue(params.get('flowId')),
+    flowAction: normalizeNavigationValue(params.get('action')),
+    flowIntent: normalizeNavigationValue(params.get('intent')),
+    commsThreadId: normalizeNavigationValue(params.get('threadId')),
+    integrationCategory: normalizeNavigationValue(params.get('integrationCategory')) || DEFAULT_INTEGRATION_CATEGORY,
+    crmContactId: normalizeNavigationValue(params.get('contactId')),
+  };
+};
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
@@ -45,8 +81,6 @@ import {
 } from 'lucide-react';
 
 // ============ MENU STRUCTURE ============
-const MENU_STRUCTURE = INITIAL_MENU_STRUCTURE;
-
 // ============ ICON MAP ============
 const ICON_MAP = {
   ...ICON_LIBRARY,
@@ -74,28 +108,40 @@ const ICON_MAP = {
 };
 
 const MODULE_SUBTITLE_MAP = {
+  flows: 'Manage and launch your automation flows.',
   chat: 'Thread-first Comms for triage, actions, and audit logs.'
 };
 
 // ============ MAIN APP COMPONENT ============
 const App = () => {
+  const initialNavigation = useRef(readNavigationStateFromUrl()).current;
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeModule, setActiveModule] = useState('aio-agents');
+  const [activeModule, setActiveModule] = useState(initialNavigation.activeModule);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [db, setDb] = useState(null);
   const [currentPage, setCurrentPage] = useState('app'); // 'app', 'terms', 'privacy', 'acceptable-use', 'form'
   const [formSlug, setFormSlug] = useState(null);
   const [lastNonFullscreen, setLastNonFullscreen] = useState('aio-brain');
-  const [flowId, setFlowId] = useState(null);
-  const [flowAction, setFlowAction] = useState(null);
-  const [flowIntent, setFlowIntent] = useState(null);
-  const [commsThreadId, setCommsThreadId] = useState(null);
-  const [integrationCategory, setIntegrationCategory] = useState('automation');
-  const [crmContactId, setCrmContactId] = useState(null);
+  const [flowId, setFlowId] = useState(initialNavigation.flowId);
+  const [flowAction, setFlowAction] = useState(initialNavigation.flowAction);
+  const [flowIntent, setFlowIntent] = useState(initialNavigation.flowIntent);
+  const [commsThreadId, setCommsThreadId] = useState(initialNavigation.commsThreadId);
+  const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
+  const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
+  const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
 
   const fullscreenModules = [];
   const isFullscreen = fullscreenModules.includes(activeModule);
+
+  useEffect(() => {
+    const configuredMenu = session?.tenant?.settings?.menu_structure;
+    if (Array.isArray(configuredMenu) && configuredMenu.length > 0) {
+      setMenuStructure(configuredMenu);
+      return;
+    }
+    setMenuStructure(INITIAL_MENU_STRUCTURE);
+  }, [session?.tenant?.id, session?.tenant?.settings]);
 
   const findMenuItemById = (items, targetId, parent = null) => {
     for (const item of items) {
@@ -115,7 +161,7 @@ const App = () => {
   };
 
   const currentModuleMeta = (() => {
-    const found = findMenuItemById(MENU_STRUCTURE.flatMap(category => category.items), activeModule);
+    const found = findMenuItemById(menuStructure.flatMap(category => category.items), activeModule);
     const item = found?.item;
     const parent = found?.parent;
     const label = item?.label || parent?.label || 'AIO CRM';
@@ -130,7 +176,7 @@ const App = () => {
   })();
 
   const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market', 'aio-academy'];
-  const systemsLauncherItems = MENU_STRUCTURE
+  const systemsLauncherItems = menuStructure
     .flatMap(category => category.items)
     .filter(item => systemsLauncherIds.includes(item.id))
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -140,6 +186,60 @@ const App = () => {
       setLastNonFullscreen(activeModule);
     }
   }, [activeModule, isFullscreen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || currentPage !== 'app' || window.location.pathname.startsWith('/form/')) {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    const setParam = (key, value) => {
+      const normalized = normalizeNavigationValue(value);
+      if (normalized) {
+        params.set(key, normalized);
+      } else {
+        params.delete(key);
+      }
+    };
+
+    setParam('module', activeModule || DEFAULT_ACTIVE_MODULE);
+
+    if (activeModule === 'flows') {
+      setParam('flowId', flowId);
+      setParam('action', flowAction);
+      setParam('intent', flowIntent);
+    } else {
+      params.delete('flowId');
+      params.delete('action');
+      params.delete('intent');
+    }
+
+    if (activeModule === 'chat') {
+      setParam('threadId', commsThreadId);
+    } else {
+      params.delete('threadId');
+    }
+
+    if (activeModule === 'crm') {
+      setParam('contactId', crmContactId);
+    } else {
+      params.delete('contactId');
+    }
+
+    if (activeModule === 'integrations') {
+      setParam('integrationCategory', integrationCategory);
+    } else {
+      params.delete('integrationCategory');
+    }
+
+    const nextSearch = params.toString();
+    const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`;
+    const currentUrl = `${url.pathname}${url.search}${url.hash}`;
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState({}, '', nextUrl);
+    }
+  }, [currentPage, activeModule, flowId, flowAction, flowIntent, commsThreadId, crmContactId, integrationCategory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -213,6 +313,18 @@ const App = () => {
   const handleLogin = (session) => {
     setSession(session);
   };
+
+  const handleFlowContextChange = useCallback((next = {}) => {
+    if (Object.prototype.hasOwnProperty.call(next, 'flowId')) {
+      setFlowId(next.flowId ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(next, 'action')) {
+      setFlowAction(next.action ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(next, 'intent')) {
+      setFlowIntent(next.intent ?? null);
+    }
+  }, []);
 
   const refreshSession = async () => {
     const refreshed = await getCurrentSessionApi();
@@ -313,7 +425,7 @@ const App = () => {
 
   // Get iframe URL for external links
   const getIframeUrl = (moduleId) => {
-    for (const category of MENU_STRUCTURE) {
+    for (const category of menuStructure) {
       for (const item of category.items) {
         if (item.id === moduleId && item.type === 'iframe') {
           return item.url;
@@ -357,7 +469,7 @@ const App = () => {
     const settingsTabs = ['set-personal', 'set-billing', 'set-security', 'set-workspace', 'set-whitelabel', 'set-vars'];
     if (settingsTabs.includes(activeModule)) {
       const activeSettingsTab = getSettingsTabFromModuleId(activeModule);
-      return <SettingsModule menuStructure={MENU_STRUCTURE} activeSettingsTab={activeSettingsTab} />;
+      return <SettingsModule menuStructure={menuStructure} onMenuUpdate={setMenuStructure} activeSettingsTab={activeSettingsTab} />;
     }
 
     switch (activeModule) {
@@ -390,7 +502,7 @@ const App = () => {
       case 'integrations':
         return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':
-        return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onExit={() => setActiveModule('aio-brain')} />;
+        return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onFlowContextChange={handleFlowContextChange} onExit={() => setActiveModule('aio-brain')} />;
       case 'chat':
         return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} />;
       case 'marketplace':
@@ -400,7 +512,7 @@ const App = () => {
       case 'canned-responses':
         return <CannedResponsesModule onNavigate={setActiveModule} />;
       case 'settings':
-        return <SettingsModule menuStructure={MENU_STRUCTURE} />;
+        return <SettingsModule menuStructure={menuStructure} onMenuUpdate={setMenuStructure} />;
       case 'aio-help':
         return <HelpModule activeModule={activeModule} />;
       default:
@@ -410,7 +522,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
-      <BrandProvider>
+      <BrandProvider initialConfig={session?.tenant?.settings?.branding || {}}>
         <OrchestrationProvider>
           <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
           <DbContext.Provider value={{ db, setDb }}>
@@ -421,6 +533,9 @@ const App = () => {
                 activeModule={activeModule}
                 onSelectModule={(moduleId) => {
                   setActiveModule(moduleId);
+                  if (moduleId === 'flows') {
+                    handleFlowContextChange({ flowId: null, action: null, intent: null });
+                  }
                   if (moduleId !== 'crm') {
                     setCrmContactId(null);
                   }
@@ -428,7 +543,7 @@ const App = () => {
                 onLogout={handleLogout}
                 isMobileOpen={isMobileOpen}
                 setIsMobileOpen={setIsMobileOpen}
-                menuStructure={MENU_STRUCTURE}
+                menuStructure={menuStructure}
                 iconMap={ICON_MAP}
               />
             )}

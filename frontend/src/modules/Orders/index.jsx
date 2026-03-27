@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Filter, Download, ShoppingCart } from 'lucide-react';
-import { mockSupabase } from '../../services/mockSupabase';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
-import { assistAiApi } from '../../services/backendApi';
+import { assistAiApi, getOrdersApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
@@ -35,23 +34,21 @@ const OrdersModule = () => {
   const fetchData = async (table) => {
     setLoading(true);
     try {
-      if (table === 'orders') {
-        const { getOrdersApi } = await import('../../services/backendApi');
-        const data = await getOrdersApi();
-        const formatted = data.map(o => ({
-          id: o.id.split('-').pop() || o.id,
-          contact: o.contact_id || 'Unknown',
-          payment_status: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
-          fulfillment_status: o.status === 'active' ? 'Processing' : 'Shipped',
-          items: o.items?.length || 1,
-          total: o.total_amount || 0,
-          date: new Date(o.created_at).toLocaleDateString()
-        }));
-        setData(formatted);
-      } else {
-        const { data } = await mockSupabase.from(table).select();
-        if (data) setData(data);
+      if (table !== 'orders') {
+        setData([]);
+        return;
       }
+      const response = await getOrdersApi();
+      const formatted = response.map(o => ({
+        id: o.id.split('-').pop() || o.id,
+        contact: o.contact_id || 'Unknown',
+        payment_status: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
+        fulfillment_status: o.status === 'active' ? 'Processing' : 'Shipped',
+        items: o.items?.length || 1,
+        total: o.total_amount || 0,
+        date: new Date(o.created_at).toLocaleDateString()
+      }));
+      setData(formatted);
     } catch (err) {
       console.error(err);
     }
@@ -70,13 +67,13 @@ const OrdersModule = () => {
         }}
         actions={[
           {
-            label: 'Filter',
+            label: 'Filter Disabled',
             icon: Filter,
             onClick: () => {},
             variant: 'secondary'
           },
           {
-            label: 'Export',
+            label: 'Export Disabled',
             icon: Download,
             onClick: () => {},
             variant: 'secondary'
@@ -98,9 +95,10 @@ const OrdersModule = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium border-b-2 transition capitalize ${activeTab === tab ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+              disabled={tab !== 'orders'}
+              className={`pb-3 text-sm font-medium border-b-2 transition capitalize ${activeTab === tab ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]' : 'text-gray-500 border-transparent hover:text-gray-300'} ${tab !== 'orders' ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {tab}
+              {tab === 'orders' ? tab : `${tab} disabled`}
             </button>
           ))}
         </div>
@@ -108,6 +106,8 @@ const OrdersModule = () => {
       <div className="flex-1 overflow-auto p-4 relative">
         {loading ? (
           <div className="text-center text-gray-500 mt-10">Loading Orders...</div>
+        ) : activeTab !== 'orders' ? (
+          <div className="text-center text-gray-500 mt-10">This surface is disabled until it is backed by live workspace data.</div>
         ) : (
           <div className="border border-[var(--color-border)] rounded-lg overflow-hidden bg-[var(--color-bg-primary)]">
             <table className="w-full text-left text-sm">

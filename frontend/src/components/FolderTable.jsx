@@ -93,6 +93,7 @@ const FolderTable = ({
                             className="w-full pl-8 pr-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-xs focus:border-purple-500 focus:outline-none"
                         />
                     </div>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
                     {actions}
                     {headerActions.map((action, idx) => (
                         <button
@@ -104,11 +105,12 @@ const FolderTable = ({
                             {action.label}
                         </button>
                     ))}
+                    </div>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-auto px-4">
+            <div className="no-scrollbar flex-1 overflow-auto px-4">
                 <table className="w-full">
                     <thead className="rounded-lg mb-2">
                         <tr className="border-b border-[var(--color-border)]">

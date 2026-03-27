@@ -28,6 +28,7 @@ import CMSView from '../../components/CMS/CMSView';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ShareFormModal from '../../components/Modals/ShareFormModal';
 import AIAssistButton from '../../components/AIAssistButton';
+import FormTemplateGallery from './FormTemplateGallery';
 
 const createFieldName = (label, fallback = 'field') => {
   const base = (label || fallback)
@@ -57,6 +58,33 @@ const defaultLabelForType = (field) => {
   return byType[fieldType] || field?.label || 'Field Label';
 };
 
+const buildTemplateField = (field, index) => ({
+  id: `field_${Date.now()}_${index}`,
+  name: createFieldName(field.label, field.type),
+  type: field.type,
+  label: field.label,
+  placeholder: field.placeholder || '',
+  required: Boolean(field.required),
+  options: Array.isArray(field.options) ? [...field.options] : undefined,
+  prefix: '',
+  suffix: '',
+  mask: '',
+  customClass: '',
+  tabIndex: index,
+  labelPosition: 'Top',
+  hidden: false,
+  hideLabel: false,
+  showWordCounter: false,
+  content: field.type === 'content' ? (field.content || '') : '',
+  minLength: '',
+  maxLength: '',
+  pattern: '',
+  customValidation: '',
+  errorMessage: '',
+  map_to_contact: field.map_to_contact || null,
+  is_identifier: Boolean(field.is_identifier),
+});
+
 /**
  * FormBuilderModule
  * Comprehensive form builder with folder organization and drag-and-drop field management
@@ -85,6 +113,7 @@ const FormBuilderModule = () => {
   // Share Modal State
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareForm, setShareForm] = useState(null);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
   // Sidebar Category State
   const [expandedCategories, setExpandedCategories] = useState({ 0: true });
@@ -340,6 +369,44 @@ const FormBuilderModule = () => {
     }
   };
 
+  const createFormFromTemplate = async (template) => {
+    const timestamp = Date.now();
+    const newForm = {
+      name: template?.name || "New Untitled Form",
+      folder_id: folders[0]?.id || null,
+      status: "Draft",
+      is_active: false,
+      responses_count: 0,
+      last_active: "Just now",
+      last_modified_by: "AIO Flow™",
+      last_modified_at: new Date().toISOString(),
+      creator: "AIO Flow™",
+      triggers: null,
+      automation: null,
+      settings: {
+        create_contact: true,
+        update_contact: true,
+        webhook_url: '',
+        notification_email: '',
+        redirect_url: '',
+        thank_you_message: 'Thanks, we received your submission.',
+        template_source_id: template?.id || null,
+        template_source_name: template?.name || null,
+      },
+      slug: `form_${timestamp}`,
+      schema: (template?.fields || []).map((field, index) => buildTemplateField(field, index)),
+    };
+
+    const created = await createFormApi(newForm);
+    if (created) {
+      setForms(prev => [created, ...prev]);
+      setCurrentForm(created);
+      setSelectedField(null);
+      setShowTemplateGallery(false);
+      setView('editor');
+    }
+  };
+
   const handleCreateFolder = async () => {
     const name = prompt("Enter folder name:", "New Folder");
     if (name) {
@@ -429,7 +496,7 @@ const FormBuilderModule = () => {
       hidden: false,
       hideLabel: false,
       showWordCounter: false,
-      content: tool.type === 'content' ? '<b>Welcome to my Form</b>' : '',
+      content: tool.type === 'content' ? '<b>Add a section title</b>' : '',
       // Validation fields
       minLength: '',
       maxLength: '',
@@ -624,9 +691,9 @@ const FormBuilderModule = () => {
                 setView('editor');
               }}
               className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)]"
-              title="Edit"
+              title="Open"
             >
-              <Edit2 size={16} />
+              <ArrowRight size={16} />
             </button>
             <button
               onClick={() => deleteForm(form.id)}
@@ -648,19 +715,29 @@ const FormBuilderModule = () => {
     ];
 
     const actions = (
-      <button
-        onClick={() => setView('cms')}
-        className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
-      >
-        <Database size={16} /> CMS Data
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => setShowTemplateGallery(true)}
+          className="bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition"
+        >
+          <Layers size={16} /> Browse Templates
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('cms')}
+          className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
+        >
+          <Database size={16} /> CMS Data
+        </button>
+      </>
     );
 
     return (
       <>
         <FolderTable
-          title="CUSTOM FORMS"
-          description="Design professional looking Forms to collect leads, contact information, registrations, payments, and more."
+          title="Forms"
+          description="Select, create, or manage your custom forms."
           folders={folders}
           items={forms}
           columns={tableColumns}
@@ -672,6 +749,11 @@ const FormBuilderModule = () => {
           onCreateItem={createNewForm}
           createItemLabel="Create Form"
           actions={actions}
+        />
+        <FormTemplateGallery
+          isOpen={showTemplateGallery}
+          onClose={() => setShowTemplateGallery(false)}
+          onSelectTemplate={createFormFromTemplate}
         />
         {
           showFormEntry && entryForm && (
@@ -750,10 +832,10 @@ const FormBuilderModule = () => {
       {/* Canvas */}
       <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
         {/* Editor Header */}
-        <div className="h-16 border-b border-[var(--color-border)] flex items-center justify-between px-6 bg-[var(--color-bg-tertiary)]">
-          <div className="flex-1 flex items-center gap-2">
-            <span className="text-xs text-[var(--color-text-secondary)] uppercase font-bold">Form Name:</span>
-            <div className="relative group">
+        <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-4 px-6 py-4 bg-[var(--color-bg-tertiary)]">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-[var(--color-text-secondary)]">Design and deploy your custom forms.</p>
+            <div className="relative group mt-2">
               <input
                 value={currentForm?.name || ''}
                 onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
@@ -763,7 +845,7 @@ const FormBuilderModule = () => {
               <Edit2 size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none group-hover:text-[var(--color-primary)] transition-colors" />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 self-start">
             <AIAssistButton
               onAssist={() => runFormAssist('form-name')}
               loading={assistTarget === 'form-name'}
@@ -786,8 +868,8 @@ const FormBuilderModule = () => {
             {currentForm?.schema?.length === 0 && (
               <div className="text-center text-[var(--color-text-tertiary)] py-20 border-2 border-dashed border-[var(--color-border)] rounded-xl flex flex-col items-center justify-center">
                 <Box size={48} className="mb-4 opacity-20" />
-                <p>Welcome to my Form</p>
-                <p className="text-xs mt-2">Add fields from the left menu to start building!</p>
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">Start with a field.</p>
+                <p className="text-xs mt-2">Choose a field from the left to begin.</p>
               </div>
             )}
             {assistError ? (
@@ -1151,9 +1233,6 @@ FormBuilderModule.propTypes = {
 };
 
 export default FormBuilderModule;
-
-
-
 
 
 

@@ -1,47 +1,35 @@
 /**
- * FlowDraft repository (localStorage)
- * Drafts are produced by Agents and loaded into Flow Builder.
+ * FlowDraft repository
+ * Drafts are persisted via backend APIs and loaded into Flow Builder.
  */
 
+import { deleteFlowDraftApi, getFlowDraftApi, saveFlowDraftApi } from '../../../services/backendApi';
 import { createNode } from '../data/nodeLibrary';
 import { generateULID } from './ulid';
 
-const STORAGE_KEY = 'aio_flow_drafts';
-const ACTIVE_KEY = 'aio_flow_draft_active';
+let activeDraftId = null;
 
-const getAllDrafts = () => {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch (error) {
-    console.error('Failed to load flow drafts:', error);
-    return {};
-  }
-};
-
-const saveDraft = (draft) => {
-  const drafts = getAllDrafts();
-  drafts[draft.id] = draft;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
-  return draft;
+const saveDraft = async (draft) => {
+  return saveFlowDraftApi(draft);
 };
 
 export const setActiveDraft = (draftId) => {
-  localStorage.setItem(ACTIVE_KEY, draftId);
+  activeDraftId = draftId;
 };
 
-export const getActiveDraft = () => {
-  const activeId = localStorage.getItem(ACTIVE_KEY);
-  if (!activeId) return null;
-  const drafts = getAllDrafts();
-  return drafts[activeId] || null;
+export const getActiveDraft = async () => {
+  if (!activeDraftId) return null;
+  return getFlowDraftApi(activeDraftId);
 };
 
-export const clearActiveDraft = () => {
-  localStorage.removeItem(ACTIVE_KEY);
+export const clearActiveDraft = async () => {
+  if (!activeDraftId) return;
+  const draftId = activeDraftId;
+  activeDraftId = null;
+  await deleteFlowDraftApi(draftId);
 };
 
-export const createDraftFromAgent = (agent, intent = 'Draft a workflow from agent intent.') => {
+export const createDraftFromAgent = async (agent, intent = 'Draft a workflow from agent intent.') => {
   const now = new Date().toISOString();
   const draftId = generateULID();
 
@@ -101,7 +89,6 @@ export const createDraftFromAgent = (agent, intent = 'Draft a workflow from agen
 };
 
 export default {
-  getAllDrafts,
   saveDraft,
   setActiveDraft,
   getActiveDraft,
