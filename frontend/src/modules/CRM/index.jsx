@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  createEmailVerificationBulkTaskApi,
   createWorkspaceUserApi,
   createContactApi,
   draftAiApi,
+  getEmailVerificationBulkTaskApi,
+  getEmailVerifierConfigApi,
   getCompaniesApi,
   getContactActivitiesApi,
   createContactActivityApi,
@@ -11,7 +14,8 @@ import {
   getUserAccessApi,
   getTagsApi,
   openThreadForContactApi,
-  updateContactApi
+  updateContactApi,
+  verifyEmailApi
 } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
@@ -65,6 +69,11 @@ const CRMModule = ({ initialContactId = null }) => {
   const [bulkActionSubmitting, setBulkActionSubmitting] = useState(false);
   const [bulkActionAssistLoading, setBulkActionAssistLoading] = useState(false);
   const [bulkActionError, setBulkActionError] = useState('');
+  const [emailVerifierConfig, setEmailVerifierConfig] = useState(null);
+  const [emailVerificationTask, setEmailVerificationTask] = useState(null);
+  const [bulkVerificationSubmitting, setBulkVerificationSubmitting] = useState(false);
+  const [verifyingContactIds, setVerifyingContactIds] = useState(new Set());
+  const [emailVerificationNotice, setEmailVerificationNotice] = useState(null);
   
   // Resizing state
   const [leftPanelWidth, setLeftPanelWidth] = useState(640);
@@ -213,19 +222,155 @@ const CRMModule = ({ initialContactId = null }) => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [contactsData, companiesData, tagsData] = await Promise.all([
+      const [contactsData, companiesData, tagsData, verifierConfig] = await Promise.all([
         getContactsApi(),
         getCompaniesApi(),
-        getTagsApi()
+        getTagsApi(),
+        getEmailVerifierConfigApi().catch(() => null)
       ]);
       setContacts(contactsData || []);
       setCompanies(companiesData || []);
       setTags(tagsData || []);
+      setEmailVerifierConfig(verifierConfig || null);
+      setSelectedContact((current) => {
+        if (!current) return current;
+        return (contactsData || []).find((entry) => entry.id === current.id) || current;
+      });
     } catch (error) {
       console.error('Error loading data:', error);
     }
     setLoading(false);
   };
+
+  const canUseEmailVerification = Boolean(emailVerifierConfig?.enabled && emailVerifierConfig?.has_api_key);
+
+  const setVerificationNotice = (tone, message) => {
+    if (!message) {
+      setEmailVerificationNotice(null);
+      return;
+    }
+    setEmailVerificationNotice({ tone, message });
+  };
+
+  const updateContactInState = (updatedContact) => {
+    if (!updatedContact?.id) return;
+    setContacts((current) => current.map((contact) => (contact.id === updatedContact.id ? updatedContact : contact)));
+    setSelectedContact((current) => (current?.id === updatedContact.id ? updatedContact : current));
+    setEditedContact((current) => (current?.id === updatedContact.id ? updatedContact : current));
+  };
+
+  const getEmailVerificationMeta = (contact) => {
+    const status = normalizeText(contact?.email_verification_status);
+    if (!contact?.email) {
+      return { label: 'No email', className: 'border-[var(--color-border)] text-[var(--color-text-tertiary)] bg-[var(--color-bg-secondary)]' };
+    }
+    if (status === 'valid') {
+      return { label: 'Valid', className: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300' };
+    }
+    if (status === 'risky') {
+      return { label: 'Risky', className: 'border-amber-500/30 bg-amber-500/15 text-amber-300' };
+    }
+    if (status === 'invalid') {
+      return { label: 'Invalid', className: 'border-rose-500/30 bg-rose-500/15 text-rose-300' };
+    }
+    if (status === 'unknown') {
+      return { label: 'Unknown', className: 'border-slate-500/30 bg-slate-500/15 text-slate-300' };
+    }
+    return { label: 'Unverified', className: 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]' };
+  };
+
+  const handleVerifyContact = async (contact, mode = 'quick') => {
+    if (!contact?.id || !contact?.email) {
+      setVerificationNotice('warning', 'This contact does not have an email address to verify.');
+      return;
+    }
+    if (!canUseEmailVerification) {
+      setVerificationNotice('warning', 'Email verification is not configured for this workspace yet.');
+      return;
+    }
+    setVerificationNotice(null, '');
+    setVerifyingContactIds((current) => new Set(current).add(contact.id));
+    try {
+      const result = await verifyEmailApi({ contact_id: contact.id, email: contact.email, mode });
+      if (result?.contact) {
+        updateContactInState(result.contact);
+        setVerificationNotice('success', `${contact.first_name || contact.email} verified as ${result.status || 'unknown'}.`);
+      } else {
+        await loadData();
+        setVerificationNotice('success', `${contact.first_name || contact.email} verification completed.`);
+      }
+    } catch (error) {
+      setVerificationNotice('error', error.message || 'Unable to verify this email right now.');
+    } finally {
+      setVerifyingContactIds((current) => {
+        const next = new Set(current);
+        next.delete(contact.id);
+        return next;
+      });
+    }
+  };
+
+  const startBulkEmailVerification = async (scope = 'selected') => {
+    const sourceContacts = scope === 'filtered' ? filteredAndSortedContacts : contacts.filter((contact) => selectedContacts.has(contact.id));
+    const contactIds = sourceContacts.filter((contact) => contact.email).map((contact) => contact.id);
+    if (!canUseEmailVerification) {
+      setVerificationNotice('warning', 'Email verification is not configured for this workspace yet.');
+      return;
+    }
+    if (!contactIds.length) {
+      setVerificationNotice('warning', `No ${scope} contacts with email addresses are available for verification.`);
+      return;
+    }
+    setVerificationNotice(null, '');
+    setBulkVerificationSubmitting(true);
+    try {
+      const task = await createEmailVerificationBulkTaskApi({ contact_ids: contactIds, mode: 'power' });
+      setEmailVerificationTask(task);
+      setVerificationNotice('info', `Bulk verification queued for ${task?.submitted_count || contactIds.length} contact${(task?.submitted_count || contactIds.length) === 1 ? '' : 's'}.`);
+    } catch (error) {
+      setVerificationNotice('error', error.message || 'Unable to start bulk email verification.');
+    } finally {
+      setBulkVerificationSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!emailVerificationTask?.id || !['queued', 'running'].includes(emailVerificationTask.status)) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const pollTask = async () => {
+      try {
+        const nextTask = await getEmailVerificationBulkTaskApi(emailVerificationTask.id);
+        if (cancelled || !nextTask) return;
+        setEmailVerificationTask(nextTask);
+        if (['completed', 'failed'].includes(nextTask.status)) {
+          if (nextTask.status === 'completed') {
+            setVerificationNotice(
+              'success',
+              `Bulk verification completed: ${nextTask.valid_count || 0} valid, ${nextTask.risky_count || 0} risky, ${nextTask.invalid_count || 0} invalid, ${nextTask.unknown_count || 0} unknown.`
+            );
+          } else {
+            setVerificationNotice('error', nextTask.last_error || 'Bulk email verification failed.');
+          }
+          await loadData();
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setEmailVerificationTask((current) => current ? { ...current, status: 'failed', last_error: error.message || 'Verification polling failed.' } : current);
+          setVerificationNotice('error', error.message || 'Verification polling failed.');
+        }
+      }
+    };
+
+    pollTask();
+    const intervalId = window.setInterval(pollTask, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [emailVerificationTask?.id, emailVerificationTask?.status]);
 
   const decodeHtmlEntities = (value) => {
     if (typeof window === 'undefined') return value;
@@ -513,6 +658,44 @@ const CRMModule = ({ initialContactId = null }) => {
       formDriven: activeContacts.filter((contact) => normalizeText(contact.source).includes('form')).length
     };
   }, [contacts]);
+
+  const emailVerificationStatusBadge = useMemo(() => {
+    if (!emailVerificationTask) {
+      return null;
+    }
+    if (emailVerificationTask.status === 'completed') {
+      return {
+        label: `Verify ${emailVerificationTask.completed_count || 0}/${emailVerificationTask.submitted_count || 0}`,
+        color: 'success'
+      };
+    }
+    if (emailVerificationTask.status === 'failed') {
+      return {
+        label: 'Verify failed',
+        color: 'error'
+      };
+    }
+    return {
+      label: `Verifying ${emailVerificationTask.completed_count || 0}/${emailVerificationTask.submitted_count || 0}`,
+      color: 'warning'
+    };
+  }, [emailVerificationTask]);
+
+  const emailVerificationNoticeClass = useMemo(() => {
+    if (!emailVerificationNotice?.tone) {
+      return '';
+    }
+    if (emailVerificationNotice.tone === 'success') {
+      return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200';
+    }
+    if (emailVerificationNotice.tone === 'warning') {
+      return 'border-amber-500/30 bg-amber-500/10 text-amber-200';
+    }
+    if (emailVerificationNotice.tone === 'error') {
+      return 'border-rose-500/30 bg-rose-500/10 text-rose-200';
+    }
+    return 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]';
+  }, [emailVerificationNotice]);
 
   // Selection handlers
   const toggleSelectAll = () => {
@@ -1061,6 +1244,24 @@ const CRMModule = ({ initialContactId = null }) => {
                               {contact.first_name} {contact.last_name}
                             </div>
                             <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${getEmailVerificationMeta(contact).className}`}>
+                                {getEmailVerificationMeta(contact).label}
+                              </span>
+                              {contact.email ? (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleVerifyContact(contact, 'quick');
+                                  }}
+                                  disabled={!canUseEmailVerification || verifyingContactIds.has(contact.id)}
+                                  className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                                >
+                                  {verifyingContactIds.has(contact.id) ? 'Verifying' : 'Verify'}
+                                </button>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
                           <td className="px-4 py-3">
@@ -1479,9 +1680,24 @@ const CRMModule = ({ initialContactId = null }) => {
                       className="mt-1 w-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
                   />
                 ) : (
-                    <p className="mt-1 flex items-center gap-1 text-sm text-[var(--color-primary)]">
-                    <Mail size={14} /> {currentContact.email}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    <p className="flex items-center gap-1 text-sm text-[var(--color-primary)]">
+                      <Mail size={14} /> {currentContact.email || '--'}
+                    </p>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${getEmailVerificationMeta(currentContact).className}`}>
+                      {getEmailVerificationMeta(currentContact).label}
+                    </span>
+                    {currentContact.email ? (
+                      <button
+                        type="button"
+                        onClick={() => handleVerifyContact(currentContact, 'quick')}
+                        disabled={!canUseEmailVerification || verifyingContactIds.has(currentContact.id)}
+                        className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                      >
+                        {verifyingContactIds.has(currentContact.id) ? 'Verifying' : 'Verify'}
+                      </button>
+                    ) : null}
+                  </div>
                 )}
               </div>
               <div>
@@ -2684,6 +2900,8 @@ const CRMModule = ({ initialContactId = null }) => {
         titleIcon={Users}
         showTitle={false}
         actions={[
+          { label: 'Verify Selected', icon: Shield, onClick: () => startBulkEmailVerification('selected'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
+          { label: 'Verify Filtered', icon: Shield, onClick: () => startBulkEmailVerification('filtered'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
           { label: 'Add Tag', icon: Tag, onClick: () => handleBulkAction('add_tag'), variant: 'secondary', color: 'emerald' },
           { label: 'Remove Tag', icon: Tag, onClick: () => handleBulkAction('remove_tag'), variant: 'secondary', color: 'rose' },
           { label: 'Add Flow', icon: Zap, onClick: () => handleBulkAction('add_flow'), variant: 'secondary', color: 'emerald' },
@@ -2715,6 +2933,9 @@ const CRMModule = ({ initialContactId = null }) => {
               <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
                 Owner {selectedContact.owner || 'Unassigned'}
               </span>
+              <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] ${getEmailVerificationMeta(selectedContact).className}`}>
+                Email {getEmailVerificationMeta(selectedContact).label}
+              </span>
             </div>
           ) : selectedContacts.size > 0 ? (
             <div className="text-xs text-[var(--color-text-secondary)]">
@@ -2722,7 +2943,7 @@ const CRMModule = ({ initialContactId = null }) => {
             </div>
           ) : null
         }
-        statusBadge={null}
+        statusBadge={emailVerificationStatusBadge}
         showActions={true}
         aiAssistSlot={(
           <AIAssistButton
@@ -2732,6 +2953,22 @@ const CRMModule = ({ initialContactId = null }) => {
           />
         )}
       />
+
+      {!canUseEmailVerification ? (
+        <div className="border-b border-[var(--color-border)] px-4 py-3">
+          <div className="rounded-[var(--radius-card)] border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-200">
+            Email verification is unavailable until Reoon is configured for this workspace.
+          </div>
+        </div>
+      ) : null}
+
+      {emailVerificationNotice?.message ? (
+        <div className="border-b border-[var(--color-border)] px-4 py-3">
+          <div className={`rounded-[var(--radius-card)] border px-3 py-2 text-sm ${emailVerificationNoticeClass}`}>
+            {emailVerificationNotice.message}
+          </div>
+        </div>
+      ) : null}
 
       {/* Content */}
       {renderContactsTab()}

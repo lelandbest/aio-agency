@@ -17,7 +17,7 @@ import {
   Filter, Edit2 as Edit, Folder, FolderOpen, Eye, TrendingUp,
   Zap, Activity, Clock, BarChart3, Play, Square, Grid3X3,
   Bot, Building2, Headphones, CheckSquare as CheckSquareAlt,
-  Pen, Send, Webhook, Globe, Workflow, SlidersHorizontal, PenLine
+  Pen, Send, Webhook, Globe, Workflow, SlidersHorizontal, PenLine, Shield
 } from 'lucide-react';
 import { toolNodeTemplates } from './toolTemplates';
 
@@ -98,6 +98,7 @@ const iconRegistry = {
   'SlidersHorizontal': SlidersHorizontal,
   'PenLine': PenLine,
   'FormInput': PenLine,
+  'Shield': Shield,
 };
 
 export const getIconComponent = (iconName) => {
@@ -214,6 +215,31 @@ export const logicNodes = [
     description: 'Route by matching rules',
     iconName: 'SlidersHorizontal',
     nodeColor: 'logic',
+  },
+  {
+    id: 'wait-for-verification',
+    type: 'logic',
+    label: 'Wait for Verification',
+    description: 'Poll a bulk verification task until it resolves',
+    iconName: 'Clock',
+    nodeColor: 'logic',
+    config: {
+      logicType: 'wait_for_verification',
+      timeoutSeconds: 60,
+      pollInterval: 5,
+    },
+  },
+  {
+    id: 'verification-branch',
+    type: 'logic',
+    label: 'Verification Branch',
+    description: 'Route by valid, risky, invalid, or unknown result',
+    iconName: 'Shield',
+    nodeColor: 'logic',
+    config: {
+      logicType: 'verification_branch',
+      source: 'previous',
+    },
   },
 ];
 
@@ -335,6 +361,34 @@ export const utilityNodes = [
     iconName: 'Calendar',
     nodeColor: 'action',
     actionType: 'get_booking',
+  },
+  {
+    id: 'verify-email',
+    type: 'action',
+    label: 'Verify Email',
+    description: 'Verify a single email or contact email',
+    iconName: 'Shield',
+    nodeColor: 'action',
+    actionType: 'verify_email',
+    config: {
+      actionType: 'verify_email',
+      mode: 'quick',
+      writeback: true,
+    },
+  },
+  {
+    id: 'verify-email-bulk',
+    type: 'action',
+    label: 'Verify Email Bulk',
+    description: 'Submit async bulk email verification',
+    iconName: 'Shield',
+    nodeColor: 'action',
+    actionType: 'verify_email_bulk',
+    config: {
+      actionType: 'verify_email_bulk',
+      mode: 'power',
+      writeback: true,
+    },
   },
 ];
 

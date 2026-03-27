@@ -438,6 +438,53 @@ export async function updateCanonicalTenantSettingsApi(settings) {
   return response.data || null;
 }
 
+export async function getEmailVerifierConfigApi() {
+  const response = await request('/api/email-verifier/config');
+  return response.data || null;
+}
+
+export async function updateEmailVerifierConfigApi(payload) {
+  const response = await request('/api/email-verifier/config', {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function testEmailVerifierConfigApi() {
+  return request('/api/email-verifier/config/test', {
+    method: 'POST'
+  });
+}
+
+export async function deleteEmailVerifierConfigApi() {
+  const response = await request('/api/email-verifier/config', {
+    method: 'DELETE'
+  });
+  return response.data || null;
+}
+
+export async function verifyEmailApi(payload) {
+  const response = await request('/api/email-verifier/verify', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function createEmailVerificationBulkTaskApi(payload) {
+  const response = await request('/api/email-verifier/bulk', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function getEmailVerificationBulkTaskApi(taskId) {
+  const response = await request(`/api/email-verifier/bulk/${encodeURIComponent(taskId)}`);
+  return response.data || null;
+}
+
 export async function getBrainOverviewApi() {
   const response = await request('/api/brain/overview');
   return response.data || null;

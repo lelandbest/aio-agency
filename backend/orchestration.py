@@ -1,15 +1,26 @@
 import json
 import logging
 import time
+import re
 from datetime import datetime, UTC, timedelta
 from typing import Any
 from uuid import uuid4
 try:
     from backend.agent_runtime import AgentRegistry
     from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+    from backend.email_verifier_service import (
+        create_bulk_task as create_email_verifier_bulk_task,
+        get_bulk_results as get_email_verifier_bulk_results,
+        verify_single_email as verify_single_email_address,
+    )
 except ModuleNotFoundError:
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+    from email_verifier_service import (
+        create_bulk_task as create_email_verifier_bulk_task,
+        get_bulk_results as get_email_verifier_bulk_results,
+        verify_single_email as verify_single_email_address,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +31,10 @@ DIRECT_EXECUTION_INTENTS = {
     "update_booking",
     "cancel_booking",
     "get_booking",
+    "verify_email",
+    "verify_email_bulk",
+    "wait_for_verification",
+    "verification_branch",
 }
 
 BOOKING_WRITE_INTENTS = {"schedule_calendar", "create_booking", "update_booking", "cancel_booking"}
@@ -52,6 +67,35 @@ def json_object(value: Any) -> dict[str, Any]:
             return {}
         return dict(parsed) if isinstance(parsed, dict) else {}
     return {}
+
+
+def clean_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def normalize_token(value: Any) -> str:
+    return re.sub(r"[^a-z0-9_]+", "_", clean_text(value).lower()).strip("_")
+
+
+def parse_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    normalized = clean_text(value).lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
+def parse_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [clean_text(item) for item in value if clean_text(item)]
+    if isinstance(value, str):
+        return [clean_text(item) for item in re.split(r"[\n,]+", value) if clean_text(item)]
+    return []
 
 
 def runtime_tenant_settings(context: dict[str, Any]) -> dict[str, Any]:
@@ -252,6 +296,14 @@ def check_step_gate(step: dict[str, Any], actor: dict[str, Any], tenant: dict[st
             "permissionTier": tier,
             "riskLevel": "low" if intent == "get_booking" else "medium",
         }
+    if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch"}:
+        return {
+            "allowed": True,
+            "requiresApproval": False,
+            "reason": None,
+            "permissionTier": tier,
+            "riskLevel": "medium" if intent in {"verify_email", "verify_email_bulk"} else "low",
+        }
     if intent == "schedule_calendar":
         return {
             "allowed": True,
@@ -355,6 +407,26 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
             "uiBinding": {"module": "crm", "recordId": step_id, "view": "timeline"},
             "createdAt": "now"
         })
+    elif intent == "verify_email":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "email_verification",
+            "title": "Email Verified",
+            "summary": "Email verification completed for a single record.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "crm", "recordId": step_id, "view": "detail"},
+            "createdAt": "now"
+        })
+    elif intent in {"verify_email_bulk", "wait_for_verification"}:
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "email_verification_task",
+            "title": "Email Verification Task",
+            "summary": "Bulk email verification task state updated.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "crm", "recordId": step_id, "view": "list"},
+            "createdAt": "now"
+        })
     return artifacts
 
 class StepExecutor:
@@ -370,6 +442,146 @@ class StepExecutor:
             "add_contact": self._add_contact,
             "add_crm_note": self._add_crm_note,
             "query_vault": self._query_vault,
+            "verify_email": self._verify_email,
+            "verify_email_bulk": self._verify_email_bulk,
+            "wait_for_verification": self._wait_for_verification,
+            "verification_branch": self._verification_branch,
+        }
+
+    def _merged_step_config(self, step: dict[str, Any]) -> dict[str, Any]:
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        node_config = json_object(params.get("node_config"))
+        config = json_object(params.get("configuration"))
+        return {**node_config, **config}
+
+    def _previous_step_result(self, runtime: dict[str, Any], *, intents: set[str] | None = None) -> dict[str, Any] | None:
+        steps = runtime.get("steps") if isinstance(runtime.get("steps"), list) else []
+        for item in reversed(steps):
+            if not isinstance(item, dict):
+                continue
+            if item.get("status") != "success":
+                continue
+            if intents and item.get("intent") not in intents:
+                continue
+            data = item.get("data")
+            if isinstance(data, dict):
+                return data
+        return None
+
+    def _lookup_contact(self, contact_id: str | None) -> dict[str, Any] | None:
+        normalized_contact_id = clean_text(contact_id)
+        if not normalized_contact_id:
+            return None
+        contacts = self.provider.list_contacts() if getattr(self.provider, "list_contacts", None) else []
+        return next((item for item in contacts if item.get("id") == normalized_contact_id), None)
+
+    def _email_verifier_config(self) -> dict[str, Any]:
+        getter = getattr(self.provider, "get_email_verifier_config", None)
+        return getter(include_secret=True) if getter else {}
+
+    def _resolve_single_verification_target(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> tuple[str, str | None]:
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        config = self._merged_step_config(step)
+        trigger_payload = (context.get("trigger_event") or {}).get("payload") if isinstance(context.get("trigger_event"), dict) else {}
+        previous_result = self._previous_step_result(runtime, intents={"verify_email"})
+        contact_id = clean_text(
+            config.get("contactId")
+            or config.get("contact_id")
+            or params.get("contact_id")
+            or context.get("contact_id")
+            or trigger_payload.get("contact_id")
+        ) or None
+        email = clean_text(
+            config.get("email")
+            or params.get("email")
+            or context.get("email")
+            or context.get("guest_email")
+            or trigger_payload.get("email")
+            or (previous_result or {}).get("email")
+        ).lower()
+        if contact_id and not email:
+            resolver = getattr(self.provider, "resolve_email_verification_targets", None)
+            targets = resolver(contact_ids=[contact_id]) if resolver else []
+            if targets:
+                email = clean_text(targets[0].get("email")).lower()
+        return email, contact_id
+
+    def _branch_edge_targets(self, outgoing_edges: list[dict[str, Any]], branch_status: str) -> tuple[list[str], list[str]]:
+        normalized_status = normalize_token(branch_status) or "unknown"
+        matched_targets: list[str] = []
+        default_targets: list[str] = []
+        for edge in outgoing_edges:
+            target = clean_text(edge.get("target"))
+            if not target:
+                continue
+            raw_filter = clean_text(edge.get("filters") or ((edge.get("data") or {}) if isinstance(edge.get("data"), dict) else {}).get("filters"))
+            raw_handle = clean_text(edge.get("sourceHandle"))
+            raw_label = clean_text(edge.get("label"))
+            candidate_text = " ".join(filter(None, [raw_filter, raw_handle, raw_label])).lower()
+            if not candidate_text:
+                default_targets.append(target)
+                continue
+            tokens = {normalize_token(item) for item in re.split(r"[^a-z0-9_]+", candidate_text) if normalize_token(item)}
+            if normalized_status in tokens:
+                matched_targets.append(target)
+        return matched_targets, default_targets
+
+    def _graph_descendants(self, runtime: dict[str, Any], starting_nodes: list[str]) -> set[str]:
+        adjacency = runtime.get("graph_adjacency") if isinstance(runtime.get("graph_adjacency"), dict) else {}
+        visited: set[str] = set()
+        stack = [clean_text(node_id) for node_id in starting_nodes if clean_text(node_id)]
+        while stack:
+            node_id = stack.pop()
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+            for target in adjacency.get(node_id, []):
+                normalized_target = clean_text(target)
+                if normalized_target and normalized_target not in visited:
+                    stack.append(normalized_target)
+        return visited
+
+    def _sync_email_verification_task(self, task_id: str, api_key: str) -> dict[str, Any]:
+        task = self.provider.get_email_verification_task(task_id) if getattr(self.provider, "get_email_verification_task", None) else None
+        if not task:
+            return {
+                "taskId": task_id,
+                "status": "failed",
+                "submittedCount": 0,
+                "completedCount": 0,
+                "valid": 0,
+                "risky": 0,
+                "invalid": 0,
+                "unknown": 0,
+                "error": "Email verification task not found.",
+            }
+        remote = get_email_verifier_bulk_results(api_key, clean_text(task.get("provider_task_id")))
+        updates = {
+            "status": remote["status"],
+            "submitted_count": remote["submittedCount"] or task.get("submitted_count") or 0,
+            "completed_count": remote["completedCount"],
+            "valid_count": remote["validCount"],
+            "risky_count": remote["riskyCount"],
+            "invalid_count": remote["invalidCount"],
+            "unknown_count": remote["unknownCount"],
+            "last_error": None,
+        }
+        if remote["status"] == "completed":
+            updates["completed_at"] = datetime_now()
+            if getattr(self.provider, "apply_email_verification_task_results", None):
+                self.provider.apply_email_verification_task_results(task_id, remote["results"])
+        updated_task = self.provider.update_email_verification_task(task_id, updates) if getattr(self.provider, "update_email_verification_task", None) else task
+        return {
+            "taskId": updated_task.get("id") or task_id,
+            "providerTaskId": updated_task.get("provider_task_id") or remote.get("providerTaskId"),
+            "status": clean_text(updated_task.get("status") or remote.get("status")) or "failed",
+            "submittedCount": safe_int(updated_task.get("submitted_count"), remote.get("submittedCount") or 0),
+            "completedCount": safe_int(updated_task.get("completed_count"), remote.get("completedCount") or 0),
+            "valid": safe_int(updated_task.get("valid_count"), remote.get("validCount") or 0),
+            "risky": safe_int(updated_task.get("risky_count"), remote.get("riskyCount") or 0),
+            "invalid": safe_int(updated_task.get("invalid_count"), remote.get("invalidCount") or 0),
+            "unknown": safe_int(updated_task.get("unknown_count"), remote.get("unknownCount") or 0),
+            "lastError": updated_task.get("last_error"),
         }
 
     def _query_vault(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
@@ -388,6 +600,8 @@ class StepExecutor:
 
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch"}:
+                    return handler(step, context, runtime)
                 return handler(step, context)
             except Exception as exc:
                 logger.error("Step execution failed: %s", exc)
@@ -688,6 +902,233 @@ class StepExecutor:
         res = getattr(self.provider, "apply_thread_ai_result")(thread_id, mode="note", suggestion=params.get("note") or params.get("content", ""))
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": res}
 
+    def _verify_email(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._email_verifier_config()
+        email, contact_id = self._resolve_single_verification_target(step, context, runtime)
+        if not email:
+            data = {
+                "email": "",
+                "status": "unknown",
+                "score": None,
+                "isSafe": False,
+                "contactId": contact_id,
+                "error": "No email was available for verification.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        if not config.get("enabled") or not config.get("api_key"):
+            data = {
+                "email": email,
+                "status": "unknown",
+                "score": None,
+                "isSafe": False,
+                "contactId": contact_id,
+                "error": "Email verification is not configured for this tenant.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        writeback = parse_bool(self._merged_step_config(step).get("writeback"), True)
+        try:
+            result = verify_single_email_address(config["api_key"], email, "quick")
+            updated_contact = None
+            if writeback and contact_id and getattr(self.provider, "apply_email_verification_result", None):
+                updated_contact = self.provider.apply_email_verification_result(contact_id, result, expected_email=email)
+            data = {
+                "email": result.get("email") or email,
+                "status": result.get("status") or "unknown",
+                "score": result.get("score"),
+                "isSafe": bool(result.get("is_safe_to_send")),
+                "contactId": contact_id,
+                "contact": updated_contact,
+                "raw": result.get("raw"),
+            }
+        except Exception as exc:
+            data = {
+                "email": email,
+                "status": "unknown",
+                "score": None,
+                "isSafe": False,
+                "contactId": contact_id,
+                "error": str(exc),
+            }
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+
+    def _verify_email_bulk(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._email_verifier_config()
+        merged = self._merged_step_config(step)
+        trigger_payload = (context.get("trigger_event") or {}).get("payload") if isinstance(context.get("trigger_event"), dict) else {}
+        contact_ids = parse_string_list(merged.get("contactIds") or merged.get("contact_ids") or context.get("contact_ids") or trigger_payload.get("contact_ids"))
+        emails = parse_string_list(merged.get("emails") or context.get("emails") or trigger_payload.get("emails"))
+        if not contact_ids and clean_text(context.get("contact_id")):
+            contact_ids = [clean_text(context.get("contact_id"))]
+        if not emails and clean_text(context.get("email")):
+            emails = [clean_text(context.get("email"))]
+        resolver = getattr(self.provider, "resolve_email_verification_targets", None)
+        targets = resolver(contact_ids=contact_ids or None, emails=emails or None) if resolver else []
+        if not targets:
+            data = {
+                "taskId": None,
+                "submittedCount": 0,
+                "status": "failed",
+                "error": "No verifiable emails were available for bulk verification.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        if not config.get("enabled") or not config.get("api_key"):
+            data = {
+                "taskId": None,
+                "submittedCount": 0,
+                "status": "failed",
+                "error": "Email verification is not configured for this tenant.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        unique_emails = sorted({clean_text(item.get("email")).lower() for item in targets if clean_text(item.get("email"))})
+        try:
+            remote_task = create_email_verifier_bulk_task(config["api_key"], unique_emails, "power", task_name=f"flow-{clean_text(context.get('flow_id')) or 'runtime'}")
+            task = self.provider.create_email_verification_task({
+                "provider_task_id": remote_task["providerTaskId"],
+                "status": "queued",
+                "mode": remote_task["mode"],
+                "submitted_count": remote_task["submittedCount"],
+                "completed_count": 0,
+                "targets": targets,
+            }) if getattr(self.provider, "create_email_verification_task", None) else {}
+            data = {
+                "taskId": task.get("id"),
+                "providerTaskId": remote_task["providerTaskId"],
+                "submittedCount": remote_task["submittedCount"],
+                "status": clean_text(task.get("status")) or "queued",
+            }
+        except Exception as exc:
+            data = {
+                "taskId": None,
+                "submittedCount": 0,
+                "status": "failed",
+                "error": str(exc),
+            }
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+
+    def _wait_for_verification(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._email_verifier_config()
+        merged = self._merged_step_config(step)
+        previous_bulk = self._previous_step_result(runtime, intents={"verify_email_bulk", "wait_for_verification"})
+        task_id = clean_text(
+            merged.get("taskId")
+            or merged.get("task_id")
+            or context.get("task_id")
+            or (previous_bulk or {}).get("taskId")
+        )
+        timeout_seconds = min(max(safe_int(merged.get("timeoutSeconds") or merged.get("timeout_seconds"), 60), 5), 600)
+        poll_interval = min(max(safe_int(merged.get("pollInterval") or merged.get("poll_interval"), 5), 1), 30)
+        if not task_id:
+            data = {
+                "taskId": None,
+                "status": "failed",
+                "valid": 0,
+                "risky": 0,
+                "invalid": 0,
+                "unknown": 0,
+                "error": "No email verification task id was available.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        if not config.get("enabled") or not config.get("api_key"):
+            data = {
+                "taskId": task_id,
+                "status": "failed",
+                "valid": 0,
+                "risky": 0,
+                "invalid": 0,
+                "unknown": 0,
+                "error": "Email verification is not configured for this tenant.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        deadline = time.time() + timeout_seconds
+        last_result = {
+            "taskId": task_id,
+            "status": "timeout",
+            "submittedCount": 0,
+            "completedCount": 0,
+            "valid": 0,
+            "risky": 0,
+            "invalid": 0,
+            "unknown": 0,
+        }
+        while time.time() < deadline:
+            try:
+                last_result = self._sync_email_verification_task(task_id, config["api_key"])
+            except Exception as exc:
+                last_result = {
+                    "taskId": task_id,
+                    "status": "failed",
+                    "submittedCount": 0,
+                    "completedCount": 0,
+                    "valid": 0,
+                    "risky": 0,
+                    "invalid": 0,
+                    "unknown": 0,
+                    "error": str(exc),
+                }
+                break
+            if last_result.get("status") in {"completed", "failed"}:
+                break
+            time.sleep(poll_interval)
+        if last_result.get("status") not in {"completed", "failed"}:
+            last_result["status"] = "timeout"
+        data = {
+            "taskId": task_id,
+            "status": last_result.get("status") or "timeout",
+            "submittedCount": safe_int(last_result.get("submittedCount")),
+            "completedCount": safe_int(last_result.get("completedCount")),
+            "valid": safe_int(last_result.get("valid")),
+            "risky": safe_int(last_result.get("risky")),
+            "invalid": safe_int(last_result.get("invalid")),
+            "unknown": safe_int(last_result.get("unknown")),
+            "error": last_result.get("error") or last_result.get("lastError"),
+        }
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+
+    def _verification_branch(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        merged = self._merged_step_config(step)
+        source = normalize_token(merged.get("source") or "previous") or "previous"
+        verification_status = "unknown"
+        if source == "contact_field":
+            contact = self._lookup_contact(merged.get("contactId") or merged.get("contact_id") or context.get("contact_id"))
+            verification_status = normalize_token((contact or {}).get("email_verification_status")) or "unknown"
+        elif source == "node":
+            source_node_id = clean_text(merged.get("sourceNodeId") or merged.get("source_node_id"))
+            steps = runtime.get("steps") if isinstance(runtime.get("steps"), list) else []
+            matched_step = next(
+                (
+                    item for item in reversed(steps)
+                    if isinstance(item, dict)
+                    and isinstance(item.get("parameters"), dict)
+                    and clean_text(item["parameters"].get("node_id")) == source_node_id
+                    and isinstance(item.get("data"), dict)
+                ),
+                None,
+            )
+            verification_status = normalize_token(((matched_step or {}).get("data") or {}).get("status")) or "unknown"
+        else:
+            previous = self._previous_step_result(runtime, intents={"verify_email"})
+            verification_status = normalize_token((previous or {}).get("status")) or "unknown"
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        node_id = clean_text(params.get("node_id") or step.get("id"))
+        outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+        matched_targets, default_targets = self._branch_edge_targets(outgoing_edges, verification_status)
+        selected_targets = matched_targets or default_targets
+        if outgoing_edges:
+            selected_descendants = self._graph_descendants(runtime, selected_targets)
+            alternate_targets = [clean_text(edge.get("target")) for edge in outgoing_edges if clean_text(edge.get("target")) and clean_text(edge.get("target")) not in selected_targets]
+            suppressed_nodes = self._graph_descendants(runtime, alternate_targets) - selected_descendants
+            runtime.setdefault("suppressed_nodes", set()).update(suppressed_nodes)
+            runtime.setdefault("branch_decisions", {})[node_id] = {
+                "status": verification_status,
+                "selected_targets": selected_targets,
+            }
+        data = {
+            "status": verification_status,
+            "selectedTargets": selected_targets,
+            "source": source,
+        }
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+
 class ExecutionEngine:
     def __init__(self, provider: Any) -> None:
         self.provider = provider
@@ -803,12 +1244,32 @@ class ExecutionEngine:
                 "goal": command,
                 "plan": [s.get("intent") for s in steps],
                 "agentNotes": []
-            }
+            },
+            "graph_adjacency": {},
+            "suppressed_nodes": set(),
+            "branch_decisions": {},
         }
+        for step in steps:
+            params = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
+            node_id = clean_text(params.get("node_id") or step.get("id"))
+            outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+            if node_id:
+                runtime["graph_adjacency"][node_id] = [
+                    clean_text(edge.get("target"))
+                    for edge in outgoing_edges
+                    if clean_text(edge.get("target"))
+                ]
         
         for step in steps:
             # Skip natively completed steps
             if step.get("status") in ("success", "skipped"):
+                continue
+            params = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
+            node_id = clean_text(params.get("node_id") or step.get("id"))
+            if node_id and node_id in runtime.get("suppressed_nodes", set()):
+                step["status"] = "skipped"
+                step["completedAt"] = datetime_now()
+                self._audit_log(final_run_id, step, "execution_skipped", "branch_suppressed")
                 continue
             
             # Step 4 & 7: Strict Approval Separation (No auto-promotion, except user manual 'approved')

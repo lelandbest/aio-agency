@@ -104,6 +104,33 @@ export const integrationConfigs = {
         ],
         logo: null,
       },
+      {
+        id: 'reoon-email-verification',
+        name: 'Reoon Email Verification',
+        icon: 'shield-check',
+        providerType: 'email-verification',
+        managedBy: 'email-verifier',
+        subtypeLabel: 'Email Verification Provider',
+        description: 'Verify contact email deliverability inside CRM and flows using Reoon.',
+        fields: [
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          {
+            name: 'default_mode',
+            label: 'Default Mode',
+            type: 'select',
+            required: true,
+            default: 'quick',
+            options: ['quick', 'power']
+          },
+          {
+            name: 'auto_verify_contacts',
+            label: 'Auto-verify contacts',
+            type: 'checkbox',
+            default: true
+          }
+        ],
+        logo: null,
+      },
     ]
   },
 

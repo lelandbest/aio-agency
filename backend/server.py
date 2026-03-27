@@ -18,7 +18,7 @@ from uuid import uuid4
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -40,6 +40,7 @@ try:
     from backend.agent_runtime import AgentRegistry
     from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
     from backend.cortext_service import cortext_service
+    from backend.email_verifier_service import create_bulk_task as create_email_verifier_bulk_task, get_bulk_results as get_email_verifier_bulk_results, verify_single_email as verify_single_email_address
     from backend.operator_assist import generate_assist_response
     from backend.system_health import build_system_health
     from backend.tenant_deployment import DeploymentFailureError
@@ -50,6 +51,7 @@ except ModuleNotFoundError:
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
     from cortext_service import cortext_service
+    from email_verifier_service import create_bulk_task as create_email_verifier_bulk_task, get_bulk_results as get_email_verifier_bulk_results, verify_single_email as verify_single_email_address
     from operator_assist import generate_assist_response
     from system_health import build_system_health
     from tenant_deployment import DeploymentFailureError
@@ -931,8 +933,15 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         or data.get("actionType")
         or ""
     ).strip().lower()
-    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking"}:
+    logic_type = str(
+        config.get("logicType")
+        or data.get("logicType")
+        or ""
+    ).strip().lower()
+    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk"}:
         return action_type
+    if logic_type in {"wait_for_verification", "verification_branch"}:
+        return logic_type
     return "agent_task"
 
 
@@ -985,6 +994,25 @@ def build_flow_execution_steps(
 ) -> tuple[list[dict[str, Any]], list[str]]:
     nodes, edges = extract_flow_graph(flow)
     ordered_nodes = order_flow_nodes(nodes, edges)
+    outgoing_by_node: dict[str, list[dict[str, Any]]] = {}
+    incoming_by_node: dict[str, list[dict[str, Any]]] = {}
+    for edge in edges:
+        source = str(edge.get("source") or "").strip()
+        target = str(edge.get("target") or "").strip()
+        if not source or not target:
+            continue
+        edge_data = edge.get("data") if isinstance(edge.get("data"), dict) else {}
+        projected_edge = {
+            "id": str(edge.get("id") or f"flow-edge-{uuid4().hex[:10]}"),
+            "source": source,
+            "target": target,
+            "sourceHandle": edge.get("sourceHandle"),
+            "targetHandle": edge.get("targetHandle"),
+            "filters": edge_data.get("filters"),
+            "data": edge_data,
+        }
+        outgoing_by_node.setdefault(source, []).append(projected_edge)
+        incoming_by_node.setdefault(target, []).append(projected_edge)
     executable_nodes = [
         node for node in ordered_nodes
         if str(node.get("type") or "").lower() not in {"trigger", "frame", "note"}
@@ -999,6 +1027,7 @@ def build_flow_execution_steps(
         data = node.get("data") if isinstance(node.get("data"), dict) else {}
         node_config = data.get("config") if isinstance(data.get("config"), dict) else {}
         action_intent = infer_flow_step_intent(node)
+        node_id = str(node.get("id") or f"flow-node-{index}")
         node_label = str(data.get("label") or node.get("label") or f"Step {index}").strip() or f"Step {index}"
         node_description = str(data.get("description") or "").strip()
         assigned_agent = infer_flow_step_agent(node, fallback_agent or ("DELTA" if action_intent in {"create_booking", "update_booking", "cancel_booking", "get_booking"} else ""))
@@ -1009,7 +1038,7 @@ def build_flow_execution_steps(
             "original_command": command_text,
             "flow_id": flow_id,
             "flow_name": flow_name,
-            "node_id": str(node.get("id") or f"flow-node-{index}"),
+            "node_id": node_id,
             "node_type": str(node.get("type") or "action"),
             "node_label": node_label,
             "node_description": node_description,
@@ -1017,6 +1046,8 @@ def build_flow_execution_steps(
             "step_count": step_count,
             "node_config": node_config,
             "configuration": parse_json_config(node_config.get("configuration")),
+            "outgoing_edges": outgoing_by_node.get(node_id, []),
+            "incoming_edges": incoming_by_node.get(node_id, []),
             "trigger_event": runtime_context.get("trigger_event") if isinstance(runtime_context, dict) else None,
             "booking_event": runtime_context.get("booking_event") if isinstance(runtime_context, dict) else None,
         }
@@ -1034,7 +1065,7 @@ def build_flow_execution_steps(
             parameters["command"] = " ".join(part for part in step_command_parts if part).strip()
         raw_steps.append(
             {
-                "id": str(node.get("id") or f"flow-step-{index}"),
+                "id": node_id,
                 "intent": action_intent,
                 "parameters": parameters,
                 "assignedAgent": assigned_agent,
@@ -1306,6 +1337,25 @@ class TenantDeployRequest(BaseModel):
     blueprintPayload: dict[str, Any] | None = None
     overrides: dict[str, Any] | None = None
     switchToTenant: bool = False
+
+
+class EmailVerifierConfigUpdateRequest(BaseModel):
+    api_key: str | None = None
+    enabled: bool | None = None
+    auto_verify_contacts: bool | None = None
+    default_mode: str | None = None
+
+
+class EmailVerifierSingleRequest(BaseModel):
+    email: str | None = None
+    contact_id: str | None = None
+    mode: str | None = None
+
+
+class EmailVerifierBulkRequest(BaseModel):
+    contact_ids: list[str] | None = None
+    emails: list[str] | None = None
+    mode: str | None = None
 
 
 class BrainProfileUpdateRequest(BaseModel):
@@ -1803,6 +1853,45 @@ def require_client_safe_surface(
             raise HTTPException(status_code=403, detail="Client account does not belong to the active workspace.")
         return session
     return require_workspace_role(request, operator_allowed_roles, detail)
+
+
+def normalize_email_verifier_mode(value: str | None, *, default: str = "quick", bulk: bool = False) -> str:
+    normalized = str(value or default).strip().lower() or default
+    if bulk:
+        return "power"
+    return "power" if normalized == "power" else "quick"
+
+
+def schedule_contact_email_auto_verify(background_tasks: BackgroundTasks, request: Request, contact: dict[str, Any]) -> None:
+    tenant_id = getattr(request.state, "tenant_id", None)
+    contact_id = str(contact.get("id") or "").strip()
+    email = str(contact.get("email") or "").strip()
+    if not tenant_id or not contact_id or not email:
+        return
+    config = provider.get_email_verifier_config(include_secret=True)
+    if not config.get("enabled") or not config.get("auto_verify_contacts", True) or not config.get("api_key"):
+        return
+    background_tasks.add_task(run_contact_email_auto_verify, tenant_id, contact_id, email)
+
+
+def run_contact_email_auto_verify(tenant_id: str, contact_id: str, email: str) -> None:
+    context_token = set_request_tenant_id(tenant_id)
+    background_provider = create_provider()
+    try:
+        config = background_provider.get_email_verifier_config(include_secret=True)
+        if not config.get("enabled") or not config.get("auto_verify_contacts", True) or not config.get("api_key"):
+            return
+        result = verify_single_email_address(config["api_key"], email, "quick")
+        background_provider.apply_email_verification_result(contact_id, result, expected_email=email)
+        background_provider.mark_email_verifier_config_status(status="active", last_tested_at=result.get("verifiedAt"))
+    except Exception as exc:
+        logger.warning("Background email verification failed for contact %s: %s", contact_id, exc)
+        try:
+            background_provider.mark_email_verifier_config_status(status="error", last_tested_at=utcnow_iso())
+        except Exception:
+            pass
+    finally:
+        reset_request_tenant(context_token)
 
 
 def is_client_allowed_api_request(method: str, path: str) -> bool:
@@ -2413,14 +2502,51 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
     # This logic powers both `/api/ai/draft` (canonical) and `/api/ai/assist` (legacy).
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can use AI workspace tools.")
     tenant = session.get("tenant") or {}
-        payload.surface,
-        field=payload.field,
-        intent=payload.intent,
+    user = session.get("user") or {}
+    tenant_id = str(tenant.get("id") or "").strip()
+    resolved_module = str(payload.module or "").strip().lower() or "generic"
+    resolved_surface = str(payload.surface or "").strip().lower() or "general"
+    resolved_field = str(payload.field or "").strip().lower() or "content"
+    resolved_intent = str(payload.intent or "").strip().lower() or "draft"
+    resolved_context = dict(payload.context or {})
+    route_hints = payload.route_hints if isinstance(payload.route_hints, dict) else None
+    if not route_hints and isinstance(resolved_context.get("route_hints"), dict):
+        route_hints = resolved_context.get("route_hints")
+    provider_override = payload.provider_override
+    if provider_override is None and isinstance(resolved_context, dict):
+        provider_override = resolved_context.get("provider_override")
+    try:
+        route = resolve_ai_route(
+            tenant_id=tenant_id,
+            feature=resolved_module,
+            task=str(payload.task or resolved_intent or "").strip() or None,
+            provider_override=provider_override,
+            route_hints=route_hints,
+            auth_store=auth_store,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    log_ai_route(route)
+    ai_provider = route.get("provider_config")
+    routing = resolve_ai_run_routing(
+        resolved_module,
+        resolved_surface,
+        field=resolved_field,
+        intent=resolved_intent,
         command_text=payload.current_value,
         context=resolved_context,
     )
     resolved_agent_role = routing["executing_agent"]
     resolved_context.update(routing)
+    resolved_context["route"] = {
+        "provider_key": route.get("provider_key"),
+        "provider_label": route.get("provider_label"),
+        "model": route.get("model"),
+        "route_source": route.get("route_source"),
+        "reason": route.get("reason"),
+        "feature": route.get("feature"),
+        "task": route.get("task"),
+    }
     brain_results: list[dict[str, Any]] = []
     brain_query = build_brain_assist_query(payload.current_value, resolved_context, tenant)
     if brain_query:
@@ -2435,10 +2561,10 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
             )
             resolved_context["brain_memory_query"] = brain_query
     result = ai_assist_service.assist(
-        module=payload.module,
-        surface=payload.surface,
-        field=payload.field,
-        intent=payload.intent,
+        module=resolved_module,
+        surface=resolved_surface,
+        field=resolved_field,
+        intent=resolved_intent,
         current_value=payload.current_value,
         context=resolved_context,
         actor=user,
@@ -2460,7 +2586,7 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
     if resolved_module == "comms" and resolved_context.get("thread_id"):
         applied = provider.apply_thread_ai_result(
             thread_id=str(resolved_context["thread_id"]),
-            mode=(payload.field or "").strip().lower() or "summary",
+            mode=resolved_field or "summary",
             suggestion=result.suggestion,
             metadata=result.metadata or {},
         )
@@ -3496,19 +3622,24 @@ async def list_contacts():
 
 
 @app.post("/api/contacts")
-async def create_contact(request: Request, payload: dict[str, Any]):
+async def create_contact(request: Request, background_tasks: BackgroundTasks, payload: dict[str, Any]):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create contacts.")
     try:
-        return {"data": provider.create_contact(payload)}
+        created = provider.create_contact(payload)
+        schedule_contact_email_auto_verify(background_tasks, request, created)
+        return {"data": created}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.patch("/api/contacts/{contact_id}")
-async def update_contact(contact_id: str, request: Request, payload: dict[str, Any]):
+async def update_contact(contact_id: str, request: Request, background_tasks: BackgroundTasks, payload: dict[str, Any]):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update contacts.")
     try:
-        return {"data": provider.update_contact(contact_id, payload)}
+        updated = provider.update_contact(contact_id, payload)
+        if "email" in payload:
+            schedule_contact_email_auto_verify(background_tasks, request, updated)
+        return {"data": updated}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -3525,6 +3656,162 @@ async def create_contact_activity(contact_id: str, request: Request, payload: Co
         return {"data": provider.create_contact_activity(contact_id, payload.model_dump())}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/email-verifier/config")
+async def get_email_verifier_config(request: Request):
+    require_operator(request, "Only operators can manage email verification.")
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view email verification settings.")
+    return {"data": provider.get_email_verifier_config(include_secret=False)}
+
+
+@app.patch("/api/email-verifier/config")
+async def update_email_verifier_config(request: Request, payload: EmailVerifierConfigUpdateRequest):
+    require_operator(request, "Only operators can manage email verification.")
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can update email verification settings.")
+    data = payload.model_dump(exclude_unset=True)
+    data["default_mode"] = normalize_email_verifier_mode(data.get("default_mode"), default="quick")
+    if "enabled" in data and data.get("enabled") and not str(data.get("api_key") or provider.get_email_verifier_config(include_secret=True).get("api_key") or "").strip():
+        raise HTTPException(status_code=400, detail="An API key is required to enable email verification.")
+    return {"data": provider.upsert_email_verifier_config(data)}
+
+
+@app.post("/api/email-verifier/config/test")
+async def test_email_verifier_config(request: Request):
+    require_operator(request, "Only operators can manage email verification.")
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test email verification settings.")
+    config = provider.get_email_verifier_config(include_secret=True)
+    if not str(config.get("api_key") or "").strip():
+        raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
+    try:
+        verify_single_email_address(config["api_key"], "support@reoon.com", "quick")
+        updated = provider.upsert_email_verifier_config({
+            "api_key": config.get("api_key") or "",
+            "enabled": config.get("enabled", False),
+            "auto_verify_contacts": config.get("auto_verify_contacts", True),
+            "default_mode": config.get("default_mode", "quick"),
+            "last_tested_at": utcnow_iso(),
+            "status": "active" if config.get("enabled") else "disabled",
+            "last_error": None,
+        })
+        return {
+            "result": {"success": True, "message": "Reoon connection verified."},
+            "data": updated,
+        }
+    except ValueError as error:
+        provider.mark_email_verifier_config_status(status="error", last_tested_at=utcnow_iso(), last_error=str(error))
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@app.delete("/api/email-verifier/config")
+async def delete_email_verifier_config(request: Request):
+    require_operator(request, "Only operators can manage email verification.")
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can update email verification settings.")
+    return {"data": provider.delete_email_verifier_config()}
+
+
+@app.post("/api/email-verifier/verify")
+async def verify_email_address(request: Request, payload: EmailVerifierSingleRequest):
+    require_operator(request, "Only operators can verify emails.")
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can verify emails.")
+    config = provider.get_email_verifier_config(include_secret=True)
+    if not config.get("enabled") or not config.get("api_key"):
+        raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
+
+    resolved_email = str(payload.email or "").strip().lower()
+    if payload.contact_id and not resolved_email:
+        targets = provider.resolve_email_verification_targets(contact_ids=[payload.contact_id])
+        if not targets:
+            raise HTTPException(status_code=400, detail="The contact does not have a verifiable email address.")
+        resolved_email = str(targets[0].get("email") or "").strip().lower()
+    if not resolved_email:
+        raise HTTPException(status_code=400, detail="Email is required.")
+
+    mode = normalize_email_verifier_mode(payload.mode, default=config.get("default_mode") or "quick")
+    try:
+        result = verify_single_email_address(config["api_key"], resolved_email, mode)
+        provider.mark_email_verifier_config_status(status="active", last_tested_at=result.get("verifiedAt"))
+        if payload.contact_id:
+            updated_contact = provider.apply_email_verification_result(payload.contact_id, result, expected_email=resolved_email)
+            return {"data": {**result, "contact": updated_contact}}
+        return {"data": result}
+    except ValueError as error:
+        provider.mark_email_verifier_config_status(status="error", last_tested_at=utcnow_iso())
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@app.post("/api/email-verifier/bulk")
+async def create_email_verifier_bulk(request: Request, payload: EmailVerifierBulkRequest):
+    require_operator(request, "Only operators can verify emails.")
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can verify emails.")
+    config = provider.get_email_verifier_config(include_secret=True)
+    if not config.get("enabled") or not config.get("api_key"):
+        raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
+
+    targets = provider.resolve_email_verification_targets(contact_ids=payload.contact_ids, emails=payload.emails)
+    if not targets:
+        raise HTTPException(status_code=400, detail="No verifiable emails were provided.")
+
+    emails = [str(item.get("email") or "").strip().lower() for item in targets if str(item.get("email") or "").strip()]
+    try:
+        remote_task = create_email_verifier_bulk_task(
+            config["api_key"],
+            emails,
+            normalize_email_verifier_mode(payload.mode, default="power", bulk=True),
+            task_name=f"crm-{get_request_tenant_id()}",
+        )
+        provider.mark_email_verifier_config_status(status="active", last_tested_at=utcnow_iso())
+        task = provider.create_email_verification_task({
+            "provider_task_id": remote_task["providerTaskId"],
+            "status": "queued",
+            "mode": remote_task["mode"],
+            "submitted_count": remote_task["submittedCount"],
+            "completed_count": 0,
+            "targets": targets,
+        })
+        return {"data": task}
+    except ValueError as error:
+        provider.mark_email_verifier_config_status(status="error", last_tested_at=utcnow_iso())
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@app.get("/api/email-verifier/bulk/{task_id}")
+async def get_email_verifier_bulk_task(task_id: str, request: Request):
+    require_operator(request, "Only operators can verify emails.")
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view email verification tasks.")
+    task = provider.get_email_verification_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Email verification task not found.")
+    if task.get("status") in {"completed", "failed"} and task.get("completed_at"):
+        return {"data": task}
+
+    config = provider.get_email_verifier_config(include_secret=True)
+    if not config.get("api_key"):
+        task = provider.update_email_verification_task(task_id, {"status": "failed", "completed_at": utcnow_iso(), "last_error": "Email verifier API key is missing."})
+        raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
+
+    try:
+        remote = get_email_verifier_bulk_results(config["api_key"], task.get("provider_task_id"))
+        updates = {
+            "status": remote["status"],
+            "submitted_count": remote["submittedCount"] or task.get("submitted_count") or 0,
+            "completed_count": remote["completedCount"],
+            "valid_count": remote["validCount"],
+            "risky_count": remote["riskyCount"],
+            "invalid_count": remote["invalidCount"],
+            "unknown_count": remote["unknownCount"],
+            "last_error": None,
+        }
+        if remote["status"] == "completed":
+            updates["completed_at"] = utcnow_iso()
+            provider.apply_email_verification_task_results(task_id, remote["results"])
+        task = provider.update_email_verification_task(task_id, updates)
+        provider.mark_email_verifier_config_status(status="active", last_tested_at=utcnow_iso())
+        return {"data": task}
+    except ValueError as error:
+        task = provider.update_email_verification_task(task_id, {"status": "failed", "completed_at": utcnow_iso(), "last_error": str(error)})
+        provider.mark_email_verifier_config_status(status="error", last_tested_at=utcnow_iso())
+        return {"data": task}
 
 
 @app.get("/api/contacts/{contact_id}/form-submissions")

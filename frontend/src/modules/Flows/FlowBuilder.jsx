@@ -218,6 +218,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           send_sms: { channel: 'sms', objective: 'Send a short action-first reminder', tone: 'brief and clear', required_fields: ['message', 'owner'] },
           store_data: { channel: 'storage', objective: 'Persist normalized payload', required_fields: ['target_table', 'fields'] },
           create_task: { channel: 'task', objective: 'Create a follow-up task', required_fields: ['title', 'owner', 'due_in_hours'] },
+          verify_email: { email: '{{contact.email}}', contactId: '{{contact.id}}', mode: 'quick', writeback: true },
+          verify_email_bulk: { contactIds: ['{{contact.id}}'], emails: [], mode: 'power', writeback: true },
         };
         return JSON.stringify(configByAction[actionType] || configByAction.send_email, null, 2);
       }
@@ -225,6 +227,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         const logicType = overrides.logicType || nodeConfigDraft.logicType || 'if_then';
         if (logicType === 'delay') return 'Wait 30 minutes before continuing, unless the contact has replied or the stage has already advanced.';
         if (logicType === 'filter') return 'Continue only if lead_score >= 70, a valid email is present, and the contact is not closed-lost.';
+        if (logicType === 'wait_for_verification') return JSON.stringify({ taskId: '{{previous.taskId}}', timeoutSeconds: 60, pollInterval: 5 }, null, 2);
+        if (logicType === 'verification_branch') return 'Use outgoing edge filters set to valid, risky, invalid, or unknown. Source should usually be previous.';
         return 'If intent contains "demo" or lead_score >= 75, route to sales. Otherwise send to nurture and create a review task.';
       }
       case 'payload-map':
@@ -1399,8 +1403,110 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="update_booking">Update Booking</option>
                             <option value="cancel_booking">Cancel Booking</option>
                             <option value="get_booking">Get Booking</option>
+                            <option value="verify_email">Verify Email</option>
+                            <option value="verify_email_bulk">Verify Email Bulk</option>
                           </select>
                         </div>
+                        {nodeConfigDraft.actionType === 'verify_email' && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Email
+                              </label>
+                              <input
+                                type="text"
+                                value={nodeConfigDraft.email || ''}
+                                onChange={(e) => updateField('email', e.target.value)}
+                                placeholder="{{contact.email}}"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Contact ID
+                              </label>
+                              <input
+                                type="text"
+                                value={nodeConfigDraft.contactId || ''}
+                                onChange={(e) => updateField('contactId', e.target.value)}
+                                placeholder="{{contact.id}}"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Mode
+                              </label>
+                              <select
+                                value={nodeConfigDraft.mode || 'quick'}
+                                onChange={(e) => updateField('mode', e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              >
+                                <option value="quick">Quick</option>
+                              </select>
+                            </div>
+                            <div className="flex items-end">
+                              <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(nodeConfigDraft.writeback ?? true)}
+                                  onChange={(e) => updateField('writeback', e.target.checked)}
+                                />
+                                Write back to contact
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'verify_email_bulk' && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Contact IDs
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.contactIds || ''}
+                                onChange={(e) => updateField('contactIds', e.target.value)}
+                                placeholder="contact-1, contact-2"
+                                className="w-full min-h-[80px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Emails
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.emails || ''}
+                                onChange={(e) => updateField('emails', e.target.value)}
+                                placeholder="lead@example.com, demo@example.com"
+                                className="w-full min-h-[80px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Mode
+                                </label>
+                                <select
+                                  value={nodeConfigDraft.mode || 'power'}
+                                  onChange={(e) => updateField('mode', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                >
+                                  <option value="power">Power</option>
+                                </select>
+                              </div>
+                              <div className="flex items-end">
+                                <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(nodeConfigDraft.writeback ?? true)}
+                                    onChange={(e) => updateField('writeback', e.target.checked)}
+                                  />
+                                  Write back on completion
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <label className="block text-sm font-medium text-[var(--color-text-primary)]">
@@ -1435,8 +1541,97 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="if_then">If/Then</option>
                             <option value="delay">Delay/Wait</option>
                             <option value="filter">Filter</option>
+                            <option value="wait_for_verification">Wait for Verification</option>
+                            <option value="verification_branch">Verification Branch</option>
                           </select>
                         </div>
+                        {nodeConfigDraft.logicType === 'wait_for_verification' && (
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Task ID
+                              </label>
+                              <input
+                                type="text"
+                                value={nodeConfigDraft.taskId || ''}
+                                onChange={(e) => updateField('taskId', e.target.value)}
+                                placeholder="{{previous.taskId}}"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Timeout (sec)
+                              </label>
+                              <input
+                                type="number"
+                                value={nodeConfigDraft.timeoutSeconds || 60}
+                                onChange={(e) => updateField('timeoutSeconds', Number(e.target.value))}
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Poll (sec)
+                              </label>
+                              <input
+                                type="number"
+                                value={nodeConfigDraft.pollInterval || 5}
+                                onChange={(e) => updateField('pollInterval', Number(e.target.value))}
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.logicType === 'verification_branch' && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Source
+                              </label>
+                              <select
+                                value={nodeConfigDraft.source || 'previous'}
+                                onChange={(e) => updateField('source', e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              >
+                                <option value="previous">Previous verification result</option>
+                                <option value="contact_field">Contact verification field</option>
+                                <option value="node">Specific node result</option>
+                              </select>
+                            </div>
+                            {nodeConfigDraft.source === 'node' && (
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Source Node ID
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.sourceNodeId || ''}
+                                  onChange={(e) => updateField('sourceNodeId', e.target.value)}
+                                  placeholder="verify-email-..."
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            )}
+                            {nodeConfigDraft.source === 'contact_field' && (
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Contact ID
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.contactId || ''}
+                                  onChange={(e) => updateField('contactId', e.target.value)}
+                                  placeholder="{{contact.id}}"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            )}
+                            <p className="text-xs text-[var(--color-text-tertiary)]">
+                              Use outgoing edge filters set to <code>valid</code>, <code>risky</code>, <code>invalid</code>, or <code>unknown</code>.
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <label className="block text-sm font-medium text-[var(--color-text-primary)]">

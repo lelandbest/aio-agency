@@ -2962,6 +2962,8 @@ class SQLiteProvider(BaseProvider):
         tenant_id = self._default_tenant_id()
         for table in [
             "contacts",
+            "email_verifier_configs",
+            "email_verification_tasks",
             "companies",
             "tags",
             "brain_profiles",
@@ -3017,9 +3019,47 @@ class SQLiteProvider(BaseProvider):
                     tags_json TEXT,
                     last_contacted_at TEXT,
                     pipeline_stage TEXT,
+                    email_verified INTEGER,
+                    email_verified_at TEXT,
+                    email_verification_status TEXT,
+                    email_verification_score REAL,
                     created_at TEXT,
                     updated_at TEXT,
                     deleted_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS email_verifier_configs (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL UNIQUE,
+                    provider TEXT NOT NULL DEFAULT 'reoon',
+                    api_key TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    auto_verify_contacts INTEGER NOT NULL DEFAULT 1,
+                    default_mode TEXT NOT NULL DEFAULT 'quick',
+                    last_tested_at TEXT,
+                    status TEXT,
+                    last_error TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS email_verification_tasks (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    provider_task_id TEXT,
+                    status TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    submitted_count INTEGER NOT NULL DEFAULT 0,
+                    completed_count INTEGER NOT NULL DEFAULT 0,
+                    valid_count INTEGER NOT NULL DEFAULT 0,
+                    risky_count INTEGER NOT NULL DEFAULT 0,
+                    invalid_count INTEGER NOT NULL DEFAULT 0,
+                    unknown_count INTEGER NOT NULL DEFAULT 0,
+                    targets_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT,
+                    updated_at TEXT,
+                    completed_at TEXT,
+                    last_error TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS companies (
@@ -3513,6 +3553,36 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "contacts", "opt_in_calls", "INTEGER")
             self._ensure_column(conn, "contacts", "opt_in_flows", "INTEGER")
             self._ensure_column(conn, "contacts", "ai_employee", "TEXT")
+            self._ensure_column(conn, "contacts", "email_verified", "INTEGER")
+            self._ensure_column(conn, "contacts", "email_verified_at", "TEXT")
+            self._ensure_column(conn, "contacts", "email_verification_status", "TEXT")
+            self._ensure_column(conn, "contacts", "email_verification_score", "REAL")
+            self._ensure_column(conn, "email_verifier_configs", "tenant_id", "TEXT")
+            self._ensure_column(conn, "email_verifier_configs", "provider", "TEXT DEFAULT 'reoon'")
+            self._ensure_column(conn, "email_verifier_configs", "api_key", "TEXT")
+            self._ensure_column(conn, "email_verifier_configs", "enabled", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verifier_configs", "auto_verify_contacts", "INTEGER DEFAULT 1")
+            self._ensure_column(conn, "email_verifier_configs", "default_mode", "TEXT DEFAULT 'quick'")
+            self._ensure_column(conn, "email_verifier_configs", "last_tested_at", "TEXT")
+            self._ensure_column(conn, "email_verifier_configs", "status", "TEXT")
+            self._ensure_column(conn, "email_verifier_configs", "last_error", "TEXT")
+            self._ensure_column(conn, "email_verifier_configs", "created_at", "TEXT")
+            self._ensure_column(conn, "email_verifier_configs", "updated_at", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "tenant_id", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "provider_task_id", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "status", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "mode", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "submitted_count", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verification_tasks", "completed_count", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verification_tasks", "valid_count", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verification_tasks", "risky_count", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verification_tasks", "invalid_count", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verification_tasks", "unknown_count", "INTEGER DEFAULT 0")
+            self._ensure_column(conn, "email_verification_tasks", "targets_json", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "email_verification_tasks", "created_at", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "updated_at", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "completed_at", "TEXT")
+            self._ensure_column(conn, "email_verification_tasks", "last_error", "TEXT")
             self._ensure_column(conn, "forms", "tenant_id", "TEXT")
             self._ensure_column(conn, "form_folders", "tenant_id", "TEXT")
             self._ensure_column(conn, "form_submissions", "tenant_id", "TEXT")
@@ -3983,7 +4053,351 @@ class SQLiteProvider(BaseProvider):
         contact["opt_in_sms"] = bool(contact.get("opt_in_sms", 1))
         contact["opt_in_calls"] = bool(contact.get("opt_in_calls", 1))
         contact["opt_in_flows"] = bool(contact.get("opt_in_flows", 1))
+        if contact.get("email_verified") is None:
+            contact["email_verified"] = None
+        else:
+            contact["email_verified"] = bool(contact.get("email_verified"))
         return contact
+
+    def _email_verifier_config_from_row(self, row: dict[str, Any] | None, *, include_secret: bool = False) -> dict[str, Any]:
+        if not row:
+            return {
+                "id": None,
+                "tenant_id": self._tenant_id(),
+                "provider": "reoon",
+                "enabled": False,
+                "auto_verify_contacts": True,
+                "default_mode": "quick",
+                "last_tested_at": None,
+                "status": "unconfigured",
+                "last_error": None,
+                "has_api_key": False,
+                "api_key": "" if include_secret else None,
+                "created_at": None,
+                "updated_at": None,
+            }
+        config = dict(row)
+        api_key = str(config.get("api_key") or "").strip()
+        config["enabled"] = bool(config.get("enabled"))
+        config["auto_verify_contacts"] = bool(config.get("auto_verify_contacts", 1))
+        config["provider"] = config.get("provider") or "reoon"
+        config["default_mode"] = config.get("default_mode") or "quick"
+        config["status"] = config.get("status") or ("active" if api_key else "unconfigured")
+        config["last_error"] = str(config.get("last_error") or "").strip() or None
+        config["has_api_key"] = bool(api_key)
+        config["api_key"] = api_key if include_secret else None
+        return config
+
+    def get_email_verifier_config(self, *, include_secret: bool = False) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM email_verifier_configs WHERE tenant_id = ? LIMIT 1",
+                (self._tenant_id(),),
+            ).fetchone()
+        return self._email_verifier_config_from_row(dict(row) if row else None, include_secret=include_secret)
+
+    def upsert_email_verifier_config(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        current = self.get_email_verifier_config(include_secret=True)
+        api_key = str(payload.get("api_key") if "api_key" in payload else current.get("api_key") or "").strip()
+        enabled = bool(payload.get("enabled", current.get("enabled", False)) and api_key)
+        auto_verify_contacts = bool(payload.get("auto_verify_contacts", current.get("auto_verify_contacts", True)))
+        next_status = payload.get("status")
+        if next_status is None:
+            if not api_key:
+                next_status = "unconfigured"
+            elif enabled:
+                next_status = "active"
+            else:
+                next_status = "disabled"
+        record = {
+            "id": current.get("id") or f"email-verifier-config-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "provider": "reoon",
+            "api_key": api_key,
+            "enabled": int(enabled),
+            "auto_verify_contacts": int(auto_verify_contacts),
+            "default_mode": "power" if str(payload.get("default_mode") or current.get("default_mode") or "quick").strip().lower() == "power" else "quick",
+            "last_tested_at": payload.get("last_tested_at") if "last_tested_at" in payload else current.get("last_tested_at"),
+            "status": next_status,
+            "last_error": str(payload.get("last_error") if "last_error" in payload else current.get("last_error") or "").strip() or None,
+            "created_at": current.get("created_at") or now,
+            "updated_at": now,
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO email_verifier_configs (
+                    id, tenant_id, provider, api_key, enabled, auto_verify_contacts, default_mode, last_tested_at, status, last_error, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(tenant_id) DO UPDATE SET
+                    provider = excluded.provider,
+                    api_key = excluded.api_key,
+                    enabled = excluded.enabled,
+                    auto_verify_contacts = excluded.auto_verify_contacts,
+                    default_mode = excluded.default_mode,
+                    last_tested_at = excluded.last_tested_at,
+                    status = excluded.status,
+                    last_error = excluded.last_error,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["provider"],
+                    record["api_key"],
+                    record["enabled"],
+                    record["auto_verify_contacts"],
+                    record["default_mode"],
+                    record["last_tested_at"],
+                    record["status"],
+                    record["last_error"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+            conn.commit()
+        return self.get_email_verifier_config(include_secret=False)
+
+    def mark_email_verifier_config_status(self, *, status: str, last_tested_at: str | None = None, last_error: str | None = None) -> dict[str, Any]:
+        current = self.get_email_verifier_config(include_secret=True)
+        updates: dict[str, Any] = {
+            "status": status,
+            "last_tested_at": last_tested_at or utcnow(),
+        }
+        if last_error:
+            updates["last_error"] = last_error
+        elif status != "error":
+            updates["last_error"] = None
+        if last_error and "error" in status:
+            updates["status"] = "error"
+        return self.upsert_email_verifier_config({
+            **updates,
+            "api_key": current.get("api_key") or "",
+            "enabled": current.get("enabled", False),
+            "auto_verify_contacts": current.get("auto_verify_contacts", True),
+            "default_mode": current.get("default_mode", "quick"),
+        })
+
+    def delete_email_verifier_config(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM email_verifier_configs WHERE tenant_id = ?",
+                (self._tenant_id(),),
+            )
+            conn.commit()
+        return self.get_email_verifier_config(include_secret=False)
+
+    def _contact_rows_by_ids(self, conn: sqlite3.Connection, contact_ids: list[str]) -> list[sqlite3.Row]:
+        normalized_ids = [str(item).strip() for item in contact_ids if str(item).strip()]
+        if not normalized_ids:
+            return []
+        rows: list[sqlite3.Row] = []
+        chunk_size = 400
+        for start in range(0, len(normalized_ids), chunk_size):
+            chunk = normalized_ids[start:start + chunk_size]
+            placeholders = ", ".join("?" for _ in chunk)
+            rows.extend(
+                conn.execute(
+                    f"SELECT * FROM contacts WHERE tenant_id = ? AND id IN ({placeholders})",
+                    (self._tenant_id(), *chunk),
+                ).fetchall()
+            )
+        return rows
+
+    def resolve_email_verification_targets(self, *, contact_ids: list[str] | None = None, emails: list[str] | None = None) -> list[dict[str, Any]]:
+        normalized_emails = {str(item or "").strip().lower() for item in (emails or []) if str(item or "").strip()}
+        targets: dict[str, dict[str, Any]] = {}
+        with self._connect() as conn:
+            if contact_ids:
+                for row in self._contact_rows_by_ids(conn, contact_ids):
+                    email = str(row["email"] or "").strip().lower()
+                    if not email:
+                        continue
+                    targets[email] = {"contact_id": row["id"], "email": email}
+            for email in normalized_emails:
+                targets.setdefault(email, {"contact_id": None, "email": email})
+        return list(targets.values())
+
+    def _email_verification_task_from_row(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not row:
+            return None
+        task = dict(row)
+        task["targets"] = json_loads(task.pop("targets_json", None), [])
+        return task
+
+    def create_email_verification_task(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utcnow()
+        record = {
+            "id": payload.get("id") or f"email-verify-task-{unique_suffix()}",
+            "tenant_id": self._tenant_id(),
+            "provider_task_id": str(payload.get("provider_task_id") or "").strip() or None,
+            "status": payload.get("status") or "queued",
+            "mode": payload.get("mode") or "power",
+            "submitted_count": int(payload.get("submitted_count") or 0),
+            "completed_count": int(payload.get("completed_count") or 0),
+            "valid_count": int(payload.get("valid_count") or 0),
+            "risky_count": int(payload.get("risky_count") or 0),
+            "invalid_count": int(payload.get("invalid_count") or 0),
+            "unknown_count": int(payload.get("unknown_count") or 0),
+            "targets_json": json.dumps(payload.get("targets") or []),
+            "created_at": payload.get("created_at") or now,
+            "updated_at": now,
+            "completed_at": payload.get("completed_at"),
+            "last_error": payload.get("last_error"),
+        }
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO email_verification_tasks (
+                    id, tenant_id, provider_task_id, status, mode, submitted_count, completed_count,
+                    valid_count, risky_count, invalid_count, unknown_count, targets_json,
+                    created_at, updated_at, completed_at, last_error
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["provider_task_id"],
+                    record["status"],
+                    record["mode"],
+                    record["submitted_count"],
+                    record["completed_count"],
+                    record["valid_count"],
+                    record["risky_count"],
+                    record["invalid_count"],
+                    record["unknown_count"],
+                    record["targets_json"],
+                    record["created_at"],
+                    record["updated_at"],
+                    record["completed_at"],
+                    record["last_error"],
+                ),
+            )
+            conn.commit()
+        return self.get_email_verification_task(record["id"])
+
+    def get_email_verification_task(self, task_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM email_verification_tasks WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (task_id, self._tenant_id()),
+            ).fetchone()
+        return self._email_verification_task_from_row(dict(row) if row else None)
+
+    def update_email_verification_task(self, task_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(updates or {})
+        if "targets" in payload:
+            payload["targets_json"] = json.dumps(payload.pop("targets") or [])
+        payload["updated_at"] = utcnow()
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM email_verification_tasks WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (task_id, self._tenant_id()),
+            ).fetchone()
+            if not existing:
+                raise ValueError("Email verification task not found")
+            assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+            conn.execute(
+                f"UPDATE email_verification_tasks SET {assignments} WHERE id = ? AND tenant_id = ?",
+                (*payload.values(), task_id, self._tenant_id()),
+            )
+            conn.commit()
+        return self.get_email_verification_task(task_id)
+
+    def apply_email_verification_result(self, contact_id: str, result: dict[str, Any], *, expected_email: str | None = None) -> dict[str, Any]:
+        normalized_status = str(result.get("status") or "unknown").strip().lower() or "unknown"
+        verified_at = result.get("verifiedAt") or utcnow()
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT * FROM contacts WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (contact_id, self._tenant_id()),
+            ).fetchone()
+            if not existing:
+                raise ValueError("Contact not found")
+            if expected_email and str(existing["email"] or "").strip().lower() != str(expected_email).strip().lower():
+                return self._contact_from_row(dict(existing))
+            conn.execute(
+                """
+                UPDATE contacts
+                SET email_verified = ?, email_verified_at = ?, email_verification_status = ?, email_verification_score = ?, updated_at = ?
+                WHERE id = ? AND tenant_id = ?
+                """,
+                (
+                    int(bool(result.get("is_safe_to_send"))),
+                    verified_at,
+                    normalized_status,
+                    result.get("score"),
+                    utcnow(),
+                    contact_id,
+                    self._tenant_id(),
+                ),
+            )
+            conn.commit()
+            refreshed = conn.execute(
+                "SELECT * FROM contacts WHERE id = ? AND tenant_id = ? LIMIT 1",
+                (contact_id, self._tenant_id()),
+            ).fetchone()
+        return self._contact_from_row(dict(refreshed))
+
+    def apply_email_verification_task_results(self, task_id: str, results: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        task = self.get_email_verification_task(task_id)
+        if not task:
+            raise ValueError("Email verification task not found")
+
+        targets = task.get("targets") if isinstance(task.get("targets"), list) else []
+        target_by_email = {
+            str(item.get("email") or "").strip().lower(): item
+            for item in targets
+            if isinstance(item, dict) and str(item.get("email") or "").strip()
+        }
+        now = utcnow()
+        updates: list[tuple[Any, ...]] = []
+
+        with self._connect() as conn:
+            for email, result in (results or {}).items():
+                normalized_email = str(email or "").strip().lower()
+                if not normalized_email:
+                    continue
+                target = target_by_email.get(normalized_email)
+                contact_row = None
+                if target and target.get("contact_id"):
+                    contact_row = conn.execute(
+                        "SELECT id, email FROM contacts WHERE id = ? AND tenant_id = ? LIMIT 1",
+                        (target["contact_id"], self._tenant_id()),
+                    ).fetchone()
+                    if contact_row and str(contact_row["email"] or "").strip().lower() != normalized_email:
+                        continue
+                if contact_row is None:
+                    contact_row = conn.execute(
+                        "SELECT id, email FROM contacts WHERE tenant_id = ? AND LOWER(email) = LOWER(?) LIMIT 1",
+                        (self._tenant_id(), normalized_email),
+                    ).fetchone()
+                if not contact_row:
+                    continue
+                updates.append(
+                    (
+                        int(bool(result.get("is_safe_to_send"))),
+                        result.get("verifiedAt") or now,
+                        str(result.get("status") or "unknown").strip().lower() or "unknown",
+                        result.get("score"),
+                        now,
+                        contact_row["id"],
+                        self._tenant_id(),
+                    )
+                )
+
+            if updates:
+                conn.executemany(
+                    """
+                    UPDATE contacts
+                    SET email_verified = ?, email_verified_at = ?, email_verification_status = ?, email_verification_score = ?, updated_at = ?
+                    WHERE id = ? AND tenant_id = ?
+                    """,
+                    updates,
+                )
+                conn.commit()
+        return self.update_email_verification_task(task_id, {"completed_at": now, "last_error": None})
 
     def _form_from_row(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
         if row is None:
@@ -4134,6 +4548,10 @@ class SQLiteProvider(BaseProvider):
             "tags_json": json.dumps(payload.get("tags") or []),
             "last_contacted_at": payload.get("last_contacted_at"),
             "pipeline_stage": payload.get("pipeline_stage") or "New",
+            "email_verified": None if "email_verified" not in payload else (None if payload.get("email_verified") is None else int(bool(payload.get("email_verified")))),
+            "email_verified_at": payload.get("email_verified_at"),
+            "email_verification_status": payload.get("email_verification_status"),
+            "email_verification_score": payload.get("email_verification_score"),
             "created_at": payload.get("created_at") or now,
             "updated_at": now,
             "deleted_at": payload.get("deleted_at"),
@@ -4154,12 +4572,14 @@ class SQLiteProvider(BaseProvider):
                 INSERT INTO contacts (
                     id, contact_id, organization_id, tenant_id, first_name, last_name, email, phone, company, company_id,
                     title, department, owner, source, status, lead_score, quality, engagement, tags_json,
-                    last_contacted_at, pipeline_stage, created_at, updated_at, deleted_at, website, dob, owner_id,
+                    last_contacted_at, pipeline_stage, email_verified, email_verified_at, email_verification_status, email_verification_score,
+                    created_at, updated_at, deleted_at, website, dob, owner_id,
                     address_json, custom_fields_json, opt_in_email, opt_in_sms, opt_in_calls, opt_in_flows, ai_employee
                 ) VALUES (
                     :id, :contact_id, :organization_id, :tenant_id, :first_name, :last_name, :email, :phone, :company, :company_id,
                     :title, :department, :owner, :source, :status, :lead_score, :quality, :engagement, :tags_json,
-                    :last_contacted_at, :pipeline_stage, :created_at, :updated_at, :deleted_at, :website, :dob, :owner_id,
+                    :last_contacted_at, :pipeline_stage, :email_verified, :email_verified_at, :email_verification_status, :email_verification_score,
+                    :created_at, :updated_at, :deleted_at, :website, :dob, :owner_id,
                     :address_json, :custom_fields_json, :opt_in_email, :opt_in_sms, :opt_in_calls, :opt_in_flows, :ai_employee
                 )
                 """,
@@ -4172,7 +4592,8 @@ class SQLiteProvider(BaseProvider):
         allowed_scalar = {
             "first_name", "last_name", "email", "phone", "company", "company_id", "title", "department",
             "owner", "source", "status", "lead_score", "quality", "engagement", "last_contacted_at",
-            "pipeline_stage", "deleted_at", "website", "dob", "owner_id", "ai_employee"
+            "pipeline_stage", "deleted_at", "website", "dob", "owner_id", "ai_employee",
+            "email_verified", "email_verified_at", "email_verification_status", "email_verification_score"
         }
         with self._connect() as conn:
             existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
@@ -4181,7 +4602,18 @@ class SQLiteProvider(BaseProvider):
             payload = {}
             for key in allowed_scalar:
                 if key in updates:
-                    payload[key] = updates[key]
+                    if key == "email_verified":
+                        payload[key] = None if updates[key] is None else int(bool(updates[key]))
+                    else:
+                        payload[key] = updates[key]
+            if "email" in updates:
+                next_email = str(updates.get("email") or "").strip().lower()
+                current_email = str(existing["email"] or "").strip().lower()
+                if next_email != current_email:
+                    payload["email_verified"] = None
+                    payload["email_verified_at"] = None
+                    payload["email_verification_status"] = None
+                    payload["email_verification_score"] = None
             if "tags" in updates:
                 payload["tags_json"] = json.dumps(updates.get("tags") or [])
             if "address" in updates:

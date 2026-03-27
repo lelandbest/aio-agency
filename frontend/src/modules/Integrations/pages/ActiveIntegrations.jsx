@@ -14,6 +14,7 @@ import ModuleHeader from '../../../components/ModuleHeader';
 import {
   deleteAutomationProviderConfigApi,
   deleteAiProviderConfigApi,
+  deleteEmailVerifierConfigApi,
   getAutomationProviderConfigsApi,
   getAiProviderCatalogApi,
   getAiProviderConfigsApi,
@@ -30,14 +31,17 @@ import {
   getMailboxAuthorizeUrl,
   getMailboxProvidersApi,
   getMailboxesApi,
+  getEmailVerifierConfigApi,
   importCalendarSourceApi,
   syncCalendarSourceApi,
   syncMailboxApi,
   testAutomationProviderConfigApi,
   testCalendarSourceApi,
   testAiProviderConfigApi,
+  testEmailVerifierConfigApi,
   testMailboxConnectionApi,
   updateCalendarSourceApi,
+  updateEmailVerifierConfigApi,
   updateMailboxApi,
   upsertAutomationProviderConfigApi,
   upsertAiProviderConfigApi,
@@ -221,6 +225,40 @@ const sourceRuleLabels = {
 const isMailboxOauthProvider = (providerId) => ['gmail-oauth', 'microsoft365-oauth'].includes(providerId);
 const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'microsoft365-calendar'].includes(providerId);
 const SEEDED_MAILBOX_IDS = new Set(['mailbox-primary', 'mailbox-growth']);
+const EMAIL_VERIFIER_RESOURCE_ID = 'reoon-email-verifier';
+
+const createEmailVerifierDraft = (config = {}) => ({
+  api_key: '',
+  enabled: !!config.enabled,
+  auto_verify_contacts: config.auto_verify_contacts !== false,
+  default_mode: config.default_mode === 'power' ? 'power' : 'quick',
+});
+
+const getEmailVerifierStatusMeta = (config = {}) => {
+  if (!config?.has_api_key) {
+    return { label: 'Disconnected', tone: 'disconnected' };
+  }
+  if (!config?.enabled) {
+    return { label: 'Disabled', tone: 'disabled' };
+  }
+  if (config?.status === 'error') {
+    return { label: 'Test Failed', tone: 'error' };
+  }
+  return { label: 'Connected', tone: 'connected' };
+};
+
+const getEmailVerifierDetail = (config = {}) => {
+  if (config?.status === 'error') {
+    return config?.last_error || 'The last connection test failed.';
+  }
+  if (!config?.has_api_key) {
+    return 'Add a Reoon API key to enable tenant-scoped email verification.';
+  }
+  if (!config?.enabled) {
+    return 'Configuration is saved but verification is currently disabled for this tenant.';
+  }
+  return 'Used by CRM single verify, bulk verify, and flow nodes through the existing verifier runtime.';
+};
 
 const readErrorMessage = (error) => {
   const raw = error?.message || 'Action failed.';
@@ -310,8 +348,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [mailboxes, setMailboxes] = useState([]);
   const [mailboxProviders, setMailboxProviders] = useState(DEFAULT_MAILBOX_PROVIDERS);
   const [selectedMailboxId, setSelectedMailboxId] = useState(null);
+  const [selectedEmailResourceId, setSelectedEmailResourceId] = useState(null);
   const [mailboxForm, setMailboxForm] = useState(() => createMailboxDraft());
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
+  const [emailVerifierConfig, setEmailVerifierConfig] = useState(null);
+  const [emailVerifierForm, setEmailVerifierForm] = useState(() => createEmailVerifierDraft());
   const [showMailboxComposer, setShowMailboxComposer] = useState(false);
 
   const [calendarSources, setCalendarSources] = useState([]);
@@ -337,13 +378,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
   const [busyAction, setBusyAction] = useState('');
+  const configuredEmailVerifierCount = emailVerifierConfig?.has_api_key ? 1 : 0;
+  const activeEmailVerifierCount = emailVerifierConfig?.has_api_key && emailVerifierConfig?.enabled ? 1 : 0;
 
   const categories = useMemo(() => {
     const base = getAllCategories();
     return base.map(cat => {
       let count = 0;
       if (cat.id === INTEGRATION_CATEGORIES.AUTOMATION) count = automationProviderConfigs.length;
-      if (cat.id === INTEGRATION_CATEGORIES.EMAIL) count = mailboxes.length;
+      if (cat.id === INTEGRATION_CATEGORIES.EMAIL) count = mailboxes.length + configuredEmailVerifierCount;
       if (cat.id === INTEGRATION_CATEGORIES.CALENDAR) count = calendarSources.length;
       if (cat.id === INTEGRATION_CATEGORIES.LLMS) count = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
       if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) count = paymentProviderConfigs.length;
@@ -352,7 +395,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       
       return { ...cat, providerCount: count };
     });
-  }, [automationProviderConfigs, mailboxes, calendarSources, aiProviderConfigs, paymentProviderConfigs]);
+  }, [automationProviderConfigs, mailboxes, configuredEmailVerifierCount, calendarSources, aiProviderConfigs, paymentProviderConfigs]);
 
   const selectedAiProviderConfig = useMemo(
     () => aiProviderConfigs.find((provider) => provider.provider_key === selectedAiProviderKey) || null,
@@ -388,6 +431,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setMailboxProviders(providers?.length ? providers : DEFAULT_MAILBOX_PROVIDERS);
     } catch {
       setMailboxProviders(DEFAULT_MAILBOX_PROVIDERS);
+    }
+
+    try {
+      setEmailVerifierConfig(await getEmailVerifierConfigApi());
+    } catch (error) {
+      nextNotice = { tone: 'error', message: readErrorMessage(error) };
+      setEmailVerifierConfig(null);
     }
 
     try {
@@ -437,12 +487,26 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   useEffect(() => {
     if (!mailboxes.length) {
       setSelectedMailboxId(null);
-      return;
-    }
-    if (!mailboxes.some((mailbox) => mailbox.id === selectedMailboxId)) {
+    } else if (!mailboxes.some((mailbox) => mailbox.id === selectedMailboxId)) {
       setSelectedMailboxId(mailboxes[0].id);
     }
   }, [mailboxes, selectedMailboxId]);
+
+  useEffect(() => {
+    const mailboxSelectionStillExists = mailboxes.some((mailbox) => mailbox.id === selectedEmailResourceId);
+    if (selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID || mailboxSelectionStillExists) {
+      return;
+    }
+    if (selectedMailboxId && mailboxes.some((mailbox) => mailbox.id === selectedMailboxId)) {
+      setSelectedEmailResourceId(selectedMailboxId);
+      return;
+    }
+    if (mailboxes.length) {
+      setSelectedEmailResourceId(mailboxes[0].id);
+      return;
+    }
+    setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
+  }, [mailboxes, selectedMailboxId, selectedEmailResourceId]);
 
   useEffect(() => {
     if (!calendarSources.length) {
@@ -478,6 +542,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     () => mailboxes.find((mailbox) => mailbox.id === selectedMailboxId) || null,
     [mailboxes, selectedMailboxId]
   );
+
+  const emailVerifierProviderConfig = useMemo(
+    () => getProviderConfig(EMAIL_VERIFIER_RESOURCE_ID),
+    []
+  );
+
+  const selectedEmailInfrastructureKind = selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID ? 'email-verifier' : 'mailbox';
 
   const selectedCalendarSource = useMemo(
     () => calendarSources.find((source) => source.id === selectedCalendarSourceId) || null,
@@ -562,6 +633,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       config: selectedMailbox.config || {}
     });
   }, [selectedMailbox]);
+
+  useEffect(() => {
+    setEmailVerifierForm(createEmailVerifierDraft(emailVerifierConfig || {}));
+  }, [emailVerifierConfig]);
 
   useEffect(() => {
     if (!selectedCalendarSource) {
@@ -712,7 +787,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       if (category.id === INTEGRATION_CATEGORIES.AUTOMATION) {
         counts[category.id] = automationProviderConfigs.length;
       } else if (category.id === INTEGRATION_CATEGORIES.EMAIL) {
-        counts[category.id] = mailboxes.length;
+        counts[category.id] = mailboxes.length + configuredEmailVerifierCount;
       } else if (category.id === INTEGRATION_CATEGORIES.CALENDAR) {
         counts[category.id] = calendarSources.length;
       } else if (category.id === INTEGRATION_CATEGORIES.LLMS) {
@@ -724,7 +799,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       }
     });
     return counts;
-  }, [aiProviderConfigs, automationProviderConfigs.length, calendarSources.length, categories, integrations, mailboxes.length, paymentProviderConfigs.length]);
+  }, [aiProviderConfigs, automationProviderConfigs.length, calendarSources.length, categories, configuredEmailVerifierCount, integrations, mailboxes.length, paymentProviderConfigs.length]);
 
   const currentCategory = categories.find((category) => category.id === activeCategory);
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
@@ -829,6 +904,69 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setMailboxDraft(createMailboxDraft());
       await loadAll();
       setSelectedMailboxId(mailbox?.id || null);
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleSaveEmailVerifier = async () => {
+    try {
+      const saved = await updateEmailVerifierConfigApi({
+        api_key: emailVerifierForm.api_key || undefined,
+        enabled: !!emailVerifierForm.enabled,
+        auto_verify_contacts: !!emailVerifierForm.auto_verify_contacts,
+        default_mode: emailVerifierForm.default_mode,
+      });
+      setEmailVerifierConfig(saved);
+      setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
+      setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
+      setNotice({ tone: 'success', message: 'Reoon configuration saved.' });
+      triggerSavedAction('email-verifier-save');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleTestEmailVerifier = async () => {
+    setBusyAction('email-verifier-test');
+    try {
+      if (emailVerifierForm.api_key) {
+        const saved = await updateEmailVerifierConfigApi({
+          api_key: emailVerifierForm.api_key,
+          enabled: !!emailVerifierForm.enabled,
+          auto_verify_contacts: !!emailVerifierForm.auto_verify_contacts,
+          default_mode: emailVerifierForm.default_mode,
+        });
+        setEmailVerifierConfig(saved);
+        setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
+      }
+      const response = await testEmailVerifierConfigApi();
+      const config = response?.data || null;
+      if (config) {
+        setEmailVerifierConfig(config);
+        setEmailVerifierForm(createEmailVerifierDraft(config));
+      }
+      setNotice({ tone: 'success', message: response?.result?.message || 'Reoon connection verified.' });
+      triggerSavedAction('email-verifier-test');
+      await loadAll();
+    } catch (error) {
+      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      await loadAll();
+    } finally {
+      setBusyAction('');
+    }
+  };
+
+  const handleDeleteEmailVerifier = async () => {
+    if (!window.confirm('Disconnect Reoon for this tenant? Stored API credentials will be removed.')) return;
+    try {
+      const cleared = await deleteEmailVerifierConfigApi();
+      setEmailVerifierConfig(cleared);
+      setEmailVerifierForm(createEmailVerifierDraft(cleared || {}));
+      setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
+      setNotice({ tone: 'success', message: 'Reoon disconnected.' });
+      await loadAll();
     } catch (error) {
       setNotice({ tone: 'error', message: readErrorMessage(error) });
     }
@@ -1280,11 +1418,22 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const renderEmailAdmin = () => (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
+      {(() => {
+        const emailVerifierStatusMeta = getEmailVerifierStatusMeta(emailVerifierConfig || {});
+        const emailVerifierDetail = emailVerifierConfig?.status === 'error'
+          ? 'The last verification provider test failed. Update the API key and test again.'
+          : (!emailVerifierConfig?.has_api_key
+            ? 'Add a Reoon API key to enable tenant-scoped email verification.'
+            : (!emailVerifierConfig?.enabled
+              ? 'Configuration is saved but verification is disabled for this tenant.'
+              : 'Used by CRM verification and flow nodes through the existing verifier runtime.'));
+        return (
+          <>
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailboxes</div>
-            <div className="text-sm text-[var(--color-text-secondary)]">Centralized provider credentials and health. Reading and replying happens in Comms.</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
+            <div className="text-sm text-[var(--color-text-secondary)]">Mailbox accounts and adjacent email infrastructure for sending, syncing, and verification.</div>
           </div>
           <button onClick={() => setShowMailboxComposer((current) => !current)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
             {showMailboxComposer ? 'Close' : 'New'}
@@ -1324,8 +1473,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 subtitle={mailbox.provider}
               status={mailbox.health?.label || mailbox.status || 'Unknown'}
               detail={providerStateDetail(mailbox.config, mailbox.address || 'No address')}
-              selected={selectedMailboxId === mailbox.id}
-              onClick={() => setSelectedMailboxId(mailbox.id)}
+              selected={selectedEmailResourceId === mailbox.id}
+              onClick={() => {
+                setSelectedMailboxId(mailbox.id);
+                setSelectedEmailResourceId(mailbox.id);
+              }}
               chips={[
                 `Now ${mailbox.queue_counts?.now || 0}`,
                 `Reply ${mailbox.queue_counts?.['needs-reply'] || 0}`,
@@ -1334,10 +1486,61 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               ]}
             />
           ))}
+          <ResourceCard
+            key={EMAIL_VERIFIER_RESOURCE_ID}
+            icon={ShieldCheck}
+            title={emailVerifierProviderConfig?.name || 'Reoon Email Verification'}
+            subtitle={emailVerifierProviderConfig?.subtypeLabel || 'Email Verification Provider'}
+            status={emailVerifierStatusMeta.label}
+            detail={emailVerifierDetail}
+            selected={selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID}
+            onClick={() => setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID)}
+            chips={[
+              'Email Verification',
+              (emailVerifierConfig?.default_mode || emailVerifierForm.default_mode || 'quick').toUpperCase(),
+              emailVerifierForm.auto_verify_contacts ? 'Auto Verify On' : 'Auto Verify Off',
+              emailVerifierForm.enabled ? 'Enabled' : 'Disabled'
+            ]}
+          />
         </div>
       </div>
       <div className="space-y-4">
-        {selectedMailbox ? (
+        {selectedEmailInfrastructureKind === 'email-verifier' ? (
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
+                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{emailVerifierProviderConfig?.name || 'Reoon Email Verification'}</h3>
+                <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{emailVerifierProviderConfig?.description || 'Tenant-scoped verification provider used by CRM single verify, bulk verify, and flow nodes.'}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'Test'}</button>
+                <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
+                <button onClick={handleSaveEmailVerifier} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)]", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : 'Save'}</button>
+                <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} />
+                {emailVerifierConfig?.has_api_key ? <button onClick={handleDeleteEmailVerifier} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Disconnect</button> : null}
+              </div>
+            </div>
+            {emailVerifierConfig?.status === 'error' ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">Last connection test failed. Update the API key and run a new test.</div> : null}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+              This provider is managed here as part of the mail infrastructure layer. CRM verification, bulk tasks, and verification flow nodes all use this saved tenant config.
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierStatusMeta.label}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{(emailVerifierConfig?.default_mode || emailVerifierForm.default_mode || 'quick').toUpperCase()}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierConfig?.last_tested_at ? new Date(emailVerifierConfig.last_tested_at).toLocaleString() : 'Never'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierForm.enabled ? 'Enabled' : 'Disabled'}</div></div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 text-sm">
+              <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.api_key} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, api_key: event.target.value }))} placeholder={emailVerifierConfig?.has_api_key ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.default_mode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, default_mode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick</option><option value="power">Power</option></select></label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 text-sm text-[var(--color-text-secondary)]">
+              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.enabled} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this tenant</label>
+              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.auto_verify_contacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, auto_verify_contacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
+            </div>
+          </div>
+        ) : selectedMailbox ? (
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
@@ -1379,6 +1582,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           </div>
         ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-8 text-center text-[var(--color-text-secondary)]">Create or select a mailbox to manage credentials and sync behavior.</div>}
       </div>
+          </>
+        );
+      })()}
     </div>
   );
 
