@@ -149,6 +149,33 @@ export const triggerNodes = [
     iconName: 'Workflow',
     nodeColor: 'trigger',
   },
+  {
+    id: 'booking-created-trigger',
+    type: 'trigger',
+    label: 'Booking Created',
+    description: 'Start when a booking is created',
+    iconName: 'Calendar',
+    nodeColor: 'trigger',
+    event: 'booking_created',
+  },
+  {
+    id: 'booking-updated-trigger',
+    type: 'trigger',
+    label: 'Booking Updated',
+    description: 'Start when a booking changes',
+    iconName: 'Calendar',
+    nodeColor: 'trigger',
+    event: 'booking_updated',
+  },
+  {
+    id: 'booking-cancelled-trigger',
+    type: 'trigger',
+    label: 'Booking Cancelled',
+    description: 'Start when a booking is cancelled',
+    iconName: 'Calendar',
+    nodeColor: 'trigger',
+    event: 'booking_cancelled',
+  },
 ];
 
 /**
@@ -273,6 +300,42 @@ export const utilityNodes = [
     iconName: 'Bot',
     nodeColor: 'input',
   },
+  {
+    id: 'create-booking',
+    type: 'action',
+    label: 'Create Booking',
+    description: 'Create a calendar booking',
+    iconName: 'Calendar',
+    nodeColor: 'action',
+    actionType: 'create_booking',
+  },
+  {
+    id: 'update-booking',
+    type: 'action',
+    label: 'Update Booking',
+    description: 'Update an existing booking',
+    iconName: 'Calendar',
+    nodeColor: 'action',
+    actionType: 'update_booking',
+  },
+  {
+    id: 'cancel-booking',
+    type: 'action',
+    label: 'Cancel Booking',
+    description: 'Cancel an existing booking',
+    iconName: 'Calendar',
+    nodeColor: 'action',
+    actionType: 'cancel_booking',
+  },
+  {
+    id: 'get-booking',
+    type: 'action',
+    label: 'Get Booking',
+    description: 'Fetch booking details',
+    iconName: 'Calendar',
+    nodeColor: 'action',
+    actionType: 'get_booking',
+  },
 ];
 
 /**
@@ -356,13 +419,18 @@ export const createNode = (nodeTemplate, position) => {
     sourcePosition: 'right',
     targetPosition: 'left',
     data: {
+      templateId: nodeTemplate.id,
       label: nodeTemplate.label,
       description: nodeTemplate.description,
       typeLabel: typeLabelMap[nodeTemplate.type] || 'Node',
       nodeColor: nodeTemplate.nodeColor || 'action',
       iconName: nodeTemplate.iconName || 'Play',
       isSocket: nodeTemplate.isSocket || false,
-      config: {},
+      config: {
+        ...(nodeTemplate.event ? { event: nodeTemplate.event } : {}),
+        ...(nodeTemplate.actionType ? { actionType: nodeTemplate.actionType } : {}),
+        ...((nodeTemplate.config && typeof nodeTemplate.config === 'object') ? nodeTemplate.config : {}),
+      },
     },
   };
 };

@@ -27,7 +27,8 @@ from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
 from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_config
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
-from orchestration import ExecutionEngine
+from orchestration import ExecutionEngine, emit_system_event
+from backend.planner import create_booking_execution_plan
 from backend.agent_definitions import AGENT_DEFINITIONS
 from backend.agent_runtime import AgentRegistry
 from backend.cortext_service import cortext_service
@@ -886,7 +887,75 @@ def infer_flow_step_agent(node: dict[str, Any], fallback_agent: str = "") -> str
     return normalize_agent_key(fallback_agent) or "ALPHA"
 
 
-def build_flow_execution_steps(flow: dict[str, Any], command_text: str, fallback_agent: str = "") -> tuple[list[dict[str, Any]], list[str]]:
+def parse_json_config(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
+
+
+def infer_flow_step_intent(node: dict[str, Any]) -> str:
+    data = node.get("data") if isinstance(node.get("data"), dict) else {}
+    config = data.get("config") if isinstance(data.get("config"), dict) else {}
+    action_type = str(
+        config.get("actionType")
+        or data.get("actionType")
+        or ""
+    ).strip().lower()
+    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking"}:
+        return action_type
+    return "agent_task"
+
+
+def booking_event_payload(event: dict[str, Any] | None) -> dict[str, Any]:
+    event = event or {}
+    return {
+        "event_id": event.get("id"),
+        "calendar_id": event.get("calendar_id"),
+        "contact_id": event.get("contact_id"),
+        "thread_id": event.get("thread_id"),
+        "start_time": event.get("start_time"),
+        "end_time": event.get("end_time"),
+        "booking_type_id": event.get("booking_type_id"),
+        "status": event.get("status"),
+    }
+
+
+def emit_booking_lifecycle_event(
+    *,
+    event_type: str,
+    event: dict[str, Any],
+    actor: dict[str, Any],
+    tenant: dict[str, Any],
+    provider_config: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    return emit_system_event(
+        provider,
+        {
+            "type": event_type,
+            "payload": booking_event_payload(event),
+            "meta": {"depth": 0},
+        },
+        actor=actor,
+        tenant=tenant,
+        provider_config=provider_config,
+    )
+
+
+def build_flow_execution_steps(
+    flow: dict[str, Any],
+    command_text: str,
+    fallback_agent: str = "",
+    runtime_context: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
     nodes, edges = extract_flow_graph(flow)
     ordered_nodes = order_flow_nodes(nodes, edges)
     executable_nodes = [
@@ -901,38 +970,46 @@ def build_flow_execution_steps(flow: dict[str, Any], command_text: str, fallback
 
     for index, node in enumerate(executable_nodes, start=1):
         data = node.get("data") if isinstance(node.get("data"), dict) else {}
+        node_config = data.get("config") if isinstance(data.get("config"), dict) else {}
+        action_intent = infer_flow_step_intent(node)
         node_label = str(data.get("label") or node.get("label") or f"Step {index}").strip() or f"Step {index}"
         node_description = str(data.get("description") or "").strip()
-        assigned_agent = infer_flow_step_agent(node, fallback_agent)
+        assigned_agent = infer_flow_step_agent(node, fallback_agent or ("DELTA" if action_intent in {"create_booking", "update_booking", "cancel_booking", "get_booking"} else ""))
         agent_definition = AGENT_DEFINITIONS.get(assigned_agent) or AGENT_DEFINITIONS["ALPHA"]
-        step_command_parts = [
-            f"Flow {flow_name} step {index} of {step_count}: {node_label}.",
-            f"Operator command: {command_text}",
-        ]
-        if node_description:
-            step_command_parts.append(f"Node description: {node_description}")
-        if data.get("configuration"):
-            step_command_parts.append(f"Node configuration: {data.get('configuration')}")
-        if data.get("actionType"):
-            step_command_parts.append(f"Action type: {data.get('actionType')}")
         if assigned_agent not in agent_chain:
             agent_chain.append(assigned_agent)
+        parameters: dict[str, Any] = {
+            "original_command": command_text,
+            "flow_id": flow_id,
+            "flow_name": flow_name,
+            "node_id": str(node.get("id") or f"flow-node-{index}"),
+            "node_type": str(node.get("type") or "action"),
+            "node_label": node_label,
+            "node_description": node_description,
+            "step_index": index,
+            "step_count": step_count,
+            "node_config": node_config,
+            "configuration": parse_json_config(node_config.get("configuration")),
+            "trigger_event": runtime_context.get("trigger_event") if isinstance(runtime_context, dict) else None,
+            "booking_event": runtime_context.get("booking_event") if isinstance(runtime_context, dict) else None,
+        }
+        if action_intent == "agent_task":
+            step_command_parts = [
+                f"Flow {flow_name} step {index} of {step_count}: {node_label}.",
+                f"Operator command: {command_text}",
+            ]
+            if node_description:
+                step_command_parts.append(f"Node description: {node_description}")
+            if node_config.get("configuration"):
+                step_command_parts.append(f"Node configuration: {node_config.get('configuration')}")
+            if node_config.get("actionType"):
+                step_command_parts.append(f"Action type: {node_config.get('actionType')}")
+            parameters["command"] = " ".join(part for part in step_command_parts if part).strip()
         raw_steps.append(
             {
                 "id": str(node.get("id") or f"flow-step-{index}"),
-                "intent": "agent_task",
-                "parameters": {
-                    "command": " ".join(part for part in step_command_parts if part).strip(),
-                    "original_command": command_text,
-                    "flow_id": flow_id,
-                    "flow_name": flow_name,
-                    "node_id": str(node.get("id") or f"flow-node-{index}"),
-                    "node_type": str(node.get("type") or "action"),
-                    "node_label": node_label,
-                    "node_description": node_description,
-                    "step_index": index,
-                    "step_count": step_count,
-                },
+                "intent": action_intent,
+                "parameters": parameters,
                 "assignedAgent": assigned_agent,
                 "agentId": agent_definition.agent_id,
             }
@@ -2447,7 +2524,12 @@ async def ai_command(request: Request, payload: AICommandRequest):
             "result": {"routing": None, "run": None, "run_id": None},
             "message": f"Unknown agent '{resolved_context.get('requested_agent')}'.",
         }
-    if not ai_provider:
+    booking_command_steps = create_booking_execution_plan(command_text, resolved_context)
+    booking_command_mode = any(
+        term in " ".join(command_text.lower().split())
+        for term in ("schedule", "book", "booking", "appointment", "meeting", "reschedule", "cancel meeting", "cancel booking", "upcoming bookings", "upcoming meetings")
+    )
+    if not ai_provider and not booking_command_mode and not selected_flow:
         return {
             "status": "error",
             "result": {"routing": None, "run": None, "run_id": None},
@@ -2466,7 +2548,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
     flow_raw_steps: list[dict[str, Any]] = []
     flow_agent_chain: list[str] = []
     if selected_flow:
-        flow_raw_steps, flow_agent_chain = build_flow_execution_steps(selected_flow, command_text, requested_agent or routing["executing_agent"])
+        flow_raw_steps, flow_agent_chain = build_flow_execution_steps(selected_flow, command_text, requested_agent or routing["executing_agent"], runtime_context=resolved_context)
         if not flow_raw_steps:
             return {
                 "status": "error",
@@ -2474,7 +2556,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 "message": f"Flow '{selected_flow.get('name') or flow_id}' has no executable steps.",
             }
 
-    executing_agent = requested_agent or (flow_agent_chain[-1] if flow_agent_chain else routing["executing_agent"])
+    executing_agent = requested_agent or (flow_agent_chain[-1] if flow_agent_chain else ("DELTA" if booking_command_mode else routing["executing_agent"]))
     agent_definition = AGENT_DEFINITIONS.get(executing_agent)
     if not agent_definition:
         return {
@@ -2511,17 +2593,32 @@ async def ai_command(request: Request, payload: AICommandRequest):
             )
             resolved_context["brain_memory_query"] = brain_query
     raw_steps = flow_raw_steps or [
-        {
-            "id": f"cmd-{uuid4().hex[:10]}",
-            "intent": "agent_task",
-            "parameters": {
-                "command": command_text,
-                "module": module,
-                "surface": surface,
-            },
-            "assignedAgent": executing_agent,
-            "agentId": agent_definition.agent_id,
-        }
+        *(
+            [
+                {
+                    "id": step.get("stepId") or f"cmd-{uuid4().hex[:10]}",
+                    "intent": step.get("intent"),
+                    "parameters": step.get("parameters") or {},
+                    "assignedAgent": step.get("assignedAgent") or "DELTA",
+                    "agentId": step.get("agentId") or "AGT-CRD-004",
+                }
+                for step in booking_command_steps
+            ]
+            if booking_command_mode
+            else [
+                {
+                    "id": f"cmd-{uuid4().hex[:10]}",
+                    "intent": "agent_task",
+                    "parameters": {
+                        "command": command_text,
+                        "module": module,
+                        "surface": surface,
+                    },
+                    "assignedAgent": executing_agent,
+                    "agentId": agent_definition.agent_id,
+                }
+            ]
+        )
     ]
     engine = ExecutionEngine(provider)
     try:
@@ -2553,6 +2650,8 @@ async def ai_command(request: Request, payload: AICommandRequest):
         if text:
             agent_message = text
             break
+    if not agent_message:
+        agent_message = extract_run_result_text(primary_data)
     resolved_routing = engine_result.get("routing") or routing
     delegate_chain = list(
         dict.fromkeys(
@@ -3222,27 +3321,61 @@ async def list_calendar_events():
 
 @app.post("/api/calendar/events")
 async def create_calendar_event(request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create calendar events.")
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create calendar events.")
     try:
-        return {"data": provider.create_calendar_event(payload)}
+        created = provider.create_calendar_event(payload)
+        tenant = session.get("tenant") or {}
+        user = session.get("user") or {}
+        provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+        emit_booking_lifecycle_event(
+            event_type="booking_created",
+            event=created,
+            actor=user,
+            tenant=tenant,
+            provider_config=provider_config,
+        )
+        return {"data": created}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.patch("/api/calendar/events/{event_id}")
 async def update_calendar_event(event_id: str, request: Request, payload: CalendarEventUpdateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update calendar events.")
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update calendar events.")
     try:
-        return provider.update_calendar_event(event_id, payload.model_dump(exclude_unset=True))
+        updated = provider.update_calendar_event(event_id, payload.model_dump(exclude_unset=True))
+        tenant = session.get("tenant") or {}
+        user = session.get("user") or {}
+        provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+        emit_booking_lifecycle_event(
+            event_type="booking_cancelled" if str(updated.get("status") or "").strip().lower() == "cancelled" else "booking_updated",
+            event=updated,
+            actor=user,
+            tenant=tenant,
+            provider_config=provider_config,
+        )
+        return updated
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.delete("/api/calendar/events/{event_id}")
 async def delete_calendar_event(event_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete calendar events.")
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete calendar events.")
     try:
+        existing_event = next((item for item in provider.list_calendar_events() if item.get("id") == event_id), None)
         provider.delete_calendar_event(event_id)
+        if existing_event:
+            tenant = session.get("tenant") or {}
+            user = session.get("user") or {}
+            provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+            emit_booking_lifecycle_event(
+                event_type="booking_cancelled",
+                event=existing_event,
+                actor=user,
+                tenant=tenant,
+                provider_config=provider_config,
+            )
         return {"success": True}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -3814,9 +3947,24 @@ async def advance_thread_stage(thread_id: str, request: Request):
 
 @app.post("/api/comms/threads/{thread_id}/schedule-meeting")
 async def schedule_thread_meeting(thread_id: str, request: Request, payload: ThreadMeetingRequest | None = None):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     try:
-        return provider.schedule_thread_meeting(thread_id=thread_id, scheduled_at=payload.scheduled_at if payload else None)
+        existing_events = provider.list_calendar_events(thread_id=thread_id)
+        response = provider.schedule_thread_meeting(thread_id=thread_id, scheduled_at=payload.scheduled_at if payload else None)
+        refreshed_events = provider.list_calendar_events(thread_id=thread_id)
+        linked_event = refreshed_events[0] if refreshed_events else None
+        if linked_event:
+            tenant = session.get("tenant") or {}
+            user = session.get("user") or {}
+            provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+            emit_booking_lifecycle_event(
+                event_type="booking_created" if not existing_events else "booking_updated",
+                event=linked_event,
+                actor=user,
+                tenant=tenant,
+                provider_config=provider_config,
+            )
+        return response
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

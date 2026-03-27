@@ -1355,6 +1355,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="contact_created">Contact Created</option>
                             <option value="deal_updated">Deal Updated</option>
                             <option value="scheduled">Scheduled Time</option>
+                            <option value="booking_created">Booking Created</option>
+                            <option value="booking_updated">Booking Updated</option>
+                            <option value="booking_cancelled">Booking Cancelled</option>
                           </select>
                         </div>
                         <div>
@@ -1392,6 +1395,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="send_sms">Send SMS</option>
                             <option value="store_data">Store Data</option>
                             <option value="create_task">Create Task</option>
+                            <option value="create_booking">Create Booking</option>
+                            <option value="update_booking">Update Booking</option>
+                            <option value="cancel_booking">Cancel Booking</option>
+                            <option value="get_booking">Get Booking</option>
                           </select>
                         </div>
                         <div>

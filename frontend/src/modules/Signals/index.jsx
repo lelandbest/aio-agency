@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
-import { assistAiApi, getAiRunsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
+import { assistAiApi, getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 
 const runSignalAction = (action) => {
@@ -22,7 +22,7 @@ const runSignalAction = (action) => {
  * Interprets raw workspace data into operator-facing heuristics.
  */
 const mapDataToSignals = (rawData) => {
-  const { contacts = [], threads = [], aiRuns = [] } = rawData;
+  const { contacts = [], threads = [], aiRuns = [], bookings = [] } = rawData;
   const signals = [];
   const now = Date.now();
 
@@ -107,6 +107,94 @@ const mapDataToSignals = (rawData) => {
         label: 'View Runs',
         action: { type: 'open_module', payload: { module: 'flows' } }
       },
+      timestamp: now
+    });
+  }
+
+  const activeBookings = bookings.filter((booking) => !['cancelled'].includes(String(booking.status || '').toLowerCase()));
+  const upcoming24h = activeBookings.filter((booking) => {
+    const start = new Date(booking.start_time).getTime();
+    return start >= now && start <= now + (24 * 60 * 60 * 1000);
+  });
+  if (upcoming24h.length > 0) {
+    signals.push({
+      id: `booking-upcoming-24h-${now}`,
+      type: 'booking_upcoming',
+      severity: 'info',
+      title: `${upcoming24h.length} bookings scheduled in the next 24h`,
+      description: `Upcoming bookings are live on the calendar.`,
+      impact: 'Operators have live meeting demand queued.',
+      timeContext: 'Window: next 24h',
+      primaryAction: {
+        label: 'Open Calendar',
+        action: { type: 'open_module', payload: { module: 'calendar' } }
+      },
+      count: upcoming24h.length,
+      entities: upcoming24h,
+      timestamp: now
+    });
+  }
+
+  const upcoming7d = activeBookings.filter((booking) => {
+    const start = new Date(booking.start_time).getTime();
+    return start >= now && start <= now + (7 * 24 * 60 * 60 * 1000);
+  });
+  const missedBookings = activeBookings.filter((booking) => {
+    const end = new Date(booking.end_time || booking.start_time).getTime();
+    return end < now && !['completed'].includes(String(booking.status || '').toLowerCase());
+  });
+  if (missedBookings.length > 0) {
+    signals.push({
+      id: `booking-missed-${now}`,
+      type: 'booking_missed',
+      severity: 'warning',
+      title: `${missedBookings.length} missed bookings`,
+      description: `Scheduled bookings ended without being marked completed.`,
+      impact: 'Follow-up risk is increasing on booked meetings.',
+      timeContext: 'Past-due booking audit',
+      primaryAction: {
+        label: 'Review Calendar',
+        action: { type: 'open_module', payload: { module: 'calendar' } }
+      },
+      count: missedBookings.length,
+      entities: missedBookings,
+      timestamp: now
+    });
+  }
+
+  if (upcoming7d.length === 0) {
+    signals.push({
+      id: `booking-gap-${now}`,
+      type: 'booking_gap',
+      severity: 'warning',
+      title: 'No bookings scheduled in the next 7 days',
+      description: 'The booking calendar is empty for the upcoming week.',
+      impact: 'Pipeline conversion and meeting momentum may stall.',
+      timeContext: 'Window: next 7d',
+      primaryAction: {
+        label: 'Open Calendar',
+        action: { type: 'open_module', payload: { module: 'calendar' } }
+      },
+      timestamp: now
+    });
+  }
+
+  const cancelledBookings = bookings.filter((booking) => String(booking.status || '').toLowerCase() === 'cancelled');
+  if (cancelledBookings.length > 0) {
+    signals.push({
+      id: `booking-cancelled-${now}`,
+      type: 'booking_cancelled',
+      severity: cancelledBookings.length > 2 ? 'warning' : 'info',
+      title: `${cancelledBookings.length} cancelled bookings detected`,
+      description: `Cancelled bookings are present in the active calendar dataset.`,
+      impact: 'Reschedule coverage should be checked.',
+      timeContext: 'Current booking state',
+      primaryAction: {
+        label: 'Open Calendar',
+        action: { type: 'open_module', payload: { module: 'calendar' } }
+      },
+      count: cancelledBookings.length,
+      entities: cancelledBookings,
       timestamp: now
     });
   }
@@ -330,16 +418,18 @@ const SignalsModule = () => {
     const loadEngineData = async () => {
       setLoading(true);
       try {
-        const [contactsRes, commsRes, aiRunsRes] = await Promise.all([
+        const [contactsRes, commsRes, aiRunsRes, bookingsRes] = await Promise.all([
           getContactsApi().catch(() => []),
           getCommsSnapshotApi().catch(() => ({ threads: [] })),
           getAiRunsApi(50).catch(() => []),
+          getCalendarEventsApi().catch(() => []),
         ]);
 
         const rawData = {
           contacts: contactsRes || [],
           threads: commsRes?.threads || commsRes?.allThreads || [],
-          aiRuns: aiRunsRes || []
+          aiRuns: aiRunsRes || [],
+          bookings: bookingsRes || [],
         };
 
         const generatedSignals = mapDataToSignals(rawData);

@@ -1,18 +1,190 @@
 import json
 import logging
 import time
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from typing import Any
 from uuid import uuid4
 from backend.agent_runtime import AgentRegistry
 
 logger = logging.getLogger(__name__)
 
+DIRECT_EXECUTION_INTENTS = {
+    "query_vault",
+    "schedule_calendar",
+    "create_booking",
+    "update_booking",
+    "cancel_booking",
+    "get_booking",
+}
+
+BOOKING_WRITE_INTENTS = {"schedule_calendar", "create_booking", "update_booking", "cancel_booking"}
+BOOKING_INTENTS = BOOKING_WRITE_INTENTS | {"get_booking"}
+
 def datetime_now() -> str:
     return datetime.now(UTC).isoformat()
 
 def unique_suffix() -> str:
     return uuid4().hex[:10]
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
+
+
+def coerce_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
+    raw = str(value).strip()
+    if not raw:
+        return None
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def match_flow_trigger_event(flow: dict[str, Any], event_type: str) -> bool:
+    nodes = flow.get("nodes") if isinstance(flow.get("nodes"), list) else []
+    for node in nodes:
+        if str(node.get("type") or "").lower() != "trigger":
+            continue
+        data = node.get("data") if isinstance(node.get("data"), dict) else {}
+        config = data.get("config") if isinstance(data.get("config"), dict) else {}
+        candidates = [
+            config.get("event"),
+            data.get("templateId"),
+            data.get("id"),
+            data.get("label"),
+            node.get("id"),
+        ]
+        for candidate in candidates:
+            normalized = str(candidate or "").strip().lower().replace("-", "_").replace(" ", "_")
+            if not normalized:
+                continue
+            if normalized == event_type:
+                return True
+            if normalized.endswith("_trigger") and normalized[:-8] == event_type:
+                return True
+    return False
+
+
+def emit_system_event(
+    provider: Any,
+    event: dict[str, Any],
+    *,
+    actor: dict[str, Any] | None = None,
+    tenant: dict[str, Any] | None = None,
+    provider_config: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    event_type = str(event.get("type") or "").strip()
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    if not event_type:
+        return []
+
+    meta = event.get("meta") if isinstance(event.get("meta"), dict) else {}
+    depth = safe_int(meta.get("depth"), 0)
+    if depth >= 1:
+        logger.warning("Skipping nested system event %s at depth %s", event_type, depth)
+        return []
+
+    try:
+        import server
+    except Exception as exc:
+        logger.error("Unable to import server for system event dispatch: %s", exc)
+        return []
+
+    dispatched_runs: list[dict[str, Any]] = []
+    flows = []
+    try:
+        flows = provider.list_flows() if getattr(provider, "list_flows", None) else []
+    except Exception as exc:
+        logger.error("Unable to list flows for system event dispatch: %s", exc)
+        return []
+
+    tenant_payload = tenant or {"id": getattr(provider, "_tenant_id", lambda: None)()}
+    for flow in flows or []:
+        flow_status = str(flow.get("status") or "").strip().lower()
+        if flow_status != "active":
+            continue
+        if not match_flow_trigger_event(flow, event_type):
+            continue
+        raw_steps, flow_agent_chain = server.build_flow_execution_steps(
+            flow,
+            f"System event {event_type}",
+            "DELTA",
+            runtime_context={
+                "system_event": event,
+                "trigger_event": event,
+                "booking_event": payload,
+            },
+        )
+        if not raw_steps:
+            continue
+        flow_context = {
+            "module": "flows",
+            "surface": "system-event",
+            "field": "event",
+            "intent": "flow_trigger",
+            "system_event": event,
+            "trigger_event": event,
+            "booking_event": payload,
+            "flow_id": flow.get("id"),
+            "flow_name": flow.get("name") or "Untitled Flow",
+            "flow": {"id": flow.get("id"), "name": flow.get("name") or "Untitled Flow"},
+            "step_count": len(raw_steps),
+            "agent_chain": flow_agent_chain,
+            "_provider_config": provider_config,
+            "_requested_agent_locked": True,
+            "_system_event_depth": depth + 1,
+            "_system_event_type": event_type,
+            "_system_event_actor": actor or {},
+            "_system_event_tenant": tenant_payload,
+            **payload,
+        }
+        try:
+            engine = ExecutionEngine(provider)
+            result = engine.run(
+                raw_steps=raw_steps,
+                mode="execute",
+                command=f"System event {event_type}",
+                context=flow_context,
+                actor=actor or {},
+                tenant=tenant_payload,
+            )
+            dispatched_runs.append(
+                {
+                    "flow_id": flow.get("id"),
+                    "flow_name": flow.get("name") or "Untitled Flow",
+                    "run_id": result.get("runId"),
+                    "status": result.get("status"),
+                }
+            )
+        except Exception as exc:
+            logger.error("System event dispatch failed for flow %s: %s", flow.get("id"), exc)
+    return dispatched_runs
 
 def normalize_parsed_steps(raw_steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
@@ -25,8 +197,8 @@ def normalize_parsed_steps(raw_steps: list[dict[str, Any]]) -> list[dict[str, An
         
         step_id = raw.get("id") or f"step-{unique_suffix()}"
         # Phase 12 Declarative Step
-        is_write = intent in ("draft_email", "schedule_calendar", "add_contact", "add_crm_note")
-        mutation_type = "create" if is_write else "none"
+        is_write = intent in ("draft_email", "schedule_calendar", "add_contact", "add_crm_note", "create_booking", "update_booking", "cancel_booking")
+        mutation_type = "create" if intent in ("draft_email", "schedule_calendar", "add_contact", "add_crm_note", "create_booking") else "update" if intent == "update_booking" else "delete" if intent == "cancel_booking" else "none"
         target_type = intent.split("_")[-1] if "_" in intent else "unknown"
         is_external = intent in ("draft_email", "schedule_calendar")
         
@@ -60,6 +232,23 @@ def check_step_gate(step: dict[str, Any], actor: dict[str, Any], tenant: dict[st
     command_text = f"{intent} " + " ".join(str(v) for v in parameters.values())
     
     tier = server.resolve_permission_tier(command_text, intent=intent)
+
+    if intent in BOOKING_INTENTS:
+        return {
+            "allowed": True,
+            "requiresApproval": False,
+            "reason": None,
+            "permissionTier": tier,
+            "riskLevel": "low" if intent == "get_booking" else "medium",
+        }
+    if intent == "schedule_calendar":
+        return {
+            "allowed": True,
+            "requiresApproval": False,
+            "reason": None,
+            "permissionTier": tier,
+            "riskLevel": "medium",
+        }
     
     # Phase 12: Declarative gating
     is_write = step.get("isWrite", False)
@@ -119,6 +308,22 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
             "uiBinding": {"module": "calendar", "recordId": step_id, "view": "event"},
             "createdAt": "now"
         })
+    elif intent in {"create_booking", "update_booking", "cancel_booking", "get_booking"}:
+        title_by_intent = {
+            "create_booking": "Booking Created",
+            "update_booking": "Booking Updated",
+            "cancel_booking": "Booking Cancelled",
+            "get_booking": "Booking Retrieved",
+        }
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "calendar_event",
+            "title": title_by_intent[intent],
+            "summary": title_by_intent[intent],
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "calendar", "recordId": step_id, "view": "event"},
+            "createdAt": "now"
+        })
     elif intent == "add_contact":
         artifacts.append({
             "id": f"art-{unique_suffix()}",
@@ -147,6 +352,10 @@ class StepExecutor:
         self.executors = {
             "draft_email": self._draft_email,
             "schedule_calendar": self._schedule_calendar,
+            "create_booking": self._create_booking,
+            "update_booking": self._update_booking,
+            "cancel_booking": self._cancel_booking,
+            "get_booking": self._get_booking,
             "add_contact": self._add_contact,
             "add_crm_note": self._add_crm_note,
             "query_vault": self._query_vault,
@@ -164,6 +373,20 @@ class StepExecutor:
 
     def execute(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         intent = step.get("intent")
+        handler = self.executors.get(intent)
+
+        if intent in DIRECT_EXECUTION_INTENTS and handler:
+            try:
+                return handler(step, context)
+            except Exception as exc:
+                logger.error("Step execution failed: %s", exc)
+                return {
+                    "stepId": step.get("id"),
+                    "intent": intent,
+                    "status": "error",
+                    "error": str(exc),
+                    "data": None
+                }
         
         # Step 1: Agent Runtime Execution
         assigned_agent = step.get("assignedAgent") or step.get("agentId")
@@ -187,7 +410,6 @@ class StepExecutor:
                 }
         
         # Fallback to StepExecutor local method
-        handler = self.executors.get(intent)
         if not handler:
             return {
                 "stepId": step.get("id"),
@@ -220,11 +442,221 @@ class StepExecutor:
     def _schedule_calendar(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         params = step.get("parameters", {})
         thread_id = params.get("thread_id") or context.get("thread_id")
-        scheduled_at = params.get("scheduled_at") or params.get("time")
-        if not thread_id:
-            raise ValueError("Missing thread_id context for schedule_calendar.")
-        res = getattr(self.provider, "schedule_thread_meeting")(thread_id, scheduled_at=scheduled_at)
+        scheduled_at = params.get("scheduled_at") or params.get("time") or context.get("scheduled_at") or context.get("start_time")
+        if thread_id:
+            existing_events = self.provider.list_calendar_events(thread_id=thread_id) if getattr(self.provider, "list_calendar_events", None) else []
+            res = getattr(self.provider, "schedule_thread_meeting")(thread_id, scheduled_at=scheduled_at)
+            linked_events = self.provider.list_calendar_events(thread_id=thread_id) if getattr(self.provider, "list_calendar_events", None) else []
+            event = linked_events[0] if linked_events else None
+            if event:
+                emit_system_event(
+                    self.provider,
+                    {
+                        "type": "booking_created" if not existing_events else "booking_updated",
+                        "payload": {
+                            "event_id": event.get("id"),
+                            "calendar_id": event.get("calendar_id"),
+                            "contact_id": event.get("contact_id"),
+                            "thread_id": event.get("thread_id"),
+                            "start_time": event.get("start_time"),
+                            "end_time": event.get("end_time"),
+                            "booking_type_id": event.get("booking_type_id"),
+                            "status": event.get("status"),
+                        },
+                        "meta": {"depth": safe_int(context.get("_system_event_depth"), 0)},
+                    },
+                    actor=context.get("_system_event_actor") or {},
+                    tenant=context.get("_system_event_tenant") or context.get("tenant") or {},
+                    provider_config=context.get("_provider_config"),
+                )
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": res}
+        created = self.provider.create_calendar_event(self._coerce_booking_payload(step, context, mode="create"))
+        emit_system_event(
+            self.provider,
+            {
+                "type": "booking_created",
+                "payload": self._booking_event_payload(created),
+                "meta": {"depth": safe_int(context.get("_system_event_depth"), 0)},
+            },
+            actor=context.get("_system_event_actor") or {},
+            tenant=context.get("_system_event_tenant") or context.get("tenant") or {},
+            provider_config=context.get("_provider_config"),
+        )
+        res = created
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": res}
+
+    def _booking_event_payload(self, event: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "event_id": event.get("id"),
+            "calendar_id": event.get("calendar_id"),
+            "contact_id": event.get("contact_id"),
+            "thread_id": event.get("thread_id"),
+            "start_time": event.get("start_time"),
+            "end_time": event.get("end_time"),
+            "booking_type_id": event.get("booking_type_id"),
+            "status": event.get("status"),
+        }
+
+    def _resolve_booking_event(self, params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        event_id = (
+            params.get("event_id")
+            or params.get("id")
+            or context.get("event_id")
+            or (context.get("booking_event") or {}).get("event_id")
+            or (context.get("trigger_event") or {}).get("payload", {}).get("event_id")
+        )
+        events = self.provider.list_calendar_events() if getattr(self.provider, "list_calendar_events", None) else []
+        if event_id:
+            event = next((item for item in events if item.get("id") == event_id), None)
+            if event:
+                return event
+        thread_id = (
+            params.get("thread_id")
+            or context.get("thread_id")
+            or (context.get("booking_event") or {}).get("thread_id")
+            or (context.get("trigger_event") or {}).get("payload", {}).get("thread_id")
+        )
+        if thread_id:
+            thread_events = [item for item in events if item.get("thread_id") == thread_id]
+            if thread_events:
+                return sorted(thread_events, key=lambda item: str(item.get("start_time") or ""))[0]
+        contact_id = (
+            params.get("contact_id")
+            or context.get("contact_id")
+            or (context.get("booking_event") or {}).get("contact_id")
+            or (context.get("trigger_event") or {}).get("payload", {}).get("contact_id")
+        )
+        if contact_id:
+            contact_events = [item for item in events if item.get("contact_id") == contact_id]
+            if contact_events:
+                return sorted(contact_events, key=lambda item: str(item.get("start_time") or ""))[0]
+        raise ValueError("Booking event not found")
+
+    def _coerce_booking_payload(self, step: dict[str, Any], context: dict[str, Any], *, mode: str) -> dict[str, Any]:
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        config = json_object(params.get("node_config")) | json_object(params.get("configuration"))
+        trigger_payload = (context.get("trigger_event") or {}).get("payload") if isinstance(context.get("trigger_event"), dict) else {}
+        booking_event = context.get("booking_event") if isinstance(context.get("booking_event"), dict) else {}
+        start_time = (
+            params.get("start_time")
+            or params.get("scheduled_at")
+            or config.get("start_time")
+            or context.get("start_time")
+            or booking_event.get("start_time")
+            or trigger_payload.get("start_time")
+        )
+        start_dt = coerce_datetime(start_time) or (datetime.now(UTC) + timedelta(hours=1))
+        end_time = (
+            params.get("end_time")
+            or config.get("end_time")
+            or context.get("end_time")
+            or booking_event.get("end_time")
+            or trigger_payload.get("end_time")
+        )
+        end_dt = coerce_datetime(end_time) or (start_dt + timedelta(minutes=safe_int(params.get("duration_minutes") or config.get("duration_minutes"), 30)))
+        base = {
+            "calendar_id": params.get("calendar_id") or config.get("calendar_id") or context.get("calendar_id") or booking_event.get("calendar_id") or trigger_payload.get("calendar_id"),
+            "thread_id": params.get("thread_id") or config.get("thread_id") or context.get("thread_id") or booking_event.get("thread_id") or trigger_payload.get("thread_id"),
+            "contact_id": params.get("contact_id") or config.get("contact_id") or context.get("contact_id") or booking_event.get("contact_id") or trigger_payload.get("contact_id"),
+            "company_id": params.get("company_id") or config.get("company_id") or context.get("company_id"),
+            "booking_type_id": params.get("booking_type_id") or config.get("booking_type_id") or context.get("booking_type_id") or booking_event.get("booking_type_id") or trigger_payload.get("booking_type_id"),
+            "title": params.get("title") or config.get("title") or context.get("title") or booking_event.get("title") or trigger_payload.get("title") or "Scheduled Meeting",
+            "description": params.get("description") or config.get("description") or context.get("description") or booking_event.get("description") or trigger_payload.get("description") or "",
+            "location_type": params.get("location_type") or config.get("location_type") or context.get("location_type") or booking_event.get("location_type") or trigger_payload.get("location_type") or "other",
+            "location": params.get("location") or config.get("location") or context.get("location") or booking_event.get("location") or trigger_payload.get("location") or "",
+            "meeting_url": params.get("meeting_url") or config.get("meeting_url") or context.get("meeting_url") or booking_event.get("meeting_url") or trigger_payload.get("meeting_url") or "",
+            "status": params.get("status") or config.get("status") or context.get("status") or booking_event.get("status") or trigger_payload.get("status") or ("cancelled" if mode == "cancel" else "scheduled"),
+            "guest_name": params.get("guest_name") or config.get("guest_name") or context.get("guest_name") or booking_event.get("guest_name"),
+            "guest_email": params.get("guest_email") or config.get("guest_email") or context.get("guest_email") or booking_event.get("guest_email"),
+            "guest_phone": params.get("guest_phone") or config.get("guest_phone") or context.get("guest_phone") or booking_event.get("guest_phone"),
+            "source": params.get("source") or config.get("source") or context.get("source") or booking_event.get("source") or "flow",
+            "start_time": start_dt.isoformat(),
+            "end_time": end_dt.isoformat(),
+        }
+        if mode != "create":
+            base["event_id"] = params.get("event_id") or config.get("event_id") or context.get("event_id") or booking_event.get("event_id") or trigger_payload.get("event_id")
+        return {key: value for key, value in base.items() if value is not None}
+
+    def _create_booking(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        created = self.provider.create_calendar_event(self._coerce_booking_payload(step, context, mode="create"))
+        emit_system_event(
+            self.provider,
+            {
+                "type": "booking_created",
+                "payload": self._booking_event_payload(created),
+                "meta": {"depth": safe_int(context.get("_system_event_depth"), 0)},
+            },
+            actor=context.get("_system_event_actor") or {},
+            tenant=context.get("_system_event_tenant") or context.get("tenant") or {},
+            provider_config=context.get("_provider_config"),
+        )
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": created}
+
+    def _update_booking(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        params = self._coerce_booking_payload(step, context, mode="update")
+        event = self._resolve_booking_event(params, context)
+        updated = self.provider.update_calendar_event(
+            event["id"],
+            {key: value for key, value in params.items() if key not in {"event_id"}},
+        )
+        event_type = "booking_cancelled" if str(updated.get("status") or "").strip().lower() == "cancelled" else "booking_updated"
+        emit_system_event(
+            self.provider,
+            {
+                "type": event_type,
+                "payload": self._booking_event_payload(updated),
+                "meta": {"depth": safe_int(context.get("_system_event_depth"), 0)},
+            },
+            actor=context.get("_system_event_actor") or {},
+            tenant=context.get("_system_event_tenant") or context.get("tenant") or {},
+            provider_config=context.get("_provider_config"),
+        )
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": updated}
+
+    def _cancel_booking(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        event = self._resolve_booking_event(step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}, context)
+        cancelled = self.provider.update_calendar_event(
+            event["id"],
+            {"status": "cancelled", "sync_note": "Cancelled via execution layer."},
+        )
+        emit_system_event(
+            self.provider,
+            {
+                "type": "booking_cancelled",
+                "payload": self._booking_event_payload(cancelled),
+                "meta": {"depth": safe_int(context.get("_system_event_depth"), 0)},
+            },
+            actor=context.get("_system_event_actor") or {},
+            tenant=context.get("_system_event_tenant") or context.get("tenant") or {},
+            provider_config=context.get("_provider_config"),
+        )
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": cancelled}
+
+    def _get_booking(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        events = self.provider.list_calendar_events() if getattr(self.provider, "list_calendar_events", None) else []
+        event_id = params.get("event_id") or context.get("event_id") or (context.get("booking_event") or {}).get("event_id")
+        if event_id:
+            event = next((item for item in events if item.get("id") == event_id), None)
+            if not event:
+                raise ValueError("Booking event not found")
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": {"event": event, "count": 1}}
+        thread_id = params.get("thread_id") or context.get("thread_id") or (context.get("booking_event") or {}).get("thread_id")
+        if thread_id:
+            events = [item for item in events if item.get("thread_id") == thread_id]
+        contact_id = params.get("contact_id") or context.get("contact_id") or (context.get("booking_event") or {}).get("contact_id")
+        if contact_id:
+            events = [item for item in events if item.get("contact_id") == contact_id]
+        status_filter = params.get("status") or context.get("status")
+        if status_filter:
+            events = [item for item in events if str(item.get("status") or "").strip().lower() == str(status_filter).strip().lower()]
+        events = sorted(events, key=lambda item: str(item.get("start_time") or ""))
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {"events": events[:25], "count": len(events), "event": events[0] if events else None},
+        }
 
     def _add_contact(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         params = step.get("parameters", {})
