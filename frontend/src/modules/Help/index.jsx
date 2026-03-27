@@ -12,7 +12,7 @@ import {
   getHelpBroadcastsApi, 
   getHelpTicketsApi, 
   createHelpTicketApi,
-  assistAiApi
+  getOperatorAssistResponseApi
 } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 import { helpTemplates } from './templates/helpTemplates';
@@ -131,14 +131,13 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     
     setAskingCharlie(true);
     try {
-      // Unified AI Response Structure
-      const response = await assistAiApi({
-        module: 'help',
-        surface: 'charlie',
-        field: 'query',
-        intent: 'assist',
-        current_value: searchQuery,
-        context: { activeModule }
+      const response = await getOperatorAssistResponseApi({
+        message: searchQuery,
+        context: {
+          module: 'help',
+          surface: 'knowledge-panel',
+          topic: activeModule
+        }
       });
 
       // Analyzed intent for dynamic generation
@@ -164,9 +163,13 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
 
       // Unified AI Response Structure
       setCharlieResponse({
-        answer: response.suggestion || "I've analyzed your request. Here are the best pathways and resources to execute.",
+        answer: response?.answer || "I don't have enough data to confirm that.",
+        insights: Array.isArray(response?.insights) ? response.insights : [],
         articles: searchResults.articles.slice(0, 2),
-        actions: dynamicAction ? [dynamicAction, ...searchResults.actions.slice(0, 1)] : searchResults.actions.slice(0, 2),
+        actions: dynamicAction
+          ? [dynamicAction, ...searchResults.actions.slice(0, 1)]
+          : searchResults.actions.slice(0, 2),
+        suggestedActions: Array.isArray(response?.suggestedActions) ? response.suggestedActions : [],
         templates: searchResults.templates.slice(0, 1)
       });
     } catch (err) {
@@ -238,9 +241,9 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                   const match = part.match(/!\[(.*?)\]\((.*?)\)/);
                   if (match) {
                     return (
-                      <div key={index} className="my-8 rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-black/20">
+                      <div key={index} className="my-8 rounded-[var(--radius-panel)] border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-elevated)] bg-[var(--color-bg-primary)]/40">
                         <img src={match[2]} alt={match[1]} className="w-full h-auto cursor-zoom-in hover:scale-[1.01] transition-transform duration-500" />
-                        {match[1] && <div className="p-3 bg-black/40 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center border-t border-white/5">{match[1]}</div>}
+                        {match[1] && <div className="p-3 bg-[var(--color-bg-primary)]/50 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest text-center border-t border-[var(--color-border)]">{match[1]}</div>}
                       </div>
                     );
                   }
@@ -336,29 +339,29 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                 }`}
               >
                 {askingCharlie ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
-                {askingCharlie ? 'CONSULTING...' : 'Ask Charlie'}
+                {askingCharlie ? 'CONSULTING...' : 'Ask Assist'}
               </button>
             </div>
 
             {/* Intent Engine: Multi-Type Search Results */}
             {searchQuery.trim() && !askingCharlie && (
-              <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="floating-surface absolute top-full left-0 right-0 mt-2 z-50 overflow-hidden rounded-[var(--radius-modal)] animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="p-4 max-h-[400px] overflow-auto no-scrollbar space-y-4">
                   {searchResults.actions.length > 0 && (
                     <div className="space-y-2">
-                      <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Instant Actions</div>
+                      <div className="text-[8px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest px-2">Instant Actions</div>
                       {searchResults.actions.map(action => (
                         <button 
                           key={action.id}
                           onClick={() => handleRunAction(action.payload, action.title)}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-left group transition-all"
+                          className="w-full flex items-center gap-3 p-3 rounded-[var(--radius-card)] hover:bg-[var(--color-hover)] text-left group transition-all"
                         >
                           <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] group-hover:bg-[var(--color-primary)] group-hover:text-white transition-all">
                             <Zap size={14} />
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-white">{action.title}</div>
-                            <div className="text-[8px] text-slate-500 uppercase tracking-widest">Execute Intent</div>
+                            <div className="text-xs font-bold text-[var(--color-text-primary)]">{action.title}</div>
+                            <div className="text-[8px] text-[var(--color-text-tertiary)] uppercase tracking-widest">Execute Intent</div>
                           </div>
                         </button>
                       ))}
@@ -366,46 +369,46 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                   )}
 
                   {searchResults.templates.length > 0 && (
-                    <div className="space-y-2 border-t border-white/5 pt-4">
-                      <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Rapid Templates</div>
+                    <div className="space-y-2 border-t border-[var(--color-border)] pt-4">
+                      <div className="text-[8px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest px-2">Rapid Templates</div>
                       {searchResults.templates.map(tpl => (
                         <button 
                           key={tpl.id}
                           onClick={() => handleRunAction({ type: 'create_flow', payload: { template: tpl.id } }, `Use ${tpl.title}`)}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-left group transition-all"
+                          className="w-full flex items-center gap-3 p-3 rounded-[var(--radius-card)] hover:bg-[var(--color-hover)] text-left group transition-all"
                         >
                           <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 group-hover:bg-sky-500 group-hover:text-white transition-all">
                             <Grid size={14} />
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-white">{tpl.title}</div>
-                            <div className="text-[8px] text-slate-500 uppercase tracking-widest">Inject into {activeModule}</div>
+                            <div className="text-xs font-bold text-[var(--color-text-primary)]">{tpl.title}</div>
+                            <div className="text-[8px] text-[var(--color-text-tertiary)] uppercase tracking-widest">Inject into {activeModule}</div>
                           </div>
                         </button>
                       ))}
                     </div>
                   )}
 
-                  <div className="space-y-2 border-t border-white/5 pt-4">
-                    <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Intel Modules</div>
+                  <div className="space-y-2 border-t border-[var(--color-border)] pt-4">
+                    <div className="text-[8px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest px-2">Intel Modules</div>
                     {searchResults.articles.length > 0 ? (
                       searchResults.articles.map(article => (
                         <button 
                           key={article.id}
                           onClick={() => handleSelectArticle(article.payload)}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-left group transition-all"
+                          className="w-full flex items-center gap-3 p-3 rounded-[var(--radius-card)] hover:bg-[var(--color-hover)] text-left group transition-all"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-white transition-all">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-primary)] flex items-center justify-center text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-primary)] transition-all">
                             <FileText size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-white truncate">{article.title}</div>
-                            <div className="text-[8px] text-slate-500 uppercase tracking-widest">Read Article</div>
+                            <div className="text-xs font-bold text-[var(--color-text-primary)] truncate">{article.title}</div>
+                            <div className="text-[8px] text-[var(--color-text-tertiary)] uppercase tracking-widest">Read Article</div>
                           </div>
                         </button>
                       ))
                     ) : (
-                      <div className="p-4 text-center text-[10px] text-slate-500 uppercase tracking-widest">No matching intel</div>
+                      <div className="p-4 text-center text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-widest">No matching intel</div>
                     )}
                   </div>
                 </div>
@@ -413,14 +416,14 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
             )}
           </div>
 
-          {/* AI Assist Mode: Charlie Unified Response */}
+          {/* Grounded assist mode: canonical `/api/assist` response plus local help actions/templates. */}
           {charlieResponse && (
             <div className="max-w-2xl mx-auto bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 rounded-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-500">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white shadow-lg shadow-[var(--color-primary)]/20">
                   <Bot size={18} />
                 </div>
-                <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">Charlie Guidance</div>
+                <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">Assist Guidance</div>
                 <button onClick={() => setCharlieResponse(null)} className="ml-auto text-slate-500 hover:text-white transition-colors">
                   <X size={14} />
                 </button>
@@ -428,6 +431,19 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
               <p className="text-sm font-medium text-[var(--color-text-secondary)] leading-relaxed italic">
                 "{charlieResponse.answer}"
               </p>
+
+              {charlieResponse.insights?.length > 0 && (
+                <div className="space-y-3">
+                  <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Grounded Insights</div>
+                  <div className="space-y-2">
+                    {charlieResponse.insights.map((insight, index) => (
+                      <div key={`insight-${index}`} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-[var(--color-text-secondary)]">
+                        {insight}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-4 pt-2">
                 {charlieResponse.actions.length > 0 && (
@@ -465,6 +481,18 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                   </div>
                 )}
               </div>
+              {charlieResponse.suggestedActions?.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Suggested Actions</div>
+                  <div className="space-y-2">
+                    {charlieResponse.suggestedActions.map((action, index) => (
+                      <div key={`suggested-${index}`} className="rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/8 px-3 py-2 text-[10px] text-[var(--color-text-primary)]">
+                        {action}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div className="flex items-center justify-center gap-4">
@@ -642,15 +670,15 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
       {/* Ticket Modal */}
       {showTicketForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowTicketForm(false)} />
-          <div className="relative w-full max-w-xl bg-[#0f172a] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-8 border-b border-white/5 bg-white/[0.02]">
+          <div className="overlay-scrim absolute inset-0" onClick={() => setShowTicketForm(false)} />
+          <div className="modal-surface relative flex w-full max-w-xl max-h-[90vh] flex-col overflow-hidden rounded-[var(--radius-modal)]">
+            <div className="p-8 border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]/40">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Submit a Ticket</h2>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1">Direct Support Protocol</p>
+                  <h2 className="text-2xl font-black text-[var(--color-text-primary)] uppercase tracking-tighter">Submit a Ticket</h2>
+                  <p className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-[0.2em] mt-1">Direct Support Protocol</p>
                 </div>
-                <button onClick={() => setShowTicketForm(false)} className="text-slate-500 hover:text-white transition-colors">
+                <button onClick={() => setShowTicketForm(false)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors">
                   <X size={24} />
                 </button>
               </div>
@@ -658,21 +686,21 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
 
             <form onSubmit={handleTicketSubmit} className="p-8 space-y-6 overflow-auto no-scrollbar">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Subject</label>
+                <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Subject</label>
                 <input
                   name="subject"
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-[var(--color-primary)]/50 focus:bg-white/10 outline-none transition-all font-medium"
+                  className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium"
                   placeholder="What can we help you with?"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Category</label>
+                  <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Category</label>
                   <select
                     name="category"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-[var(--color-primary)]/50 focus:bg-white/10 outline-none transition-all font-medium appearance-none"
+                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium appearance-none"
                   >
                     <option value="general">General Support</option>
                     <option value="technical">Technical Issue</option>
@@ -681,10 +709,10 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Priority</label>
+                  <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Priority</label>
                   <select
                     name="priority"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-[var(--color-primary)]/50 focus:bg-white/10 outline-none transition-all font-medium appearance-none"
+                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium appearance-none"
                   >
                     <option value="low">Low</option>
                     <option value="normal" selected>Normal</option>
@@ -695,12 +723,12 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Description</label>
+                <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Description</label>
                 <textarea
                   name="content"
                   required
                   rows={4}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:border-[var(--color-primary)]/50 focus:bg-white/10 outline-none transition-all font-medium resize-none"
+                  className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium resize-none"
                   placeholder="Please provide as much detail as possible..."
                 />
               </div>
@@ -712,7 +740,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                 >
                   Send Request
                 </button>
-                <p className="text-[9px] font-bold text-slate-500 text-center mt-6 uppercase tracking-widest leading-relaxed">
+                <p className="text-[9px] font-bold text-[var(--color-text-tertiary)] text-center mt-6 uppercase tracking-widest leading-relaxed">
                   Charlie will analyze this request instantly and provide <br/> immediate triage recommendations.
                 </p>
               </div>

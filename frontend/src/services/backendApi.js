@@ -129,12 +129,21 @@ export async function switchTenantSessionApi(tenantId) {
   return response.session || null;
 }
 
-export async function assistAiApi(payload) {
-  const response = await request('/api/ai/assist', {
+// Canonical generic drafting/generation path. Use this for AI-assisted writing and field help.
+export async function draftAiApi(payload) {
+  const response = await request('/api/ai/draft', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
   return response.data || null;
+}
+
+// Canonical embedded assist path. This stays grounded on real system state via `/api/assist`.
+export async function getOperatorAssistResponseApi(payload) {
+  return request('/api/assist', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function runAiCommandApi(payload) {
@@ -165,6 +174,10 @@ export async function getAiAgentsApi(includeHidden = false) {
   const suffix = includeHidden ? '?include_hidden=true' : '';
   const response = await request(`/api/ai/agents${suffix}`);
   return response.data || [];
+}
+
+export async function getSystemHealthApi() {
+  return request('/api/system/health');
 }
 
 export async function getOmegaStatusApi(limit = 12) {
@@ -410,6 +423,19 @@ export async function removeWorkspaceMemberApi(workspaceId, membershipId) {
 export async function getGlobalVariablesApi() {
   const response = await request('/api/settings/variables');
   return response.data || [];
+}
+
+export async function getCanonicalSettingsApi() {
+  const response = await request('/api/settings/canonical');
+  return response.data || null;
+}
+
+export async function updateCanonicalTenantSettingsApi(settings) {
+  const response = await request('/api/settings/canonical/tenant', {
+    method: 'PATCH',
+    body: JSON.stringify({ settings })
+  });
+  return response.data || null;
 }
 
 export async function getBrainOverviewApi() {

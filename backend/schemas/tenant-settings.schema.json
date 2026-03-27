@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AIO CRM Canonical Settings Contract",
+  "type": "object",
+  "required": ["system", "tenant", "user", "fieldPolicies"],
+  "additionalProperties": false,
+  "properties": {
+    "system": {
+      "type": "object",
+      "required": ["deployment", "ui", "internal"],
+      "additionalProperties": true,
+      "properties": {
+        "deployment": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "ui": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "internal": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "required": ["branding", "navigation", "globalVariables", "domains", "comms", "calendar", "automation", "visibility", "internal"],
+      "additionalProperties": true,
+      "properties": {
+        "branding": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "navigation": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "menuStructure": {
+              "type": ["array", "null"]
+            },
+            "mobileItems": {
+              "type": "array"
+            }
+          }
+        },
+        "globalVariables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "domains": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "comms": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "calendar": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "automation": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "visibility": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "internal": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "user": {
+      "type": "object",
+      "required": ["preferences", "profile", "comms", "internal"],
+      "additionalProperties": true,
+      "properties": {
+        "preferences": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "profile": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "comms": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "internal": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "fieldPolicies": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

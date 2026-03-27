@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sqlite3
+import sys
 from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -22,17 +23,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+CURRENT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = CURRENT_DIR.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from automation_service import test_automation_provider
 from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
 from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_config
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
 from orchestration import ExecutionEngine, emit_system_event
-from backend.planner import create_booking_execution_plan
-from backend.agent_definitions import AGENT_DEFINITIONS
-from backend.agent_runtime import AgentRegistry
-from backend.cortext_service import cortext_service
-from backend.tools import AIOToolRegistry
+try:
+    from backend.planner import create_booking_execution_plan
+    from backend.agent_definitions import AGENT_DEFINITIONS
+    from backend.agent_runtime import AgentRegistry
+    from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+    from backend.cortext_service import cortext_service
+    from backend.operator_assist import generate_assist_response
+    from backend.system_health import build_system_health
+    from backend.tenant_deployment import DeploymentFailureError
+    from backend.tools import AIOToolRegistry
+except ModuleNotFoundError:
+    from planner import create_booking_execution_plan
+    from agent_definitions import AGENT_DEFINITIONS
+    from agent_runtime import AgentRegistry
+    from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+    from cortext_service import cortext_service
+    from operator_assist import generate_assist_response
+    from system_health import build_system_health
+    from tenant_deployment import DeploymentFailureError
+    from tools import AIOToolRegistry
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -929,6 +950,12 @@ def booking_event_payload(event: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def session_tenant_settings(tenant: dict[str, Any] | None) -> dict[str, Any]:
+    tenant = tenant or {}
+    candidate = tenant.get("tenant_settings") if isinstance(tenant.get("tenant_settings"), dict) else tenant.get("settings") or {}
+    return normalize_tenant_settings_payload({"tenantSettings": candidate}, include_defaults=True)
+
+
 def emit_booking_lifecycle_event(
     *,
     event_type: str,
@@ -1236,6 +1263,7 @@ class WorkspaceUserCreateRequest(BaseModel):
     password: str
     name: str
     role: str = "staff"
+    user_role: str = "operator"
     create_workspace: bool = False
     workspace_name: str | None = None
 
@@ -1259,6 +1287,25 @@ class GlobalVariableUpsertRequest(BaseModel):
     description: str | None = None
     is_secret: bool = False
     is_system: bool = False
+    label: str | None = None
+    category: str | None = None
+    editable_by_client: bool = True
+
+
+class CanonicalSettingsUpdateRequest(BaseModel):
+    settings: dict[str, Any]
+
+
+class TenantBlueprintImportRequest(BaseModel):
+    blueprint: dict[str, Any]
+
+
+class TenantDeployRequest(BaseModel):
+    tenantName: str
+    blueprintId: str | None = None
+    blueprintPayload: dict[str, Any] | None = None
+    overrides: dict[str, Any] | None = None
+    switchToTenant: bool = False
 
 
 class BrainProfileUpdateRequest(BaseModel):
@@ -1349,6 +1396,7 @@ class SystemEmailTemplateUpdateRequest(BaseModel):
     body_html: str | None = None
     body_text: str | None = None
     config: dict[str, Any] | None = None
+    config: dict[str, Any] | None = None
 
 
 class AIAssistRequest(BaseModel):
@@ -1361,6 +1409,11 @@ class AIAssistRequest(BaseModel):
     task: str | None = None
     route_hints: dict[str, Any] | None = None
     provider_override: dict[str, Any] | str | None = None
+
+
+class OperatorAssistRequest(BaseModel):
+    message: str
+    context: dict[str, Any] | None = None
 
 
 class AICommandRequest(BaseModel):
@@ -1708,6 +1761,26 @@ WORKSPACE_EDITOR_ROLES = {"owner", "admin", "staff"}
 WORKSPACE_ADMIN_ROLES = {"owner", "admin"}
 
 
+def resolve_session_user_role(session: dict[str, Any] | None) -> str:
+    user = (session or {}).get("user") or {}
+    return "client" if str(user.get("role") or "").strip().lower() == "client" else "operator"
+
+
+def is_operator(session: dict[str, Any] | None) -> bool:
+    return resolve_session_user_role(session) == "operator"
+
+
+def is_client(session: dict[str, Any] | None) -> bool:
+    return resolve_session_user_role(session) == "client"
+
+
+def require_operator(request: Request, detail: str = "Only operators can perform this action.") -> dict[str, Any]:
+    session = require_session(request)
+    if not is_operator(session):
+        raise HTTPException(status_code=403, detail=detail)
+    return session
+
+
 def require_workspace_role(request: Request, allowed_roles: set[str], detail: str = "You do not have permission to perform this action.") -> dict[str, Any]:
     session = require_session(request)
     tenant = session.get("tenant") or {}
@@ -1715,6 +1788,61 @@ def require_workspace_role(request: Request, allowed_roles: set[str], detail: st
     if not role or role not in allowed_roles:
         raise HTTPException(status_code=403, detail=detail)
     return session
+
+
+def require_client_safe_surface(
+    request: Request,
+    operator_allowed_roles: set[str],
+    detail: str,
+) -> dict[str, Any]:
+    session = require_session(request)
+    if is_client(session):
+        tenant = session.get("tenant") or {}
+        role = (tenant.get("role") or "").strip().lower()
+        if role not in WORKSPACE_VIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="Client account does not belong to the active workspace.")
+        return session
+    return require_workspace_role(request, operator_allowed_roles, detail)
+
+
+def is_client_allowed_api_request(method: str, path: str) -> bool:
+    if is_public_api_request(path):
+        return True
+    if path in {"/api/", "/api/health"}:
+        return True
+    if path.startswith("/api/auth/"):
+        return True
+    if path == "/api/notifications" and method == "GET":
+        return True
+    if path == "/api/notifications/read-all" and method == "POST":
+        return True
+    if re.fullmatch(r"/api/notifications/[^/]+", path or "") and method in {"PATCH", "DELETE"}:
+        return True
+    if path == "/api/comms/snapshot" and method == "GET":
+        return True
+    if path == "/api/comms/threads" and method == "POST":
+        return True
+    if path == "/api/comms/threads/open" and method == "POST":
+        return True
+    if re.fullmatch(r"/api/comms/threads/[^/]+/messages", path or "") and method == "POST":
+        return True
+    if re.fullmatch(r"/api/comms/threads/[^/]+/send-email", path or "") and method == "POST":
+        return True
+    if re.fullmatch(r"/api/comms/threads/[^/]+/status", path or "") and method == "PATCH":
+        return True
+    if re.fullmatch(r"/api/comms/threads/[^/]+/schedule-meeting", path or "") and method == "POST":
+        return True
+    if path == "/api/calendars" and method == "GET":
+        return True
+    if path == "/api/calendar/events" and method in {"GET", "POST"}:
+        return True
+    if re.fullmatch(r"/api/calendar/events/[^/]+", path or "") and method in {"PATCH", "DELETE"}:
+        return True
+    if path == "/api/booking-types" and method == "GET":
+        return True
+    if path == "/api/assist" and method == "POST":
+        return True
+    return False
 
 
 def is_public_api_request(path: str) -> bool:
@@ -1762,6 +1890,8 @@ async def inject_tenant_context(request: Request, call_next):
         and not allows_no_active_workspace(request.url.path)
     ):
         return JSONResponse(status_code=403, content={"detail": "No active workspace selected."})
+    if request.url.path.startswith("/api") and session and is_client(session) and not is_client_allowed_api_request(request.method, request.url.path):
+        return JSONResponse(status_code=403, content={"detail": "Client mode blocks this endpoint."})
 
     context_token = set_request_tenant_id(tenant_id)
     try:
@@ -2228,33 +2358,61 @@ async def logout_other_auth_sessions(request: Request):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@app.post("/api/ai/assist")
-async def ai_assist(request: Request, payload: AIAssistRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can use AI workspace tools.")
-    tenant = session.get("tenant") or {}
-    user = session.get("user") or {}
-    tenant_id = tenant.get("id")
-    resolved_module = (payload.module or "").strip().lower()
-    resolved_context = dict(payload.context or {})
-    route_hints = dict(payload.route_hints or {})
-    if isinstance(resolved_context.get("route_hints"), dict):
-        route_hints = {**resolved_context.get("route_hints", {}), **route_hints}
-    provider_override = payload.provider_override or resolved_context.get("provider_override")
+@app.post("/api/assist")
+async def operator_assist(request: Request, payload: OperatorAssistRequest):
+    session = require_client_safe_surface(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can use Operator Assist.")
+    token = extract_session_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
     try:
-        route = resolve_ai_route(
-            tenant_id=tenant_id,
-            feature="ai_assist",
-            task=payload.task,
-            provider_override=provider_override,
-            route_hints=route_hints or None,
+        return generate_assist_response(
+            message=payload.message,
+            context=payload.context or {},
+            token=token,
+            session=session,
             auth_store=auth_store,
+            provider=provider,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    log_ai_route(route)
-    ai_provider = route.get("provider_config")
-    routing = resolve_ai_run_routing(
-        payload.module,
+
+
+@app.get("/api/system/health")
+async def get_system_health(request: Request):
+    session = require_operator(request, "Only operators can view system health.")
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view system health.")
+    token = extract_session_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+    try:
+        return build_system_health(
+            token=token,
+            session=session,
+            auth_store=auth_store,
+            provider=provider,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+# Canonical generic drafting path. This is the preferred route for AI-assisted writing,
+# form completion, and content generation.
+@app.post("/api/ai/draft")
+async def ai_draft(request: Request, payload: AIAssistRequest):
+    return await ai_assist_logic(request, payload)
+
+
+# Legacy generic assist path. Marked as LEGACY; use `/api/ai/draft` for all new callers.
+# Canonical grounded operator assist is `/api/assist`.
+@app.post("/api/ai/assist")
+async def ai_assist(request: Request, payload: AIAssistRequest):
+    return await ai_assist_logic(request, payload)
+
+
+async def ai_assist_logic(request: Request, payload: AIAssistRequest):
+    # This logic powers both `/api/ai/draft` (canonical) and `/api/ai/assist` (legacy).
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can use AI workspace tools.")
+    tenant = session.get("tenant") or {}
         payload.surface,
         field=payload.field,
         intent=payload.intent,
@@ -2932,6 +3090,17 @@ async def list_workspaces(request: Request):
     return {"data": session.get("tenants") or []}
 
 
+@app.get("/api/blueprints")
+async def list_blueprints(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view blueprints.")
+    try:
+        return {"data": auth_store.list_blueprints()}
+    except DeploymentFailureError as error:
+        raise HTTPException(status_code=400, detail=error.payload) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.post("/api/workspaces")
 async def create_workspace(request: Request, payload: WorkspaceCreateRequest):
     require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can create a new workspace.")
@@ -2942,11 +3111,46 @@ async def create_workspace(request: Request, payload: WorkspaceCreateRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.post("/api/tenants/deploy")
+async def deploy_tenant(request: Request, payload: TenantDeployRequest):
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can deploy tenants.")
+    token = extract_session_token(request)
+    try:
+        deployment = auth_store.deploy_tenant(
+            token,
+            payload.tenantName,
+            blueprint_id=payload.blueprintId,
+            blueprint_payload=payload.blueprintPayload,
+            overrides=payload.overrides,
+            switch_to_tenant=payload.switchToTenant,
+        )
+        return {"data": deployment}
+    except DeploymentFailureError as error:
+        raise HTTPException(status_code=400, detail=error.payload) from error
+    except ValueError as error:
+        detail = str(error)
+        status_code = 403 if "permission" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.get("/api/tenants/{tenant_id}/deployment")
+async def get_tenant_deployment(tenant_id: str, request: Request):
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.get_tenant_deployment(token, tenant_id)}
+    except ValueError as error:
+        detail = str(error)
+        status_code = 403 if "permission" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
 @app.patch("/api/workspaces/{workspace_id}")
 async def rename_workspace(workspace_id: str, request: Request, payload: WorkspaceUpdateRequest):
     require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can rename a workspace.")
     token = extract_session_token(request)
     try:
+        # Boundary: row identity updates (`name`, route-critical workspace fields) stay on
+        # the tenant row; canonical settings updates belong in `tenantSettings`.
         return auth_store.rename_workspace(token, workspace_id, payload.name, payload.settings)
     except ValueError as error:
         detail = str(error)
@@ -3001,6 +3205,7 @@ async def create_workspace_user(workspace_id: str, request: Request, payload: Wo
             payload.password,
             payload.name,
             payload.role,
+            payload.user_role,
             payload.create_workspace,
             payload.workspace_name,
         )
@@ -3087,6 +3292,72 @@ async def update_setting_system_email(template_id: str, request: Request, payloa
         return {"data": auth_store.update_system_email_template(token, tenant_id, template_id, payload.model_dump())}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/settings/canonical")
+async def get_canonical_settings(request: Request):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view settings.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    user_id = (session.get("user") or {}).get("id")
+    try:
+        return {"data": auth_store.get_canonical_settings_bundle(token, tenant_id, user_id=user_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.patch("/api/settings/canonical/tenant")
+async def update_canonical_tenant_settings(request: Request, payload: CanonicalSettingsUpdateRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage tenant settings.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        # Boundary: this route is for canonical tenant settings, including operational
+        # metadata in `tenantSettings.internal`, not tenant row identity primitives.
+        updated = auth_store.update_tenant_settings(token, tenant_id, payload.settings)
+        return {"data": updated}
+    except ValueError as error:
+        detail = str(error)
+        status_code = 403 if "permission" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.patch("/api/settings/canonical/user")
+async def update_canonical_user_settings(request: Request, payload: CanonicalSettingsUpdateRequest):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only signed-in users can update user settings.")
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.update_user_settings(token, payload.settings)}
+    except ValueError as error:
+        detail = str(error)
+        status_code = 403 if "permission" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.get("/api/settings/blueprint/export")
+async def export_tenant_blueprint_api(request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can export tenant blueprints.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return {"data": auth_store.export_tenant_blueprint(tenant_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/settings/blueprint/import")
+async def import_tenant_blueprint_api(request: Request, payload: TenantBlueprintImportRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can import tenant blueprints.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        updated = auth_store.import_tenant_blueprint(token, tenant_id, payload.blueprint)
+        return {"data": updated}
+    except DeploymentFailureError as error:
+        raise HTTPException(status_code=400, detail=error.payload) from error
+    except ValueError as error:
+        detail = str(error)
+        status_code = 403 if "permission" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 @app.get("/api/oauth/callback")
@@ -3321,11 +3592,13 @@ async def list_calendar_events():
 
 @app.post("/api/calendar/events")
 async def create_calendar_event(request: Request, payload: dict[str, Any]):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create calendar events.")
+    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create calendar events.")
     try:
-        created = provider.create_calendar_event(payload)
         tenant = session.get("tenant") or {}
         user = session.get("user") or {}
+        # Calendar defaults are applied here from canonical tenant settings before persistence.
+        # Explicit request fields always win; defaults fill only missing event values.
+        created = provider.create_calendar_event(apply_calendar_event_defaults(payload, session_tenant_settings(tenant)))
         provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
         emit_booking_lifecycle_event(
             event_type="booking_created",
@@ -3341,7 +3614,7 @@ async def create_calendar_event(request: Request, payload: dict[str, Any]):
 
 @app.patch("/api/calendar/events/{event_id}")
 async def update_calendar_event(event_id: str, request: Request, payload: CalendarEventUpdateRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update calendar events.")
+    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update calendar events.")
     try:
         updated = provider.update_calendar_event(event_id, payload.model_dump(exclude_unset=True))
         tenant = session.get("tenant") or {}
@@ -3361,7 +3634,7 @@ async def update_calendar_event(event_id: str, request: Request, payload: Calend
 
 @app.delete("/api/calendar/events/{event_id}")
 async def delete_calendar_event(event_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete calendar events.")
+    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete calendar events.")
     try:
         existing_event = next((item for item in provider.list_calendar_events() if item.get("id") == event_id), None)
         provider.delete_calendar_event(event_id)
@@ -3835,7 +4108,7 @@ async def comms_snapshot():
 
 @app.post("/api/comms/threads")
 async def create_thread(request: Request, payload: ThreadCreateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     return provider.create_thread(
         subject=payload.subject,
         channel_type=payload.channel_type,
@@ -3850,7 +4123,7 @@ async def create_thread(request: Request, payload: ThreadCreateRequest):
 
 @app.post("/api/comms/threads/open")
 async def open_thread(request: Request, payload: ThreadOpenRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     try:
         return provider.open_thread_for_contact(
             contact_id=payload.contact_id,
@@ -3866,7 +4139,7 @@ async def open_thread(request: Request, payload: ThreadOpenRequest):
 
 @app.post("/api/comms/threads/{thread_id}/messages")
 async def send_thread_message(thread_id: str, request: Request, payload: ThreadMessageRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     return provider.send_thread_message(
         thread_id=thread_id,
         body=payload.body,
@@ -3880,7 +4153,7 @@ async def send_thread_message(thread_id: str, request: Request, payload: ThreadM
 
 @app.post("/api/comms/threads/{thread_id}/send-email")
 async def send_thread_email(thread_id: str, request: Request, payload: MailSendRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     try:
         return provider.send_thread_via_mailbox(
             thread_id=thread_id,
@@ -3896,7 +4169,7 @@ async def send_thread_email(thread_id: str, request: Request, payload: MailSendR
 
 @app.patch("/api/comms/threads/{thread_id}/status")
 async def update_thread_status(thread_id: str, request: Request, payload: ThreadStatusRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     return provider.update_thread_status(thread_id=thread_id, status=payload.status)
 
 
@@ -3947,7 +4220,7 @@ async def advance_thread_stage(thread_id: str, request: Request):
 
 @app.post("/api/comms/threads/{thread_id}/schedule-meeting")
 async def schedule_thread_meeting(thread_id: str, request: Request, payload: ThreadMeetingRequest | None = None):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
     try:
         existing_events = provider.list_calendar_events(thread_id=thread_id)
         response = provider.schedule_thread_meeting(thread_id=thread_id, scheduled_at=payload.scheduled_at if payload else None)

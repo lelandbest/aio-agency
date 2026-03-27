@@ -43,10 +43,11 @@ export const BrandProvider = ({ children, initialConfig = {} }) => {
   });
 
   useEffect(() => {
+    // Persisted tenant branding is authoritative. BrandContext is the live UI projection/cache.
     setBrandConfigState((current) => ({
-      ...current,
       ...DEFAULT_BRAND_CONFIG,
-      ...initialConfig
+      ...initialConfig,
+      brandId: initialConfig?.brandId || current?.brandId || generateBrandId(),
     }));
   }, [initialConfig]);
 
@@ -70,21 +71,15 @@ export const BrandProvider = ({ children, initialConfig = {} }) => {
   }, []);
 
   const resolveBrandConfig = useCallback((tenantConfig = null, workspaceConfig = null) => {
-    const resolutionOrder = [
-      tenantConfig,
-      workspaceConfig,
-      brandConfig,
-      DEFAULT_BRAND_CONFIG
-    ];
+    // Precedence is defaults -> workspaceConfig -> BrandContext cache -> tenant branding.
+    // Tenant branding must always win when it is provided.
+    const resolved = {
+      ...DEFAULT_BRAND_CONFIG,
+      ...(workspaceConfig && typeof workspaceConfig === 'object' ? workspaceConfig : {}),
+      ...(brandConfig && typeof brandConfig === 'object' ? brandConfig : {}),
+      ...(tenantConfig && typeof tenantConfig === 'object' ? tenantConfig : {}),
+    };
 
-    const resolved = { ...DEFAULT_BRAND_CONFIG };
-    
-    for (const config of resolutionOrder) {
-      if (config && typeof config === 'object') {
-        Object.assign(resolved, config);
-      }
-    }
-    
     if (!resolved.brandId) {
       resolved.brandId = generateBrandId();
     }

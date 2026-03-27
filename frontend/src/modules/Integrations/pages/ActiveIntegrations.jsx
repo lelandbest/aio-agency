@@ -11,7 +11,6 @@ import AddIntegrationPanel from '../components/AddIntegrationPanel';
 import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES, normalizeAiField } from '../utils/integrationConfigs';
 import { getBrandIcon } from '../utils/brandIcons.jsx';
 import ModuleHeader from '../../../components/ModuleHeader';
-import AIAssistButton from '../../../components/AIAssistButton';
 import {
   deleteAutomationProviderConfigApi,
   deleteAiProviderConfigApi,
@@ -1786,7 +1785,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           { label: 'Refresh', icon: RefreshCw, onClick: loadAll, variant: 'secondary' }
         ]}
         showActions
-        aiAssistSlot={<AIAssistButton onAssist={() => console.log('AI Assist: Integrations')} tooltip="AI Assist" iconType="crosshair" />}
       />
       <div className="flex flex-1 flex-col gap-6 p-6">
         <p className="m-0 text-sm text-[var(--color-text-secondary)]">Admin control plane for mailbox accounts, calendar sources, and every other external system connected to AIO CRM.</p>

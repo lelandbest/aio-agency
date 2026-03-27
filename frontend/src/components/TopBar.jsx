@@ -3,20 +3,41 @@ import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
-import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown } from 'lucide-react';
+import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
-import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi } from '../services/backendApi';
+import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi } from '../services/backendApi';
 
-const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu }) => {
+const HEALTH_META = {
+    healthy: {
+        label: 'Healthy',
+        icon: CheckCircle2,
+        buttonClass: 'border-emerald-500/25 bg-emerald-500/10 text-[var(--color-text-primary)] hover:bg-emerald-500/14 shadow-[var(--shadow-base)]',
+    },
+    warning: {
+        label: 'Warning',
+        icon: AlertTriangle,
+        buttonClass: 'border-amber-500/25 bg-amber-500/10 text-[var(--color-text-primary)] hover:bg-amber-500/14 shadow-[var(--shadow-base)]',
+    },
+    critical: {
+        label: 'Critical',
+        icon: AlertOctagon,
+        buttonClass: 'border-rose-500/25 bg-rose-500/10 text-[var(--color-text-primary)] hover:bg-rose-500/14 shadow-[var(--shadow-base)]',
+    },
+};
+
+const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showTenantDropdown, setShowTenantDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [themeSaving, setThemeSaving] = useState(false);
+    const [health, setHealth] = useState(null);
     const { theme, setTheme } = useTheme();
-    const { user, tenant, tenants = [], switchTenant } = useAuth();
+    const { user, tenant, tenants = [], switchTenant, refreshSession, isClient } = useAuth();
     const { brandConfig } = useBrand();
     const fallbackBrandName = brandConfig?.brandName || DEFAULT_BRAND_CONFIG.brandName;
+    const clientMode = isClient?.() ?? false;
 
     const fetchNotifications = useCallback(async () => {
         try {
@@ -41,6 +62,34 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
         window.addEventListener('aio:notification', handleNotification);
         return () => window.removeEventListener('aio:notification', handleNotification);
     }, [fetchNotifications]);
+
+    useEffect(() => {
+        if (clientMode) {
+            setHealth(null);
+            return undefined;
+        }
+
+        let cancelled = false;
+        const fetchHealth = async () => {
+            try {
+                const next = await getSystemHealthApi();
+                if (!cancelled) {
+                    setHealth(next || null);
+                }
+            } catch {
+                if (!cancelled) {
+                    setHealth(null);
+                }
+            }
+        };
+
+        fetchHealth();
+        const intervalId = window.setInterval(fetchHealth, 60000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [clientMode, tenant?.id]);
 
     const handleMarkAllRead = async () => {
         try {
@@ -74,14 +123,44 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
         role: user?.role || 'Owner'
     }), [user]);
 
+    const healthStatus = String(health?.status || 'healthy').toLowerCase();
+    const healthMeta = HEALTH_META[healthStatus] || HEALTH_META.healthy;
+    const HealthIcon = healthMeta.icon;
+    const healthAlertCount = Array.isArray(health?.alerts)
+        ? health.alerts.filter((alert) => ['warning', 'critical'].includes(String(alert?.severity || '').toLowerCase())).length
+        : 0;
+
     const tenantOptions = tenants.length > 0
         ? tenants
         : tenant
             ? [{ ...tenant, selected: true }]
             : [];
+    const floatingPanelClass = 'floating-surface absolute right-0 top-12 z-50 overflow-hidden rounded-[var(--radius-panel)]';
+
+    const handleThemeToggle = async () => {
+        if (!tenant?.id || themeSaving) {
+            return;
+        }
+        const nextTheme = theme === 'dark' ? 'light' : 'dark';
+        try {
+            setThemeSaving(true);
+            await updateCanonicalTenantSettingsApi({
+                branding: {
+                    ...(tenant?.tenant_settings?.branding || {}),
+                    theme: nextTheme,
+                },
+            });
+            setTheme(nextTheme);
+            await refreshSession?.();
+        } catch (error) {
+            console.warn('Failed to persist theme:', error);
+        } finally {
+            setThemeSaving(false);
+        }
+    };
 
     return (
-        <div className="min-h-20 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] flex items-center justify-between gap-6 px-6">
+        <div className="chrome-surface min-h-20 flex items-center justify-between gap-6 px-6">
             <div className="flex items-center gap-3 min-w-0">
                 <button
                     onClick={onToggleMobileMenu}
@@ -109,7 +188,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
 
             <div className="flex items-center gap-4 ml-auto">
                 {showSearch && (
-                    <div className="hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-premium">
+                    <div className="surface-tertiary hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)]">
                         <Search size={16} className="text-[var(--color-text-tertiary)]" />
                         <input
                             type="search"
@@ -125,14 +204,35 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     </div>
                 )}
 
-                <button
-                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                    className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600"
-                    title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-                    aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-                >
-                    {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
+                {!clientMode ? (
+                    <button
+                        onClick={handleThemeToggle}
+                        disabled={themeSaving}
+                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600"
+                        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+                        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+                    >
+                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
+                ) : null}
+
+                {!clientMode && onOpenSystemHealth ? (
+                    <button
+                        type="button"
+                        onClick={onOpenSystemHealth}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${healthMeta.buttonClass}`}
+                        title="Open system health"
+                        aria-label="Open system health"
+                    >
+                        <HealthIcon size={14} />
+                        <span className="hidden xl:inline">{healthMeta.label}</span>
+                        {healthAlertCount > 0 ? (
+                            <span className="rounded-full border border-current/10 bg-[var(--color-bg-primary)]/60 px-1.5 py-0.5 text-[10px] font-black">
+                                {healthAlertCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : null}
 
                 <button
                     className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-green-500 hover:text-green-600"
@@ -162,7 +262,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     {showNotifications && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                            <div className="absolute right-0 top-12 w-80 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 overflow-hidden">
+                            <div className={`${floatingPanelClass} w-80`}>
                                 <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Notifications</h3>
                                     {unreadCount > 0 && (
@@ -202,9 +302,9 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 </div>
 
                 <div className="relative">
-                    <button
-                        onClick={() => setShowTenantDropdown(!showTenantDropdown)}
-                        className="flex items-center gap-3 px-3 py-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-blue-500 hover:text-blue-400 min-w-0 shadow-island-sm"
+                        <button
+                            onClick={() => setShowTenantDropdown(!showTenantDropdown)}
+                            className="surface-tertiary flex items-center gap-3 px-3 py-2 rounded-[var(--radius-card)] text-blue-500 hover:text-blue-400 min-w-0 transition"
                         title="Switch Workspace"
                         aria-label="Switch workspace"
                         aria-expanded={showTenantDropdown}
@@ -227,7 +327,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     {showTenantDropdown && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowTenantDropdown(false)} />
-                            <div className="absolute right-0 top-12 w-72 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 overflow-hidden">
+                            <div className={`${floatingPanelClass} w-72`}>
                                 <div className="p-4 border-b border-[var(--color-border)]">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Switch Workspace</h3>
                                     <p className="text-xs text-[var(--color-text-secondary)] mt-1">{tenant ? `Current: ${tenant.name}` : 'Select an available workspace'}</p>
@@ -242,14 +342,14 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                                                 }
                                                 setShowTenantDropdown(false);
                                             }}
-                                            className={`w-full text-left p-4 border-b border-[var(--color-border)] hover:bg-[var(--color-hover)] transition ${workspace.selected ? 'bg-purple-600/20 border-l-2 border-l-purple-600' : ''}`}
+                                            className={`w-full text-left p-4 border-b border-[var(--color-border)] hover:bg-[var(--color-hover)] transition ${workspace.selected ? 'bg-[var(--color-primary)]/10 border-l-2 border-l-[var(--color-primary)]' : ''}`}
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <p className="text-sm font-medium text-[var(--color-text-primary)]">{workspace.name}</p>
                                                     <p className="text-xs text-[var(--color-text-secondary)]">{workspace.role}</p>
                                                 </div>
-                                                {workspace.selected && <span className="text-purple-400">{'\u2713'}</span>}
+                                                {workspace.selected && <span className="text-[var(--color-primary)]">{'\u2713'}</span>}
                                             </div>
                                         </button>
                                     ))}
@@ -263,9 +363,9 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                 </div>
 
                 <div className="relative">
-                    <button
-                        onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition"
+                        <button
+                            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                            className="surface-tertiary p-2 rounded-[var(--radius-card)] transition"
                         title="User Menu"
                         aria-label="User menu"
                         aria-expanded={showProfileDropdown}
@@ -279,7 +379,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
                     {showProfileDropdown && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
-                            <div className="absolute right-0 top-12 w-72 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island z-50 overflow-hidden">
+                            <div className={`${floatingPanelClass} w-72`}>
                                 <div className="p-4 border-b border-[var(--color-border)]">
                                     <p className="text-sm font-medium text-[var(--color-text-primary)]">{currentUser.email}</p>
                                 </div>
@@ -345,6 +445,7 @@ const TopBar = ({ onLogout, onNavigate, title, subtitle = '', titleIcon: TitleIc
 TopBar.propTypes = {
     onLogout: PropTypes.func.isRequired,
     onNavigate: PropTypes.func.isRequired,
+    onOpenSystemHealth: PropTypes.func,
     title: PropTypes.string.isRequired,
     subtitle: PropTypes.string,
     titleIcon: PropTypes.elementType,

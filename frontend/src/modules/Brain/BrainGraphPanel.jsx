@@ -52,7 +52,7 @@ const buildNodeLayout = (profile, sources, items) => {
 const toneClassByType = {
   profile: 'border-white/60 bg-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_0_30px_rgba(255,255,255,0.15)] backdrop-blur-none',
   source: 'border-sky-400/40 bg-sky-400/20 shadow-[0_0_15px_rgba(56,189,248,0.2)]',
-  item: 'border-slate-500/30 bg-slate-800/40 shadow-none',
+  item: 'border-[var(--color-border)] bg-[color:color-mix(in_srgb,var(--color-bg-tertiary)_82%,transparent)] shadow-[var(--shadow-base)]',
 };
 
 const nodeSizeClass = {
@@ -296,7 +296,7 @@ export default function BrainGraphPanel({
 
   return (
     <div 
-      className={`h-full w-full bg-black relative overflow-hidden flex flex-col group/map rounded-[var(--radius-panel)] transition-all duration-500 shadow-island-sm ${!interactionArmed ? 'cursor-pointer' : ''}`}
+      className={`h-full w-full bg-[var(--color-bg-primary)] relative overflow-hidden flex flex-col group/map rounded-[var(--radius-panel)] transition-all duration-500 shadow-[var(--shadow-elevated)] ${!interactionArmed ? 'cursor-pointer' : ''}`}
       onClick={() => { if(!interactionArmed) setInteractionArmed(true); }}
     >
       <BrainAnimations />
@@ -305,7 +305,7 @@ export default function BrainGraphPanel({
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '40px 40px' }} />
       
       {!interactionArmed && (
-        <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md transition-all duration-700 pointer-events-none">
+        <div className="overlay-scrim absolute inset-0 z-[200] flex flex-col items-center justify-center transition-all duration-700 pointer-events-none">
               <div className="text-[40px] font-black tracking-[0.5em] text-slate-100/90 font-ethnocentric selection:bg-sky-500/20 mb-8">AIO CORTEX</div>
               <div className="text-[14px] font-black tracking-[0.4em] text-sky-400 animate-pulse" style={{ textShadow: '0 0 10px rgba(56, 189, 248, 0.8)' }}>CLICK TO ENTER NEURAL NETWORK</div>
         </div>
@@ -319,7 +319,7 @@ export default function BrainGraphPanel({
 
       {/* Interactive Legend */}
       <div className="absolute top-8 right-8 z-40 flex items-center gap-3">
-        <div className="flex bg-[var(--color-bg-primary)]/80 border border-[var(--color-border)] rounded-[var(--radius-panel)] p-1 backdrop-blur-xl shadow-island-sm">
+        <div className="floating-surface flex rounded-[var(--radius-panel)] p-1">
           {['all', 'source', 'item'].map(f => (
             <button 
               key={f}
@@ -398,7 +398,7 @@ export default function BrainGraphPanel({
                 {/* Check icon for items? No, user didn't ask. */}
               </div>
               {/* Label on Hover */}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-black/80 border border-slate-800/80 rounded text-[10px] font-bold text-slate-300 uppercase tracking-widest opacity-0 group-hover/node:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+              <div className="floating-surface absolute top-full left-1/2 z-50 mt-2 -translate-x-1/2 rounded-[var(--radius-card)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest opacity-0 group-hover/node:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 {node.label}
               </div>
             </div>
@@ -408,7 +408,7 @@ export default function BrainGraphPanel({
         {/* Small Details Context Popup */}
         {contextNode && (
           <div 
-            className="absolute z-[100] w-[220px] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] shadow-island backdrop-blur-2xl p-4 animate-in fade-in zoom-in duration-200"
+            className="floating-surface absolute z-[100] w-[220px] rounded-[var(--radius-panel)] p-4 animate-in fade-in zoom-in duration-200"
             style={{ left: contextAnchor.x, top: contextAnchor.y }}
           >
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/60">
@@ -429,11 +429,11 @@ export default function BrainGraphPanel({
 
                 {contextNode.type === 'source' && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)] shadow-island-sm">
+                    <div className="surface-tertiary flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)]">
                        <Globe size={12} className="text-[var(--color-primary)]" />
                        <span className="text-[10px] text-[var(--color-text-secondary)] font-bold uppercase truncate">{contextData?.location || 'Operational Node'}</span>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)] shadow-island-sm">
+                    <div className="surface-tertiary flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)]">
                        <Database size={12} className="text-magenta-400" />
                        <span className="text-[10px] text-[var(--color-text-secondary)] font-bold uppercase">{contextData?.source_type || 'Nexus'}</span>
                     </div>
@@ -461,34 +461,34 @@ export default function BrainGraphPanel({
 
       {/* Footer Stats Overlay */}
       <div className="absolute bottom-8 left-8 z-40 pointer-events-none flex gap-4">
-         <div className="px-4 py-2 bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-panel)] backdrop-blur-md shadow-island-sm">
+         <div className="floating-surface px-4 py-2 rounded-[var(--radius-panel)]">
             <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Nodes: <span className="text-white">{nodes.length}</span></span>
          </div>
-         <div className="px-4 py-2 bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-panel)] backdrop-blur-md shadow-island-sm">
+         <div className="floating-surface px-4 py-2 rounded-[var(--radius-panel)]">
             <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Connectivity: <span className="text-[var(--color-primary)]">98%</span></span>
          </div>
       </div>
  
       {/* Zoom / Pan Controls */}
       <div className="absolute bottom-8 right-8 z-40 flex flex-col gap-2">
-         <div className="flex flex-col bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-panel)] backdrop-blur-md overflow-hidden shadow-island-sm pointer-events-auto">
+         <div className="floating-surface pointer-events-auto flex flex-col overflow-hidden rounded-[var(--radius-panel)]">
             <button 
               onClick={() => setZoom(z => Math.min(2.5, z + 0.2))}
-              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-white/5 transition-all border-b border-white/5"
+              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition-all border-b border-[var(--color-border)]"
               title="Zoom In"
             >
               <ZoomIn size={18} />
             </button>
             <button 
               onClick={() => setZoom(z => Math.max(0.4, z - 0.2))}
-              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-white/5 transition-all border-b border-white/5"
+              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition-all border-b border-[var(--color-border)]"
               title="Zoom Out"
             >
               <ZoomOut size={18} />
             </button>
             <button 
               onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-white/5 transition-all"
+              className="p-3 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition-all"
               title="Reset View"
             >
               <Maximize size={18} />

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Filter, Download, ShoppingCart } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
-import { assistAiApi, getOrdersApi } from '../../services/backendApi';
+import { draftAiApi, getOrdersApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
@@ -11,7 +11,7 @@ const OrdersModule = () => {
 
   const runOrdersAssist = async () => {
     try {
-      const response = await assistAiApi({
+      const response = await draftAiApi({
         module: 'orders',
         surface: 'order-list',
         field: 'summary',

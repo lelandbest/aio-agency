@@ -1,0 +1,201 @@
+{
+  "blueprintId": "dfy_base",
+  "name": "DFY Base",
+  "description": "Baseline DFY tenant deployment with branding, navigation, comms, calendar defaults, and an active booking flow.",
+  "version": "1.0.0",
+  "source": "filesystem",
+  "blueprintVersion": 1,
+  "tenant": {
+    "branding": {
+      "theme": "dark",
+      "layout": "sidebar-left",
+      "brandName": "DFY Client System",
+      "companyName": "DFY Client System",
+      "companyLogo": "",
+      "logoUrl": "/aio-button-192px.png",
+      "primaryColor": "#0f766e",
+      "secondaryColor": "#155e75",
+      "accentColor": "#f97316",
+      "menuBackgroundColor": "var(--color-bg-primary)",
+      "menuTextColor": "var(--color-text-primary)",
+      "footerText": "Powered by AIO CRM",
+      "disclaimer": "Operational Use Only",
+      "contactInfo": "support@client.local",
+      "reportHeaderLabel": "Client Intelligence Report"
+    },
+    "navigation": {
+      "menuStructure": [
+        {
+          "label": "Core",
+          "items": [
+            { "id": "dashboard", "label": "Dashboard", "icon": "LayoutDashboard", "type": "internal", "visible": true },
+            { "id": "aio-brain", "label": "AIO Brain", "icon": "Bot", "type": "internal", "visible": true },
+            { "id": "calendar", "label": "Calendar", "icon": "CalendarIcon", "type": "internal", "visible": true },
+            { "id": "chat", "label": "Comms", "icon": "MessageSquare", "type": "internal", "visible": true }
+          ]
+        },
+        {
+          "label": "Build",
+          "items": [
+            { "id": "flows", "label": "Flows", "icon": "Workflow", "type": "internal", "visible": true },
+            { "id": "settings", "label": "Settings", "icon": "Settings", "type": "internal", "visible": true }
+          ]
+        }
+      ],
+      "mobileItems": []
+    },
+    "globalVariables": {
+      "companyName": {
+        "value": "DFY Client System",
+        "label": "Company Name",
+        "category": "business",
+        "editableByClient": true,
+        "description": "Primary operating name for templates and automations",
+        "isSystem": false,
+        "isSecret": false
+      },
+      "supportEmail": {
+        "value": "support@client.local",
+        "label": "Support Email",
+        "category": "comms",
+        "editableByClient": true,
+        "description": "Default support address used in outbound templates",
+        "isSystem": false,
+        "isSecret": false
+      }
+    },
+    "domains": {
+      "primaryDomain": "client.local",
+      "allowedDomains": ["client.local"]
+    },
+    "comms": {
+      "defaults": {
+        "defaultMailboxId": "",
+        "defaultAssignee": "Operator",
+        "defaultFromName": "Client Success",
+        "defaultReplyTo": "support@client.local",
+        "signature": "Client Success Team"
+      },
+      "systemEmailTemplates": {
+        "new-meeting": {
+          "templateKey": "new-meeting",
+          "emailType": "New Meeting",
+          "subject": "Your meeting is scheduled",
+          "sendTo": "Meeting Contact",
+          "enabled": true,
+          "bodyHtml": null,
+          "bodyText": "Your meeting has been scheduled successfully.",
+          "config": {}
+        },
+        "new-form-submission": {
+          "templateKey": "new-form-submission",
+          "emailType": "New Form Submission",
+          "subject": "New lead captured",
+          "sendTo": "System Owner",
+          "enabled": true,
+          "bodyHtml": null,
+          "bodyText": "A new lead has been captured in the system.",
+          "config": {}
+        }
+      }
+    },
+    "calendar": {
+      "defaults": {
+        "defaultCalendarId": "",
+        "defaultBookingTypeId": "",
+        "defaultMeetingDuration": 30,
+        "defaultEventDurationMinutes": 30,
+        "defaultLocationType": "other",
+        "defaultLocationValue": "",
+        "bufferBeforeMinutes": 0,
+        "bufferAfterMinutes": 0
+      }
+    },
+    "automation": {
+      "defaults": {
+        "enabled": true,
+        "approvalMode": "standard"
+      }
+    },
+    "visibility": {
+      "hiddenModules": [],
+      "clientEditableSections": ["branding", "navigation", "globalVariables", "comms", "calendar"]
+    },
+    "internal": {
+      "clientLabel": "DFY Base",
+      "deploymentTag": "dfy-base",
+      "handoffStatus": "ready",
+      "notes": "Default DFY deployment baseline",
+      "onboardingStage": "deployed",
+      "fulfillmentStatus": "ready",
+      "assignedOperator": "",
+      "metadata": {}
+    }
+  },
+  "flows": [
+    {
+      "id": "booking-created-default",
+      "name": "Booking Created Validation",
+      "status": "Active",
+      "nodes": [
+        {
+          "id": "trigger-booking-created",
+          "type": "trigger",
+          "position": { "x": 100, "y": 120 },
+          "data": {
+            "templateId": "booking-created-trigger",
+            "label": "Booking Created",
+            "description": "Trigger on booking creation",
+            "typeLabel": "Trigger",
+            "nodeColor": "trigger",
+            "iconName": "Calendar",
+            "config": { "event": "booking_created" }
+          }
+        },
+        {
+          "id": "action-get-booking",
+          "type": "action",
+          "position": { "x": 360, "y": 120 },
+          "data": {
+            "templateId": "get-booking",
+            "label": "Get Booking",
+            "description": "Fetch booking details",
+            "typeLabel": "Action",
+            "nodeColor": "action",
+            "iconName": "Calendar",
+            "config": { "actionType": "get_booking" }
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-booking-trigger",
+          "source": "trigger-booking-created",
+          "target": "action-get-booking",
+          "sourceHandle": null,
+          "targetHandle": null,
+          "data": {}
+        }
+      ],
+      "metadata": {
+        "nodeCount": 2,
+        "deploymentManaged": true,
+        "blueprintId": "dfy_base"
+      }
+    }
+  ],
+  "fieldPolicies": {
+    "tenant": {
+      "compatibilityAliases": {
+        "menu_structure": "navigation.menuStructure"
+      },
+      "derivedPaths": ["globalVariables", "comms.systemEmailTemplates"]
+    },
+    "user": {
+      "derivedPaths": ["profile.phone", "preferences.locale", "preferences.timezone", "comms.emailSignature"]
+    },
+    "blueprint": {
+      "excludedPaths": ["sessions", "passwords", "user", "audit", "runtime"]
+    }
+  }
+}

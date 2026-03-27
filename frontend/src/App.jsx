@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { ThemeProvider } from './lib/ThemeContext';
-import AuthContext from './contexts/AuthContext';
+import AuthContext, { isClientRole, isOperatorRole, normalizeUserRole } from './contexts/AuthContext';
 import DbContext from './contexts/DbContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
+import OperatorAssistDock from './components/OperatorAssistDock';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import { clearStoredSessionToken, getStoredSessionToken } from './services/authStorage';
@@ -30,6 +31,7 @@ const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
 const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
+const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -40,7 +42,9 @@ const PublicForm = lazy(() => import('./pages/PublicForm'));
 import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
 
 const DEFAULT_ACTIVE_MODULE = 'aio-brain';
+const DEFAULT_CLIENT_MODULE = 'chat';
 const DEFAULT_INTEGRATION_CATEGORY = 'automation';
+const CLIENT_ALLOWED_MODULES = new Set(['chat', 'calendar']);
 
 const normalizeNavigationValue = (value) => {
   if (typeof value !== 'string') {
@@ -109,7 +113,53 @@ const ICON_MAP = {
 
 const MODULE_SUBTITLE_MAP = {
   flows: 'Manage and launch your automation flows.',
-  chat: 'Thread-first Comms for triage, actions, and audit logs.'
+  chat: 'Thread-first Comms for triage, actions, and audit logs.',
+  'system-health': 'Operator-only visibility into current failures, degradation, and deployment risk.'
+};
+
+const SPECIAL_MODULE_META = {
+  'system-health': {
+    label: 'System Health',
+    icon: 'Activity',
+    subtitle: MODULE_SUBTITLE_MAP['system-health'],
+    type: 'internal',
+    searchPlaceholder: 'Search system health...',
+  },
+};
+
+const isValidMenuItem = (item) => (
+  item
+  && typeof item === 'object'
+  && typeof item.id === 'string'
+  && typeof item.label === 'string'
+  && typeof item.icon === 'string'
+);
+
+const isValidMenuCategory = (category) => (
+  category
+  && typeof category === 'object'
+  && typeof category.category === 'string'
+  && Array.isArray(category.items)
+  && category.items.every(isValidMenuItem)
+);
+
+const isUsableMenuStructure = (value) => (
+  Array.isArray(value)
+  && value.length > 0
+  && value.every(isValidMenuCategory)
+);
+
+const filterMenuForClient = (structure = []) => {
+  const filtered = (Array.isArray(structure) ? structure : []).map((category) => ({
+    ...category,
+    items: (Array.isArray(category?.items) ? category.items : []).filter((item) => CLIENT_ALLOWED_MODULES.has(item.id)),
+  })).filter((category) => category.items.length > 0);
+  return filtered.length > 0
+    ? filtered
+    : INITIAL_MENU_STRUCTURE.map((category) => ({
+        ...category,
+        items: (Array.isArray(category?.items) ? category.items : []).filter((item) => CLIENT_ALLOWED_MODULES.has(item.id)),
+      })).filter((category) => category.items.length > 0);
 };
 
 // ============ MAIN APP COMPONENT ============
@@ -130,18 +180,93 @@ const App = () => {
   const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
+  const activeTenantSettings = session?.tenant?.tenant_settings || session?.tenant?.settings || {};
+  const preferredTenantTheme = activeTenantSettings?.branding?.theme || null;
+  const userRole = normalizeUserRole(session?.user?.role);
+  const clientMode = isClientRole(userRole);
+  const operatorMode = isOperatorRole(userRole);
+  const renderedMenuStructure = clientMode ? filterMenuForClient(menuStructure) : menuStructure;
+  const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(activeModule) ? DEFAULT_CLIENT_MODULE : activeModule;
+  const canonicalMenu = activeTenantSettings?.navigation?.menuStructure;
+  const legacyMenu = activeTenantSettings?.menu_structure;
 
   const fullscreenModules = [];
-  const isFullscreen = fullscreenModules.includes(activeModule);
+  const isFullscreen = fullscreenModules.includes(effectiveActiveModule);
 
   useEffect(() => {
-    const configuredMenu = session?.tenant?.settings?.menu_structure;
-    if (Array.isArray(configuredMenu) && configuredMenu.length > 0) {
-      setMenuStructure(configuredMenu);
+    console.warn('[App] initial menu length', {
+      initialMenuLength: Array.isArray(INITIAL_MENU_STRUCTURE) ? INITIAL_MENU_STRUCTURE.length : 0,
+      role: userRole,
+    });
+  }, [userRole]);
+
+  useEffect(() => {
+    const canonicalLength = Array.isArray(canonicalMenu) ? canonicalMenu.length : null;
+    const legacyLength = Array.isArray(legacyMenu) ? legacyMenu.length : null;
+    let nextMenu = INITIAL_MENU_STRUCTURE;
+    let navSource = 'INITIAL';
+
+    if (isUsableMenuStructure(canonicalMenu)) {
+      nextMenu = canonicalMenu;
+      navSource = 'CANONICAL';
+    } else if (isUsableMenuStructure(legacyMenu)) {
+      nextMenu = legacyMenu;
+      navSource = 'LEGACY';
+    }
+
+    console.warn('[App] menu hydration', {
+      role: userRole,
+      canonicalMenuType: canonicalMenu === null ? 'null' : Array.isArray(canonicalMenu) ? 'array' : typeof canonicalMenu,
+      canonicalMenuRawValue: canonicalMenu,
+      canonicalMenuLength: canonicalLength,
+      legacyMenuLength: legacyLength,
+      resolvedSource: navSource,
+      resolvedMenuLength: Array.isArray(nextMenu) ? nextMenu.length : 0,
+    });
+
+    // Canonical tenant navigation is authoritative only when it contains a usable persisted menu.
+    // Empty canonical/legacy arrays mean "not configured yet" and must not blank the sidebar.
+    setMenuStructure(nextMenu);
+  }, [session?.tenant?.id, canonicalMenu, legacyMenu, userRole]);
+
+  useEffect(() => {
+    const finalMenuLength = Array.isArray(renderedMenuStructure) ? renderedMenuStructure.length : 0;
+    console.warn('[App] final rendered menu', {
+      role: userRole,
+      finalRenderedMenuLength: finalMenuLength,
+      filteredForClient: clientMode,
+    });
+
+    if (finalMenuLength === 0) {
+      console.warn('[App] final rendered menu resolved to zero.', {
+        role: userRole,
+        rawCanonicalNavPayload: canonicalMenu,
+        rawLegacyNavPayload: legacyMenu,
+      });
+    }
+  }, [renderedMenuStructure, userRole, clientMode, canonicalMenu, legacyMenu]);
+
+  useEffect(() => {
+    if (Array.isArray(menuStructure) && menuStructure.length === 0) {
+      console.warn('[App] menuStructure is empty.', {
+        tenantId: session?.tenant?.id || null,
+        hasCanonicalNavigation: Array.isArray(canonicalMenu),
+        hasLegacyMenuAlias: Array.isArray(legacyMenu),
+        usingInitialMenuFallback: false,
+      });
+    }
+  }, [menuStructure, session?.tenant?.id, canonicalMenu, legacyMenu]);
+
+  useEffect(() => {
+    if (!clientMode || CLIENT_ALLOWED_MODULES.has(activeModule)) {
       return;
     }
-    setMenuStructure(INITIAL_MENU_STRUCTURE);
-  }, [session?.tenant?.id, session?.tenant?.settings]);
+    setActiveModule(DEFAULT_CLIENT_MODULE);
+    setFlowId(null);
+    setFlowAction(null);
+    setFlowIntent(null);
+    setCrmContactId(null);
+  }, [activeModule, clientMode]);
 
   const findMenuItemById = (items, targetId, parent = null) => {
     for (const item of items) {
@@ -161,7 +286,10 @@ const App = () => {
   };
 
   const currentModuleMeta = (() => {
-    const found = findMenuItemById(menuStructure.flatMap(category => category.items), activeModule);
+    if (SPECIAL_MODULE_META[effectiveActiveModule]) {
+      return SPECIAL_MODULE_META[effectiveActiveModule];
+    }
+    const found = findMenuItemById(renderedMenuStructure.flatMap(category => category.items), effectiveActiveModule);
     const item = found?.item;
     const parent = found?.parent;
     const label = item?.label || parent?.label || 'AIO CRM';
@@ -176,16 +304,16 @@ const App = () => {
   })();
 
   const systemsLauncherIds = ['aio-bots', 'aio-flows', 'aio-livebots', 'aio-sniper', 'aio-market', 'aio-academy'];
-  const systemsLauncherItems = menuStructure
+  const systemsLauncherItems = renderedMenuStructure
     .flatMap(category => category.items)
     .filter(item => systemsLauncherIds.includes(item.id))
     .sort((a, b) => a.label.localeCompare(b.label));
 
   useEffect(() => {
     if (!isFullscreen) {
-      setLastNonFullscreen(activeModule);
+      setLastNonFullscreen(effectiveActiveModule);
     }
-  }, [activeModule, isFullscreen]);
+  }, [effectiveActiveModule, isFullscreen]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || currentPage !== 'app' || window.location.pathname.startsWith('/form/')) {
@@ -203,9 +331,9 @@ const App = () => {
       }
     };
 
-    setParam('module', activeModule || DEFAULT_ACTIVE_MODULE);
+    setParam('module', effectiveActiveModule || DEFAULT_ACTIVE_MODULE);
 
-    if (activeModule === 'flows') {
+    if (effectiveActiveModule === 'flows') {
       setParam('flowId', flowId);
       setParam('action', flowAction);
       setParam('intent', flowIntent);
@@ -215,19 +343,19 @@ const App = () => {
       params.delete('intent');
     }
 
-    if (activeModule === 'chat') {
+    if (effectiveActiveModule === 'chat') {
       setParam('threadId', commsThreadId);
     } else {
       params.delete('threadId');
     }
 
-    if (activeModule === 'crm') {
+    if (effectiveActiveModule === 'crm') {
       setParam('contactId', crmContactId);
     } else {
       params.delete('contactId');
     }
 
-    if (activeModule === 'integrations') {
+    if (effectiveActiveModule === 'integrations') {
       setParam('integrationCategory', integrationCategory);
     } else {
       params.delete('integrationCategory');
@@ -239,7 +367,7 @@ const App = () => {
     if (nextUrl !== currentUrl) {
       window.history.replaceState({}, '', nextUrl);
     }
-  }, [currentPage, activeModule, flowId, flowAction, flowIntent, commsThreadId, crmContactId, integrationCategory]);
+  }, [currentPage, effectiveActiveModule, flowId, flowAction, flowIntent, commsThreadId, crmContactId, integrationCategory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,7 +413,7 @@ const App = () => {
     const handleNavigate = (event) => {
       const detail = event.detail || {};
       if (detail.module) {
-        setActiveModule(detail.module);
+        setActiveModule(clientMode && !CLIENT_ALLOWED_MODULES.has(detail.module) ? DEFAULT_CLIENT_MODULE : detail.module);
       }
       if (detail.flowId !== undefined) {
         setFlowId(detail.flowId);
@@ -308,10 +436,13 @@ const App = () => {
     };
     window.addEventListener('aio:navigate', handleNavigate);
     return () => window.removeEventListener('aio:navigate', handleNavigate);
-  }, []);
+  }, [clientMode]);
 
   const handleLogin = (session) => {
     setSession(session);
+    if (isClientRole(session?.user?.role)) {
+      setActiveModule(DEFAULT_CLIENT_MODULE);
+    }
   };
 
   const handleFlowContextChange = useCallback((next = {}) => {
@@ -347,6 +478,9 @@ const App = () => {
     }
     const nextSession = await switchTenantSessionApi(tenantId);
     setSession(nextSession);
+    if (isClientRole(nextSession?.user?.role) && !CLIENT_ALLOWED_MODULES.has(activeModule)) {
+      setActiveModule(DEFAULT_CLIENT_MODULE);
+    }
     return nextSession;
   };
 
@@ -425,7 +559,7 @@ const App = () => {
 
   // Get iframe URL for external links
   const getIframeUrl = (moduleId) => {
-    for (const category of menuStructure) {
+    for (const category of renderedMenuStructure) {
       for (const item of category.items) {
         if (item.id === moduleId && item.type === 'iframe') {
           return item.url;
@@ -451,13 +585,13 @@ const App = () => {
   // Module router - conditionally render modules
   const renderModule = () => {
     // Check if this is an iframe module
-    const iframeUrl = getIframeUrl(activeModule);
+    const iframeUrl = getIframeUrl(effectiveActiveModule);
     if (iframeUrl) {
       return (
-        <div className="h-full w-full bg-[#0F0F11] rounded-xl border border-[#27272A] overflow-hidden">
+        <div className="surface-elevated h-full w-full rounded-[var(--radius-panel)] overflow-hidden">
           <iframe
             src={iframeUrl}
-            title={activeModule}
+            title={effectiveActiveModule}
             className="w-full h-full border-none"
             allow="camera; microphone; clipboard-read; clipboard-write"
           />
@@ -467,12 +601,12 @@ const App = () => {
 
     // Check if this is a settings tab
     const settingsTabs = ['set-personal', 'set-billing', 'set-security', 'set-workspace', 'set-whitelabel', 'set-vars'];
-    if (settingsTabs.includes(activeModule)) {
-      const activeSettingsTab = getSettingsTabFromModuleId(activeModule);
+    if (settingsTabs.includes(effectiveActiveModule)) {
+      const activeSettingsTab = getSettingsTabFromModuleId(effectiveActiveModule);
       return <SettingsModule menuStructure={menuStructure} onMenuUpdate={setMenuStructure} activeSettingsTab={activeSettingsTab} />;
     }
 
-    switch (activeModule) {
+    switch (effectiveActiveModule) {
       case 'dashboard':
         return <SignalsModule />;
       case 'aio-brain':
@@ -492,7 +626,7 @@ const App = () => {
       case 'pipelines':
         return <PipelineModule />;
       case 'calendar':
-        return <CalendarModule />;
+        return <CalendarModule clientMode={clientMode} />;
       case 'aio-agents':
         return <AIOAgentsModule />;
       case 'orders':
@@ -504,7 +638,7 @@ const App = () => {
       case 'flows':
         return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onFlowContextChange={handleFlowContextChange} onExit={() => setActiveModule('aio-brain')} />;
       case 'chat':
-        return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} />;
+        return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} clientMode={clientMode} />;
       case 'marketplace':
         return <PlaceholderModule name="Marketplace" />;
       case 'sms-voip':
@@ -515,23 +649,29 @@ const App = () => {
         return <SettingsModule menuStructure={menuStructure} onMenuUpdate={setMenuStructure} />;
       case 'aio-help':
         return <HelpModule activeModule={activeModule} />;
+      case 'system-health':
+        return <SystemHealthModule />;
       default:
         return <PlaceholderModule name="Module" />;
     }
   };
 
   return (
-    <ThemeProvider>
-      <BrandProvider initialConfig={session?.tenant?.settings?.branding || {}}>
+    <ThemeProvider preferredTheme={preferredTenantTheme}>
+      <BrandProvider initialConfig={activeTenantSettings?.branding || {}}>
         <OrchestrationProvider>
-          <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
+          <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], role: userRole, isOperator: () => operatorMode, isClient: () => clientMode, logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
           <DbContext.Provider value={{ db, setDb }}>
             <div className="h-screen flex bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
             {/* Sidebar */}
             {!isFullscreen && (
               <Sidebar
-                activeModule={activeModule}
+                activeModule={effectiveActiveModule}
                 onSelectModule={(moduleId) => {
+                  if (clientMode && !CLIENT_ALLOWED_MODULES.has(moduleId)) {
+                    setActiveModule(DEFAULT_CLIENT_MODULE);
+                    return;
+                  }
                   setActiveModule(moduleId);
                   if (moduleId === 'flows') {
                     handleFlowContextChange({ flowId: null, action: null, intent: null });
@@ -543,8 +683,9 @@ const App = () => {
                 onLogout={handleLogout}
                 isMobileOpen={isMobileOpen}
                 setIsMobileOpen={setIsMobileOpen}
-                menuStructure={menuStructure}
+                menuStructure={renderedMenuStructure}
                 iconMap={ICON_MAP}
+                showHelp={!clientMode}
               />
             )}
 
@@ -554,11 +695,12 @@ const App = () => {
                 <TopBar
                   onLogout={handleLogout}
                   onNavigate={setCurrentPage}
+                  onOpenSystemHealth={() => setActiveModule('system-health')}
                   title={currentModuleMeta.label}
                   subtitle={currentModuleMeta.subtitle}
                   titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
                   searchPlaceholder={currentModuleMeta.searchPlaceholder}
-                  showSearch={currentModuleMeta.type !== 'iframe'}
+                  showSearch={!clientMode && currentModuleMeta.type !== 'iframe' && effectiveActiveModule !== 'system-health'}
                   onToggleMobileMenu={() => setIsMobileOpen(true)}
                 />
               )}
@@ -566,14 +708,14 @@ const App = () => {
               {/* Module Content */}
               <div
                 className={`flex-1 bg-[var(--color-bg-primary)] ${
-                  activeModule === 'flows'
+                  effectiveActiveModule === 'flows'
                     ? 'overflow-hidden p-0'
-                    : activeModule === 'aio-agents'
+                    : effectiveActiveModule === 'aio-agents'
                     ? 'overflow-hidden p-4'
                     : 'overflow-auto p-6'
                 }`}
               >
-                <Suspense key={activeModule} fallback={
+                <Suspense key={effectiveActiveModule} fallback={
                   <div className="h-full flex items-center justify-center">
                     <LoadingSpinner size="lg" message="Loading module..." />
                   </div>
@@ -582,6 +724,10 @@ const App = () => {
                 </Suspense>
               </div>
             </div>
+            <OperatorAssistDock
+              activeModule={effectiveActiveModule}
+              activeModuleLabel={currentModuleMeta.label}
+            />
           </div>
         </DbContext.Provider>
         </AuthContext.Provider>

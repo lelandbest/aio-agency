@@ -6,7 +6,6 @@ import {
   Cpu, User, Shield, ChevronDown, CheckCircle, RefreshCcw, Save, Trash, Code, Table, Presentation, Image, Video,
   Plus, File, Check
 } from 'lucide-react';
-import AIAssistButton from '../../components/AIAssistButton';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ModuleHeader from '../../components/ModuleHeader';
 
@@ -30,10 +29,10 @@ const getBinByCategory = (dbCategory) => {
 };
 
 const COMMS_WORKSPACE_SCALE = 0.75;
-const COMMS_PANEL = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-island';
-const COMMS_SUBPANEL = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island-sm';
-const COMMS_COLUMN_BG = 'bg-[linear-gradient(180deg,rgba(10,16,28,0.94),rgba(7,11,22,0.98))]';
-const COMMS_MAIN_BG = 'bg-[linear-gradient(180deg,rgba(12,18,31,0.58),rgba(8,12,22,0.34)_35%,rgba(8,12,22,0.2))]';
+const COMMS_PANEL = 'modal-surface rounded-[var(--radius-modal)]';
+const COMMS_SUBPANEL = 'surface-elevated rounded-[var(--radius-panel)]';
+const COMMS_COLUMN_BG = 'bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-bg-secondary)_96%,var(--color-bg-primary)_4%),color-mix(in_srgb,var(--color-bg-primary)_94%,black_6%))]';
+const COMMS_MAIN_BG = 'bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-bg-secondary)_82%,transparent),color-mix(in_srgb,var(--color-bg-primary)_88%,transparent)_38%,color-mix(in_srgb,var(--color-bg-primary)_94%,transparent))]';
 const COMMS_TOOLBAR_PRIMARY = 'rounded-[var(--radius-card)] border border-[var(--color-primary)]/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.28),rgba(12,22,38,0.42))] px-5 text-[var(--color-text-primary)] shadow-island-sm hover:border-[var(--color-primary)]/65 hover:bg-[linear-gradient(180deg,rgba(40,88,154,0.36),rgba(13,24,42,0.48))] transition-all';
 const COMMS_TOOLBAR_GHOST = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 text-[var(--color-text-secondary)] shadow-island-sm hover:border-[var(--color-primary)]/45 hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)] transition-all';
 import { 
@@ -93,14 +92,14 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+    <div className="overlay-scrim fixed inset-0 z-[5000] flex items-center justify-center p-6">
       <div className={COMMS_PANEL + " w-full max-w-lg flex flex-col overflow-hidden animate-in zoom-in duration-300"}>
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+        <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-primary)]/35">
           <div>
-            <div className="text-[12px] font-black uppercase tracking-[0.4em] text-slate-300">Ingest</div>
-            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Multi-source sync</div>
+            <div className="text-[12px] font-black uppercase tracking-[0.4em] text-[var(--color-text-primary)]">Ingest</div>
+            <div className="text-[9px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest mt-1">Multi-source sync</div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-slate-500">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--color-hover)] rounded-full text-[var(--color-text-tertiary)]">
             <X size={20} />
           </button>
         </div>
@@ -121,13 +120,13 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
           {selectedFiles.length > 0 && (
             <div className="space-y-2 max-h-[200px] overflow-y-auto no-scrollbar">
               {selectedFiles.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                <div key={i} className="surface-tertiary flex items-center gap-3 p-3 rounded-[var(--radius-card)]">
                   <File size={14} className="text-sky-400" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-bold text-slate-300 truncate uppercase">{f.name}</div>
-                    <div className="text-[8px] text-slate-500 font-bold uppercase">{(f.size / 1024).toFixed(1)} KB</div>
+                    <div className="text-[10px] font-bold text-[var(--color-text-primary)] truncate uppercase">{f.name}</div>
+                    <div className="text-[8px] text-[var(--color-text-tertiary)] font-bold uppercase">{(f.size / 1024).toFixed(1)} KB</div>
                   </div>
-                  <button onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} className="p-1 hover:text-red-400 text-slate-700">
+                  <button onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} className="p-1 hover:text-red-400 text-[var(--color-text-tertiary)]">
                     <X size={12} />
                   </button>
                 </div>
@@ -136,7 +135,7 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
           )}
         </div>
 
-        <div className="p-6 border-t border-[var(--color-border)] bg-black/40 flex justify-end gap-3">
+        <div className="p-6 border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 flex justify-end gap-3">
           <button onClick={onClose} className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-all">Cancel</button>
           <button 
             onClick={handleSync}
@@ -159,7 +158,7 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
       <SubPanelHeader title="Neural Engine" icon={BrainIcon} />
       <div className="space-y-4">
         <div className="relative">
-          <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Provider</div>
+          <div className="text-[11px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mb-1.5 ml-1">Provider</div>
           <select 
             value={activeProviderId}
             onChange={(e) => onProviderChange(e.target.value)}
@@ -172,21 +171,21 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
           <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
         </div>
         <div className="relative">
-          <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Model</div>
+          <div className="text-[11px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mb-1.5 ml-1">Model</div>
           <select 
             value={activeModelId}
             onChange={(e) => onModelChange(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-widest text-slate-300 outline-none focus:border-sky-500/40 transition-all cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.6)] appearance-none"
+            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] font-black uppercase tracking-widest text-[var(--color-text-primary)] outline-none focus:border-sky-500/40 transition-all cursor-pointer shadow-[var(--shadow-base)] appearance-none"
           >
             {provider.models?.length > 0 ? provider.models.map(m => (
-              <option key={m} value={m} className="bg-slate-900 text-sm italic">{m}</option>
+              <option key={m} value={m} className="bg-[var(--color-bg-tertiary)] text-sm italic">{m}</option>
             )) : provider.model ? (
-              <option key={provider.model} value={provider.model} className="bg-slate-900 text-sm italic">{provider.model}</option>
+              <option key={provider.model} value={provider.model} className="bg-[var(--color-bg-tertiary)] text-sm italic">{provider.model}</option>
             ) : (
-              <option key="default" value="" className="bg-slate-900 text-sm italic">Select Provider First</option>
+              <option key="default" value="" className="bg-[var(--color-bg-tertiary)] text-sm italic">Select Provider First</option>
             )}
           </select>
-          <ChevronDown size={16} className="absolute right-4 top-[38px] text-slate-500 pointer-events-none" />
+          <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
         </div>
       </div>
     </div>
@@ -205,33 +204,33 @@ const EditAssetModal = ({ item, isOpen, onClose, onUpdate }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[7000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6" onClick={onClose}>
+    <div className="overlay-scrim fixed inset-0 z-[7000] flex items-center justify-center p-6" onClick={onClose}>
       <div className={COMMS_PANEL + " w-full max-w-md flex flex-col overflow-hidden animate-in zoom-in duration-200"} onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+        <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-primary)]/35">
            <div className="text-[12px] font-black uppercase tracking-[0.3em] text-sky-400">Edit Asset Metadata</div>
-           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-slate-500"><X size={18} /></button>
+           <button onClick={onClose} className="p-2 hover:bg-[var(--color-hover)] rounded-full text-[var(--color-text-tertiary)]"><X size={18} /></button>
         </div>
         <div className="p-8 space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Asset Title</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] ml-1">Asset Title</label>
             <input 
               value={title} 
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[13px] text-slate-100 outline-none focus:border-sky-500/40"
+              className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-sky-500/40"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Vault Bucket (Category)</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] ml-1">Vault Bucket (Category)</label>
             <select 
               value={category} 
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[13px] text-slate-100 outline-none focus:border-sky-500/40 appearance-none uppercase tracking-widest font-black"
+              className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-sky-500/40 appearance-none uppercase tracking-widest font-black"
             >
               {CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
             </select>
           </div>
         </div>
-        <div className="p-6 border-t border-[var(--color-border)] bg-black/40 flex justify-end gap-3">
+        <div className="p-6 border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 flex justify-end gap-3">
           <button onClick={onClose} className="px-6 py-2 text-[10px] font-black uppercase tracking-widest text-[var(--color-text-secondary)]">Cancel</button>
           <button onClick={handleSave} className="px-8 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] text-[var(--color-text-on-primary)] text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-primary-hover)] transition-all shadow-island-sm">Persist Changes</button>
         </div>
@@ -337,19 +336,19 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
 
   return (
     <>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-6" onClick={onClose}>
+      <div className="overlay-scrim fixed inset-0 z-[9999] flex items-center justify-center p-6" onClick={onClose}>
         <div className={COMMS_PANEL + " w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in duration-300"} onClick={e => e.stopPropagation()}>
-          <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+          <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-primary)]/35">
             <div className="flex items-center gap-4">
               <div className="p-4 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.15)]">
                 <category.icon size={24} />
               </div>
               <div>
-                <div className="text-[16px] font-black uppercase tracking-[0.5em] text-slate-100">{category.bin} Operations</div>
+                <div className="text-[16px] font-black uppercase tracking-[0.5em] text-[var(--color-text-primary)]">{category.bin} Operations</div>
                 <div className="text-[10px] font-bold text-sky-500/60 uppercase tracking-widest mt-1">{category.label} Ingest Queue</div>
               </div>
             </div>
-            <button onClick={onClose} className="p-3 hover:bg-white/5 rounded-full text-slate-500 hover:text-white transition-all">
+            <button onClick={onClose} className="p-3 hover:bg-[var(--color-hover)] rounded-full text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all">
               <X size={24} />
             </button>
           </div>
@@ -357,14 +356,14 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
           <div className="flex-1 overflow-x-auto p-8 no-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/10">
-                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Signal Identifier</th>
-                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Asset Bin</th>
-                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Temporal Stamp</th>
-                  <th className="pb-5 text-right text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Operational Controls</th>
+                <tr className="border-b border-[var(--color-border)]">
+                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Signal Identifier</th>
+                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Asset Bin</th>
+                  <th className="pb-5 text-[11px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Temporal Stamp</th>
+                  <th className="pb-5 text-right text-[11px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Operational Controls</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[var(--color-border)]">
                 {renderTableRows(uploads, uploads.length > 0 && internal.length > 0 ? "Operational Uploads" : null)}
                 {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Library" : null)}
                 
@@ -385,16 +384,16 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
       </div>
 
       {selectedItem && (
-        <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-12" onClick={() => setSelectedItem(null)}>
+        <div className="overlay-scrim fixed inset-0 z-[6000] flex items-center justify-center p-12" onClick={() => setSelectedItem(null)}>
           <div className={COMMS_PANEL + " w-full max-w-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300"} onClick={e => e.stopPropagation()}>
-            <div className="p-8 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+            <div className="p-8 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-primary)]/35">
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.4em] text-sky-400">
                   {selectedItem.category === 'help' ? 'System Library' : 'Database Entry'}
                 </div>
-                <div className="text-[20px] font-black text-white uppercase tracking-widest mt-1">{selectedItem.title || selectedItem.label}</div>
+                <div className="text-[20px] font-black text-[var(--color-text-primary)] uppercase tracking-widest mt-1">{selectedItem.title || selectedItem.label}</div>
               </div>
-              <button onClick={() => setSelectedItem(null)} className="p-3 hover:bg-white/5 rounded-full text-slate-500"><X size={24} /></button>
+              <button onClick={() => setSelectedItem(null)} className="p-3 hover:bg-[var(--color-hover)] rounded-full text-[var(--color-text-tertiary)]"><X size={24} /></button>
             </div>
             <div className="p-8 space-y-8 overflow-y-auto no-scrollbar max-h-[70vh]">
               {selectedItem.category === 'help' ? (
@@ -418,8 +417,8 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-6">
-                    <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Relocate to Bin</div>
+                    <div className="surface-tertiary p-4 rounded-[var(--radius-card)]">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] mb-2">Relocate to Bin</div>
                       <select 
                         value={getBinByCategory(selectedItem.category || 'document')}
                         onChange={(e) => {
@@ -427,21 +426,21 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                           onUpdate(selectedItem.id, { category: newCat?.dbCategory || 'document' });
                           setSelectedItem(prev => ({ ...prev, category: newCat?.dbCategory || 'document' }));
                         }}
-                        className="w-full bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-[11px] font-black uppercase tracking-widest text-sky-400 outline-none"
+                        className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[11px] font-black uppercase tracking-widest text-sky-400 outline-none"
                       >
                         {CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.bin}</option>)}
                       </select>
                     </div>
-                    <div className="p-4 rounded-xl bg-black/40 border border-white/5">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Internal UID</div>
-                      <div className="text-[11px] font-mono text-slate-300 truncate">{selectedItem.id}</div>
+                    <div className="surface-tertiary p-4 rounded-[var(--radius-card)]">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] mb-2">Internal UID</div>
+                      <div className="text-[11px] font-mono text-[var(--color-text-primary)] truncate">{selectedItem.id}</div>
                     </div>
                   </div>
 
                   {/* Media Preview / Content Editor */}
-                  <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <div className="surface-base p-6 rounded-[var(--radius-panel)]">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-100">Live Asset View</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.3em] text-[var(--color-text-primary)]">Live Asset View</div>
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={async () => {
@@ -457,33 +456,33 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                     <div className="space-y-4">
                       {/* Image Preview */}
                       {(selectedItem.content?.startsWith('data:image') || selectedItem.title?.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ? (
-                        <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden flex items-center justify-center">
+                        <div className="surface-tertiary aspect-video w-full rounded-[var(--radius-card)] overflow-hidden flex items-center justify-center">
                           <img src={selectedItem.content} alt="Asset Preview" className="max-w-full max-h-full object-contain shadow-2xl" />
                         </div>
                       ) : null}
 
                       {/* Video Player */}
                       {selectedItem.title?.match(/\.(mp4|mov|avi)$/i) && selectedItem.content && (
-                        <div className="aspect-video w-full rounded-xl bg-black/40 border border-white/5 overflow-hidden">
+                        <div className="surface-tertiary aspect-video w-full rounded-[var(--radius-card)] overflow-hidden">
                           <video src={selectedItem.content} controls className="w-full h-full" />
                         </div>
                       )}
 
                       {/* Audio Player */}
                       {selectedItem.title?.match(/\.(mp3|wav)$/i) && selectedItem.content && (
-                        <div className="w-full rounded-xl bg-black/40 border border-white/5 p-4">
+                        <div className="surface-tertiary w-full rounded-[var(--radius-card)] p-4">
                           <audio src={selectedItem.content} controls className="w-full" />
                         </div>
                       )}
 
                       {/* PDF Stub / AI Summary */}
                       {selectedItem.title?.match(/\.(pdf|docx|doc|xls|xlsx|rtf|odt)$/i) && (
-                        <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-700/40">
+                        <div className="surface-tertiary p-6 rounded-[var(--radius-card)]">
                           <div className="flex items-center justify-between mb-3">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Document Extract</div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Document Extract</div>
                             <div className="text-[8px] font-black uppercase tracking-widest text-amber-500/60">Extraction Pending</div>
                           </div>
-                          <div className="text-[11px] text-slate-400 font-mono leading-relaxed">
+                          <div className="text-[11px] text-[var(--color-text-secondary)] font-mono leading-relaxed">
                             {selectedItem.content || `[DOCUMENT STUB] Content from '${selectedItem.title}' - queued for AI extraction and summarization.`}
                           </div>
                         </div>
@@ -494,7 +493,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
                         <textarea 
                           value={selectedItem.content || ''}
                           onChange={(e) => setSelectedItem(prev => ({ ...prev, content: e.target.value }))}
-                          className="w-full h-[250px] bg-black/40 border border-white/5 rounded-xl p-4 text-[12px] font-mono text-slate-400 outline-none focus:border-sky-500/40 no-scrollbar resize-none font-medium leading-relaxed"
+                          className="w-full h-[250px] bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 text-[12px] font-mono text-[var(--color-text-secondary)] outline-none focus:border-sky-500/40 no-scrollbar resize-none font-medium leading-relaxed"
                           placeholder="Content notes..."
                         />
                       )}

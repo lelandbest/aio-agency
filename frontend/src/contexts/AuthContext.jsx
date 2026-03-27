@@ -6,6 +6,10 @@ import { createContext, useContext } from 'react';
  */
 const AuthContext = createContext();
 
+export const normalizeUserRole = (value) => (String(value || '').trim().toLowerCase() === 'client' ? 'client' : 'operator');
+export const isOperatorRole = (value) => normalizeUserRole(value) === 'operator';
+export const isClientRole = (value) => normalizeUserRole(value) === 'client';
+
 /**
  * Hook to access auth context
  * Must be used within AuthProvider

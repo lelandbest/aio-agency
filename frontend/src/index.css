@@ -17,6 +17,8 @@
   --color-text-secondary: #2D3748;
   --color-text-tertiary: #6B7280;
   --color-border: #C7CEDA;
+  --color-sidebar-bg: #E3E7ED;
+  --color-sidebar-text: #0B1220;
 
   /* BRAND */
   --color-primary: #111827;
@@ -46,17 +48,27 @@
   --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --shadow-island: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px 0 rgba(10, 16, 28, 0.05);
+  --shadow-md: 0 10px 24px -12px rgba(10, 16, 28, 0.14);
+  --shadow-lg: 0 18px 38px -18px rgba(10, 16, 28, 0.2);
+  --shadow-base: 0 1px 2px rgba(10, 16, 28, 0.06);
+  --shadow-elevated: 0 14px 32px -20px rgba(10, 16, 28, 0.2);
+  --shadow-floating: 0 24px 56px -26px rgba(10, 16, 28, 0.34);
+  --shadow-island: var(--shadow-elevated);
   --shadow-premium: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 4px 6px rgba(0, 0, 0, 0.3);
 
   /* Radius Hierarchy */
   --radius-outer: 1.5rem;
+  --radius-modal: 1.5rem;
   --radius-panel: 1rem;
   --radius-card: 0.75rem;
   --radius-pill: 9999px;
+  --surface-border-soft: color-mix(in srgb, var(--color-border) 76%, transparent);
+  --surface-border-strong: color-mix(in srgb, var(--color-border) 88%, white 8%);
+  --surface-floating-bg: color-mix(in srgb, var(--color-bg-secondary) 90%, transparent);
+  --surface-floating-hover: color-mix(in srgb, var(--color-bg-secondary) 94%, white 4%);
+  --surface-overlay-bg: color-mix(in srgb, var(--color-bg-primary) 68%, black 32%);
+  --surface-topbar-bg: color-mix(in srgb, var(--color-bg-secondary) 94%, transparent);
 
   /* Steampunk Accents */
   --color-brass: #B8860B;
@@ -75,6 +87,8 @@ html.dark {
   --color-text-secondary: #CBD5E1;
   --color-text-tertiary: #94A3B8;
   --color-border: #334155;
+  --color-sidebar-bg: #1E293B;
+  --color-sidebar-text: #F8FAFC;
 
   /* NODE COLORS (Glow tokens) */
   --node-trigger: #22d3ee;   /* Cyan */
@@ -89,6 +103,10 @@ html.dark {
   --glass-bg: rgba(15, 23, 42, 0.7);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  --surface-floating-bg: color-mix(in srgb, var(--color-bg-secondary) 88%, black 12%);
+  --surface-floating-hover: color-mix(in srgb, var(--color-bg-secondary) 94%, white 3%);
+  --surface-overlay-bg: color-mix(in srgb, var(--color-bg-primary) 76%, black 24%);
+  --surface-topbar-bg: color-mix(in srgb, var(--color-bg-secondary) 90%, black 10%);
 }
 
 /* Global resets */
@@ -152,6 +170,50 @@ html.dark .glass-input {
   background: rgba(255, 255, 255, 0.25);
   border-color: var(--color-accent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.chrome-surface {
+  background: var(--surface-topbar-bg);
+  border-bottom: 1px solid var(--surface-border-soft);
+  box-shadow: var(--shadow-base);
+}
+
+.surface-base {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--surface-border-soft);
+  box-shadow: var(--shadow-base);
+}
+
+.surface-elevated {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--surface-border-soft);
+  box-shadow: var(--shadow-elevated);
+}
+
+.surface-tertiary {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--surface-border-strong);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent), var(--shadow-base);
+}
+
+.floating-surface {
+  background: var(--surface-floating-bg);
+  border: 1px solid var(--surface-border-strong);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.85));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.85));
+}
+
+.modal-surface {
+  background: color-mix(in srgb, var(--color-bg-secondary) 96%, transparent);
+  border: 1px solid var(--surface-border-strong);
+  box-shadow: var(--shadow-floating);
+}
+
+.overlay-scrim {
+  background: var(--surface-overlay-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* --- ISLAND PANEL SYSTEM --- */

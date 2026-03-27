@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  assistAiApi,
   createWorkspaceUserApi,
   createContactApi,
+  draftAiApi,
   getCompaniesApi,
   getContactActivitiesApi,
   createContactActivityApi,
@@ -751,7 +751,7 @@ const CRMModule = ({ initialContactId = null }) => {
   });
 
   const requestCrmAiAssist = async ({ surface, field, currentValue = '', context = {}, intent = 'draft' }) => {
-    const response = await assistAiApi({
+    const response = await draftAiApi({
       module: 'crm',
       surface,
       field,

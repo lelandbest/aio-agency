@@ -6,8 +6,7 @@ import {
   ChevronRight, Play, Clock, Settings
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import AIAssistButton from '../../components/AIAssistButton';
-import { assistAiApi, getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
+import { getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 
 const runSignalAction = (action) => {

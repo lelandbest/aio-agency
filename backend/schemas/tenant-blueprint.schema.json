@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AIO CRM Tenant Blueprint",
+  "type": "object",
+  "required": ["blueprintVersion", "tenant"],
+  "additionalProperties": false,
+  "properties": {
+    "blueprintId": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "version": {
+      "type": ["string", "integer"]
+    },
+    "source": {
+      "type": "string"
+    },
+    "blueprintVersion": {
+      "type": "integer"
+    },
+    "tenant": {
+      "type": "object",
+      "required": ["branding", "navigation", "globalVariables", "domains", "comms", "calendar", "automation", "visibility", "internal"],
+      "additionalProperties": true,
+      "properties": {
+        "branding": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "navigation": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "menuStructure": {
+              "type": ["array", "null"]
+            },
+            "mobileItems": {
+              "type": "array"
+            }
+          }
+        },
+        "globalVariables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "domains": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "comms": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "calendar": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "automation": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "visibility": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "internal": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "fieldPolicies": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

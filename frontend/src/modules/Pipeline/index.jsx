@@ -13,8 +13,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
-import { assistAiApi } from '../../services/backendApi';
-import { getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
+import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
 const STORAGE_KEY = 'aio_pipeline_layout_v2';
 const DEFAULT_COLUMNS = [
@@ -207,7 +206,7 @@ const PipelineModule = () => {
     if (!highestSignal) return;
     
     try {
-      const response = await assistAiApi({
+      const response = await draftAiApi({
         module: 'pipeline',
         surface: 'deal-card',
         field: 'next-action',

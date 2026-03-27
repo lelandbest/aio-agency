@@ -81,20 +81,20 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={handleCancel} />
+      <div className="overlay-scrim absolute inset-0" onClick={handleCancel} />
       
-      <div className="relative w-full max-w-md bg-[#0f172a] rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-        <div className="p-6 border-b border-white/5">
+      <div className="modal-surface relative w-full max-w-md overflow-hidden rounded-[var(--radius-modal)]">
+        <div className="p-6 border-b border-[var(--color-border)]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center">
                 <AlertTriangle size={20} className="text-[var(--color-primary)]" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-white uppercase tracking-tight">
+                <h2 className="text-lg font-black text-[var(--color-text-primary)] uppercase tracking-tight">
                   {ACTION_LABELS[action.type] || 'Confirm Action'}
                 </h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                <p className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">
                   Execution Gate
                 </p>
               </div>
@@ -102,7 +102,7 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
             <button 
               onClick={handleCancel}
               disabled={loading}
-              className="text-slate-500 hover:text-white transition-colors disabled:opacity-50"
+              className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50"
             >
               <X size={20} />
             </button>
@@ -116,12 +116,12 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-black/20 border border-white/5">
-            <p className="text-sm font-medium text-white leading-relaxed">
+          <div className="surface-tertiary p-4 rounded-[var(--radius-panel)]">
+            <p className="text-sm font-medium text-[var(--color-text-primary)] leading-relaxed">
               {description}
             </p>
             {payload?.intent && (
-              <p className="mt-2 text-xs text-slate-500 italic truncate">
+              <p className="mt-2 text-xs text-[var(--color-text-tertiary)] italic truncate">
                 "{payload.intent}"
               </p>
             )}
@@ -137,7 +137,7 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
           )}
 
           {action.type === 'create_flow_dynamic' && (
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest space-y-1">
+            <div className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-sky-400" />
                 <span>Intent parsed</span>
@@ -154,7 +154,7 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
           )}
 
           {action.type === 'assign_agent' && (
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest space-y-1">
+            <div className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-amber-400" />
                 <span>Agent assigned</span>
@@ -167,27 +167,27 @@ const Orchestrator = ({ isOpen, onClose, context, onConfirm }) => {
           )}
 
           <div className="flex items-center gap-3 pt-2">
-            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">
+            <span className="text-[8px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">
               Source: {payload?.source || 'unknown'}
             </span>
           </div>
         </div>
 
-        <div className="p-6 border-t border-white/5 flex items-center gap-3">
+        <div className="p-6 border-t border-[var(--color-border)] flex items-center gap-3">
           <button
             onClick={handleCancel}
             disabled={loading || confirmed}
-            className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50"
+            className="surface-tertiary flex-1 py-3 rounded-[var(--radius-card)] text-[var(--color-text-primary)] text-[11px] font-black uppercase tracking-widest hover:bg-[var(--color-hover)] transition-all disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={loading || confirmed || !!validationError}
-            className={`flex-1 py-3 rounded-xl text-white text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-3 rounded-[var(--radius-card)] text-white text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
               confirmed 
-                ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' 
-                : 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] shadow-lg shadow-[var(--color-primary)]/20'
+                ? 'bg-emerald-500 shadow-[var(--shadow-base)]' 
+                : 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] shadow-[var(--shadow-base)]'
             } disabled:opacity-50`}
           >
             {loading ? (

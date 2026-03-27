@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import hmac
 import json
@@ -7,6 +8,43 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+try:
+    from backend.canonical_settings import (
+        DEFAULT_SYSTEM_SETTINGS,
+        DEFAULT_TENANT_SETTINGS,
+        DEFAULT_USER_SETTINGS,
+        FIELD_POLICIES,
+        build_settings_bundle,
+        export_tenant_blueprint as build_tenant_blueprint,
+        import_tenant_blueprint as load_tenant_blueprint,
+        merge_with_defaults,
+        normalize_system_settings_payload,
+        normalize_tenant_settings_payload,
+        normalize_user_settings_payload,
+        strip_derived_tenant_sections,
+        tenant_settings_to_legacy_view,
+        validate_against_schema,
+    )
+    from backend.tenant_deployment import DeploymentFailureError, build_deployment_plan, list_blueprint_registry
+except ModuleNotFoundError:
+    from canonical_settings import (
+        DEFAULT_SYSTEM_SETTINGS,
+        DEFAULT_TENANT_SETTINGS,
+        DEFAULT_USER_SETTINGS,
+        FIELD_POLICIES,
+        build_settings_bundle,
+        export_tenant_blueprint as build_tenant_blueprint,
+        import_tenant_blueprint as load_tenant_blueprint,
+        merge_with_defaults,
+        normalize_system_settings_payload,
+        normalize_tenant_settings_payload,
+        normalize_user_settings_payload,
+        strip_derived_tenant_sections,
+        tenant_settings_to_legacy_view,
+        validate_against_schema,
+    )
+    from tenant_deployment import DeploymentFailureError, build_deployment_plan, list_blueprint_registry
 
 
 def utcnow_iso() -> str:
@@ -32,6 +70,19 @@ def slugify(value: str) -> str:
     normalized = "".join(char.lower() if char.isalnum() else "-" for char in (value or "").strip())
     compact = "-".join(part for part in normalized.split("-") if part)
     return compact or "workspace"
+
+
+USER_ROLES = {"operator", "client"}
+WORKSPACE_MEMBERSHIP_ROLES = {"owner", "admin", "staff", "viewer", "member"}
+
+
+def normalize_user_role(value: Any) -> str:
+    return "client" if str(value or "").strip().lower() == "client" else "operator"
+
+
+def resolve_workspace_membership_seed_role(value: Any) -> str:
+    role = str(value or "").strip().lower()
+    return role if role in WORKSPACE_MEMBERSHIP_ROLES else "owner"
 
 
 class AuthStore:
@@ -66,9 +117,17 @@ class AuthStore:
                     password_hash TEXT,
                     password_salt TEXT,
                     auth_provider TEXT NOT NULL,
-                    role TEXT NOT NULL DEFAULT 'owner',
+                    role TEXT NOT NULL DEFAULT 'operator',
                     avatar_url TEXT,
                     last_login_at TEXT,
+                    user_settings_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    id TEXT PRIMARY KEY,
+                    system_settings_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -214,6 +273,7 @@ class AuthStore:
                     description TEXT,
                     is_secret INTEGER NOT NULL DEFAULT 0,
                     is_system INTEGER NOT NULL DEFAULT 0,
+                    config_json TEXT,
                     created_by_user_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -239,6 +299,36 @@ class AuthStore:
                     UNIQUE(tenant_id, template_key)
                 );
 
+                CREATE TABLE IF NOT EXISTS flows (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    nodes_json TEXT NOT NULL,
+                    edges_json TEXT NOT NULL,
+                    spec_json TEXT,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    created_by TEXT,
+                    last_edited_by TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS tenant_deployments (
+                    id TEXT PRIMARY KEY,
+                    tenant_id TEXT,
+                    blueprint_id TEXT,
+                    blueprint_name TEXT,
+                    blueprint_version TEXT,
+                    blueprint_source TEXT,
+                    status TEXT NOT NULL,
+                    validation_json TEXT,
+                    error_json TEXT,
+                    initiated_by_user_id TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS notifications (
                     id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL,
@@ -259,6 +349,7 @@ class AuthStore:
             self._ensure_column(conn, "app_users", "locale", "TEXT")
             self._ensure_column(conn, "app_users", "timezone", "TEXT")
             self._ensure_column(conn, "app_users", "email_signature", "TEXT")
+            self._ensure_column(conn, "app_users", "user_settings_json", "TEXT NOT NULL DEFAULT '{}'")
             self._ensure_column(conn, "app_sessions", "current_tenant_id", "TEXT")
             self._ensure_column(conn, "app_sessions", "user_agent", "TEXT")
             self._ensure_column(conn, "ai_runs", "status", "TEXT NOT NULL DEFAULT 'completed'")
@@ -278,9 +369,21 @@ class AuthStore:
             self._ensure_column(conn, "ai_runs", "model", "TEXT")
             self._ensure_column(conn, "ai_runs", "artifacts_json", "TEXT")
             self._ensure_column(conn, "ai_runs", "steps_json", "TEXT")
+            self._ensure_column(conn, "global_variables", "config_json", "TEXT")
             conn.execute("UPDATE tenants SET settings_json = COALESCE(settings_json, '{}')")
+            conn.execute("UPDATE app_users SET user_settings_json = COALESCE(user_settings_json, '{}')")
+            conn.execute(
+                """
+                UPDATE app_users
+                SET role = CASE
+                    WHEN lower(COALESCE(role, '')) = 'client' THEN 'client'
+                    ELSE 'operator'
+                END
+                """
+            )
             self._backfill_usernames(conn)
             self._backfill_default_workspace(conn)
+            self._seed_system_settings(conn)
             self._seed_default_system_email_templates(conn)
             conn.commit()
 
@@ -296,9 +399,10 @@ class AuthStore:
         if not tenant_row:
             tenant_id = "tenant-primary"
             tenant_name = "AIO CRM Workspace"
+            persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
             conn.execute(
                 "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (tenant_id, tenant_name, slugify(tenant_name), "{}", now, now),
+                (tenant_id, tenant_name, slugify(tenant_name), json.dumps(persisted_settings), now, now),
             )
             tenant_row = conn.execute("SELECT * FROM tenants WHERE id = ?", (tenant_id,)).fetchone()
 
@@ -314,7 +418,14 @@ class AuthStore:
                     INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (f"membership-{secrets.token_hex(8)}", user["id"], tenant_row["id"], user["role"] or "member", now, now),
+                    (
+                        f"membership-{secrets.token_hex(8)}",
+                        user["id"],
+                        tenant_row["id"],
+                        resolve_workspace_membership_seed_role(user["role"]),
+                        now,
+                        now,
+                    ),
                 )
 
         sessions = conn.execute("SELECT id, user_id, current_tenant_id FROM app_sessions").fetchall()
@@ -336,6 +447,16 @@ class AuthStore:
                     "UPDATE app_sessions SET current_tenant_id = ? WHERE id = ?",
                     (default_membership["tenant_id"], session["id"]),
                 )
+
+    def _seed_system_settings(self, conn: sqlite3.Connection) -> None:
+        existing = conn.execute("SELECT id FROM app_settings WHERE id = 'system-primary' LIMIT 1").fetchone()
+        if existing:
+            return
+        now = utcnow_iso()
+        conn.execute(
+            "INSERT INTO app_settings (id, system_settings_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            ("system-primary", json.dumps(DEFAULT_SYSTEM_SETTINGS), now, now),
+        )
 
     def _seed_default_system_email_templates(self, conn: sqlite3.Connection) -> None:
         tenants = conn.execute("SELECT id FROM tenants").fetchall()
@@ -436,38 +557,184 @@ class AuthStore:
             row = conn.execute("SELECT COUNT(*) AS total FROM app_users").fetchone()
             return int(row["total"] if row else 0)
 
+    @staticmethod
+    def _json_loads(value: str | None, default: Any) -> Any:
+        try:
+            return json.loads(value) if value else copy.deepcopy(default)
+        except Exception:
+            return copy.deepcopy(default)
+
+    def _system_settings_from_conn(self, conn: sqlite3.Connection) -> dict[str, Any]:
+        row = conn.execute("SELECT system_settings_json FROM app_settings WHERE id = 'system-primary' LIMIT 1").fetchone()
+        raw = self._json_loads(row["system_settings_json"] if row else None, DEFAULT_SYSTEM_SETTINGS)
+        settings = normalize_system_settings_payload(raw, include_defaults=True)
+        valid, errors = validate_against_schema(
+            "tenant-settings",
+            {
+                "system": settings,
+                "tenant": DEFAULT_TENANT_SETTINGS,
+                "user": DEFAULT_USER_SETTINGS,
+                "fieldPolicies": FIELD_POLICIES,
+            },
+        )
+        if not valid:
+            raise ValueError(f"Invalid system settings payload: {'; '.join(errors)}")
+        return settings
+
+    def _user_settings_from_record(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        raw = record["user_settings_json"] if "user_settings_json" in record.keys() else record.get("user_settings_json")
+        payload = self._json_loads(raw, DEFAULT_USER_SETTINGS)
+        normalized = normalize_user_settings_payload(payload, include_defaults=True)
+        normalized["profile"] = {
+            **normalized.get("profile", {}),
+            "phone": record["phone"] if "phone" in record.keys() else normalized.get("profile", {}).get("phone", ""),
+        }
+        normalized["preferences"] = {
+            **normalized.get("preferences", {}),
+            "locale": record["locale"] if "locale" in record.keys() else normalized.get("preferences", {}).get("locale", "en-US"),
+            "timezone": record["timezone"] if "timezone" in record.keys() else normalized.get("preferences", {}).get("timezone", "America/New_York"),
+        }
+        normalized["comms"] = {
+            **normalized.get("comms", {}),
+            "emailSignature": record["email_signature"] if "email_signature" in record.keys() else normalized.get("comms", {}).get("emailSignature", ""),
+        }
+        return normalized
+
+    def _list_global_variable_records_for_tenant(self, conn: sqlite3.Connection, tenant_id: str) -> list[dict[str, Any]]:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM global_variables
+            WHERE tenant_id = ?
+            ORDER BY is_system DESC, key ASC
+            """,
+            (tenant_id,),
+        ).fetchall()
+        records: list[dict[str, Any]] = []
+        for row in rows:
+            config = self._json_loads(row["config_json"] if "config_json" in row.keys() else None, {})
+            records.append(
+                {
+                    "id": row["id"],
+                    "key": row["key"],
+                    "value": row["value"],
+                    "label": config.get("label") or row["key"],
+                    "category": config.get("category") or ("system" if bool(row["is_system"]) else "custom"),
+                    "editableByClient": bool(config.get("editableByClient", not bool(row["is_system"]))),
+                    "description": row["description"],
+                    "is_secret": bool(row["is_secret"]),
+                    "is_system": bool(row["is_system"]),
+                    "config": config,
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+        return records
+
+    def _canonical_global_variables(self, conn: sqlite3.Connection, tenant_id: str) -> dict[str, Any]:
+        variables: dict[str, Any] = {}
+        for row in self._list_global_variable_records_for_tenant(conn, tenant_id):
+            variables[row["key"]] = {
+                "id": row["id"],
+                "value": row["value"],
+                "label": row["label"],
+                "category": row["category"],
+                "editableByClient": row["editableByClient"],
+                "description": row["description"] or "",
+                "isSecret": row["is_secret"],
+                "isSystem": row["is_system"],
+            }
+        return variables
+
+    def _canonical_system_email_templates(self, conn: sqlite3.Connection, tenant_id: str) -> dict[str, Any]:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM system_email_templates
+            WHERE tenant_id = ?
+            ORDER BY email_type ASC
+            """,
+            (tenant_id,),
+        ).fetchall()
+        templates: dict[str, Any] = {}
+        for row in rows:
+            config = self._json_loads(row["config_json"], {})
+            templates[row["template_key"]] = {
+                "id": row["id"],
+                "templateKey": row["template_key"],
+                "emailType": row["email_type"],
+                "subject": row["subject"],
+                "sendTo": row["send_to"],
+                "enabled": bool(row["enabled"]),
+                "bodyHtml": row["body_html"],
+                "bodyText": row["body_text"],
+                "config": config,
+                "editedAt": row["edited_at"],
+                "updatedAt": row["updated_at"],
+            }
+        return templates
+
+    def _tenant_settings_from_raw(self, conn: sqlite3.Connection, tenant_id: str, raw_settings: str | None = None) -> dict[str, Any]:
+        if raw_settings is None:
+            row = conn.execute("SELECT settings_json FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
+            raw_settings = row["settings_json"] if row else None
+        payload = self._json_loads(raw_settings, DEFAULT_TENANT_SETTINGS)
+        # Projected fields are not persisted in `tenants.settings_json`. Always assemble tenant
+        # settings through the canonical helper path so projections are applied consistently.
+        settings = normalize_tenant_settings_payload(payload, include_defaults=True)
+        settings["globalVariables"] = self._canonical_global_variables(conn, tenant_id)
+        comms = settings.get("comms") if isinstance(settings.get("comms"), dict) else {}
+        comms["systemEmailTemplates"] = self._canonical_system_email_templates(conn, tenant_id)
+        settings["comms"] = comms
+        valid, errors = validate_against_schema(
+            "tenant-settings",
+            {
+                "system": DEFAULT_SYSTEM_SETTINGS,
+                "tenant": settings,
+                "user": DEFAULT_USER_SETTINGS,
+                "fieldPolicies": FIELD_POLICIES,
+            },
+        )
+        if not valid:
+            raise ValueError(f"Invalid tenant settings payload: {'; '.join(errors)}")
+        return settings
+
     def default_tenant_id(self) -> str:
         with self._connect() as conn:
             row = conn.execute("SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1").fetchone()
         return row["id"] if row else "tenant-primary"
 
     def _public_user(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        settings = self._user_settings_from_record(record)
         return {
             "id": record["id"],
             "email": record["email"],
             "username": record["username"],
             "name": record["display_name"] or record["email"],
-            "role": record["role"],
+            "role": normalize_user_role(record["role"]),
             "provider": record["auth_provider"],
             "avatar_url": record["avatar_url"],
             "phone": record["phone"] if "phone" in record.keys() else None,
             "locale": record["locale"] if "locale" in record.keys() else None,
             "timezone": record["timezone"] if "timezone" in record.keys() else None,
             "email_signature": record["email_signature"] if "email_signature" in record.keys() else None,
+            "settings": settings,
         }
 
-    def _public_tenant(self, membership: sqlite3.Row | dict[str, Any], selected: bool = False) -> dict[str, Any]:
+    def _public_tenant(self, conn: sqlite3.Connection, membership: sqlite3.Row | dict[str, Any], selected: bool = False) -> dict[str, Any]:
         raw_settings = membership["settings_json"] if "settings_json" in membership.keys() else membership.get("settings_json")
-        try:
-            settings = json.loads(raw_settings) if raw_settings else {}
-        except Exception:
-            settings = {}
+        tenant_settings = self._tenant_settings_from_raw(conn, membership["tenant_id"], raw_settings)
         return {
             "id": membership["tenant_id"],
+            # Tenant row fields remain the identity authority for routing/lookups.
             "name": membership["tenant_name"],
             "slug": membership["tenant_slug"],
             "role": membership["membership_role"],
-            "settings": settings,
+            # `settings` remains the compatibility projection consumed by the current frontend.
+            # Operational metadata belongs in `tenant_settings.internal`, not in row identity fields.
+            "settings": tenant_settings_to_legacy_view(tenant_settings),
+            "tenant_settings": tenant_settings,
+            "system_settings": self._system_settings_from_conn(conn),
             "selected": selected,
         }
 
@@ -488,7 +755,7 @@ class AuthStore:
         tenants: list[dict[str, Any]] = []
         current_tenant = None
         for row in rows:
-            tenant = self._public_tenant(row, row["tenant_id"] == resolved_tenant_id)
+            tenant = self._public_tenant(conn, row, row["tenant_id"] == resolved_tenant_id)
             tenants.append(tenant)
             if tenant["selected"]:
                 current_tenant = tenant
@@ -601,6 +868,836 @@ class AuthStore:
             "tenants": tenants,
         }
 
+    @staticmethod
+    def _persistable_user_settings(user_settings: dict[str, Any]) -> dict[str, Any]:
+        persisted = normalize_user_settings_payload(user_settings, include_defaults=True)
+        persisted["profile"]["phone"] = ""
+        persisted["preferences"]["locale"] = ""
+        persisted["preferences"]["timezone"] = ""
+        persisted["comms"]["emailSignature"] = ""
+        return persisted
+
+    def _upsert_global_variables_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user_id: str | None, variables: dict[str, Any]) -> None:
+        for key, details in variables.items():
+            if not isinstance(details, dict):
+                continue
+            value = details.get("value")
+            if value is None:
+                continue
+            label = (details.get("label") or key).strip()
+            category = (details.get("category") or ("system" if details.get("isSystem") else "custom")).strip() or "custom"
+            config = {
+                "label": label,
+                "category": category,
+                "editableByClient": bool(details.get("editableByClient", not details.get("isSystem"))),
+            }
+            existing = conn.execute(
+                "SELECT id FROM global_variables WHERE tenant_id = ? AND key = ? LIMIT 1",
+                (tenant_id, key),
+            ).fetchone()
+            now = utcnow_iso()
+            params = (
+                str(value),
+                (details.get("description") or "").strip() or None,
+                1 if details.get("isSecret") else 0,
+                1 if details.get("isSystem") else 0,
+                json.dumps(config),
+                now,
+            )
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE global_variables
+                    SET value = ?, description = ?, is_secret = ?, is_system = ?, config_json = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (*params, existing["id"]),
+                )
+                continue
+            conn.execute(
+                """
+                INSERT INTO global_variables (id, tenant_id, key, value, description, is_secret, is_system, config_json, created_by_user_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"gvar-{secrets.token_hex(8)}",
+                    tenant_id,
+                    key,
+                    str(value),
+                    (details.get("description") or "").strip() or None,
+                    1 if details.get("isSecret") else 0,
+                    1 if details.get("isSystem") else 0,
+                    json.dumps(config),
+                    user_id,
+                    now,
+                    now,
+                ),
+            )
+
+    def _upsert_system_email_templates_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user: sqlite3.Row, templates: dict[str, Any]) -> None:
+        for template_key, details in templates.items():
+            if not isinstance(details, dict):
+                continue
+            existing = conn.execute(
+                "SELECT * FROM system_email_templates WHERE tenant_id = ? AND template_key = ? LIMIT 1",
+                (tenant_id, template_key),
+            ).fetchone()
+            email_type = (details.get("emailType") or template_key.replace("_", " ").title()).strip()
+            subject = (details.get("subject") or (existing["subject"] if existing else email_type)).strip()
+            send_to = (details.get("sendTo") or (existing["send_to"] if existing else "{{owner.email}}")).strip()
+            enabled = 1 if details.get("enabled", True) else 0
+            config = details.get("config") if isinstance(details.get("config"), dict) else {}
+            now = utcnow_iso()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE system_email_templates
+                    SET email_type = ?, subject = ?, send_to = ?, enabled = ?, body_html = ?, body_text = ?,
+                        edited_by_user_id = ?, edited_by_name = ?, edited_at = ?, config_json = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        email_type,
+                        subject,
+                        send_to,
+                        enabled,
+                        details.get("bodyHtml") if details.get("bodyHtml") is not None else existing["body_html"],
+                        details.get("bodyText") if details.get("bodyText") is not None else existing["body_text"],
+                        user["id"],
+                        user["display_name"] or user["email"],
+                        now,
+                        json.dumps(config),
+                        now,
+                        existing["id"],
+                    ),
+                )
+                continue
+            conn.execute(
+                """
+                INSERT INTO system_email_templates (
+                    id, tenant_id, template_key, email_type, subject, send_to, enabled,
+                    body_html, body_text, edited_by_user_id, edited_by_name, edited_at, config_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"system-email-{secrets.token_hex(8)}",
+                    tenant_id,
+                    template_key,
+                    email_type,
+                    subject,
+                    send_to,
+                    enabled,
+                    details.get("bodyHtml"),
+                    details.get("bodyText"),
+                    user["id"],
+                    user["display_name"] or user["email"],
+                    now,
+                    json.dumps(config),
+                    now,
+                    now,
+                ),
+            )
+
+    def _replace_global_variables_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user_id: str | None, variables: dict[str, Any]) -> None:
+        conn.execute("DELETE FROM global_variables WHERE tenant_id = ?", (tenant_id,))
+        if isinstance(variables, dict) and variables:
+            self._upsert_global_variables_from_canonical(conn, tenant_id, user_id, variables)
+
+    def _replace_system_email_templates_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user: sqlite3.Row, templates: dict[str, Any]) -> None:
+        conn.execute("DELETE FROM system_email_templates WHERE tenant_id = ?", (tenant_id,))
+        if isinstance(templates, dict) and templates:
+            self._upsert_system_email_templates_from_canonical(conn, tenant_id, user, templates)
+
+    def _unique_workspace_slug(self, conn: sqlite3.Connection, workspace_name: str) -> str:
+        base_slug = slugify(workspace_name)
+        candidate = base_slug
+        suffix = 1
+        while conn.execute("SELECT 1 FROM tenants WHERE slug = ? LIMIT 1", (candidate,)).fetchone():
+            suffix += 1
+            candidate = f"{base_slug}-{suffix}"
+        return candidate
+
+    def _normalize_blueprint_flow_record(self, tenant_id: str, flow: dict[str, Any], position: int, actor_label: str) -> dict[str, Any]:
+        source_id = str(flow.get("id") or flow.get("name") or f"flow-{position + 1}").strip() or f"flow-{position + 1}"
+        flow_slug = slugify(source_id)
+        flow_id = f"{tenant_id}-{flow_slug}-{position + 1}"
+        now = utcnow_iso()
+        metadata = flow.get("metadata") if isinstance(flow.get("metadata"), dict) else {}
+        merged_metadata = {
+            **metadata,
+            "deploymentManaged": True,
+            "deploymentSourceFlowId": source_id,
+        }
+        return {
+            "id": flow_id,
+            "tenant_id": tenant_id,
+            "name": str(flow.get("name") or f"Blueprint Flow {position + 1}").strip() or f"Blueprint Flow {position + 1}",
+            # Deployment blueprints must not leave dormant flows behind.
+            "status": "Active",
+            "nodes_json": json.dumps(flow.get("nodes") if isinstance(flow.get("nodes"), list) else []),
+            "edges_json": json.dumps(flow.get("edges") if isinstance(flow.get("edges"), list) else []),
+            "spec_json": json.dumps(flow.get("spec")) if flow.get("spec") is not None else None,
+            "metadata_json": json.dumps(merged_metadata),
+            "created_at": flow.get("createdAt") or now,
+            "updated_at": flow.get("updatedAt") or now,
+            "created_by": flow.get("createdBy") or actor_label,
+            "last_edited_by": flow.get("lastEditedBy") or actor_label,
+        }
+
+    def _replace_deployment_flows(self, conn: sqlite3.Connection, tenant_id: str, flows: list[dict[str, Any]], actor_label: str) -> list[dict[str, Any]]:
+        conn.execute("DELETE FROM flows WHERE tenant_id = ?", (tenant_id,))
+        inserted: list[dict[str, Any]] = []
+        for index, flow in enumerate(flows):
+            record = self._normalize_blueprint_flow_record(tenant_id, flow, index, actor_label)
+            conn.execute(
+                """
+                INSERT INTO flows (
+                    id, tenant_id, name, status, nodes_json, edges_json, spec_json, metadata_json,
+                    created_at, updated_at, created_by, last_edited_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["id"],
+                    record["tenant_id"],
+                    record["name"],
+                    record["status"],
+                    record["nodes_json"],
+                    record["edges_json"],
+                    record["spec_json"],
+                    record["metadata_json"],
+                    record["created_at"],
+                    record["updated_at"],
+                    record["created_by"],
+                    record["last_edited_by"],
+                ),
+            )
+            inserted.append(record)
+        return inserted
+
+    def _record_tenant_deployment(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        deployment_id: str,
+        tenant_id: str | None,
+        blueprint_id: str | None,
+        blueprint_name: str | None,
+        blueprint_version: Any,
+        blueprint_source: str | None,
+        status: str,
+        validation: dict[str, Any] | None,
+        error_payload: dict[str, Any] | None,
+        initiated_by_user_id: str | None,
+        created_at: str | None = None,
+    ) -> dict[str, Any]:
+        now = utcnow_iso()
+        timestamp = created_at or now
+        record = {
+            "id": deployment_id,
+            "tenant_id": tenant_id,
+            "blueprint_id": blueprint_id,
+            "blueprint_name": blueprint_name,
+            "blueprint_version": "" if blueprint_version is None else str(blueprint_version),
+            "blueprint_source": blueprint_source or "",
+            "status": status,
+            "validation_json": json.dumps(validation or {}),
+            "error_json": json.dumps(error_payload or {}),
+            "initiated_by_user_id": initiated_by_user_id,
+            "created_at": timestamp,
+            "updated_at": now,
+        }
+        conn.execute(
+            """
+            INSERT INTO tenant_deployments (
+                id, tenant_id, blueprint_id, blueprint_name, blueprint_version, blueprint_source,
+                status, validation_json, error_json, initiated_by_user_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record["id"],
+                record["tenant_id"],
+                record["blueprint_id"],
+                record["blueprint_name"],
+                record["blueprint_version"],
+                record["blueprint_source"],
+                record["status"],
+                record["validation_json"],
+                record["error_json"],
+                record["initiated_by_user_id"],
+                record["created_at"],
+                record["updated_at"],
+            ),
+        )
+        return record
+
+    @staticmethod
+    def _tenant_deployment_record(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        if not row:
+            return None
+        try:
+            validation = json.loads(row["validation_json"] or "{}")
+        except json.JSONDecodeError:
+            validation = {}
+        try:
+            error_payload = json.loads(row["error_json"] or "{}")
+        except json.JSONDecodeError:
+            error_payload = {}
+        return {
+            "deploymentId": row["id"],
+            "tenantId": row["tenant_id"],
+            "blueprintId": row["blueprint_id"],
+            "blueprintName": row["blueprint_name"],
+            "blueprintVersion": row["blueprint_version"] or None,
+            "blueprintSource": row["blueprint_source"] or None,
+            "status": row["status"],
+            "validation": validation,
+            "error": error_payload,
+            "timestamp": row["created_at"],
+            "updatedAt": row["updated_at"],
+        }
+
+    def _deployment_validation_result(
+        self,
+        conn: sqlite3.Connection,
+        tenant_id: str,
+        tenant_settings: dict[str, Any],
+        *,
+        expected_variables: int,
+        expected_templates: int,
+        expected_flows: int,
+    ) -> dict[str, Any]:
+        checks: list[dict[str, Any]] = []
+
+        def add_check(key: str, ok: bool, critical: bool, detail: str, value: Any = None) -> None:
+            checks.append(
+                {
+                    "key": key,
+                    "ok": bool(ok),
+                    "critical": critical,
+                    "detail": detail,
+                    "value": value,
+                }
+            )
+
+        valid_contract, contract_errors = validate_against_schema(
+            "tenant-settings",
+            {
+                "system": self._system_settings_from_conn(conn),
+                "tenant": tenant_settings,
+                "user": DEFAULT_USER_SETTINGS,
+                "fieldPolicies": FIELD_POLICIES,
+            },
+        )
+        add_check(
+            "tenantSettings",
+            valid_contract,
+            True,
+            "Canonical tenant settings exist and satisfy the schema." if valid_contract else "; ".join(contract_errors),
+        )
+
+        branding = tenant_settings.get("branding") if isinstance(tenant_settings.get("branding"), dict) else {}
+        add_check("branding", bool(branding.get("brandName") or branding.get("companyName")), True, "Branding is populated.", branding.get("brandName") or branding.get("companyName"))
+
+        navigation = tenant_settings.get("navigation") if isinstance(tenant_settings.get("navigation"), dict) else {}
+        menu_structure = navigation.get("menuStructure") if "menuStructure" in navigation else None
+        navigation_valid = menu_structure is None or isinstance(menu_structure, list)
+        menu_structure_length = len(menu_structure) if isinstance(menu_structure, list) else None
+        add_check(
+            "navigation",
+            navigation_valid,
+            True,
+            "Navigation menu structure preserves the canonical null-vs-array contract.",
+            menu_structure_length,
+        )
+
+        comms = tenant_settings.get("comms") if isinstance(tenant_settings.get("comms"), dict) else {}
+        comms_defaults = comms.get("defaults") if isinstance(comms.get("defaults"), dict) else {}
+        add_check("commsDefaults", bool(comms_defaults), True, "Comms defaults are populated.", len(comms_defaults))
+
+        calendar = tenant_settings.get("calendar") if isinstance(tenant_settings.get("calendar"), dict) else {}
+        calendar_defaults = calendar.get("defaults") if isinstance(calendar.get("defaults"), dict) else {}
+        add_check("calendarDefaults", bool(calendar_defaults), True, "Calendar defaults are populated.", calendar_defaults)
+
+        variable_count = conn.execute("SELECT COUNT(*) AS count FROM global_variables WHERE tenant_id = ?", (tenant_id,)).fetchone()["count"]
+        add_check(
+            "globalVariables",
+            variable_count >= expected_variables,
+            True,
+            f"Expected at least {expected_variables} global variables and found {variable_count}.",
+            variable_count,
+        )
+
+        template_count = conn.execute("SELECT COUNT(*) AS count FROM system_email_templates WHERE tenant_id = ?", (tenant_id,)).fetchone()["count"]
+        add_check(
+            "systemEmailTemplates",
+            template_count >= expected_templates,
+            True,
+            f"Expected at least {expected_templates} comms templates and found {template_count}.",
+            template_count,
+        )
+
+        active_flow_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM flows WHERE tenant_id = ? AND lower(status) = 'active'",
+            (tenant_id,),
+        ).fetchone()["count"]
+        flow_check_ok = expected_flows == 0 or active_flow_count >= expected_flows
+        add_check(
+            "activeFlows",
+            flow_check_ok,
+            expected_flows > 0,
+            f"Expected at least {expected_flows} active flows and found {active_flow_count}.",
+            active_flow_count,
+        )
+
+        critical_failures = [check for check in checks if check["critical"] and not check["ok"]]
+        return {
+            "valid": not critical_failures,
+            "checks": checks,
+            "criticalFailures": critical_failures,
+        }
+
+    def deploy_tenant(
+        self,
+        token: str | None,
+        tenant_name: str,
+        *,
+        blueprint_id: str | None = None,
+        blueprint_payload: dict[str, Any] | None = None,
+        overrides: dict[str, Any] | None = None,
+        switch_to_tenant: bool = False,
+    ) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        workspace_name = (tenant_name or "").strip()
+        if len(workspace_name) < 2:
+            raise ValueError("Tenant name must be at least 2 characters.")
+        deployment_id = f"deployment-{secrets.token_hex(8)}"
+        created_at = utcnow_iso()
+        requested_blueprint_id = (blueprint_id or (blueprint_payload or {}).get("blueprintId") or "").strip() or None
+
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], session["current_tenant_id"], {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+            tenant_id: str | None = None
+            tenant_slug: str | None = None
+            validation: dict[str, Any] | None = None
+            plan: dict[str, Any] | None = None
+
+            try:
+                plan = build_deployment_plan(
+                    blueprint_id=blueprint_id,
+                    blueprint_payload=blueprint_payload,
+                    overrides=overrides,
+                )
+                final_tenant_settings = plan["tenantSettings"]
+                final_comms = final_tenant_settings.get("comms") if isinstance(final_tenant_settings.get("comms"), dict) else {}
+                final_templates = final_comms.get("systemEmailTemplates") if isinstance(final_comms.get("systemEmailTemplates"), dict) else {}
+                tenant_id = f"tenant-{secrets.token_hex(6)}"
+                tenant_slug = self._unique_workspace_slug(conn, workspace_name)
+                actor_label = user["display_name"] or user["email"] or "Current User"
+                persisted_settings = strip_derived_tenant_sections(final_tenant_settings)
+                settings_json = json.dumps({"tenantSettings": persisted_settings})
+                now = utcnow_iso()
+
+                conn.execute(
+                    "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (tenant_id, workspace_name, tenant_slug, settings_json, now, now),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (f"membership-{secrets.token_hex(8)}", user["id"], tenant_id, "owner", now, now),
+                )
+
+                self._replace_global_variables_from_canonical(
+                    conn,
+                    tenant_id,
+                    user["id"],
+                    final_tenant_settings.get("globalVariables") if isinstance(final_tenant_settings.get("globalVariables"), dict) else {},
+                )
+                self._replace_system_email_templates_from_canonical(conn, tenant_id, user, final_templates)
+                self._replace_deployment_flows(conn, tenant_id, plan["flows"], actor_label)
+                if switch_to_tenant:
+                    conn.execute(
+                        "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                        (tenant_id, now, token),
+                    )
+
+                tenant_settings_snapshot = self._tenant_settings_from_raw(conn, tenant_id, settings_json)
+                validation = self._deployment_validation_result(
+                    conn,
+                    tenant_id,
+                    tenant_settings_snapshot,
+                    expected_variables=plan["expected"]["globalVariables"],
+                    expected_templates=plan["expected"]["systemEmailTemplates"],
+                    expected_flows=plan["expected"]["flows"],
+                )
+                if not validation["valid"]:
+                    failure_summary = "; ".join(check["detail"] for check in validation["criticalFailures"])
+                    raise DeploymentFailureError(
+                        "Tenant deployment validation failed.",
+                        code="tenant_deployment_validation_failed",
+                        detail={"errors": failure_summary, "validation": validation},
+                    )
+
+                self._record_tenant_deployment(
+                    conn,
+                    deployment_id=deployment_id,
+                    tenant_id=tenant_id,
+                    blueprint_id=plan["blueprintId"],
+                    blueprint_name=plan["blueprintName"],
+                    blueprint_version=plan["blueprintVersion"],
+                    blueprint_source=plan["blueprintSource"],
+                    status="success",
+                    validation=validation,
+                    error_payload=None,
+                    initiated_by_user_id=user["id"],
+                    created_at=created_at,
+                )
+
+                conn.commit()
+            except DeploymentFailureError as error:
+                conn.rollback()
+                self._record_tenant_deployment(
+                    conn,
+                    deployment_id=deployment_id,
+                    tenant_id=tenant_id,
+                    blueprint_id=(plan or {}).get("blueprintId") or requested_blueprint_id,
+                    blueprint_name=(plan or {}).get("blueprintName") or (blueprint_payload or {}).get("name"),
+                    blueprint_version=(plan or {}).get("blueprintVersion") or (blueprint_payload or {}).get("version") or (blueprint_payload or {}).get("blueprintVersion"),
+                    blueprint_source=(plan or {}).get("blueprintSource") or ((blueprint_payload or {}).get("source") or ("filesystem" if blueprint_id else "payload")),
+                    status="failed",
+                    validation=(error.payload or {}).get("detail", {}).get("validation"),
+                    error_payload=error.payload,
+                    initiated_by_user_id=user["id"],
+                    created_at=created_at,
+                )
+                conn.commit()
+                raise
+            except Exception as error:
+                conn.rollback()
+                structured_error = DeploymentFailureError(
+                    "Tenant deployment failed.",
+                    code="tenant_deployment_failed",
+                    detail={"reason": str(error)},
+                )
+                self._record_tenant_deployment(
+                    conn,
+                    deployment_id=deployment_id,
+                    tenant_id=tenant_id,
+                    blueprint_id=(plan or {}).get("blueprintId") or requested_blueprint_id,
+                    blueprint_name=(plan or {}).get("blueprintName") or (blueprint_payload or {}).get("name"),
+                    blueprint_version=(plan or {}).get("blueprintVersion") or (blueprint_payload or {}).get("version") or (blueprint_payload or {}).get("blueprintVersion"),
+                    blueprint_source=(plan or {}).get("blueprintSource") or ((blueprint_payload or {}).get("source") or ("filesystem" if blueprint_id else "payload")),
+                    status="failed",
+                    validation=None,
+                    error_payload=structured_error.payload,
+                    initiated_by_user_id=user["id"],
+                    created_at=created_at,
+                )
+                conn.commit()
+                raise structured_error
+
+        return {
+            "deploymentId": deployment_id,
+            "tenantId": tenant_id,
+            "tenantSlug": tenant_slug,
+            "tenantSettings": self.get_tenant_settings(tenant_id),
+            "validation": validation,
+            "switchedToTenant": bool(switch_to_tenant),
+            "activeTenantId": tenant_id if switch_to_tenant else session["current_tenant_id"],
+        }
+
+    def get_system_settings(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            return self._system_settings_from_conn(conn)
+
+    def get_tenant_settings(self, tenant_id: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            return self._tenant_settings_from_raw(conn, tenant_id)
+
+    def get_user_settings(self, token: str | None = None, user_id: str | None = None) -> dict[str, Any]:
+        with self._connect() as conn:
+            if token:
+                session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+                if not session:
+                    raise ValueError("Session not found or expired.")
+                user_id = session["user_id"]
+            if not user_id:
+                raise ValueError("User context is required.")
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (user_id,)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+            return self._user_settings_from_record(user)
+
+    def update_system_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._connect() as conn:
+            current = self._system_settings_from_conn(conn)
+            patch = normalize_system_settings_payload(payload, include_defaults=False)
+            updated = merge_with_defaults(current, patch)
+            valid, errors = validate_against_schema(
+                "tenant-settings",
+                {
+                    "system": updated,
+                    "tenant": DEFAULT_TENANT_SETTINGS,
+                    "user": DEFAULT_USER_SETTINGS,
+                    "fieldPolicies": FIELD_POLICIES,
+                },
+            )
+            if not valid:
+                raise ValueError(f"Invalid system settings payload: {'; '.join(errors)}")
+            conn.execute(
+                "UPDATE app_settings SET system_settings_json = ?, updated_at = ? WHERE id = 'system-primary'",
+                (json.dumps(updated), utcnow_iso()),
+            )
+            conn.commit()
+        return updated
+
+    def update_tenant_settings(self, token: str | None, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+
+            current = self._tenant_settings_from_raw(conn, tenant_id)
+            patch = normalize_tenant_settings_payload(payload, include_defaults=False)
+            merged = merge_with_defaults(current, patch)
+            valid, errors = validate_against_schema(
+                "tenant-settings",
+                {
+                    "system": self._system_settings_from_conn(conn),
+                    "tenant": merged,
+                    "user": self._user_settings_from_record(user),
+                    "fieldPolicies": FIELD_POLICIES,
+                },
+            )
+            if not valid:
+                raise ValueError(f"Invalid tenant settings payload: {'; '.join(errors)}")
+
+            if isinstance(patch.get("globalVariables"), dict):
+                self._upsert_global_variables_from_canonical(conn, tenant_id, user["id"], patch["globalVariables"])
+            comms_patch = patch.get("comms") if isinstance(patch.get("comms"), dict) else {}
+            if isinstance(comms_patch.get("systemEmailTemplates"), dict):
+                self._upsert_system_email_templates_from_canonical(conn, tenant_id, user, comms_patch["systemEmailTemplates"])
+
+            persisted = strip_derived_tenant_sections(merged)
+            # Compatibility note:
+            # `tenants.settings_json` now stores canonical tenantSettings. Legacy `tenant.settings`
+            # is projected from this payload at read time so the current frontend can keep working.
+            # Boundary note:
+            # tenant row fields (`id`, `name`, `slug`, other lookup-critical identity fields)
+            # remain authoritative on the row. `tenantSettings.internal` is for operational
+            # metadata only and must not become a mirrored identity store.
+            conn.execute(
+                "UPDATE tenants SET settings_json = ?, updated_at = ? WHERE id = ?",
+                (json.dumps({"tenantSettings": persisted}), utcnow_iso(), tenant_id),
+            )
+            conn.commit()
+        return self.get_tenant_settings(tenant_id)
+
+    def update_user_settings(self, token: str | None, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+
+            current = self._user_settings_from_record(user)
+            patch = normalize_user_settings_payload(payload, include_defaults=False)
+            merged = merge_with_defaults(current, patch)
+            valid, errors = validate_against_schema(
+                "tenant-settings",
+                {
+                    "system": self._system_settings_from_conn(conn),
+                    "tenant": DEFAULT_TENANT_SETTINGS,
+                    "user": merged,
+                    "fieldPolicies": FIELD_POLICIES,
+                },
+            )
+            if not valid:
+                raise ValueError(f"Invalid user settings payload: {'; '.join(errors)}")
+
+            persisted = self._persistable_user_settings(merged)
+            conn.execute(
+                """
+                UPDATE app_users
+                SET phone = ?, locale = ?, timezone = ?, email_signature = ?, user_settings_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    merged["profile"].get("phone") or None,
+                    merged["preferences"].get("locale") or "en-US",
+                    merged["preferences"].get("timezone") or "America/New_York",
+                    merged["comms"].get("emailSignature") or "",
+                    json.dumps(persisted),
+                    utcnow_iso(),
+                    user["id"],
+                ),
+            )
+            conn.commit()
+        return self.get_user_settings(token=token)
+
+    def export_tenant_blueprint(self, tenant_id: str) -> dict[str, Any]:
+        tenant_settings = self.get_tenant_settings(tenant_id)
+        workspace = self.get_workspace(tenant_id)
+        flows = []
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM flows
+                WHERE tenant_id = ?
+                ORDER BY created_at ASC, updated_at ASC
+                """,
+                (tenant_id,),
+            ).fetchall()
+            deployment = self._tenant_deployment_record(
+                conn.execute(
+                    """
+                    SELECT *
+                    FROM tenant_deployments
+                    WHERE tenant_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (tenant_id,),
+                ).fetchone()
+            )
+        for row in rows:
+            nodes = self._json_loads(row["nodes_json"], [])
+            if str(row["status"] or "").strip().lower() != "active":
+                continue
+            if not any(str(node.get("type") or "").lower() == "trigger" for node in nodes if isinstance(node, dict)):
+                continue
+            flows.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "status": row["status"],
+                    "nodes": nodes,
+                    "edges": self._json_loads(row["edges_json"], []),
+                    "spec": self._json_loads(row["spec_json"], None),
+                    "metadata": self._json_loads(row["metadata_json"], {}),
+                }
+            )
+        blueprint = build_tenant_blueprint(
+            tenant_settings,
+            flows=flows,
+            blueprint_id=(deployment or {}).get("blueprintId") or tenant_settings.get("internal", {}).get("blueprintId") or workspace["slug"],
+            name=f"{workspace['name']} Export",
+            description=f"Portable export for tenant {workspace['name']}.",
+            source="tenant-export",
+            version=(deployment or {}).get("blueprintVersion") or 1,
+        )
+        valid, errors = validate_against_schema("tenant-blueprint", blueprint)
+        if not valid:
+            raise ValueError(f"Invalid tenant blueprint payload: {'; '.join(errors)}")
+        return blueprint
+
+    def import_tenant_blueprint(self, token: str | None, tenant_id: str, blueprint: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        plan = build_deployment_plan(blueprint_payload=blueprint)
+        final_tenant_settings = plan["tenantSettings"]
+        final_comms = final_tenant_settings.get("comms") if isinstance(final_tenant_settings.get("comms"), dict) else {}
+        final_templates = final_comms.get("systemEmailTemplates") if isinstance(final_comms.get("systemEmailTemplates"), dict) else {}
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            if not user:
+                raise ValueError("User not found.")
+            persisted_settings = strip_derived_tenant_sections(final_tenant_settings)
+            settings_json = json.dumps({"tenantSettings": persisted_settings})
+            conn.execute("UPDATE tenants SET settings_json = ?, updated_at = ? WHERE id = ?", (settings_json, utcnow_iso(), tenant_id))
+            self._replace_global_variables_from_canonical(
+                conn,
+                tenant_id,
+                user["id"],
+                final_tenant_settings.get("globalVariables") if isinstance(final_tenant_settings.get("globalVariables"), dict) else {},
+            )
+            self._replace_system_email_templates_from_canonical(conn, tenant_id, user, final_templates)
+            self._replace_deployment_flows(conn, tenant_id, plan["flows"], user["display_name"] or user["email"] or "Current User")
+            conn.commit()
+        return self.get_tenant_settings(tenant_id)
+
+    def list_blueprints(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": entry["id"],
+                "name": entry["name"],
+                "version": entry["version"],
+                "description": entry["description"],
+                "source": entry["source"],
+            }
+            for entry in list_blueprint_registry()
+        ]
+
+    def get_tenant_deployment(self, token: str | None, tenant_id: str) -> dict[str, Any] | None:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            row = conn.execute(
+                """
+                SELECT *
+                FROM tenant_deployments
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (tenant_id,),
+            ).fetchone()
+        return self._tenant_deployment_record(row)
+
+    def list_tenant_deployments(self, token: str | None, tenant_id: str, limit: int = 25) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM tenant_deployments
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (tenant_id, max(1, min(limit, 100))),
+            ).fetchall()
+        return [record for record in (self._tenant_deployment_record(row) for row in rows) if record]
+
+    def get_canonical_settings_bundle(self, token: str | None, tenant_id: str, user_id: str | None = None) -> dict[str, Any]:
+        # Projected tenant fields such as global variables and system email templates are only
+        # complete on the canonical bundle path. Do not read raw tenant JSON for full settings.
+        tenant_settings = self.get_tenant_settings(tenant_id)
+        user_settings = self.get_user_settings(token=token, user_id=user_id)
+        return build_settings_bundle(self.get_system_settings(), tenant_settings, user_settings)
+
     def list_ai_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -687,7 +1784,7 @@ class AuthStore:
             conn.execute(
                 """
                 INSERT INTO app_users (id, email, username, display_name, password_hash, password_salt, auth_provider, role, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'owner', ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'operator', ?, ?)
                 """,
                 (user_id, normalized, username, name.strip() or normalized, password_hash, password_salt, "local-password", now, now),
             )
@@ -751,7 +1848,7 @@ class AuthStore:
                 conn.execute(
                     """
                     INSERT INTO app_users (id, email, username, display_name, auth_provider, role, avatar_url, last_login_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, 'google-oauth', 'owner', ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, 'google-oauth', 'operator', ?, ?, ?, ?)
                     """,
                     (user_id, normalized, username, (name or normalized).strip(), avatar_url, now, now, now),
                 )
@@ -854,9 +1951,10 @@ class AuthStore:
                 raise ValueError("User not found.")
             workspace_id = f"tenant-{secrets.token_hex(6)}"
             now = utcnow_iso()
+            persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
             conn.execute(
                 "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (workspace_id, workspace_name, f"{slugify(workspace_name)}-{secrets.token_hex(3)}", "{}", now, now),
+                (workspace_id, workspace_name, f"{slugify(workspace_name)}-{secrets.token_hex(3)}", json.dumps(persisted_settings), now, now),
             )
             conn.execute(
                 """
@@ -871,7 +1969,7 @@ class AuthStore:
             )
             conn.commit()
             return {
-                "workspace": {"id": workspace_id, "name": workspace_name, "slug": slugify(workspace_name)},
+                "workspace": self.get_workspace(workspace_id),
                 "session": self.get_session(token),
             }
 
@@ -884,25 +1982,17 @@ class AuthStore:
         if name is None and settings is None:
             raise ValueError("No workspace changes provided.")
         with self._connect() as conn:
-            session = conn.execute(
-                "SELECT * FROM app_sessions WHERE token = ? LIMIT 1",
-                (token,),
-            ).fetchone()
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
             self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
-            now = utcnow_iso()
-            assignments: list[str] = ["updated_at = ?"]
-            params: list[Any] = [now]
             if name is not None:
-                assignments.append("name = ?")
-                params.append(workspace_name)
-            if settings is not None:
-                assignments.append("settings_json = ?")
-                params.append(json.dumps(settings))
-            params.append(tenant_id)
-            conn.execute(f"UPDATE tenants SET {', '.join(assignments)} WHERE id = ?", params)
-            conn.commit()
+                # Workspace identity stays on the tenant row. Do not mirror `name` into
+                # `tenantSettings.internal`; operational metadata is updated separately.
+                conn.execute("UPDATE tenants SET name = ?, updated_at = ? WHERE id = ?", (workspace_name, utcnow_iso(), tenant_id))
+                conn.commit()
+        if settings is not None:
+            self.update_tenant_settings(token, tenant_id, settings)
         return {"workspace": self.get_workspace(tenant_id)}
 
     def get_workspace(self, tenant_id: str) -> dict[str, Any]:
@@ -910,15 +2000,17 @@ class AuthStore:
             row = conn.execute("SELECT * FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
         if not row:
             raise ValueError("Workspace not found.")
-        try:
-            settings = json.loads(row["settings_json"]) if row["settings_json"] else {}
-        except Exception:
-            settings = {}
+        tenant_settings = self.get_tenant_settings(tenant_id)
+        system_settings = self.get_system_settings()
         return {
             "id": row["id"],
+            # Identity/index fields are authoritative on the tenant row.
             "name": row["name"],
             "slug": row["slug"],
-            "settings": settings,
+            # Operational metadata is carried inside `tenant_settings.internal`.
+            "settings": tenant_settings_to_legacy_view(tenant_settings),
+            "tenant_settings": tenant_settings,
+            "system_settings": system_settings,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -1148,6 +2240,7 @@ class AuthStore:
         password: str,
         display_name: str,
         role: str = "staff",
+        user_role: str = "operator",
         create_workspace: bool = False,
         workspace_name: str | None = None,
     ) -> dict[str, Any]:
@@ -1164,6 +2257,7 @@ class AuthStore:
             raise ValueError("Password must be at least 8 characters.")
         if role not in {"owner", "admin", "staff", "viewer"}:
             raise ValueError("Invalid workspace role.")
+        resolved_user_role = normalize_user_role(user_role)
 
         with self._connect() as conn:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
@@ -1187,9 +2281,10 @@ class AuthStore:
                 workspace_label = (workspace_name or "").strip() or f"{normalized_name} Workspace"
                 target_tenant_id = f"tenant-{secrets.token_hex(6)}"
                 workspace_slug = f"{slugify(workspace_label)}-{secrets.token_hex(3)}"
+                persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
                 conn.execute(
                     "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (target_tenant_id, workspace_label, workspace_slug, "{}", now, now),
+                    (target_tenant_id, workspace_label, workspace_slug, json.dumps(persisted_settings), now, now),
                 )
                 target_role = "owner"
                 existing_owner_membership = conn.execute(
@@ -1219,7 +2314,7 @@ class AuthStore:
                 INSERT INTO app_users (id, email, username, display_name, password_hash, password_salt, auth_provider, role, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, 'local-password', ?, ?, ?)
                 """,
-                (user_id, normalized_email, normalized_username, normalized_name, password_hash, password_salt, target_role, now, now),
+                (user_id, normalized_email, normalized_username, normalized_name, password_hash, password_salt, resolved_user_role, now, now),
             )
             conn.execute(
                 """
@@ -1236,7 +2331,8 @@ class AuthStore:
                 "email": normalized_email,
                 "username": normalized_username,
                 "name": normalized_name,
-                "role": target_role,
+                "role": resolved_user_role,
+                "workspace_role": target_role,
             },
             "workspace": created_workspace or self.get_workspace(target_tenant_id),
             "memberships": self.list_workspace_memberships(token, target_tenant_id),
@@ -1487,28 +2583,8 @@ class AuthStore:
             if not session:
                 raise ValueError("Session not found or expired.")
             self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM global_variables
-                WHERE tenant_id = ?
-                ORDER BY is_system DESC, key ASC
-                """,
-                (tenant_id,),
-            ).fetchall()
-        return [
-            {
-                "id": row["id"],
-                "key": row["key"],
-                "value": row["value"],
-                "description": row["description"],
-                "is_secret": bool(row["is_secret"]),
-                "is_system": bool(row["is_system"]),
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
-            }
-            for row in rows
-        ]
+            rows = self._list_global_variable_records_for_tenant(conn, tenant_id)
+        return rows
 
     def upsert_global_variable(self, token: str | None, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not token:
@@ -1522,60 +2598,24 @@ class AuthStore:
             if not session:
                 raise ValueError("Session not found or expired.")
             self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
-            existing = conn.execute(
-                "SELECT * FROM global_variables WHERE tenant_id = ? AND key = ? LIMIT 1",
-                (tenant_id, key),
-            ).fetchone()
-            now = utcnow_iso()
-            if existing:
-                conn.execute(
-                    """
-                    UPDATE global_variables
-                    SET value = ?, description = ?, is_secret = ?, is_system = ?, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (
-                        str(value),
-                        (payload.get("description") or "").strip() or None,
-                        1 if payload.get("is_secret") else 0,
-                        1 if payload.get("is_system") else 0,
-                        now,
-                        existing["id"],
-                    ),
-                )
-                variable_id = existing["id"]
-            else:
-                variable_id = f"gvar-{secrets.token_hex(8)}"
-                conn.execute(
-                    """
-                    INSERT INTO global_variables (id, tenant_id, key, value, description, is_secret, is_system, created_by_user_id, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        variable_id,
-                        tenant_id,
-                        key,
-                        str(value),
-                        (payload.get("description") or "").strip() or None,
-                        1 if payload.get("is_secret") else 0,
-                        1 if payload.get("is_system") else 0,
-                        session["user_id"],
-                        now,
-                        now,
-                    ),
-                )
+            self._upsert_global_variables_from_canonical(
+                conn,
+                tenant_id,
+                session["user_id"],
+                {
+                    key: {
+                        "value": str(value),
+                        "label": payload.get("label") or key,
+                        "category": payload.get("category") or ("system" if payload.get("is_system") else "custom"),
+                        "editableByClient": payload.get("editable_by_client", not payload.get("is_system")),
+                        "description": payload.get("description") or "",
+                        "isSecret": bool(payload.get("is_secret")),
+                        "isSystem": bool(payload.get("is_system")),
+                    }
+                },
+            )
             conn.commit()
-            row = conn.execute("SELECT * FROM global_variables WHERE id = ? LIMIT 1", (variable_id,)).fetchone()
-        return {
-            "id": row["id"],
-            "key": row["key"],
-            "value": row["value"],
-            "description": row["description"],
-            "is_secret": bool(row["is_secret"]),
-            "is_system": bool(row["is_system"]),
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        }
+        return next(item for item in self.list_global_variables(token, tenant_id) if item["key"] == key)
 
     def delete_global_variable(self, token: str | None, tenant_id: str, variable_id: str) -> dict[str, Any]:
         if not token:

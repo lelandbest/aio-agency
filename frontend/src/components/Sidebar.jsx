@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import {
@@ -11,7 +11,7 @@ import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
  * Sidebar Component
  * Collapsible navigation sidebar with menu structure
  */
-const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMobileOpen, menuStructure, iconMap }) => {
+const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMobileOpen, menuStructure, iconMap, showHelp = true }) => {
     const [expandedGroup, setExpandedGroup] = useState(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { brandConfig } = useBrand();
@@ -23,23 +23,29 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
         normalizeDisplayText(a.label || '').localeCompare(normalizeDisplayText(b.label || ''))
     );
 
+    useEffect(() => {
+        if (Array.isArray(menuStructure) && menuStructure.length === 0) {
+            console.warn('[Sidebar] menuStructure is empty. Navigation data is not available for sidebar rendering.');
+        }
+    }, [menuStructure]);
+
     return (
         <>
             {/* Mobile Overlay */}
             {isMobileOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    className="overlay-scrim fixed inset-0 z-40 lg:hidden"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
 
             {/* Sidebar */}
             <div className={`
-        fixed lg:static inset-y-0 left-0 bg-[var(--color-sidebar-bg)] border-r border-[var(--color-border)] 
+        fixed lg:static inset-y-0 left-0 border-r border-[var(--color-border)] shadow-[var(--shadow-elevated)] lg:shadow-none
         flex flex-col overflow-hidden z-50 transform transition-all lg:transform-none
         ${isCollapsed ? 'w-18' : 'w-52'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `} style={{ color: 'var(--color-sidebar-text)' }}>
+      `} style={{ backgroundColor: 'var(--color-sidebar-bg, var(--color-bg-secondary, #E3E7ED))', color: 'var(--color-sidebar-text, var(--color-text-primary, #0B1220))' }}>
                 {/* Logo */}
                 <div className="h-14 border-b border-[var(--color-border)] flex items-center justify-between px-3 flex-shrink-0">
                     <div className={`flex items-center gap-2.5 ${isCollapsed ? 'hidden' : ''}`}>
@@ -236,17 +242,19 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                 </nav>
 
                 {/* Help Docs Link */}
-                <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-3'}`}>
-                    {!isCollapsed && <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase">Resources</span>}
-                    <button
-                        onClick={() => onSelectModule('aio-help')}
-                        className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
-                        title="Help Documentation"
-                    >
-                        <HelpCircle size={16} />
-                        {!isCollapsed && <span className="text-xs">Help Docs</span>}
-                    </button>
-                </div>
+                {showHelp ? (
+                    <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-3'}`}>
+                        {!isCollapsed && <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase">Resources</span>}
+                        <button
+                            onClick={() => onSelectModule('aio-help')}
+                            className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
+                            title="Help Documentation"
+                        >
+                            <HelpCircle size={16} />
+                            {!isCollapsed && <span className="text-xs">Help Docs</span>}
+                        </button>
+                    </div>
+                ) : null}
             </div>
         </>
     );
@@ -263,6 +271,7 @@ Sidebar.propTypes = {
         items: PropTypes.arrayOf(PropTypes.object).isRequired,
     })).isRequired,
     iconMap: PropTypes.object.isRequired,
+    showHelp: PropTypes.bool,
 };
 
 export default Sidebar;

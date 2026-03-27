@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers, Search, Monitor, LogOut, Sparkles } from 'lucide-react';
-import { useTheme } from '../../lib/ThemeContext';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBrand } from '../../contexts/BrandContext';
@@ -14,14 +13,14 @@ import {
   deleteGlobalVariableApi,
   executeOmegaApi,
   getAuthSessionsApi,
+  getCanonicalSettingsApi,
   getOmegaStatusApi,
-  getGlobalVariablesApi,
   getProfileApi,
-  getSystemEmailTemplatesApi,
   getWorkspaceMembershipsApi,
   logoutOtherSessionsApi,
   removeWorkspaceMemberApi,
   revokeAuthSessionApi,
+  updateCanonicalTenantSettingsApi,
   updateProfileApi,
   updateSystemEmailTemplateApi,
   updateWorkspaceApi,
@@ -54,6 +53,51 @@ const useTransientSaveFeedback = (duration = 1400) => {
 };
 
 const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
+
+const loadCanonicalTenantSettings = async () => {
+  const bundle = await getCanonicalSettingsApi();
+  return bundle?.tenantSettings || {};
+};
+
+const mapCanonicalGlobalVariables = (tenantSettings = {}) => {
+  const variables = tenantSettings?.globalVariables || {};
+  return Object.entries(variables).map(([key, details]) => ({
+    id: details?.id || key,
+    key,
+    value: details?.value || '',
+    label: details?.label || key,
+    category: details?.category || 'custom',
+    editableByClient: Boolean(details?.editableByClient),
+    description: details?.description || '',
+    is_secret: Boolean(details?.isSecret),
+    is_system: Boolean(details?.isSystem),
+  }));
+};
+
+const mapCanonicalSystemEmailTemplates = (tenantSettings = {}, search = '') => {
+  const templates = tenantSettings?.comms?.systemEmailTemplates || {};
+  const rows = Object.values(templates).filter((template) => template && typeof template === 'object');
+  const normalizedSearch = search.trim().toLowerCase();
+  const filtered = normalizedSearch
+    ? rows.filter((template) => [template.emailType, template.subject, template.sendTo].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)))
+    : rows;
+  return filtered
+    .map((template) => ({
+      id: template.id,
+      template_key: template.templateKey,
+      email_type: template.emailType,
+      subject: template.subject || '',
+      send_to: template.sendTo || '',
+      enabled: Boolean(template.enabled),
+      body_html: template.bodyHtml,
+      body_text: template.bodyText,
+      edited_by_name: template.editedByName || template.edited_by_name,
+      edited_at: template.editedAt || template.edited_at,
+      config: template.config || {},
+      updated_at: template.updatedAt || template.updated_at,
+    }))
+    .sort((left, right) => String(left.email_type || '').localeCompare(String(right.email_type || '')));
+};
 
 const formatOmegaCountdown = (executeAt, nowTick) => {
   if (!executeAt) {
@@ -88,8 +132,8 @@ const GlobalVarsManager = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await getGlobalVariablesApi();
-      setVars(data);
+      const tenantSettings = await loadCanonicalTenantSettings();
+      setVars(mapCanonicalGlobalVariables(tenantSettings));
     } catch (loadError) {
       setError(loadError.message || 'Unable to load variables.');
     } finally {
@@ -179,16 +223,28 @@ const GlobalVarsManager = () => {
 const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   const [activeTab, setActiveTab] = useState('branding');
   const [expandedCategory, setExpandedCategory] = useState('Main');
-  const [menuItems, setMenuItems] = useState(menuStructure || []);
-  const { theme, setTheme } = useTheme();
-  const { tenant } = useAuth();
-  const { setBrandConfig, resetBrandConfig } = useBrand();
+  const [menuItems, setMenuItems] = useState([]);
+  const [menuDraftDirty, setMenuDraftDirty] = useState(false);
+  const { tenant, refreshSession } = useAuth();
+  const { setBrandConfig } = useBrand();
+  const tenantSettings = tenant?.tenant_settings || tenant?.settings || {};
+  const persistedMenuStructure = Array.isArray(tenantSettings?.navigation?.menuStructure)
+    ? tenantSettings.navigation.menuStructure
+    : Array.isArray(tenantSettings?.menu_structure)
+    ? tenantSettings.menu_structure
+    : null;
+  const draftMenuStructure = Array.isArray(persistedMenuStructure)
+    ? persistedMenuStructure
+    : Array.isArray(menuStructure)
+    ? menuStructure
+    : [];
+  const cloneMenuStructure = (value) => JSON.parse(JSON.stringify(Array.isArray(value) ? value : []));
 
   const buildDefaultBrandingData = () => ({
-    menuBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--color-bg-primary').trim() || 'var(--color-bg-primary)',
-    menuTextColor: getComputedStyle(document.documentElement).getPropertyValue('--color-text-primary').trim() || 'var(--color-text-primary)',
+    menuBackgroundColor: 'var(--color-bg-primary)',
+    menuTextColor: 'var(--color-text-primary)',
     layout: 'sidebar-left',
-    theme,
+    theme: 'auto',
     companyLogo: '',
     companyName: 'AIO CRM',
     brandName: 'AIO CRM',
@@ -205,47 +261,57 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   // Branding State
   const [brandingData, setBrandingData] = useState(() => ({
     ...buildDefaultBrandingData(),
-    ...(tenant?.settings?.branding || {})
+    ...(tenantSettings?.branding || {})
   }));
 
   useEffect(() => {
-    setMenuItems(menuStructure || []);
-  }, [menuStructure]);
+    setMenuItems(cloneMenuStructure(draftMenuStructure));
+    setMenuDraftDirty(false);
+  }, [tenant?.id, persistedMenuStructure, menuStructure]);
 
   useEffect(() => {
-    setBrandingData((current) => ({
+    setBrandingData({
       ...buildDefaultBrandingData(),
-      ...current,
-      ...(tenant?.settings?.branding || {}),
-      theme,
-    }));
-  }, [tenant?.id]);
-
-  // Sync with global theme
-  useEffect(() => {
-    setBrandingData(prev => ({ ...prev, theme: theme }));
-  }, [theme]);
+      ...(tenantSettings?.branding || {}),
+    });
+  }, [tenant?.id, tenantSettings]);
 
   const persistWhiteLabel = async (nextBranding = brandingData, nextMenu = menuItems) => {
     if (!tenant?.id) {
       return;
     }
-    const settings = {
-      ...(tenant?.settings || {}),
+    const nextMenuToPersist = menuDraftDirty ? nextMenu : persistedMenuStructure;
+    const updatedTenantSettings = await updateCanonicalTenantSettingsApi({
       branding: nextBranding,
-      menu_structure: nextMenu,
-    };
-    await updateWorkspaceApi(tenant.id, { settings });
-    setBrandConfig(nextBranding);
-    onMenuUpdate?.(nextMenu);
+      navigation: {
+        ...(tenantSettings?.navigation || {}),
+        menuStructure: nextMenuToPersist,
+      },
+    });
+    let refreshedTenantSettings = null;
+    try {
+      const refreshed = await refreshSession?.();
+      refreshedTenantSettings = refreshed?.tenant?.tenant_settings || null;
+    } catch (error) {
+      console.warn('Failed to refresh session after white-label save; using canonical save response.', error);
+    }
+    // Canonical save response is applied immediately so shell state does not silently diverge on refresh failures.
+    const resolvedTenantSettings = refreshedTenantSettings || updatedTenantSettings || {};
+    const refreshedBranding = resolvedTenantSettings?.branding || nextBranding;
+    const refreshedMenu = resolvedTenantSettings?.navigation?.menuStructure;
+    setBrandConfig(refreshedBranding);
+    if (Array.isArray(refreshedMenu) && refreshedMenu.length > 0) {
+      onMenuUpdate?.(refreshedMenu);
+    }
+    setMenuDraftDirty(false);
   };
 
   const handleResetWhiteLabel = async () => {
     const nextBranding = buildDefaultBrandingData();
     setBrandingData(nextBranding);
-    setMenuItems(menuStructure || []);
-    resetBrandConfig();
-    await persistWhiteLabel(nextBranding, menuStructure || []);
+    setMenuItems(cloneMenuStructure(draftMenuStructure));
+    setMenuDraftDirty(false);
+    await persistWhiteLabel(nextBranding, persistedMenuStructure);
   };
 
   const handleSaveWhiteLabel = async () => {
@@ -301,38 +367,38 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   );
 
   const toggleItemVisibility = (categoryIdx, itemIdx) => {
-    const updated = JSON.parse(JSON.stringify(menuItems));
+    const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items[itemIdx].visible = !updated[categoryIdx].items[itemIdx].visible;
     setMenuItems(updated);
-    onMenuUpdate?.(updated);
+    setMenuDraftDirty(true);
   };
 
   const updateItemLabel = (categoryIdx, itemIdx, newLabel) => {
-    const updated = JSON.parse(JSON.stringify(menuItems));
+    const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items[itemIdx].label = newLabel;
     setMenuItems(updated);
-    onMenuUpdate?.(updated);
+    setMenuDraftDirty(true);
   };
 
   const updateItemUrl = (categoryIdx, itemIdx, newUrl) => {
-    const updated = JSON.parse(JSON.stringify(menuItems));
+    const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items[itemIdx].url = newUrl;
     setMenuItems(updated);
-    onMenuUpdate?.(updated);
+    setMenuDraftDirty(true);
   };
 
   const updateItemIcon = (categoryIdx, itemIdx, showIcon) => {
-    const updated = JSON.parse(JSON.stringify(menuItems));
+    const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items[itemIdx].showIcon = showIcon;
     setMenuItems(updated);
-    onMenuUpdate?.(updated);
+    setMenuDraftDirty(true);
   };
 
   const deleteMenuItem = (categoryIdx, itemIdx) => {
-    const updated = JSON.parse(JSON.stringify(menuItems));
+    const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items.splice(itemIdx, 1);
     setMenuItems(updated);
-    onMenuUpdate?.(updated);
+    setMenuDraftDirty(true);
   };
 
   const addCustomMenuItem = () => {
@@ -351,19 +417,10 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
 
   const updateBrandingColor = (colorType, value) => {
     setBrandingData({ ...brandingData, [colorType]: value });
-
-    // Apply to CSS variables immediately
-    if (colorType === 'menuBackgroundColor') {
-      document.documentElement.style.setProperty('--color-sidebar-bg', value);
-    } else if (colorType === 'menuTextColor') {
-      document.documentElement.style.setProperty('--color-sidebar-text', value);
-    }
   };
 
   const updateBrandingTheme = (newTheme) => {
     setBrandingData({ ...brandingData, theme: newTheme });
-    // Update global theme
-    setTheme(newTheme);
   };
 
   const updateBrandingLayout = (layout) => {
@@ -412,7 +469,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   };
 
   const saveMenuItemChanges = () => {
-    const updated = JSON.parse(JSON.stringify(menuItems));
+    const updated = cloneMenuStructure(menuItems);
 
     if (showMenuModal.editIdx !== null && showMenuModal.catIdx !== null) {
       // Update existing item
@@ -443,7 +500,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
     }
 
     setMenuItems(updated);
-    onMenuUpdate?.(updated);
+    setMenuDraftDirty(true);
     closeMenuModal();
   };
 
@@ -1248,8 +1305,8 @@ const SystemEmailsSettings = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await getSystemEmailTemplatesApi(nextSearch);
-      setTemplates(data);
+      const tenantSettings = await loadCanonicalTenantSettings();
+      setTemplates(mapCanonicalSystemEmailTemplates(tenantSettings, nextSearch));
     } catch (loadError) {
       setError(loadError.message || 'Unable to load system email templates.');
     } finally {
@@ -1273,7 +1330,7 @@ const SystemEmailsSettings = () => {
     setStatus('');
     try {
       const updated = await updateSystemEmailTemplateApi(template.id, { enabled: !template.enabled });
-      setTemplates(current => current.map(item => item.id === updated.id ? updated : item));
+      await loadTemplates(search);
       setStatus(`${updated.email_type} updated.`);
     } catch (toggleError) {
       setError(toggleError.message || 'Unable to update template state.');
@@ -1298,7 +1355,7 @@ const SystemEmailsSettings = () => {
     setStatus('');
     try {
       const updated = await updateSystemEmailTemplateApi(editing.id, draft);
-      setTemplates(current => current.map(item => item.id === updated.id ? updated : item));
+      await loadTemplates(search);
       setEditing(null);
       setStatus(`${updated.email_type} saved.`);
       triggerSavedAction('save-template');

@@ -36,17 +36,19 @@ export const useTheme = () => {
  *   <App />
  * </ThemeProvider>
  */
-export const ThemeProvider = ({ children }) => {
+export const ThemeProvider = ({ children, preferredTheme = null }) => {
   const [theme, setThemeState] = useState('auto');
   const [mounted, setMounted] = useState(false);
 
-  // Initialize theme from localStorage or system preference
+  // Precedence:
+  // 1. canonical persisted tenant theme from the active session
+  // 2. system preference via `auto`
+  // localStorage mirrors the canonical theme for reload consistency but is not authority.
   useEffect(() => {
-    // Get saved theme from localStorage
-    const savedTheme = localStorage.getItem('aio-theme') || 'auto';
-    setThemeState(savedTheme);
+    const nextTheme = ['light', 'dark', 'auto'].includes(preferredTheme) ? preferredTheme : 'auto';
+    setThemeState(nextTheme);
     setMounted(true);
-  }, []);
+  }, [preferredTheme]);
 
   // Apply theme changes
   useEffect(() => {
@@ -59,9 +61,10 @@ export const ThemeProvider = ({ children }) => {
       actualTheme = prefersDark ? 'dark' : 'light';
     }
 
-    // Apply theme to document element - MUST remove 'dark' class for light theme
+    // Apply theme to document element from canonical state; clear both classes first
+    // so prior auto/manual transitions cannot leave stale theme markers behind.
     const root = document.documentElement;
-    root.classList.remove('dark');
+    root.classList.remove('light', 'dark');
     
     if (actualTheme === 'dark') {
       root.classList.add('dark');

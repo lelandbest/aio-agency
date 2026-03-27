@@ -125,7 +125,7 @@ const conflictTone = (state) => ({
 const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'microsoft365-calendar'].includes(providerId);
 const openCalendarAdmin = () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'integrations', integrationCategory: 'calendar' } }));
 
-const CalendarModule = () => {
+const CalendarModule = ({ clientMode = false }) => {
   const [activeTab, setActiveTab] = useState('calendar');
   const [view, setView] = useState('month'); // 'month', 'week', 'day'
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -149,6 +149,7 @@ const CalendarModule = () => {
   const [sourceForm, setSourceForm] = useState(() => createCalendarSourceDraft());
   const [calendarNotice, setCalendarNotice] = useState(null);
   const [showCalendarOps, setShowCalendarOps] = useState(false);
+  const visibleTabs = clientMode ? ['calendar', 'bookings'] : ['calendar', 'bookers', 'bookings'];
 
   const fetchData = async () => {
     setLoading(true);
@@ -167,20 +168,22 @@ const CalendarModule = () => {
     } catch {
       backendEvents = [];
     }
-    try {
-      backendBookers = await getBookingTypesApi();
-    } catch {
-      backendBookers = [];
-    }
-    try {
-      sources = await getCalendarSourcesApi();
-    } catch {
-      sources = [];
-    }
-    try {
-      providers = await getCalendarProvidersApi();
-    } catch {
-      providers = DEFAULT_CALENDAR_PROVIDERS;
+    if (!clientMode) {
+      try {
+        backendBookers = await getBookingTypesApi();
+      } catch {
+        backendBookers = [];
+      }
+      try {
+        sources = await getCalendarSourcesApi();
+      } catch {
+        sources = [];
+      }
+      try {
+        providers = await getCalendarProvidersApi();
+      } catch {
+        providers = DEFAULT_CALENDAR_PROVIDERS;
+      }
     }
     const mergedCalendars = [...(backendCalendars || [])];
     if (backendEvents.length > 0 && !mergedCalendars.some((calendar) => calendar.id === COMMS_CALENDAR.id)) {
@@ -197,7 +200,14 @@ const CalendarModule = () => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  }, []);
+  }, [clientMode]);
+
+  useEffect(() => {
+    if (!clientMode || visibleTabs.includes(activeTab)) {
+      return;
+    }
+    setActiveTab('calendar');
+  }, [activeTab, clientMode, visibleTabs]);
 
   useEffect(() => {
     if (!calendarSources.length) {
@@ -1204,11 +1214,6 @@ const CalendarModule = () => {
         className="border-b-0"
         aiAssistSlot={(
           <div className="flex items-center gap-2">
-            <AIAssistButton
-              onAssist={() => console.log('AI Assist: Calendar')}
-              tooltip="AI Assist"
-              iconType="crosshair"
-            />
             {(activeTab === 'bookers' || activeTab === 'bookings') && (
               <div className="flex gap-1 bg-[var(--color-bg-primary)] rounded-[var(--radius-card)] p-1">
                 <button
@@ -1227,16 +1232,18 @@ const CalendarModule = () => {
                 </button>
               </div>
             )}
-            <button
-              onClick={openCalendarAdmin}
-              className="px-3 py-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] text-xs font-medium flex items-center gap-1"
-              title="Manage Calendar Sources"
-            >
-              <svg className="w-4 h-4 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" />
-              </svg>
-              Manage Sources
-            </button>
+            {!clientMode ? (
+              <button
+                onClick={openCalendarAdmin}
+                className="px-3 py-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] text-xs font-medium flex items-center gap-1"
+                title="Manage Calendar Sources"
+              >
+                <svg className="w-4 h-4 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" />
+                </svg>
+                Manage Sources
+              </button>
+            ) : null}
             <button
               onClick={handleCreateEvent}
               className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-4 py-2 rounded text-sm font-medium md:hidden"
@@ -1248,7 +1255,7 @@ const CalendarModule = () => {
       />
       <div className="bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)]">
         <div className="flex px-4 gap-6">
-          {['calendar', 'bookers', 'bookings'].map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1261,6 +1268,7 @@ const CalendarModule = () => {
       </div>
 
       {calendarCanvasPrimary ? (
+        !clientMode ? (
         <div className="calendar-panel-soft border-b border-[var(--color-border)] px-4 py-3 space-y-3">
           <div className="calendar-panel rounded-[var(--radius-panel)] border border-[var(--color-border)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1405,6 +1413,7 @@ const CalendarModule = () => {
             </div>
           ) : null}
         </div>
+        ) : null
       ) : null}
 
       {/* Content */}
@@ -1423,6 +1432,7 @@ const CalendarModule = () => {
         <EventModal
           event={selectedEvent}
           calendars={calendars}
+          clientMode={clientMode}
           managedByBackend={Boolean(selectedEvent?.thread_id || selectedEvent?.source === 'comms')}
           allowDelete={!selectedEvent?.thread_id}
           onSave={handleSaveEvent}
@@ -1432,7 +1442,7 @@ const CalendarModule = () => {
       )}
 
       {/* Booker Modal */}
-      {showBookerModal && (
+      {!clientMode && showBookerModal && (
         <BookerModal
           booker={selectedBooker}
           onSave={handleSaveBooker}
@@ -2052,7 +2062,7 @@ const MiniCalendar = ({ selectedDate, onSelect, onClose, position = 'left' }) =>
 };
 
 // Event Modal Component
-const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = false, managedByBackend = false, allowDelete = true }) => {
+const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = false, managedByBackend = false, allowDelete = true, clientMode = false }) => {
   const [formData, setFormData] = useState({
     title: event?.title || '',
     description: event?.description || '',
@@ -2219,7 +2229,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
               <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Event Title *</label>
-              {!readOnly && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('title')} loading={assistTarget === 'title'} tooltip="Draft event title" iconType="crosshair" />}
+              {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('title')} loading={assistTarget === 'title'} tooltip="Draft event title" iconType="crosshair" />}
             </div>
             <input
               type="text"
@@ -2235,7 +2245,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
               <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Description</label>
-              {!readOnly && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('description')} loading={assistTarget === 'description'} tooltip="Draft event description" iconType="crosshair" />}
+              {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('description')} loading={assistTarget === 'description'} tooltip="Draft event description" iconType="crosshair" />}
             </div>
             <textarea
               value={formData.description}
@@ -2376,7 +2386,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
                   <MapPin size={14} className="inline mr-1" />
                   Phone Number
                 </label>
-                {!readOnly && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('location')} loading={assistTarget === 'location'} tooltip="Draft phone details" iconType="crosshair" />}
+                {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('location')} loading={assistTarget === 'location'} tooltip="Draft phone details" iconType="crosshair" />}
               </div>
               <input
                 type="tel"
@@ -2396,7 +2406,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
                   <MapPin size={14} className="inline mr-1" />
                   Location (Address, Link, or Details)
                 </label>
-                {!readOnly && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('location')} loading={assistTarget === 'location'} tooltip="Draft location details" iconType="crosshair" />}
+                {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('location')} loading={assistTarget === 'location'} tooltip="Draft location details" iconType="crosshair" />}
               </div>
               <input
                 type="text"

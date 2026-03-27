@@ -4,7 +4,12 @@ import time
 from datetime import datetime, UTC, timedelta
 from typing import Any
 from uuid import uuid4
-from backend.agent_runtime import AgentRegistry
+try:
+    from backend.agent_runtime import AgentRegistry
+    from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+except ModuleNotFoundError:
+    from agent_runtime import AgentRegistry
+    from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +52,12 @@ def json_object(value: Any) -> dict[str, Any]:
             return {}
         return dict(parsed) if isinstance(parsed, dict) else {}
     return {}
+
+
+def runtime_tenant_settings(context: dict[str, Any]) -> dict[str, Any]:
+    tenant = context.get("tenant") if isinstance(context.get("tenant"), dict) else {}
+    candidate = tenant.get("tenant_settings") if isinstance(tenant.get("tenant_settings"), dict) else tenant.get("settings") or {}
+    return normalize_tenant_settings_payload({"tenantSettings": candidate}, include_defaults=True)
 
 
 def coerce_datetime(value: Any) -> datetime | None:
@@ -545,7 +556,6 @@ class StepExecutor:
             or booking_event.get("start_time")
             or trigger_payload.get("start_time")
         )
-        start_dt = coerce_datetime(start_time) or (datetime.now(UTC) + timedelta(hours=1))
         end_time = (
             params.get("end_time")
             or config.get("end_time")
@@ -553,7 +563,6 @@ class StepExecutor:
             or booking_event.get("end_time")
             or trigger_payload.get("end_time")
         )
-        end_dt = coerce_datetime(end_time) or (start_dt + timedelta(minutes=safe_int(params.get("duration_minutes") or config.get("duration_minutes"), 30)))
         base = {
             "calendar_id": params.get("calendar_id") or config.get("calendar_id") or context.get("calendar_id") or booking_event.get("calendar_id") or trigger_payload.get("calendar_id"),
             "thread_id": params.get("thread_id") or config.get("thread_id") or context.get("thread_id") or booking_event.get("thread_id") or trigger_payload.get("thread_id"),
@@ -562,7 +571,7 @@ class StepExecutor:
             "booking_type_id": params.get("booking_type_id") or config.get("booking_type_id") or context.get("booking_type_id") or booking_event.get("booking_type_id") or trigger_payload.get("booking_type_id"),
             "title": params.get("title") or config.get("title") or context.get("title") or booking_event.get("title") or trigger_payload.get("title") or "Scheduled Meeting",
             "description": params.get("description") or config.get("description") or context.get("description") or booking_event.get("description") or trigger_payload.get("description") or "",
-            "location_type": params.get("location_type") or config.get("location_type") or context.get("location_type") or booking_event.get("location_type") or trigger_payload.get("location_type") or "other",
+            "location_type": params.get("location_type") or config.get("location_type") or context.get("location_type") or booking_event.get("location_type") or trigger_payload.get("location_type"),
             "location": params.get("location") or config.get("location") or context.get("location") or booking_event.get("location") or trigger_payload.get("location") or "",
             "meeting_url": params.get("meeting_url") or config.get("meeting_url") or context.get("meeting_url") or booking_event.get("meeting_url") or trigger_payload.get("meeting_url") or "",
             "status": params.get("status") or config.get("status") or context.get("status") or booking_event.get("status") or trigger_payload.get("status") or ("cancelled" if mode == "cancel" else "scheduled"),
@@ -570,12 +579,18 @@ class StepExecutor:
             "guest_email": params.get("guest_email") or config.get("guest_email") or context.get("guest_email") or booking_event.get("guest_email"),
             "guest_phone": params.get("guest_phone") or config.get("guest_phone") or context.get("guest_phone") or booking_event.get("guest_phone"),
             "source": params.get("source") or config.get("source") or context.get("source") or booking_event.get("source") or "flow",
-            "start_time": start_dt.isoformat(),
-            "end_time": end_dt.isoformat(),
+            "start_time": start_time,
+            "end_time": end_time,
         }
         if mode != "create":
             base["event_id"] = params.get("event_id") or config.get("event_id") or context.get("event_id") or booking_event.get("event_id") or trigger_payload.get("event_id")
-        return {key: value for key, value in base.items() if value is not None}
+        duration_override = params.get("duration_minutes") or config.get("duration_minutes")
+        if duration_override is not None:
+            start_dt = coerce_datetime(base.get("start_time")) or datetime.now(UTC)
+            if not base.get("end_time"):
+                base["end_time"] = (start_dt + timedelta(minutes=safe_int(duration_override, 30))).isoformat()
+        resolved = apply_calendar_event_defaults(base, runtime_tenant_settings(context))
+        return {key: value for key, value in resolved.items() if value is not None}
 
     def _create_booking(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         created = self.provider.create_calendar_event(self._coerce_booking_payload(step, context, mode="create"))
