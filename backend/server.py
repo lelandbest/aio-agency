@@ -2105,6 +2105,25 @@ async def list_ai_runs(request: Request, limit: int = 50):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.get("/api/ai/run/{run_id}")
+async def get_ai_run(request: Request, run_id: str):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view AI activity.")
+    provider = create_provider()
+    try:
+        raw_run = provider.get_ai_run(run_id) if hasattr(provider, "get_ai_run") else None
+        if not raw_run:
+            # Compatibility fallback for providers without direct lookup; may miss older runs beyond this window.
+            raw_run = next((run for run in provider.list_ai_runs(limit=200) if run.get("id") == run_id), None)
+        run = project_engine_run_for_ui(raw_run)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return {"status": "success", "run": run}
+    except HTTPException:
+        raise
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.get("/api/ai/agents")
 async def list_ai_agents(request: Request, include_hidden: bool = False):
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI agents.")

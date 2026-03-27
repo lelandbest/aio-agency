@@ -153,6 +153,14 @@ export async function getAiRunsApi(limit = 50) {
   return response.data || [];
 }
 
+export async function getAiRunApi(runId) {
+  const response = await request(`/api/ai/run/${encodeURIComponent(runId)}`);
+  if ((response?.status || '').toLowerCase() !== 'success') {
+    throw new Error('Unable to load AI run.');
+  }
+  return response.run || null;
+}
+
 export async function getAiAgentsApi(includeHidden = false) {
   const suffix = includeHidden ? '?include_hidden=true' : '';
   const response = await request(`/api/ai/agents${suffix}`);

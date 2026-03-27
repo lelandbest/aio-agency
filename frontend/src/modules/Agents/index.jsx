@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, UploadCloud, Workflow, Activity, Radiation, Lock } from 'lucide-react';
-import { getAiAgentsApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
+import { getAiAgentsApi, getAiRunApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import { SPECIALIST_REGISTRY } from './data/agentRegistry';
 
@@ -102,6 +102,65 @@ const normalizeAgentResponse = (response) => {
   return 'No agent output returned.';
 };
 
+const normalizeRunResponse = (run) => {
+  const steps = Array.isArray(run?.steps) ? run.steps : [];
+  const lastSuccess = [...steps].reverse().find((step) => step?.status === 'success' && step?.data);
+  const candidates = [
+    lastSuccess?.data,
+    run?.result,
+    steps,
+  ];
+
+  for (const candidate of candidates) {
+    const formatted = formatStructuredResponse(candidate);
+    if (formatted) {
+      return formatted;
+    }
+  }
+
+  return 'No agent output returned.';
+};
+
+const extractRunError = (run) => {
+  const steps = Array.isArray(run?.steps) ? run.steps : [];
+  const lastError = [...steps].reverse().find((step) => step?.status === 'error');
+  if (lastError?.error) {
+    return String(lastError.error);
+  }
+  if ((run?.status || '').toLowerCase() === 'failed') {
+    return String(run?.result || 'Run failed.');
+  }
+  return null;
+};
+
+const hydrateActiveRun = (run) => {
+  if (!run) {
+    return null;
+  }
+  return {
+    ...run,
+    output: normalizeRunResponse(run),
+    error: extractRunError(run),
+  };
+};
+
+const formatRunStatus = (value) =>
+  String(value || 'pending')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+const formatRunTimestamp = (value) => {
+  if (!value) {
+    return 'PENDING';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'PENDING';
+  }
+  return parsed.toLocaleTimeString([], { hour12: false });
+};
+
 const normalizeDelegateChain = (value) => {
   if (Array.isArray(value)) {
     return value.filter(Boolean).join(' -> ');
@@ -121,6 +180,7 @@ const AIOAgentsModule = () => {
   ]);
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
+  const [activeRun, setActiveRun] = useState(null);
   const [aiRuns, setAiRuns] = useState([]);
   const [aiRunsError, setAiRunsError] = useState('');
 
@@ -143,7 +203,21 @@ const AIOAgentsModule = () => {
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
     const nextMessage = chatInput.trim();
+    const pendingMessageId = `pending-${Date.now()}`;
+    setActiveRun(null);
     setMessages((prev) => [...prev, { role: 'user', content: nextMessage, timestamp: 'Now' }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        clientId: pendingMessageId,
+        role: 'assistant',
+        content: 'Awaiting canonical run...',
+        timestamp: 'PENDING',
+        rank: activeAgent?.name || 'AI',
+        chain: '',
+        pending: true,
+      }
+    ]);
     setChatInput('');
     try {
       const response = await runAiCommandApi({
@@ -155,31 +229,86 @@ const AIOAgentsModule = () => {
           active_agent: activeAgent?.registry_key || activeAgent?.registryKey || activeAgent?.name || '',
         }
       });
-      const routing = response?.routing || {};
-      const normalizedContent = normalizeAgentResponse(response);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: normalizedContent,
-          timestamp: 'Now',
-          rank: routing.executing_agent || activeAgent?.name || 'AI',
-          chain: normalizeDelegateChain(response?.run?.delegate_chain || routing.delegate_chain)
+      const runId = response?.run_id || response?.run?.id || '';
+      if (runId) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.clientId === pendingMessageId
+              ? { ...msg, runId, pending: false, timestamp: 'Now' }
+              : msg
+          )
+        );
+        try {
+          const run = hydrateActiveRun(await getAiRunApi(runId));
+          setActiveRun(run);
+        } catch (error) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.clientId === pendingMessageId
+                ? {
+                    ...msg,
+                    content: error.message || 'Unable to load canonical run.',
+                    timestamp: 'Now',
+                    rank: 'SYSTEM',
+                    chain: '',
+                    pending: false,
+                    runId: undefined,
+                  }
+                : msg
+            )
+          );
         }
-      ]);
+      } else {
+        const normalizedContent = normalizeAgentResponse(response);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.clientId === pendingMessageId
+              ? {
+                  ...msg,
+                  content: normalizedContent,
+                  timestamp: 'Now',
+                  rank: activeAgent?.name || 'AI',
+                  chain: '',
+                  pending: false,
+                }
+              : msg
+          )
+        );
+      }
       const latestRuns = await getAiRunsApi(12);
       setAiRuns(Array.isArray(latestRuns) ? latestRuns : []);
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: error.message || 'Unable to run the selected agent command.',
-          timestamp: 'Now',
-          rank: 'SYSTEM'
-        }
-      ]);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.clientId === pendingMessageId
+            ? {
+                ...msg,
+                content: error.message || 'Unable to run the selected agent command.',
+                timestamp: 'Now',
+                rank: 'SYSTEM',
+                chain: '',
+                pending: false,
+                runId: undefined,
+              }
+            : msg
+        )
+      );
     }
+  };
+
+  const handleSelectRun = async (runId) => {
+    if (!runId) return;
+    const existingRun = aiRuns.find((item) => item?.id === runId) || null;
+    const run = hydrateActiveRun(existingRun || await getAiRunApi(runId));
+    if (!run) return;
+    const nextAgentKey = run.executing_agent || run.agent_role || activeAgent?.registry_key || activeAgent?.name || '';
+    const nextAgent = agents.find((agent) => (agent.registryKey || agent.registry_key || agent.name) === nextAgentKey) || activeAgent;
+    if (nextAgent) {
+      setActiveAgent(nextAgent);
+    }
+    setActiveRun(run);
+    setView('command');
+    setMessages([{ role: 'assistant', runId: run.id, content: '', timestamp: formatRunTimestamp(run.updated_at || run.created_at) }]);
   };
 
   const updateAgentRegistryKey = (agentId, registryKey) => {
@@ -192,6 +321,18 @@ const AIOAgentsModule = () => {
       setActiveAgent((prev) => ({ ...prev, registryKey, registry_key: registryKey, name: registryKey }));
     }
   };
+
+  const output = activeRun?.output || null;
+  const status = activeRun?.status || null;
+  const error = activeRun?.error || null;
+  const metadata = activeRun || null;
+  const activeRunAgent = metadata?.executing_agent || metadata?.agent_role || activeAgent?.name || '';
+  const activeRunStatus = formatRunStatus(status);
+  const activeRunTimestamp = formatRunTimestamp(metadata?.updated_at || metadata?.created_at);
+  const activeRunChain = normalizeDelegateChain(metadata?.delegate_chain);
+  const activeRunCommand = metadata?.command_text || '';
+  const activeRunOutput = output;
+  const hasActiveRun = Boolean(activeRun);
 
   return (
      <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
@@ -261,6 +402,7 @@ const AIOAgentsModule = () => {
             const target = run.executing_agent || chain[chain.length - 1] || run.agent_role || run.requested_agent || 'SYSTEM';
             return {
               id: run.id || `${source}-${target}-${run.created_at || ''}`,
+              runId: run.id || null,
               time: formatRunTime(run.created_at),
               source: formatToken(source, 'USER'),
               target: formatToken(target, 'SYSTEM'),
@@ -299,7 +441,7 @@ const AIOAgentsModule = () => {
                 {/* ALPHA - Full-Width Leadership Card */}
                 {alpha && (
                   <div
-                    onClick={() => { setActiveAgent(alpha); setView('command'); setMessages([]); }}
+                    onClick={() => { setActiveAgent(alpha); setActiveRun(null); setView('command'); setMessages([]); }}
                     className="group min-h-[104px] cursor-pointer rounded-[var(--radius-panel)] border border-green-500/30 bg-gradient-to-br from-green-500/5 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shrink-0 shadow-sm"
                   >
                     <div className="px-3 py-1 flex items-center gap-3 border-b border-green-500/10">
@@ -375,7 +517,7 @@ const AIOAgentsModule = () => {
                       return (
                       <div
                         key={agentKey || agent.id || idx}
-                        onClick={() => { setActiveAgent(agent); setView('command'); setMessages([]); }}
+                        onClick={() => { setActiveAgent(agent); setActiveRun(null); setView('command'); setMessages([]); }}
                         className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
                       >
                         <div className="bg-[var(--color-bg-secondary)] rounded-t-lg p-2 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
@@ -481,7 +623,7 @@ const AIOAgentsModule = () => {
                         <span className="text-right">STATE</span>
                       </div>
                       {adminEvents.map(event => (
-                        <div key={event.id} className="grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[9px] font-mono text-white/80 px-1 py-1 border-t border-white/5">
+                        <div key={event.id} onClick={() => event.runId && handleSelectRun(event.runId)} className={`grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[9px] font-mono text-white/80 px-1 py-1 border-t border-white/5 ${event.runId ? 'cursor-pointer hover:bg-white/5' : ''}`}>
                           <span className="text-white/40">{event.time}</span>
                           <span className="truncate">{event.source}</span>
                           <span className="truncate">{event.action}</span>
@@ -504,7 +646,7 @@ const AIOAgentsModule = () => {
                     </div>
                     <div className="flex-1 p-2 space-y-1 overflow-y-auto">
                       {charlieEvents.map(event => (
-                        <div key={event.id} className="flex items-center gap-2 text-[8px] font-mono text-blue-400 border border-blue-500/20 bg-blue-900/10 p-1.5 rounded">
+                        <div key={event.id} onClick={() => event.runId && handleSelectRun(event.runId)} className={`flex items-center gap-2 text-[8px] font-mono text-blue-400 border border-blue-500/20 bg-blue-900/10 p-1.5 rounded ${event.runId ? 'cursor-pointer hover:border-blue-400/40' : ''}`}>
                           <span className="text-blue-300/60">[{event.time}]</span>
                           <span className="uppercase">{event.source}</span>
                           <span className="text-blue-300/50">-&gt;</span>
@@ -527,7 +669,7 @@ const AIOAgentsModule = () => {
                     </div>
                     <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
                       {alphaEvents.map(event => (
-                        <div key={event.id} className="flex items-center gap-2 text-[8px] font-mono text-green-400 border border-green-500/20 bg-green-900/10 p-1.5 rounded">
+                        <div key={event.id} onClick={() => event.runId && handleSelectRun(event.runId)} className={`flex items-center gap-2 text-[8px] font-mono text-green-400 border border-green-500/20 bg-green-900/10 p-1.5 rounded ${event.runId ? 'cursor-pointer hover:border-green-400/40' : ''}`}>
                           <span className="text-green-300/60">[{event.time}]</span>
                           <span className="uppercase">{event.source}</span>
                           <span className="text-green-300/50">-&gt;</span>
@@ -557,7 +699,7 @@ const AIOAgentsModule = () => {
                       executionRoutes.map((route, i) => {
                         const animDur = 1.4 + (i % 4) * 0.35;
                         return (
-                          <div key={route.id} className="flex items-center gap-3 py-1 group shrink-0">
+                          <div key={route.id} onClick={() => route.runId && handleSelectRun(route.runId)} className={`flex items-center gap-3 py-1 group shrink-0 ${route.runId ? 'cursor-pointer' : ''}`}>
                             <div className="w-16 text-[8px] font-black text-[var(--color-text-secondary)] uppercase tracking-[0.15em] text-right group-hover:text-[var(--color-text-primary)] transition-colors shrink-0">
                               {route.source}
                             </div>
@@ -596,10 +738,10 @@ const AIOAgentsModule = () => {
              {/* Left: Intel / Config */}
              <div className="w-80 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
-                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight">{activeAgent.name}</h3>
+                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight">{hasActiveRun ? activeRunAgent : activeAgent.name}</h3>
                    <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2 py-0.5 bg-purple-900/30 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded-full">{activeAgent.rank}</span>
-                      <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest opacity-60">{activeAgent.model}</span>
+                      <span className="px-2 py-0.5 bg-purple-900/30 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded-full">{hasActiveRun ? activeRunStatus : activeAgent.rank}</span>
+                      <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest opacity-60">{hasActiveRun ? activeRunTimestamp : activeAgent.model}</span>
                    </div>
                    <div className="mt-6">
                       <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-black mb-2 opacity-70">Registry Mapping</label>
@@ -622,8 +764,9 @@ const AIOAgentsModule = () => {
                          <Terminal size={14} className="text-purple-500" /> Execution Directive
                       </h4>
                       <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 text-[11px] text-gray-300 font-mono leading-relaxed shadow-inner">
-                         DESIGNATED AS {activeAgent.rank} SPECIALIST. PRIMARY CAPABILITY: {activeAgent.specialization}. 
-                         EXECUTE WITH MAXIMUM PRECISION.
+                         {hasActiveRun
+                           ? `RUN ${activeRunStatus}. AGENT ${activeRunAgent || 'UNASSIGNED'}. ${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
+                           : `DESIGNATED AS ${activeAgent.rank} SPECIALIST. PRIMARY CAPABILITY: ${activeAgent.specialization}. EXECUTE WITH MAXIMUM PRECISION.`}
                       </div>
                    </div>
 
@@ -673,7 +816,11 @@ const AIOAgentsModule = () => {
                 <div className="p-5 border-b border-[var(--color-border)]/50 flex items-center justify-between bg-[var(--color-bg-primary)]/20">
                   <div>
                     <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Command Console</h4>
-                    <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">Direct link to {activeAgent.name}</p>
+                    <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
+                      {hasActiveRun
+                        ? `Run ${activeRun.id} • ${activeRunStatus}${activeRunChain ? ` • ${activeRunChain}` : ''} • ${activeRunTimestamp}`
+                        : `Direct link to ${activeAgent.name}`}
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -695,30 +842,38 @@ const AIOAgentsModule = () => {
 
                 {/* Chat Feed */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
-                   {messages.map((msg, i) => (
+                   {messages.map((msg, i) => {
+                      const preferredRun = msg.role === 'assistant' && activeRun ? activeRun : null;
+                      const preferredContent = msg.role === 'assistant'
+                        ? (preferredRun ? (preferredRun.output || '') : msg.pending ? 'Awaiting canonical run...' : msg.content)
+                        : msg.content;
+                      const preferredRank = preferredRun ? (preferredRun.executing_agent || preferredRun.agent_role || msg.rank) : msg.rank;
+                      const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegate_chain) : msg.chain;
+                      const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updated_at || preferredRun.created_at) : msg.timestamp;
+                      return (
                       <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
                          <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
                             <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                <span className={`text-[9px] font-black uppercase tracking-widest ${msg.role === 'user' ? 'text-purple-400' : 'text-brass'}`}>
-                                  {msg.role === 'user' ? 'OPERATOR' : msg.rank}
+                                  {msg.role === 'user' ? 'OPERATOR' : preferredRank}
                                </span>
-                               {msg.chain ? (
+                               {preferredChain ? (
                                  <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] opacity-50 px-2 border-l border-[var(--color-border)] font-mono">
-                                   {msg.chain}
+                                   {preferredChain}
                                  </span>
                                ) : null}
-                               <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{msg.timestamp}]</span>
+                               <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
                             </div>
                             <div className={`p-5 rounded-[var(--radius-panel)] text-sm leading-relaxed shadow-island ${
                                msg.role === 'user' 
                                ? 'bg-purple-900/10 border border-purple-500/40 text-purple-100 rounded-tr-none' 
                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none border-t-white/10'
                             }`}>
-                               <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                               <div className="whitespace-pre-wrap break-words">{preferredContent}</div>
                             </div>
                          </div>
                       </div>
-                   ))}
+                   )})}
                 </div>
 
                 {/* Input Area */}
