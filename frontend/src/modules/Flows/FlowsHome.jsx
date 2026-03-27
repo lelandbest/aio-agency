@@ -39,7 +39,7 @@ const getFlowSourceMeta = (flow) => {
   };
 };
 
-const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate }) => {
+const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlow = null, selectionMode = false }) => {
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -268,6 +268,15 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate }) => {
       width: '170px',
       render: (flow) => (
         <div className="flex items-center justify-end gap-2">
+          {selectionMode && onSelectFlow ? (
+            <button
+              type="button"
+              onClick={() => onSelectFlow(flow)}
+              className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+            >
+              Select
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => startRename(flow)}
@@ -318,6 +327,9 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate }) => {
                 Flows
               </div>
               <h2 className="text-2xl font-semibold text-[var(--color-text-primary)]">Select, create, or launch your automation flows.</h2>
+              {selectionMode ? (
+                <div className="text-sm text-cyan-200">Selection mode active. Choose a flow to bind back into Agents.</div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-3">

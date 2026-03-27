@@ -139,7 +139,7 @@ const layoutNodesLeftToRight = (nodes, edges) => {
   return nextNodes;
 };
 
-const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContextChange = null, onExit }) => {
+const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContextChange = null, onSelectForAgents = null, onExit }) => {
   const getCssVar = (name, fallback = '') => {
     if (typeof window === 'undefined') return fallback;
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1179,6 +1179,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           >
             Save
           </button>
+          {onSelectForAgents ? (
+            <button
+              type="button"
+              onClick={() => flow?.id && onSelectForAgents(flow)}
+              className="flow-toolbar-btn flow-toolbar-btn--purple"
+            >
+              Use In Agents
+            </button>
+          ) : null}
           <button
             type="button"
             disabled

@@ -12,6 +12,9 @@ import flowRepository from './utils/flowRepository';
 import { ingestFlowSource } from './utils/flowIngestion';
 
 const resolveInitialView = ({ flowId, action, intent }) => {
+  if (action === 'select_agent_flow' && !flowId) {
+    return 'list';
+  }
   if (flowId) {
     return 'builder';
   }
@@ -24,6 +27,7 @@ const resolveInitialView = ({ flowId, action, intent }) => {
 const FlowsModule = ({ flowId = null, action = null, intent = null, onFlowContextChange = null }) => {
   const [view, setView] = useState(() => resolveInitialView({ flowId, action, intent }));
   const [activeFlowId, setActiveFlowId] = useState(flowId);
+  const isAgentSelectionMode = action === 'select_agent_flow';
 
   useEffect(() => {
     if (flowId) {
@@ -36,9 +40,41 @@ const FlowsModule = ({ flowId = null, action = null, intent = null, onFlowContex
       setView('builder');
       return;
     }
+    if (action === 'select_agent_flow') {
+      setActiveFlowId(flowId ?? null);
+      setView(flowId ? 'builder' : 'list');
+      return;
+    }
     setActiveFlowId(null);
     setView('list');
   }, [action, flowId, intent]);
+
+  const returnFlowToAgents = useCallback((flow) => {
+    if (!flow?.id) {
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent('aio:flow-selected', {
+        detail: {
+          flow: {
+            id: flow.id,
+            name: flow.name || 'Untitled Flow',
+            status: flow.status || 'Draft',
+          },
+        },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('aio:navigate', {
+        detail: {
+          module: 'aio-agents',
+          flowId: null,
+          action: null,
+          intent: null,
+        },
+      })
+    );
+  }, []);
 
   const applyFlowContext = useCallback(
     (next = {}) => {
@@ -105,6 +141,7 @@ const FlowsModule = ({ flowId = null, action = null, intent = null, onFlowContex
           action={activeFlowId ? null : action}
           intent={activeFlowId ? null : intent}
           onFlowContextChange={applyFlowContext}
+          onSelectForAgents={isAgentSelectionMode ? returnFlowToAgents : null}
           onExit={handleReturnToList}
         />
       </ReactFlowProvider>
@@ -116,6 +153,8 @@ const FlowsModule = ({ flowId = null, action = null, intent = null, onFlowContex
       onCreateFlow={handleCreateFlow}
       onOpenFlow={openBuilderForFlow}
       onCreateFromTemplate={handleCreateFromTemplate}
+      onSelectFlow={isAgentSelectionMode ? returnFlowToAgents : null}
+      selectionMode={isAgentSelectionMode}
     />
   );
 };
