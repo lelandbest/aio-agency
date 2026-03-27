@@ -194,68 +194,18 @@ const App = () => {
   const isFullscreen = fullscreenModules.includes(effectiveActiveModule);
 
   useEffect(() => {
-    console.warn('[App] initial menu length', {
-      initialMenuLength: Array.isArray(INITIAL_MENU_STRUCTURE) ? INITIAL_MENU_STRUCTURE.length : 0,
-      role: userRole,
-    });
-  }, [userRole]);
-
-  useEffect(() => {
-    const canonicalLength = Array.isArray(canonicalMenu) ? canonicalMenu.length : null;
-    const legacyLength = Array.isArray(legacyMenu) ? legacyMenu.length : null;
     let nextMenu = INITIAL_MENU_STRUCTURE;
-    let navSource = 'INITIAL';
 
     if (isUsableMenuStructure(canonicalMenu)) {
       nextMenu = canonicalMenu;
-      navSource = 'CANONICAL';
     } else if (isUsableMenuStructure(legacyMenu)) {
       nextMenu = legacyMenu;
-      navSource = 'LEGACY';
     }
-
-    console.warn('[App] menu hydration', {
-      role: userRole,
-      canonicalMenuType: canonicalMenu === null ? 'null' : Array.isArray(canonicalMenu) ? 'array' : typeof canonicalMenu,
-      canonicalMenuRawValue: canonicalMenu,
-      canonicalMenuLength: canonicalLength,
-      legacyMenuLength: legacyLength,
-      resolvedSource: navSource,
-      resolvedMenuLength: Array.isArray(nextMenu) ? nextMenu.length : 0,
-    });
 
     // Canonical tenant navigation is authoritative only when it contains a usable persisted menu.
     // Empty canonical/legacy arrays mean "not configured yet" and must not blank the sidebar.
     setMenuStructure(nextMenu);
-  }, [session?.tenant?.id, canonicalMenu, legacyMenu, userRole]);
-
-  useEffect(() => {
-    const finalMenuLength = Array.isArray(renderedMenuStructure) ? renderedMenuStructure.length : 0;
-    console.warn('[App] final rendered menu', {
-      role: userRole,
-      finalRenderedMenuLength: finalMenuLength,
-      filteredForClient: clientMode,
-    });
-
-    if (finalMenuLength === 0) {
-      console.warn('[App] final rendered menu resolved to zero.', {
-        role: userRole,
-        rawCanonicalNavPayload: canonicalMenu,
-        rawLegacyNavPayload: legacyMenu,
-      });
-    }
-  }, [renderedMenuStructure, userRole, clientMode, canonicalMenu, legacyMenu]);
-
-  useEffect(() => {
-    if (Array.isArray(menuStructure) && menuStructure.length === 0) {
-      console.warn('[App] menuStructure is empty.', {
-        tenantId: session?.tenant?.id || null,
-        hasCanonicalNavigation: Array.isArray(canonicalMenu),
-        hasLegacyMenuAlias: Array.isArray(legacyMenu),
-        usingInitialMenuFallback: false,
-      });
-    }
-  }, [menuStructure, session?.tenant?.id, canonicalMenu, legacyMenu]);
+  }, [session?.tenant?.id, canonicalMenu, legacyMenu]);
 
   useEffect(() => {
     if (!clientMode || CLIENT_ALLOWED_MODULES.has(activeModule)) {
