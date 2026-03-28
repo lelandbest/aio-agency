@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers, Search, Monitor, LogOut, Sparkles } from 'lucide-react';
-import ModuleHeader from '../../components/ModuleHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBrand } from '../../contexts/BrandContext';
 import { clearStoredSessionToken } from '../../services/authStorage';
@@ -2503,7 +2502,6 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-primary)]">
-      <ModuleHeader title="Settings" titleIcon={Settings} showTitle={false} showActions={false} />
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-6 py-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

@@ -10,11 +10,15 @@ from uuid import uuid4
 
 from calendar_adapters import get_calendar_adapter, get_calendar_provider_catalog
 from mail_adapters import get_mail_adapter, get_provider_catalog
+try:
+    from backend.agent_definitions import AGENT_DEFINITIONS
+except ModuleNotFoundError:
+    from agent_definitions import AGENT_DEFINITIONS
 
 DEFAULT_TENANT_ID = "tenant-primary"
 CURRENT_TENANT_ID: ContextVar[str | None] = ContextVar("current_tenant_id", default=None)
 MAIL_OAUTH_PROVIDERS = {"gmail-oauth", "microsoft365-oauth"}
-CALENDAR_OAUTH_PROVIDERS = {"google-calendar-oauth", "microsoft365-calendar"}
+CALENDAR_OAUTH_PROVIDERS = {"google-calendar-oauth", "google-meet-oauth", "microsoft365-calendar"}
 AUTH_FAILURE_MARKERS = (
     "invalid_grant",
     "invalid_client",
@@ -31,6 +35,7 @@ AUTH_FAILURE_MARKERS = (
     "401",
     "403",
 )
+KNOWN_AGENT_NAMES = set(AGENT_DEFINITIONS.keys())
 
 
 def utcnow() -> str:
@@ -47,6 +52,52 @@ def parse_utc(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def is_known_agent_name(value: str | None) -> bool:
+    return str(value or "").strip().upper() in KNOWN_AGENT_NAMES
+
+
+def resolve_thread_active_agent(
+    messages: list[dict[str, Any]],
+    actions: list[dict[str, Any]],
+    assignee: str | None,
+) -> dict[str, str]:
+    latest_candidate: dict[str, str] | None = None
+    latest_stamp = -1.0
+
+    for action in actions or []:
+        agent_name = str(action.get("agent_name") or action.get("agent") or "").strip().upper()
+        if not is_known_agent_name(agent_name):
+            continue
+        stamp_source = action.get("updated_at") or action.get("created_at") or ""
+        parsed_stamp = parse_utc(stamp_source)
+        stamp = parsed_stamp.timestamp() if parsed_stamp else 0.0
+        if stamp >= latest_stamp:
+            latest_stamp = stamp
+            latest_candidate = {"name": agent_name, "surface": "EXECUTION"}
+
+    for message in messages or []:
+        sender_name = str(message.get("sender_name") or "").strip().upper()
+        if not is_known_agent_name(sender_name):
+            continue
+        stamp_source = message.get("updated_at") or message.get("created_at") or ""
+        parsed_stamp = parse_utc(stamp_source)
+        stamp = parsed_stamp.timestamp() if parsed_stamp else 0.0
+        if stamp >= latest_stamp:
+            latest_stamp = stamp
+            latest_candidate = {
+                "name": sender_name,
+                "surface": "COMMS" if str(message.get("direction") or "").lower() == "outbound" else "EXECUTION",
+            }
+
+    if latest_candidate:
+        return latest_candidate
+
+    fallback = str(assignee or "").strip().upper()
+    if is_known_agent_name(fallback):
+        return {"name": fallback, "surface": "COMMS"}
+    return {"name": "", "surface": ""}
 
 
 def json_loads(value: str | None, default: Any) -> Any:
@@ -221,7 +272,7 @@ def disconnected_provider_config(provider: str | None, config: dict[str, Any] | 
     next_config = dict(config or {})
     for key in ["refresh_token", "access_token", "last_error", "connected_identity", "connected_calendar", "available_calendars"]:
         next_config.pop(key, None)
-    if provider in {"microsoft365-calendar", "google-calendar-oauth"}:
+    if provider in {"microsoft365-calendar", "google-calendar-oauth", "google-meet-oauth"}:
         next_config.pop("user_id", None)
         next_config.pop("calendar_id", None)
     return next_config
@@ -2637,12 +2688,14 @@ class MockProvider(BaseProvider):
         for thread in self.threads:
             messages = sorted([message for message in self.messages if message["thread_id"] == thread["id"]], key=lambda item: item["created_at"])
             ai_flags = thread["ai_flags"]
+            thread_actions = self.thread_actions.get(thread["id"], [])
+            active_agent = resolve_thread_active_agent(messages, thread_actions, thread.get("assignee"))
             hydrated.append(
                 {
                     **thread,
                     "aiFlags": ai_flags,
                     "brief": self.thread_ai_briefs.get(thread["id"], {}),
-                    "actions": self.thread_actions.get(thread["id"], []),
+                    "actions": thread_actions,
                     "artifacts": self.thread_artifacts.get(thread["id"], []),
                     "links": self.thread_links.get(thread["id"], []),
                     "calendarEvents": [event for event in self.calendar_events if event.get("thread_id") == thread["id"]],
@@ -2651,6 +2704,9 @@ class MockProvider(BaseProvider):
                     "company": company_map.get(thread["company_id"]),
                     "messages": messages,
                     "latestMessage": messages[-1] if messages else None,
+                    "activeAgentName": active_agent["name"],
+                    "activeAgentSurface": active_agent["surface"],
+                    "activeAgentIdentity": f"{active_agent['name']} • {active_agent['surface']}" if active_agent["name"] else "",
                     "preview": (messages[-1]["plain_text"] if messages else self.thread_ai_briefs.get(thread["id"], {}).get("summary")) or thread["generated_title"],
                     "queueIds": self._queue_ids({**thread, "aiFlags": ai_flags}),
                 }
@@ -2925,6 +2981,7 @@ class MockProvider(BaseProvider):
             "label": action_labels.get(mode, "AI Updated"),
             "action_type": f"ai-{mode}",
             "source": "ai",
+            "agent_name": details.get("agent_name") or details.get("agent") or thread.get("assignee"),
             "status": "completed",
             "created_at": utcnow(),
             "updated_at": utcnow(),
@@ -3777,6 +3834,7 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "messages", "tenant_id", "TEXT")
             self._ensure_column(conn, "thread_ai_briefs", "tenant_id", "TEXT")
             self._ensure_column(conn, "thread_actions", "tenant_id", "TEXT")
+            self._ensure_column(conn, "thread_actions", "agent_name", "TEXT")
             self._ensure_column(conn, "thread_links", "tenant_id", "TEXT")
             self._ensure_column(conn, "thread_artifacts", "tenant_id", "TEXT")
             self._ensure_column(conn, "calendars", "tenant_id", "TEXT")
@@ -4681,12 +4739,14 @@ class SQLiteProvider(BaseProvider):
             } if brief_row else {}
             ai_flags = json_loads(thread.pop("ai_flags_json"), {})
             latest_message = thread_messages[-1] if thread_messages else None
+            thread_actions = action_rows.get(thread["id"], [])
+            active_agent = resolve_thread_active_agent(thread_messages, thread_actions, thread.get("assignee"))
             hydrated.append(
                 {
                     **thread,
                     "aiFlags": ai_flags,
                     "brief": brief,
-                    "actions": action_rows.get(thread["id"], []),
+                    "actions": thread_actions,
                     "artifacts": artifact_rows.get(thread["id"], []),
                     "links": link_rows.get(thread["id"], []),
                     "calendarEvents": calendar_event_rows.get(thread["id"], []),
@@ -4695,6 +4755,9 @@ class SQLiteProvider(BaseProvider):
                     "company": companies.get(thread["company_id"]),
                     "messages": thread_messages,
                     "latestMessage": latest_message,
+                    "activeAgentName": active_agent["name"],
+                    "activeAgentSurface": active_agent["surface"],
+                    "activeAgentIdentity": f"{active_agent['name']} • {active_agent['surface']}" if active_agent["name"] else "",
                     "preview": (latest_message["plain_text"] if latest_message else brief.get("summary")) or thread["generated_title"],
                     "queueIds": self._thread_queue_ids({**thread, "aiFlags": ai_flags}),
                 }
@@ -7843,7 +7906,7 @@ class SQLiteProvider(BaseProvider):
                 ),
             )
             conn.execute(
-                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO thread_actions (id, tenant_id, thread_id, label, action_type, source, agent_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     f"thread-action-{thread_id}-ai-{unique_suffix()}",
                     self._tenant_id(),
@@ -7851,6 +7914,7 @@ class SQLiteProvider(BaseProvider):
                     action_labels.get(mode, "AI Updated"),
                     f"ai-{mode}",
                     "ai",
+                    details.get("agent_name") or details.get("agent") or thread.get("assignee"),
                     "completed",
                     now,
                     now,

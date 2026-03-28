@@ -33,6 +33,7 @@ export {
   Phone,
   PhoneCall,
   Radio,
+  RadioTower,
   Video,
   
   // Content & Media
@@ -147,6 +148,7 @@ export const ICON_LIBRARY = {
   Bot: IconsModule.Bot,
   Workflow: IconsModule.Workflow,
   Radio: IconsModule.Radio,
+  RadioTower: IconsModule.RadioTower,
   CalendarIcon: IconsModule.Calendar,
   MessageSquare: IconsModule.MessageSquare,
   PenTool: IconsModule.PenTool,

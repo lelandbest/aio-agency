@@ -181,6 +181,180 @@ def build_transcript_artifact(
     }
 
 
+def build_script_job(
+    *,
+    tenant_id: str | None,
+    provider: str,
+    title: str,
+    input_payload: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("script-job"),
+        "tenant_id": tenant_id,
+        "provider": provider,
+        "title": title or "Script Job",
+        "status": "queued",
+        "input_payload": clone_json(input_payload),
+        "attachments": clone_json(attachments),
+        "artifact_id": None,
+        "last_error": None,
+        "created_at": now,
+        "updated_at": now,
+        "started_at": None,
+        "completed_at": None,
+    }
+
+
+def build_script_artifact(
+    *,
+    tenant_id: str | None,
+    provider: str,
+    title: str,
+    script_text: str,
+    structured_script: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("script-artifact"),
+        "tenant_id": tenant_id,
+        "provider": provider,
+        "title": title or "Script Artifact",
+        "script_text": script_text,
+        "structured_script": clone_json(structured_script),
+        "attachments": clone_json(attachments),
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def build_run_of_show_job(
+    *,
+    tenant_id: str | None,
+    provider: str,
+    title: str,
+    input_payload: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("run-of-show-job"),
+        "tenant_id": tenant_id,
+        "provider": provider,
+        "title": title or "Run of Show Job",
+        "status": "queued",
+        "input_payload": clone_json(input_payload),
+        "attachments": clone_json(attachments),
+        "artifact_id": None,
+        "last_error": None,
+        "created_at": now,
+        "updated_at": now,
+        "started_at": None,
+        "completed_at": None,
+    }
+
+
+def build_run_of_show_artifact(
+    *,
+    tenant_id: str | None,
+    provider: str,
+    title: str,
+    run_of_show_text: str,
+    structured_run_of_show: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("run-of-show-artifact"),
+        "tenant_id": tenant_id,
+        "provider": provider,
+        "title": title or "Run of Show Artifact",
+        "run_of_show_text": run_of_show_text,
+        "structured_run_of_show": clone_json(structured_run_of_show),
+        "attachments": clone_json(attachments),
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def build_audio_render_job(
+    *,
+    tenant_id: str | None,
+    provider: str,
+    title: str,
+    input_payload: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("audio-render-job"),
+        "tenant_id": tenant_id,
+        "provider": provider,
+        "title": title or "Audio Render Job",
+        "status": "queued",
+        "input_payload": clone_json(input_payload),
+        "attachments": clone_json(attachments),
+        "output_asset_ids": [],
+        "last_error": None,
+        "created_at": now,
+        "updated_at": now,
+        "started_at": None,
+        "completed_at": None,
+    }
+
+
+def build_publish_job(
+    *,
+    tenant_id: str | None,
+    title: str,
+    input_payload: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("publish-job"),
+        "tenant_id": tenant_id,
+        "provider": "internal-publish",
+        "title": title or "Publish Job",
+        "status": "queued",
+        "input_payload": clone_json(input_payload),
+        "attachments": clone_json(attachments),
+        "artifact_id": None,
+        "last_error": None,
+        "created_at": now,
+        "updated_at": now,
+        "started_at": None,
+        "completed_at": None,
+    }
+
+
+def build_publish_artifact(
+    *,
+    tenant_id: str | None,
+    title: str,
+    publish_target: str,
+    attachments: list[dict[str, Any]],
+    source_asset_ids: list[str] | None = None,
+    source_artifact_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    now = utcnow_iso()
+    return {
+        "id": unique_id("publish-artifact"),
+        "tenant_id": tenant_id,
+        "provider": "internal-publish",
+        "title": title or "Publish Artifact",
+        "publish_target": publish_target,
+        "publication_status": "published",
+        "attachments": clone_json(attachments),
+        "source_asset_ids": list(source_asset_ids or []),
+        "source_artifact_ids": list(source_artifact_ids or []),
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
 class MediaStateStore:
     def __init__(self, path: Path | None = None) -> None:
         self.path = path or (Path(__file__).resolve().parent / "data" / "media_engine_state.json")
@@ -192,6 +366,13 @@ class MediaStateStore:
             "render_jobs": [],
             "transcript_jobs": [],
             "transcript_artifacts": [],
+            "script_jobs": [],
+            "script_artifacts": [],
+            "run_of_show_jobs": [],
+            "run_of_show_artifacts": [],
+            "audio_render_jobs": [],
+            "publish_jobs": [],
+            "publish_artifacts": [],
         }
 
     def _read_state(self) -> dict[str, Any]:
@@ -263,6 +444,30 @@ class BaseMeetingIngestionProvider(ABC):
         raise NotImplementedError
 
 
+class BaseScriptProvider(ABC):
+    provider_id = "stub-script"
+
+    @abstractmethod
+    def generateScript(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+class BaseRunOfShowProvider(ABC):
+    provider_id = "stub-run-of-show"
+
+    @abstractmethod
+    def generateRunOfShow(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+class BaseAudioRenderProvider(ABC):
+    provider_id = "elevenlabs_tts"
+
+    @abstractmethod
+    def renderAudio(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+
 class StubRenderProvider(BaseRenderProvider):
     provider_id = "stub-render"
 
@@ -271,7 +476,7 @@ class StubRenderProvider(BaseRenderProvider):
         return {
             "assets": [
                 {
-                    "asset_type": "render_output",
+                    "asset_type": clean_text(payload.get("asset_type")) or "render_output",
                     "media_type": clean_text(payload.get("media_type")) or "video",
                     "title": title,
                     "source_url": clean_text(payload.get("output_url")) or None,
@@ -409,6 +614,110 @@ class JitsiMeetingIngestionProvider(BaseMeetingIngestionProvider):
         raise NotImplementedError("Jitsi meeting ingestion is stubbed only in this safe pass.")
 
 
+class StubScriptProvider(BaseScriptProvider):
+    provider_id = "stub-script"
+
+    def generateScript(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        topic = clean_text(payload.get("topic")) or "Untitled Topic"
+        tone = clean_text(payload.get("tone")) or "clear"
+        duration = clean_text(payload.get("duration")) or "10 minutes"
+        context = clean_text(payload.get("context")) or "General audience"
+        title = clean_text(payload.get("title")) or f"{topic} Script"
+        sections = [
+            {"id": "intro", "label": "Intro", "summary": f"Frame {topic} in a {tone} voice.", "estimated_seconds": 45},
+            {"id": "body", "label": "Main Segment", "summary": f"Expand the core talking points for a {duration} segment.", "estimated_seconds": 360},
+            {"id": "cta", "label": "Close", "summary": "Wrap with the next action or takeaway.", "estimated_seconds": 45},
+        ]
+        script_text = "\n".join(
+            [
+                f"Title: {title}",
+                f"Topic: {topic}",
+                f"Tone: {tone}",
+                f"Target Duration: {duration}",
+                f"Context: {context}",
+                "",
+                "Opening:",
+                f"Today we are covering {topic} with a {tone} angle tailored for {context}.",
+                "",
+                "Main Segment:",
+                f"Break the story into three beats, keep the pacing aligned to roughly {duration}, and keep each transition explicit.",
+                "",
+                "Closing:",
+                "Summarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+            ]
+        )
+        return {
+            "artifact_title": title,
+            "script_text": script_text,
+            "structured_script": {
+                "title": title,
+                "topic": topic,
+                "tone": tone,
+                "duration": duration,
+                "context": context,
+                "sections": sections,
+            },
+            "message": "Script job completed through the stub script provider.",
+        }
+
+
+class StubRunOfShowProvider(BaseRunOfShowProvider):
+    provider_id = "stub-run-of-show"
+
+    def generateRunOfShow(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        title = clean_text(payload.get("title") or payload.get("topic")) or "Run of Show"
+        duration = clean_text(payload.get("duration")) or "30 minutes"
+        context = clean_text(payload.get("context")) or "Live production"
+        segments = [
+            {"order": 1, "label": "Cold Open", "duration": "2 minutes", "objective": "Set the theme and open strong."},
+            {"order": 2, "label": "Core Segment", "duration": "18 minutes", "objective": f"Cover the main beats for {title}."},
+            {"order": 3, "label": "Audience / CTA", "duration": "5 minutes", "objective": "Handle follow-up actions and close cleanly."},
+        ]
+        agenda_text = "\n".join(
+            [f"{item['order']}. {item['label']} ({item['duration']}): {item['objective']}" for item in segments]
+        )
+        return {
+            "artifact_title": title,
+            "run_of_show_text": agenda_text,
+            "structured_run_of_show": {
+                "title": title,
+                "duration": duration,
+                "context": context,
+                "segments": segments,
+            },
+            "message": "Run-of-show job completed through the stub planner provider.",
+        }
+
+
+class ElevenLabsTTSProvider(BaseAudioRenderProvider):
+    provider_id = "elevenlabs_tts"
+
+    def renderAudio(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        text = clean_text(payload.get("text") or payload.get("script_text") or payload.get("script"))
+        if not text:
+            raise ValueError("Audio render requires text or script input.")
+        voice = clean_text(payload.get("voice")) or "Rachel"
+        style = clean_text(payload.get("style")) or "conversational"
+        title = clean_text(payload.get("title")) or clean_text(job.get("title")) or "Voice Render"
+        return {
+            "assets": [
+                {
+                    "asset_type": "audio_render",
+                    "media_type": "audio",
+                    "title": title,
+                    "source_url": clean_text(payload.get("output_url")) or None,
+                    "metadata": {
+                        "provider_mode": "foundation_stub",
+                        "voice": voice,
+                        "style": style,
+                        "script_excerpt": text[:240],
+                    },
+                }
+            ],
+            "message": "Audio render completed through the ElevenLabs TTS foundation provider.",
+        }
+
+
 class MediaEngine:
     def __init__(self, store: MediaStateStore | None = None) -> None:
         self.store = store or MediaStateStore()
@@ -424,6 +733,15 @@ class MediaEngine:
             GoogleMeetDriveIngestionProvider.provider_id: GoogleMeetDriveIngestionProvider(),
             JitsiMeetingIngestionProvider.provider_id: JitsiMeetingIngestionProvider(),
         }
+        self.script_providers: dict[str, BaseScriptProvider] = {
+            StubScriptProvider.provider_id: StubScriptProvider(),
+        }
+        self.run_of_show_providers: dict[str, BaseRunOfShowProvider] = {
+            StubRunOfShowProvider.provider_id: StubRunOfShowProvider(),
+        }
+        self.audio_render_providers: dict[str, BaseAudioRenderProvider] = {
+            ElevenLabsTTSProvider.provider_id: ElevenLabsTTSProvider(),
+        }
 
     def list_assets(self) -> list[dict[str, Any]]:
         return self.store.list("assets")
@@ -436,6 +754,253 @@ class MediaEngine:
 
     def list_transcript_artifacts(self) -> list[dict[str, Any]]:
         return self.store.list("transcript_artifacts")
+
+    def list_script_jobs(self) -> list[dict[str, Any]]:
+        return self.store.list("script_jobs")
+
+    def list_script_artifacts(self) -> list[dict[str, Any]]:
+        return self.store.list("script_artifacts")
+
+    def list_run_of_show_jobs(self) -> list[dict[str, Any]]:
+        return self.store.list("run_of_show_jobs")
+
+    def list_run_of_show_artifacts(self) -> list[dict[str, Any]]:
+        return self.store.list("run_of_show_artifacts")
+
+    def list_audio_render_jobs(self) -> list[dict[str, Any]]:
+        return self.store.list("audio_render_jobs")
+
+    def list_publish_jobs(self) -> list[dict[str, Any]]:
+        return self.store.list("publish_jobs")
+
+    def list_publish_artifacts(self) -> list[dict[str, Any]]:
+        return self.store.list("publish_artifacts")
+
+    def generate_script(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        provider_id = clean_text(payload.get("provider")) or StubScriptProvider.provider_id
+        provider = self.script_providers.get(provider_id)
+        if not provider:
+            raise ValueError(f"Unknown script provider '{provider_id}'.")
+        attachments = normalize_attachment_links(payload, context)
+        job = build_script_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.get("title")) or clean_text(payload.get("topic")) or "Script Job",
+            input_payload=payload,
+            attachments=attachments,
+        )
+        self.store.upsert("script_jobs", job)
+        return self._process_script_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+    def _process_script_job(
+        self,
+        provider: BaseScriptProvider,
+        job: dict[str, Any],
+        payload: dict[str, Any],
+        *,
+        tenant_id: str | None,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        started = {**job, "status": "processing", "started_at": utcnow_iso()}
+        self.store.upsert("script_jobs", started)
+        try:
+            result = provider.generateScript(started, payload)
+            artifact = build_script_artifact(
+                tenant_id=tenant_id,
+                provider=provider.provider_id,
+                title=clean_text(result.get("artifact_title")) or clean_text(payload.get("title")) or clean_text(started.get("title")) or "Script Artifact",
+                script_text=clean_text(result.get("script_text")),
+                structured_script=result.get("structured_script") if isinstance(result.get("structured_script"), dict) else {},
+                attachments=attachments,
+            )
+            stored_artifact = self.store.upsert("script_artifacts", artifact)
+            completed = {
+                **started,
+                "status": "complete",
+                "completed_at": utcnow_iso(),
+                "artifact_id": stored_artifact["id"],
+                "result": {"message": result.get("message"), "section_count": len((stored_artifact.get("structured_script") or {}).get("sections") or [])},
+                "last_error": None,
+            }
+            self.store.upsert("script_jobs", completed)
+            return {"job": completed, "artifact": stored_artifact}
+        except Exception as error:
+            failed = {
+                **started,
+                "status": "failed",
+                "completed_at": utcnow_iso(),
+                "last_error": str(error),
+            }
+            self.store.upsert("script_jobs", failed)
+            return {"job": failed, "artifact": None}
+
+    def generate_run_of_show(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        provider_id = clean_text(payload.get("provider")) or StubRunOfShowProvider.provider_id
+        provider = self.run_of_show_providers.get(provider_id)
+        if not provider:
+            raise ValueError(f"Unknown run-of-show provider '{provider_id}'.")
+        attachments = normalize_attachment_links(payload, context)
+        job = build_run_of_show_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.get("title")) or clean_text(payload.get("topic")) or "Run of Show Job",
+            input_payload=payload,
+            attachments=attachments,
+        )
+        self.store.upsert("run_of_show_jobs", job)
+        return self._process_run_of_show_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+    def _process_run_of_show_job(
+        self,
+        provider: BaseRunOfShowProvider,
+        job: dict[str, Any],
+        payload: dict[str, Any],
+        *,
+        tenant_id: str | None,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        started = {**job, "status": "processing", "started_at": utcnow_iso()}
+        self.store.upsert("run_of_show_jobs", started)
+        try:
+            result = provider.generateRunOfShow(started, payload)
+            artifact = build_run_of_show_artifact(
+                tenant_id=tenant_id,
+                provider=provider.provider_id,
+                title=clean_text(result.get("artifact_title")) or clean_text(payload.get("title")) or clean_text(started.get("title")) or "Run of Show Artifact",
+                run_of_show_text=clean_text(result.get("run_of_show_text")),
+                structured_run_of_show=result.get("structured_run_of_show") if isinstance(result.get("structured_run_of_show"), dict) else {},
+                attachments=attachments,
+            )
+            stored_artifact = self.store.upsert("run_of_show_artifacts", artifact)
+            completed = {
+                **started,
+                "status": "complete",
+                "completed_at": utcnow_iso(),
+                "artifact_id": stored_artifact["id"],
+                "result": {"message": result.get("message"), "segment_count": len((stored_artifact.get("structured_run_of_show") or {}).get("segments") or [])},
+                "last_error": None,
+            }
+            self.store.upsert("run_of_show_jobs", completed)
+            return {"job": completed, "artifact": stored_artifact}
+        except Exception as error:
+            failed = {
+                **started,
+                "status": "failed",
+                "completed_at": utcnow_iso(),
+                "last_error": str(error),
+            }
+            self.store.upsert("run_of_show_jobs", failed)
+            return {"job": failed, "artifact": None}
+
+    def render_audio(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        provider_id = clean_text(payload.get("provider")) or ElevenLabsTTSProvider.provider_id
+        provider = self.audio_render_providers.get(provider_id)
+        if not provider:
+            raise ValueError(f"Unknown audio render provider '{provider_id}'.")
+        attachments = normalize_attachment_links(payload, context)
+        job = build_audio_render_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.get("title")) or "Audio Render Job",
+            input_payload=payload,
+            attachments=attachments,
+        )
+        self.store.upsert("audio_render_jobs", job)
+        return self._process_audio_render_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+    def _process_audio_render_job(
+        self,
+        provider: BaseAudioRenderProvider,
+        job: dict[str, Any],
+        payload: dict[str, Any],
+        *,
+        tenant_id: str | None,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        started = {**job, "status": "processing", "started_at": utcnow_iso()}
+        self.store.upsert("audio_render_jobs", started)
+        try:
+            result = provider.renderAudio(started, payload)
+            assets: list[dict[str, Any]] = []
+            for asset_payload in result.get("assets") or []:
+                asset = build_media_asset(
+                    tenant_id=tenant_id,
+                    provider=provider.provider_id,
+                    asset_type=clean_text(asset_payload.get("asset_type")) or "audio_render",
+                    media_type=clean_text(asset_payload.get("media_type")) or "audio",
+                    title=clean_text(asset_payload.get("title")) or clean_text(started.get("title")) or "Audio Asset",
+                    source_url=clean_text(asset_payload.get("source_url")) or None,
+                    metadata=asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {},
+                    attachments=attachments,
+                )
+                assets.append(self.store.upsert("assets", asset))
+            completed = {
+                **started,
+                "status": "complete",
+                "completed_at": utcnow_iso(),
+                "output_asset_ids": [asset["id"] for asset in assets],
+                "result": {"message": result.get("message"), "asset_count": len(assets)},
+                "last_error": None,
+            }
+            self.store.upsert("audio_render_jobs", completed)
+            return {"job": completed, "assets": assets}
+        except Exception as error:
+            failed = {
+                **started,
+                "status": "failed",
+                "completed_at": utcnow_iso(),
+                "last_error": str(error),
+            }
+            self.store.upsert("audio_render_jobs", failed)
+            return {"job": failed, "assets": []}
+
+    def publish_asset(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        attachments = normalize_attachment_links(payload, context)
+        publish_target = clean_text(payload.get("publish_target") or payload.get("publishTarget"))
+        asset_ids = [clean_text(item) for item in (payload.get("asset_ids") or []) if clean_text(item)]
+        artifact_ids = [clean_text(item) for item in (payload.get("artifact_ids") or []) if clean_text(item)]
+        job = build_publish_job(
+            tenant_id=tenant_id,
+            title=clean_text(payload.get("title")) or "Publish Job",
+            input_payload=payload,
+            attachments=attachments,
+        )
+        self.store.upsert("publish_jobs", job)
+        started = {**job, "status": "processing", "started_at": utcnow_iso()}
+        self.store.upsert("publish_jobs", started)
+        try:
+            if not publish_target:
+                raise ValueError("Publish target is missing.")
+            if not asset_ids and not artifact_ids:
+                raise ValueError("Publish Asset requires a source asset or artifact.")
+            artifact = build_publish_artifact(
+                tenant_id=tenant_id,
+                title=clean_text(payload.get("title")) or "Published Asset",
+                publish_target=publish_target,
+                attachments=attachments,
+                source_asset_ids=asset_ids,
+                source_artifact_ids=artifact_ids,
+            )
+            stored_artifact = self.store.upsert("publish_artifacts", artifact)
+            completed = {
+                **started,
+                "status": "complete",
+                "completed_at": utcnow_iso(),
+                "artifact_id": stored_artifact["id"],
+                "result": {"message": "Asset publication tracked in the media workflow layer."},
+                "last_error": None,
+            }
+            self.store.upsert("publish_jobs", completed)
+            return {"job": completed, "artifact": stored_artifact}
+        except Exception as error:
+            failed = {
+                **started,
+                "status": "failed",
+                "completed_at": utcnow_iso(),
+                "last_error": str(error),
+            }
+            self.store.upsert("publish_jobs", failed)
+            return {"job": failed, "artifact": None}
 
     def render_media(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
         provider_id = clean_text(payload.get("provider")) or StubRenderProvider.provider_id

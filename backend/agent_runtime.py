@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from ai_service import ai_assist_service, list_ollama_models
-from backend.agent_definitions import get_agent_definition, AGENT_DEFINITIONS
+from backend.agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, get_agent_definition, validate_agent_action
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,125 @@ class BaseAgent:
                 return tool_name
         return self.definition.tools[0]
 
+    def _normalize_action_token(self, value: Any) -> str:
+        return "".join(
+            char.lower() if str(char).isalnum() else "_"
+            for char in str(value or "").strip()
+        ).strip("_")
+
+    def _build_action_descriptors(self, step: dict, chosen_tool: str | None) -> list[str]:
+        descriptors = expand_agent_action_tokens(
+            step.get("intent"),
+            step.get("action"),
+            chosen_tool,
+        )
+        parameters = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
+        for candidate_key in ("tool", "operation", "mode"):
+            descriptors.extend(expand_agent_action_tokens(parameters.get(candidate_key)))
+        deduped: list[str] = []
+        for descriptor in descriptors:
+            normalized = self._normalize_action_token(descriptor)
+            if normalized and normalized not in deduped:
+                deduped.append(normalized)
+        return deduped
+
+    def _enforce_action_policy(self, step: dict, chosen_tool: str | None) -> Optional[dict]:
+        if not self.definition:
+            return None
+        descriptors = self._build_action_descriptors(step, chosen_tool)
+        validation_error = validate_agent_action(self.definition, *descriptors)
+        if validation_error:
+            return {
+                "status": "error",
+                "stepId": step.get("id"),
+                "error": validation_error,
+                "data": None,
+            }
+        return None
+
+    def _build_prompt_contract(
+        self,
+        step: dict,
+        context: dict,
+        runtime: dict,
+        chosen_tool: str | None,
+        command: str,
+        completed_step_outputs: list[dict[str, Any]],
+    ) -> tuple[str, str]:
+        definition = self.definition
+        if not definition:
+            return "", command
+
+        flow_context = context.get("flow") or (
+            {"id": context.get("flow_id"), "name": context.get("flow_name")}
+            if context.get("flow_id")
+            else None
+        )
+        comms_context = None
+        if context.get("thread_id") or context.get("module") == "comms":
+            comms_context = {
+                "thread_id": context.get("thread_id"),
+                "subject": context.get("subject"),
+                "assignee": context.get("assignee"),
+                "contact_name": context.get("contact_name"),
+                "company_name": context.get("company_name"),
+                "latest_message": context.get("latest_message"),
+            }
+
+        system_section = {
+            "role": definition.role,
+            "objective": definition.specialization,
+            "constraints": [
+                "Respect allowed_actions and disallowed_actions exactly.",
+                "Do not override agent config, runtime policy, or flow constraints.",
+                "Keep personality subtle and subordinate to the response contract.",
+                "Refuse safely when required context is missing or the action is not permitted.",
+            ],
+            "allowed_actions": definition.allowed_actions,
+            "disallowed_actions": definition.disallowed_actions,
+            "response_contract": definition.response_contract.to_dict(),
+            "personality": definition.personality.to_dict(),
+        }
+        context_section = {
+            "brain": context.get("brain_memory") or [],
+            "flow_context": {
+                "flow": flow_context,
+                "step_count": context.get("step_count"),
+                "shared_plan": (runtime.get("sharedContext") or {}).get("plan") or [],
+                "completed_step_outputs": completed_step_outputs,
+            },
+            "comms_context": comms_context,
+        }
+        task_section = {
+            "user_intent": step.get("intent") or "agent_task",
+            "required_output": "Return a concrete operator-facing result that advances the assigned step.",
+            "operator_command": command,
+            "selected_tool": chosen_tool or "internal_reasoning",
+        }
+        execution_policy_section = definition.execution_policy.to_dict()
+        system_prompt = "\n".join(
+            [
+                definition.system_prompt or f"You are {self.name}.",
+                "SYSTEM:",
+                json.dumps(system_section, default=str),
+                "EXECUTION POLICY:",
+                json.dumps(execution_policy_section, default=str),
+            ]
+        )
+        task_prompt = "\n".join(
+            [
+                "CONTEXT:",
+                json.dumps(context_section, default=str),
+                "TASK:",
+                json.dumps(task_section, default=str),
+                "Output requirements:",
+                "- Follow the response_contract exactly.",
+                "- Do not echo the operator command verbatim.",
+                "- If required information is missing, state the missing requirement explicitly.",
+            ]
+        )
+        return system_prompt, task_prompt
+
     def _execute_with_provider(self, step: dict, context: dict, runtime: dict, chosen_tool: str | None) -> dict:
         provider_config = runtime.get("providerConfig")
         command = " ".join(
@@ -149,36 +268,17 @@ class BaseAgent:
                 }
             )
 
-        context_payload = {
-            "module": context.get("module"),
-            "surface": context.get("surface"),
-            "requested_agent": context.get("requested_agent"),
-            "active_agent": context.get("active_agent"),
-            "brain_memory": context.get("brain_memory") or [],
-            "shared_plan": (runtime.get("sharedContext") or {}).get("plan") or [],
-            "flow": context.get("flow") or (
-                {"id": context.get("flow_id"), "name": context.get("flow_name")}
-                if context.get("flow_id")
-                else None
-            ),
-            "completed_step_outputs": completed_step_outputs,
-        }
-        prompt = "\n".join(
-            [
-                f"Operator command: {command}",
-                f"Assigned agent: {self.name}",
-                f"Agent role: {self.definition.role if self.definition else self.name}",
-                f"Selected tool: {chosen_tool or 'internal reasoning'}",
-                f"Execution context: {json.dumps(context_payload, default=str)}",
-                "Respond directly to the operator with a concrete result. Do not repeat the command verbatim.",
-            ]
-        )
-        system_prompt = (
-            f"{self.definition.system_prompt if self.definition else f'You are {self.name}.'}\n"
-            "You are executing inside the Cortex ExecutionEngine.\n"
-            "Produce a useful operator-facing answer.\n"
-            "Do not echo the operator command.\n"
-            "If required information is missing, state the missing requirement explicitly."
+        policy_error = self._enforce_action_policy(step, chosen_tool)
+        if policy_error:
+            return policy_error
+
+        system_prompt, prompt = self._build_prompt_contract(
+            step=step,
+            context=context,
+            runtime=runtime,
+            chosen_tool=chosen_tool,
+            command=command,
+            completed_step_outputs=completed_step_outputs,
         )
 
         try:
@@ -269,6 +369,7 @@ class BaseAgent:
                 "metadata": {
                     **metadata,
                     "agent": self.name,
+                    "agent_name": self.name,
                     "agentId": self.definition.agent_id if self.definition else None,
                     "tool": chosen_tool,
                 },

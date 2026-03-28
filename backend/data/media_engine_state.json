@@ -43,6 +43,284 @@
       "attachments": [],
       "created_at": "2026-03-28T17:09:17.621908+00:00",
       "updated_at": "2026-03-28T17:09:17.628821+00:00"
+    },
+    {
+      "id": "media-asset-23a5ebeb0a8c",
+      "tenant_id": null,
+      "provider": "elevenlabs_tts",
+      "asset_type": "audio_render",
+      "media_type": "audio",
+      "title": "PodcastForge Migration Proof",
+      "source_url": null,
+      "metadata": {
+        "provider_mode": "foundation_stub",
+        "voice": "Rachel",
+        "style": "conversational",
+        "script_excerpt": "This is the operator-ready voice render proof."
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-f6c67edfc5",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "created_at": "2026-03-28T18:15:43.509430+00:00",
+      "updated_at": "2026-03-28T18:15:43.517159+00:00"
+    },
+    {
+      "id": "media-asset-d1abe39fe3c0",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "render_output",
+      "media_type": "image",
+      "title": "Launch recap",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a sharp thumbnail for the launch recap.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-757c73cd54",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "created_at": "2026-03-28T18:15:43.544612+00:00",
+      "updated_at": "2026-03-28T18:15:43.552133+00:00"
+    },
+    {
+      "id": "media-asset-4acb4c56584d",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "render_output",
+      "media_type": "video",
+      "title": "PodcastForge Migration Proof",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a short launch recap video.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-384706f220",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "attachment_target",
+          "id": "crm.contact",
+          "label": "crm.contact"
+        }
+      ],
+      "created_at": "2026-03-28T18:15:43.582637+00:00",
+      "updated_at": "2026-03-28T18:15:43.590656+00:00"
+    },
+    {
+      "id": "media-asset-9696d4e0e4b6",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "thumbnail",
+      "media_type": "image",
+      "title": "Launch recap",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a sharp thumbnail.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-0f437caec9",
+          "label": "Proof"
+        }
+      ],
+      "created_at": "2026-03-28T18:16:17.099877+00:00",
+      "updated_at": "2026-03-28T18:16:17.107093+00:00"
+    },
+    {
+      "id": "media-asset-856e9c013299",
+      "tenant_id": null,
+      "provider": "elevenlabs_tts",
+      "asset_type": "audio_render",
+      "media_type": "audio",
+      "title": "Podcast Pipeline",
+      "source_url": null,
+      "metadata": {
+        "provider_mode": "foundation_stub",
+        "voice": "Rachel",
+        "style": "Conversational",
+        "script_excerpt": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:10.793394+00:00",
+      "updated_at": "2026-03-28T18:28:10.800725+00:00"
+    },
+    {
+      "id": "media-asset-eefee581bf45",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "thumbnail",
+      "media_type": "image",
+      "title": "Launch recap",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a bold podcast thumbnail with strong contrast and clean title space.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:10.829380+00:00",
+      "updated_at": "2026-03-28T18:28:10.838631+00:00"
+    },
+    {
+      "id": "media-asset-816e553f1af2",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "render_output",
+      "media_type": "video",
+      "title": "Podcast Pipeline",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a short teaser video for the podcast launch recap.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        },
+        {
+          "kind": "attachment_target",
+          "id": "media.library",
+          "label": "media.library"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:10.867185+00:00",
+      "updated_at": "2026-03-28T18:28:10.875266+00:00"
+    },
+    {
+      "id": "media-asset-0488fe1cf263",
+      "tenant_id": null,
+      "provider": "elevenlabs_tts",
+      "asset_type": "audio_render",
+      "media_type": "audio",
+      "title": "Podcast Pipeline",
+      "source_url": null,
+      "metadata": {
+        "provider_mode": "foundation_stub",
+        "voice": "Rachel",
+        "style": "Conversational",
+        "script_excerpt": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:49.075770+00:00",
+      "updated_at": "2026-03-28T18:28:49.083363+00:00"
+    },
+    {
+      "id": "media-asset-0fb0fec6f834",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "thumbnail",
+      "media_type": "image",
+      "title": "Launch recap",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a bold podcast thumbnail with strong contrast and clean title space.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:49.112852+00:00",
+      "updated_at": "2026-03-28T18:28:49.121105+00:00"
+    },
+    {
+      "id": "media-asset-d9761987c0eb",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "render_output",
+      "media_type": "video",
+      "title": "Podcast Pipeline",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Create a short teaser video for the podcast launch recap.",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        },
+        {
+          "kind": "attachment_target",
+          "id": "media.library",
+          "label": "media.library"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:49.148880+00:00",
+      "updated_at": "2026-03-28T18:28:49.156681+00:00"
     }
   ],
   "render_jobs": [
@@ -77,6 +355,550 @@
       "updated_at": "2026-03-28T17:09:17.590578+00:00",
       "started_at": "2026-03-28T17:09:17.570206+00:00",
       "completed_at": "2026-03-28T17:09:17.583604+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-2664f74e1745",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Launch recap",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Launch recap",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "image",
+        "script": "Create a sharp thumbnail for the launch recap.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": "Campaign cut",
+        "prompt": "Create a sharp thumbnail for the launch recap.",
+        "voice": null,
+        "style": null,
+        "attachTarget": null,
+        "metadata": {
+          "thumbnail_title": "Launch recap",
+          "thumbnail_subtitle": "Campaign cut"
+        },
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-757c73cd54",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-757c73cd54",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-d1abe39fe3c0"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.525970+00:00",
+      "updated_at": "2026-03-28T18:15:43.562237+00:00",
+      "started_at": "2026-03-28T18:15:43.535410+00:00",
+      "completed_at": "2026-03-28T18:15:43.552943+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-e6a5ddfa5793",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "PodcastForge Migration Proof",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "PodcastForge Migration Proof",
+        "templateId": "promo-clip-v1",
+        "outputTarget": "crm.contact",
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": "Create a short launch recap video.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-384706f220",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "attachment_target",
+            "id": "crm.contact",
+            "label": "crm.contact"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-384706f220",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "attachment_target",
+          "id": "crm.contact",
+          "label": "crm.contact"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-4acb4c56584d"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.564112+00:00",
+      "updated_at": "2026-03-28T18:15:43.599429+00:00",
+      "started_at": "2026-03-28T18:15:43.573232+00:00",
+      "completed_at": "2026-03-28T18:15:43.591665+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-9d9ac9d153be",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Launch recap",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Launch recap",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "image",
+        "script": "Create a sharp thumbnail.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": "Campaign cut",
+        "prompt": "Create a sharp thumbnail.",
+        "voice": null,
+        "style": null,
+        "attachTarget": null,
+        "metadata": {
+          "thumbnail_title": "Launch recap",
+          "thumbnail_subtitle": "Campaign cut"
+        },
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-0f437caec9",
+            "label": "Proof"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null,
+        "asset_type": "thumbnail"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-0f437caec9",
+          "label": "Proof"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-9696d4e0e4b6"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:16:17.089909+00:00",
+      "updated_at": "2026-03-28T18:16:17.115497+00:00",
+      "started_at": "2026-03-28T18:16:17.091025+00:00",
+      "completed_at": "2026-03-28T18:16:17.107809+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-266dbd58568d",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Launch recap",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Launch recap",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "image",
+        "script": "Create a bold podcast thumbnail with strong contrast and clean title space.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": "Episode cover",
+        "prompt": "Create a bold podcast thumbnail with strong contrast and clean title space.",
+        "voice": null,
+        "style": null,
+        "image": "Bold studio backdrop",
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {
+          "thumbnail_title": "Launch recap",
+          "thumbnail_subtitle": "Episode cover",
+          "thumbnail_background": "Bold studio backdrop"
+        },
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-864153de85",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null,
+        "asset_type": "thumbnail"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-eefee581bf45"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:10.811035+00:00",
+      "updated_at": "2026-03-28T18:28:10.847118+00:00",
+      "started_at": "2026-03-28T18:28:10.820513+00:00",
+      "completed_at": "2026-03-28T18:28:10.839448+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-979deb87f3a8",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Podcast Pipeline",
+        "templateId": "podcast-teaser-v1",
+        "outputTarget": "media.library",
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": "Create a short teaser video for the podcast launch recap.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-864153de85",
+            "label": "Podcast Pipeline"
+          },
+          {
+            "kind": "attachment_target",
+            "id": "media.library",
+            "label": "media.library"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        },
+        {
+          "kind": "attachment_target",
+          "id": "media.library",
+          "label": "media.library"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-816e553f1af2"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:10.848227+00:00",
+      "updated_at": "2026-03-28T18:28:10.883761+00:00",
+      "started_at": "2026-03-28T18:28:10.858438+00:00",
+      "completed_at": "2026-03-28T18:28:10.876177+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-cf46467c150b",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Launch recap",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Launch recap",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "image",
+        "script": "Create a bold podcast thumbnail with strong contrast and clean title space.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": "Episode cover",
+        "prompt": "Create a bold podcast thumbnail with strong contrast and clean title space.",
+        "voice": null,
+        "style": null,
+        "image": "Bold studio backdrop",
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {
+          "thumbnail_title": "Launch recap",
+          "thumbnail_subtitle": "Episode cover",
+          "thumbnail_background": "Bold studio backdrop"
+        },
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-ad22ff4380",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null,
+        "asset_type": "thumbnail"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-0fb0fec6f834"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:49.094253+00:00",
+      "updated_at": "2026-03-28T18:28:49.130029+00:00",
+      "started_at": "2026-03-28T18:28:49.103466+00:00",
+      "completed_at": "2026-03-28T18:28:49.122107+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "render-job-032af249ca86",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Podcast Pipeline",
+        "templateId": "podcast-teaser-v1",
+        "outputTarget": "media.library",
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": "Create a short teaser video for the podcast launch recap.",
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-ad22ff4380",
+            "label": "Podcast Pipeline"
+          },
+          {
+            "kind": "attachment_target",
+            "id": "media.library",
+            "label": "media.library"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        },
+        {
+          "kind": "attachment_target",
+          "id": "media.library",
+          "label": "media.library"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-d9761987c0eb"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:49.131242+00:00",
+      "updated_at": "2026-03-28T18:28:49.164961+00:00",
+      "started_at": "2026-03-28T18:28:49.140286+00:00",
+      "completed_at": "2026-03-28T18:28:49.157548+00:00",
       "result": {
         "message": "Render job completed through the stub media provider.",
         "asset_count": 1
@@ -189,6 +1011,144 @@
         "message": "Transcript normalized from provided text.",
         "segment_count": 0
       }
+    },
+    {
+      "id": "transcript-job-1eb0d40e8ba9",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "PodcastForge Migration Proof",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "PodcastForge Migration Proof",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": "Speaker 1: We launched successfully.",
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-1b8b8d2b95",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-1b8b8d2b95",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "artifact_id": "transcript-artifact-464b6c45ea25",
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.601274+00:00",
+      "updated_at": "2026-03-28T18:15:43.636016+00:00",
+      "started_at": "2026-03-28T18:15:43.609925+00:00",
+      "completed_at": "2026-03-28T18:15:43.628085+00:00",
+      "result": {
+        "message": "Transcript normalized from provided text.",
+        "segment_count": 0
+      }
+    },
+    {
+      "id": "transcript-job-21a08b18af05",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "PodcastForge Migration Proof",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "PodcastForge Migration Proof",
+        "transcript_text": "Speaker 1: Meeting opened with launch review.",
+        "speaker_segments": [],
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-3e88a87c79",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-3e88a87c79",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "artifact_id": "transcript-artifact-fd6e291e9c0d",
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.637648+00:00",
+      "updated_at": "2026-03-28T18:15:43.670411+00:00",
+      "started_at": "2026-03-28T18:15:43.646697+00:00",
+      "completed_at": "2026-03-28T18:15:43.662975+00:00",
+      "result": {
+        "message": "Transcript normalized from provided text.",
+        "segment_count": 0
+      }
     }
   ],
   "transcript_artifacts": [
@@ -250,6 +1210,975 @@
       "source_asset_ids": [],
       "created_at": "2026-03-28T17:31:20.677028+00:00",
       "updated_at": "2026-03-28T17:31:20.684611+00:00"
+    },
+    {
+      "id": "transcript-artifact-464b6c45ea25",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "PodcastForge Migration Proof",
+      "transcript_text": "Speaker 1: We launched successfully.",
+      "speaker_segments": [],
+      "timestamps": [],
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-1b8b8d2b95",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "source_asset_ids": [],
+      "created_at": "2026-03-28T18:15:43.618805+00:00",
+      "updated_at": "2026-03-28T18:15:43.627374+00:00"
+    },
+    {
+      "id": "transcript-artifact-fd6e291e9c0d",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "PodcastForge Migration Proof",
+      "transcript_text": "Speaker 1: Meeting opened with launch review.",
+      "speaker_segments": [],
+      "timestamps": [],
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-3e88a87c79",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "source_asset_ids": [],
+      "created_at": "2026-03-28T18:15:43.654628+00:00",
+      "updated_at": "2026-03-28T18:15:43.662270+00:00"
+    }
+  ],
+  "script_jobs": [
+    {
+      "id": "script-job-e0bf0c1f174a",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "PodcastForge Migration Proof",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-script",
+        "title": "PodcastForge Migration Proof",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": "Launch recap",
+        "tone": "direct",
+        "duration": "12 minutes",
+        "context": "Prospect follow-up episode",
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-9e7f69af5a",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-9e7f69af5a",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "artifact_id": "script-artifact-f438f11a2faa",
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.423490+00:00",
+      "updated_at": "2026-03-28T18:15:43.450800+00:00",
+      "started_at": "2026-03-28T18:15:43.424402+00:00",
+      "completed_at": "2026-03-28T18:15:43.442964+00:00",
+      "result": {
+        "message": "Script job completed through the stub script provider.",
+        "section_count": 3
+      }
+    },
+    {
+      "id": "script-job-a0a80387b0cd",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-script",
+        "title": "Podcast Pipeline",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": "Launch recap",
+        "tone": "Direct",
+        "duration": "12 minutes",
+        "context": "Podcast episode outline for prospects and operators.",
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-fc86147f36",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-fc86147f36",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "artifact_id": "script-artifact-468ca31b7703",
+      "last_error": null,
+      "created_at": "2026-03-28T18:27:17.690773+00:00",
+      "updated_at": "2026-03-28T18:27:17.719060+00:00",
+      "started_at": "2026-03-28T18:27:17.692305+00:00",
+      "completed_at": "2026-03-28T18:27:17.711518+00:00",
+      "result": {
+        "message": "Script job completed through the stub script provider.",
+        "section_count": 3
+      }
+    },
+    {
+      "id": "script-job-3be31c9a077f",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-script",
+        "title": "Podcast Pipeline",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": "Launch recap",
+        "tone": "Direct",
+        "duration": "12 minutes",
+        "context": "Podcast episode outline for prospects and operators.",
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-864153de85",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "artifact_id": "script-artifact-c9788e41e26e",
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:10.745442+00:00",
+      "updated_at": "2026-03-28T18:28:10.774411+00:00",
+      "started_at": "2026-03-28T18:28:10.746664+00:00",
+      "completed_at": "2026-03-28T18:28:10.764282+00:00",
+      "result": {
+        "message": "Script job completed through the stub script provider.",
+        "section_count": 3
+      }
+    },
+    {
+      "id": "script-job-f2a24adceb6c",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-script",
+        "title": "Podcast Pipeline",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": "Launch recap",
+        "tone": "Direct",
+        "duration": "12 minutes",
+        "context": "Podcast episode outline for prospects and operators.",
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-ad22ff4380",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "artifact_id": "script-artifact-8a3404972a2f",
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:49.026748+00:00",
+      "updated_at": "2026-03-28T18:28:49.056083+00:00",
+      "started_at": "2026-03-28T18:28:49.028170+00:00",
+      "completed_at": "2026-03-28T18:28:49.048124+00:00",
+      "result": {
+        "message": "Script job completed through the stub script provider.",
+        "section_count": 3
+      }
+    }
+  ],
+  "script_artifacts": [
+    {
+      "id": "script-artifact-f438f11a2faa",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "PodcastForge Migration Proof",
+      "script_text": "Title: PodcastForge Migration Proof\nTopic: Launch recap\nTone: direct\nTarget Duration: 12 minutes\nContext: Prospect follow-up episode\n\nOpening:\nToday we are covering Launch recap with a direct angle tailored for Prospect follow-up episode.\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 12 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+      "structured_script": {
+        "title": "PodcastForge Migration Proof",
+        "topic": "Launch recap",
+        "tone": "direct",
+        "duration": "12 minutes",
+        "context": "Prospect follow-up episode",
+        "sections": [
+          {
+            "id": "intro",
+            "label": "Intro",
+            "summary": "Frame Launch recap in a direct voice.",
+            "estimated_seconds": 45
+          },
+          {
+            "id": "body",
+            "label": "Main Segment",
+            "summary": "Expand the core talking points for a 12 minutes segment.",
+            "estimated_seconds": 360
+          },
+          {
+            "id": "cta",
+            "label": "Close",
+            "summary": "Wrap with the next action or takeaway.",
+            "estimated_seconds": 45
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-9e7f69af5a",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "created_at": "2026-03-28T18:15:43.434296+00:00",
+      "updated_at": "2026-03-28T18:15:43.442369+00:00"
+    },
+    {
+      "id": "script-artifact-468ca31b7703",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "Podcast Pipeline",
+      "script_text": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode outline for prospects and operators..\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 12 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+      "structured_script": {
+        "title": "Podcast Pipeline",
+        "topic": "Launch recap",
+        "tone": "Direct",
+        "duration": "12 minutes",
+        "context": "Podcast episode outline for prospects and operators.",
+        "sections": [
+          {
+            "id": "intro",
+            "label": "Intro",
+            "summary": "Frame Launch recap in a Direct voice.",
+            "estimated_seconds": 45
+          },
+          {
+            "id": "body",
+            "label": "Main Segment",
+            "summary": "Expand the core talking points for a 12 minutes segment.",
+            "estimated_seconds": 360
+          },
+          {
+            "id": "cta",
+            "label": "Close",
+            "summary": "Wrap with the next action or takeaway.",
+            "estimated_seconds": 45
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-fc86147f36",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:27:17.702226+00:00",
+      "updated_at": "2026-03-28T18:27:17.710747+00:00"
+    },
+    {
+      "id": "script-artifact-c9788e41e26e",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "Podcast Pipeline",
+      "script_text": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode outline for prospects and operators..\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 12 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+      "structured_script": {
+        "title": "Podcast Pipeline",
+        "topic": "Launch recap",
+        "tone": "Direct",
+        "duration": "12 minutes",
+        "context": "Podcast episode outline for prospects and operators.",
+        "sections": [
+          {
+            "id": "intro",
+            "label": "Intro",
+            "summary": "Frame Launch recap in a Direct voice.",
+            "estimated_seconds": 45
+          },
+          {
+            "id": "body",
+            "label": "Main Segment",
+            "summary": "Expand the core talking points for a 12 minutes segment.",
+            "estimated_seconds": 360
+          },
+          {
+            "id": "cta",
+            "label": "Close",
+            "summary": "Wrap with the next action or takeaway.",
+            "estimated_seconds": 45
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:10.755932+00:00",
+      "updated_at": "2026-03-28T18:28:10.763263+00:00"
+    },
+    {
+      "id": "script-artifact-8a3404972a2f",
+      "tenant_id": null,
+      "provider": "stub-script",
+      "title": "Podcast Pipeline",
+      "script_text": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode outline for prospects and operators..\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 12 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+      "structured_script": {
+        "title": "Podcast Pipeline",
+        "topic": "Launch recap",
+        "tone": "Direct",
+        "duration": "12 minutes",
+        "context": "Podcast episode outline for prospects and operators.",
+        "sections": [
+          {
+            "id": "intro",
+            "label": "Intro",
+            "summary": "Frame Launch recap in a Direct voice.",
+            "estimated_seconds": 45
+          },
+          {
+            "id": "body",
+            "label": "Main Segment",
+            "summary": "Expand the core talking points for a 12 minutes segment.",
+            "estimated_seconds": 360
+          },
+          {
+            "id": "cta",
+            "label": "Close",
+            "summary": "Wrap with the next action or takeaway.",
+            "estimated_seconds": 45
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "created_at": "2026-03-28T18:28:49.039752+00:00",
+      "updated_at": "2026-03-28T18:28:49.047309+00:00"
+    }
+  ],
+  "run_of_show_jobs": [
+    {
+      "id": "run-of-show-job-1ae5caa02573",
+      "tenant_id": null,
+      "provider": "stub-run-of-show",
+      "title": "PodcastForge Migration Proof",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-run-of-show",
+        "title": "PodcastForge Migration Proof",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": "Weekly operator sync",
+        "tone": null,
+        "duration": "30 minutes",
+        "context": "Live production handoff",
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-46a3ba58b9",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-46a3ba58b9",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "artifact_id": "run-of-show-artifact-e83a4bfc5e58",
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.452383+00:00",
+      "updated_at": "2026-03-28T18:15:43.489021+00:00",
+      "started_at": "2026-03-28T18:15:43.462204+00:00",
+      "completed_at": "2026-03-28T18:15:43.480780+00:00",
+      "result": {
+        "message": "Run-of-show job completed through the stub planner provider.",
+        "segment_count": 3
+      }
+    }
+  ],
+  "run_of_show_artifacts": [
+    {
+      "id": "run-of-show-artifact-e83a4bfc5e58",
+      "tenant_id": null,
+      "provider": "stub-run-of-show",
+      "title": "PodcastForge Migration Proof",
+      "run_of_show_text": "1. Cold Open (2 minutes): Set the theme and open strong.\n2. Core Segment (18 minutes): Cover the main beats for PodcastForge Migration Proof.\n3. Audience / CTA (5 minutes): Handle follow-up actions and close cleanly.",
+      "structured_run_of_show": {
+        "title": "PodcastForge Migration Proof",
+        "duration": "30 minutes",
+        "context": "Live production handoff",
+        "segments": [
+          {
+            "order": 1,
+            "label": "Cold Open",
+            "duration": "2 minutes",
+            "objective": "Set the theme and open strong."
+          },
+          {
+            "order": 2,
+            "label": "Core Segment",
+            "duration": "18 minutes",
+            "objective": "Cover the main beats for PodcastForge Migration Proof."
+          },
+          {
+            "order": 3,
+            "label": "Audience / CTA",
+            "duration": "5 minutes",
+            "objective": "Handle follow-up actions and close cleanly."
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-46a3ba58b9",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "created_at": "2026-03-28T18:15:43.471106+00:00",
+      "updated_at": "2026-03-28T18:15:43.480123+00:00"
+    }
+  ],
+  "audio_render_jobs": [
+    {
+      "id": "audio-render-job-f55511447305",
+      "tenant_id": null,
+      "provider": "elevenlabs_tts",
+      "title": "PodcastForge Migration Proof",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_tts",
+        "title": "PodcastForge Migration Proof",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": "This is the operator-ready voice render proof.",
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": "Rachel",
+        "style": "conversational",
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-f6c67edfc5",
+            "label": "PodcastForge Migration Proof"
+          },
+          {
+            "kind": "comms_thread",
+            "id": "thread-demo-1",
+            "label": ""
+          },
+          {
+            "kind": "crm_contact",
+            "id": "contact-demo-1",
+            "label": ""
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-f6c67edfc5",
+          "label": "PodcastForge Migration Proof"
+        },
+        {
+          "kind": "comms_thread",
+          "id": "thread-demo-1",
+          "label": ""
+        },
+        {
+          "kind": "crm_contact",
+          "id": "contact-demo-1",
+          "label": ""
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-23a5ebeb0a8c"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:15:43.490824+00:00",
+      "updated_at": "2026-03-28T18:15:43.524335+00:00",
+      "started_at": "2026-03-28T18:15:43.500388+00:00",
+      "completed_at": "2026-03-28T18:15:43.517774+00:00",
+      "result": {
+        "message": "Audio render completed through the ElevenLabs TTS foundation provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "audio-render-job-f073f59e92b6",
+      "tenant_id": null,
+      "provider": "elevenlabs_tts",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_tts",
+        "title": "Podcast Pipeline",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode outline for prospects and operators..\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 12 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": "Rachel",
+        "style": "Conversational",
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-864153de85",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-864153de85",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-856e9c013299"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:10.775661+00:00",
+      "updated_at": "2026-03-28T18:28:10.809909+00:00",
+      "started_at": "2026-03-28T18:28:10.784065+00:00",
+      "completed_at": "2026-03-28T18:28:10.801580+00:00",
+      "result": {
+        "message": "Audio render completed through the ElevenLabs TTS foundation provider.",
+        "asset_count": 1
+      }
+    },
+    {
+      "id": "audio-render-job-599f5f5bc186",
+      "tenant_id": null,
+      "provider": "elevenlabs_tts",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_tts",
+        "title": "Podcast Pipeline",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": "Title: Podcast Pipeline\nTopic: Launch recap\nTone: Direct\nTarget Duration: 12 minutes\nContext: Podcast episode outline for prospects and operators.\n\nOpening:\nToday we are covering Launch recap with a Direct angle tailored for Podcast episode outline for prospects and operators..\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 12 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": "Rachel",
+        "style": "Conversational",
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-ad22ff4380",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-0488fe1cf263"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:49.057443+00:00",
+      "updated_at": "2026-03-28T18:28:49.092933+00:00",
+      "started_at": "2026-03-28T18:28:49.066234+00:00",
+      "completed_at": "2026-03-28T18:28:49.084454+00:00",
+      "result": {
+        "message": "Audio render completed through the ElevenLabs TTS foundation provider.",
+        "asset_count": 1
+      }
+    }
+  ],
+  "publish_jobs": [
+    {
+      "id": "publish-job-46b653109483",
+      "tenant_id": null,
+      "provider": "internal-publish",
+      "title": "Podcast Pipeline",
+      "status": "complete",
+      "input_payload": {
+        "provider": null,
+        "title": "Podcast Pipeline",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "artifactRef": null,
+        "publishTarget": "internal.media",
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-ad22ff4380",
+            "label": "Podcast Pipeline"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null,
+        "publish_target": "internal.media",
+        "asset_ids": [
+          "media-asset-d9761987c0eb"
+        ],
+        "artifact_ids": []
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "artifact_id": "publish-artifact-56de42f3b9b9",
+      "last_error": null,
+      "created_at": "2026-03-28T18:28:49.166190+00:00",
+      "updated_at": "2026-03-28T18:28:49.200754+00:00",
+      "started_at": "2026-03-28T18:28:49.175361+00:00",
+      "completed_at": "2026-03-28T18:28:49.193231+00:00",
+      "result": {
+        "message": "Asset publication tracked in the media workflow layer."
+      }
+    }
+  ],
+  "publish_artifacts": [
+    {
+      "id": "publish-artifact-56de42f3b9b9",
+      "tenant_id": null,
+      "provider": "internal-publish",
+      "title": "Podcast Pipeline",
+      "publish_target": "internal.media",
+      "publication_status": "published",
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-ad22ff4380",
+          "label": "Podcast Pipeline"
+        }
+      ],
+      "source_asset_ids": [
+        "media-asset-d9761987c0eb"
+      ],
+      "source_artifact_ids": [],
+      "created_at": "2026-03-28T18:28:49.183797+00:00",
+      "updated_at": "2026-03-28T18:28:49.192344+00:00"
     }
   ]
 }

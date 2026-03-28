@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import {
   createFormApi,
@@ -729,10 +729,7 @@ const FormBuilderModule = () => {
         <div className="flex h-full min-h-0 flex-col gap-4">
           <ModuleHeader
             title="Forms"
-            titleIcon={FileText}
-            subtitle="Create, organize, and deploy workspace forms."
             showTitle={false}
-            showCompactTitle
             actions={[
               {
                 label: 'Create Form',
@@ -760,51 +757,57 @@ const FormBuilderModule = () => {
                 />
               </div>
             )}
-          />
-
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Forms</div>
-                {recentForms.length > 0 ? (
-                  <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
-                    {recentForms.map((form) => (
-                      <button
-                        key={form.id}
-                        type="button"
-                        onClick={() => {
-                          setCurrentForm(form);
-                          setView('editor');
-                        }}
-                        className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-hover)]"
-                      >
-                        <FolderOpen size={14} />
-                        <span>{form.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-[var(--color-text-secondary)]">Create a form or browse templates to populate this workspace.</div>
-                )}
-              </div>
-
-              <div className="flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar">
+            toolbarRightSlot={(
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setView('cms')}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
                 >
-                  <Database size={16} />
+                  <Database size={14} />
                   CMS Data
                 </button>
                 <button
                   type="button"
                   onClick={handleCreateFolder}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
                 >
-                  <Folder size={16} />
+                  <Folder size={14} />
                   New Folder
                 </button>
+              </div>
+            )}
+          />
+
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
+            <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
+              <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
+                <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Forms</div>
+                {recentForms.length > 0 ? (
+                  recentForms.map((form) => (
+                    <button
+                      key={form.id}
+                      type="button"
+                      onClick={() => {
+                        setCurrentForm(form);
+                        setView('editor');
+                      }}
+                      className="inline-flex shrink-0 items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2.5 text-left text-xs text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-hover)]"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent)]">
+                        <FileText size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{form.name}</div>
+                        <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                          {(form.schema || []).length} field{(form.schema || []).length === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="shrink-0 text-sm text-[var(--color-text-secondary)]">Create a form or browse templates to populate this workspace.</div>
+                )}
               </div>
             </div>
           </div>

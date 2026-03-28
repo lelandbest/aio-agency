@@ -58,9 +58,33 @@ const OrdersModule = () => {
   return (
     <div className="h-full flex flex-col relative bg-[var(--color-bg-secondary)] rounded-xl overflow-hidden border border-[var(--color-border)]">
       <ModuleHeader
-        title="Orders"
-        titleIcon={ShoppingCart}
         showTitle={false}
+        toolbarLeftSlot={(
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {[
+              { key: 'orders', label: 'Orders', enabled: true },
+              { key: 'invoices', label: 'Invoices Disabled', enabled: false },
+              { key: 'products', label: 'Products Disabled', enabled: false },
+              { key: 'coupons', label: 'Coupons Disabled', enabled: false },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => tab.enabled && setActiveTab(tab.key)}
+                disabled={!tab.enabled}
+                className={[
+                  'shrink-0 rounded-[var(--radius-pill)] border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition',
+                  activeTab === tab.key
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
+                    : tab.enabled
+                    ? 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)]'
+                    : 'border-[var(--color-border)]/80 bg-[var(--color-bg-primary)]/55 text-[var(--color-text-secondary)] cursor-not-allowed opacity-100'
+                ].join(' ')}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
         statusBadge={{
           label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
           color: 'info'
@@ -70,17 +94,18 @@ const OrdersModule = () => {
             label: 'Filter Disabled',
             icon: Filter,
             onClick: () => {},
-            variant: 'secondary'
+            variant: 'secondary',
+            className: '!text-[var(--color-text-secondary)] opacity-100'
           },
           {
             label: 'Export Disabled',
             icon: Download,
             onClick: () => {},
-            variant: 'secondary'
+            variant: 'secondary',
+            className: '!text-[var(--color-text-secondary)] opacity-100'
           }
         ]}
         showActions={true}
-        className="border-b-0"
         aiAssistSlot={(
           <AIAssistButton
             onAssist={runOrdersAssist}
@@ -89,20 +114,6 @@ const OrdersModule = () => {
           />
         )}
       />
-      <div className="bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)]">
-        <div className="flex px-4 gap-6">
-          {['orders', 'invoices', 'products', 'coupons'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              disabled={tab !== 'orders'}
-              className={`pb-3 text-sm font-medium border-b-2 transition capitalize ${activeTab === tab ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]' : 'text-gray-500 border-transparent hover:text-gray-300'} ${tab !== 'orders' ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {tab === 'orders' ? tab : `${tab} disabled`}
-            </button>
-          ))}
-        </div>
-      </div>
       <div className="flex-1 overflow-auto p-4 relative">
         {loading ? (
           <div className="text-center text-gray-500 mt-10">Loading Orders...</div>

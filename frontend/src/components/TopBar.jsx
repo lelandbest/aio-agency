@@ -186,7 +186,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                 </div>
             </div>
 
-            <div className="flex items-center gap-4 ml-auto">
+            <div className="flex min-w-0 items-center gap-4 ml-auto">
                 {showSearch && (
                     <div className="surface-tertiary hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)]">
                         <Search size={16} className="text-[var(--color-text-tertiary)]" />

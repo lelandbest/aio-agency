@@ -102,6 +102,36 @@ const DEFAULT_CALENDAR_PROVIDERS = [
     ]
   },
   {
+    id: 'google-meet-oauth',
+    label: 'Google Meet',
+    fields: [
+      { key: 'email', label: 'Google Account' },
+      { key: 'client_id', label: 'Client ID' },
+      { key: 'client_secret', label: 'Client Secret' },
+      { key: 'refresh_token', label: 'Refresh Token' },
+      { key: 'calendar_id', label: 'Calendar ID' }
+    ]
+  },
+  {
+    id: 'zoom-api',
+    label: 'Zoom',
+    fields: [
+      { key: 'account_id', label: 'Account ID' },
+      { key: 'client_id', label: 'Client ID' },
+      { key: 'client_secret', label: 'Client Secret' },
+      { key: 'user_id', label: 'User ID' }
+    ]
+  },
+  {
+    id: 'jitsi-stub',
+    label: 'Jitsi',
+    fields: [
+      { key: 'server_url', label: 'Server URL' },
+      { key: 'room_prefix', label: 'Room Prefix' },
+      { key: 'api_key', label: 'API Key' }
+    ]
+  },
+  {
     id: 'ics-url',
     label: 'ICS Feed',
     fields: [
@@ -123,11 +153,16 @@ const DEFAULT_CALENDAR_PROVIDERS = [
   }
 ];
 
+const VIDEO_CONFERENCING_PROVIDER_IDS = new Set(['zoom-api', 'google-meet-oauth', 'jitsi-stub']);
+const isVideoConferencingProvider = (providerId) => VIDEO_CONFERENCING_PROVIDER_IDS.has(String(providerId || '').trim());
+
 // DEPRECATED: DEFAULT_AI_PROVIDER_CATALOG removed in favor of providerSchema.js
+
+const getAiFieldName = (field) => normalizeAiField(field?.name || field?.key || '');
 
 const createAiProviderDraft = (provider) => {
   const fields = provider?.fields || [];
-  const findField = (name) => fields.find((f) => f.name === name);
+  const findField = (name) => fields.find((f) => getAiFieldName(f) === name);
   const isOllama = provider?.id === 'ollama' || provider?.key === 'ollama';
 
   return {
@@ -224,7 +259,7 @@ const sourceRuleLabels = {
 };
 
 const isMailboxOauthProvider = (providerId) => ['gmail-oauth', 'microsoft365-oauth'].includes(providerId);
-const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'microsoft365-calendar'].includes(providerId);
+const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'google-meet-oauth', 'microsoft365-calendar'].includes(providerId);
 const SEEDED_MAILBOX_IDS = new Set(['mailbox-primary', 'mailbox-growth']);
 const EMAIL_VERIFIER_RESOURCE_ID = 'reoon-email-verifier';
 const isNeedsConfigStatus = (value) => String(value || '').trim().toLowerCase() === 'needs_config';
@@ -635,6 +670,37 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [busyAction, setBusyAction] = useState('');
   const configuredEmailVerifierCount = emailVerifierConfig?.has_api_key ? 1 : 0;
   const activeEmailVerifierCount = emailVerifierConfig?.has_api_key && emailVerifierConfig?.enabled ? 1 : 0;
+  const standardCalendarSources = useMemo(
+    () => calendarSources.filter((source) => !isVideoConferencingProvider(source.provider)),
+    [calendarSources]
+  );
+  const videoConferencingSources = useMemo(
+    () => calendarSources.filter((source) => isVideoConferencingProvider(source.provider)),
+    [calendarSources]
+  );
+  const standardCalendarProviders = useMemo(
+    () => calendarProviders.filter((provider) => !isVideoConferencingProvider(provider.id)),
+    [calendarProviders]
+  );
+  const videoConferencingProviders = useMemo(
+    () => calendarProviders.filter((provider) => isVideoConferencingProvider(provider.id)),
+    [calendarProviders]
+  );
+  const scopedCalendarSources = useMemo(() => {
+    if (activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+      return videoConferencingSources;
+    }
+    if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR) {
+      return standardCalendarSources;
+    }
+    return calendarSources;
+  }, [activeCategory, calendarSources, standardCalendarSources, videoConferencingSources]);
+  const scopedCalendarProviders = useMemo(() => {
+    if (activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+      return videoConferencingProviders;
+    }
+    return standardCalendarProviders.length ? standardCalendarProviders : calendarProviders;
+  }, [activeCategory, calendarProviders, standardCalendarProviders, videoConferencingProviders]);
 
   const categories = useMemo(() => {
     const base = getAllCategories();
@@ -642,7 +708,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       let count = 0;
       if (cat.id === INTEGRATION_CATEGORIES.AUTOMATION) count = automationProviderConfigs.length;
       if (cat.id === INTEGRATION_CATEGORIES.EMAIL) count = mailboxes.length + configuredEmailVerifierCount;
-      if (cat.id === INTEGRATION_CATEGORIES.CALENDAR) count = calendarSources.length;
+      if (cat.id === INTEGRATION_CATEGORIES.CALENDAR) count = standardCalendarSources.length;
+      if (cat.id === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) count = videoConferencingSources.length;
       if (cat.id === INTEGRATION_CATEGORIES.LLMS) count = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
       if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) count = paymentProviderConfigs.length;
       // SMS and Tracking are currently placeholders/empty in this version
@@ -650,7 +717,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       
       return { ...cat, providerCount: count };
     });
-  }, [automationProviderConfigs, mailboxes, configuredEmailVerifierCount, calendarSources, aiProviderConfigs, paymentProviderConfigs]);
+  }, [automationProviderConfigs, mailboxes, configuredEmailVerifierCount, standardCalendarSources, videoConferencingSources, aiProviderConfigs, paymentProviderConfigs]);
 
   const selectedAiProviderConfig = useMemo(
     () => aiProviderConfigs.find((provider) => provider.provider_key === selectedAiProviderKey) || null,
@@ -764,14 +831,17 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   }, [mailboxes, selectedMailboxId, selectedEmailResourceId]);
 
   useEffect(() => {
-    if (!calendarSources.length) {
+    if (![INTEGRATION_CATEGORIES.CALENDAR, INTEGRATION_CATEGORIES.VIDEO_CONFERENCING].includes(activeCategory)) {
+      return;
+    }
+    if (!scopedCalendarSources.length) {
       setSelectedCalendarSourceId(null);
       return;
     }
-    if (!calendarSources.some((source) => source.id === selectedCalendarSourceId)) {
-      setSelectedCalendarSourceId(calendarSources[0].id);
+    if (!scopedCalendarSources.some((source) => source.id === selectedCalendarSourceId)) {
+      setSelectedCalendarSourceId(scopedCalendarSources[0].id);
     }
-  }, [calendarSources, selectedCalendarSourceId]);
+  }, [activeCategory, scopedCalendarSources, selectedCalendarSourceId]);
 
   useEffect(() => {
     const automationProviders = getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION);
@@ -937,6 +1007,18 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   }, [selectedCalendarSource]);
 
   useEffect(() => {
+    if (activeCategory !== INTEGRATION_CATEGORIES.CALENDAR && activeCategory !== INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+      return;
+    }
+    if (!scopedCalendarProviders.length) {
+      return;
+    }
+    if (!scopedCalendarProviders.some((provider) => provider.id === calendarSourceDraft.provider)) {
+      setCalendarSourceDraft(createCalendarSourceDraft(scopedCalendarProviders[0].id));
+    }
+  }, [activeCategory, calendarSourceDraft.provider, scopedCalendarProviders]);
+
+  useEffect(() => {
     if (!selectedCalendarSource || !isCalendarOauthProvider(selectedCalendarSource.provider)) {
       setCalendarOptions([]);
       setCalendarOptionsLoading(false);
@@ -1100,12 +1182,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   }, [selectedAiProviderKey, aiProviderForm.base_url, aiProviderForm.api_key, aiProviderForm.config?.username, aiProviderForm.config?.password, selectedAiProviderCatalog.default_base_url]);
 
   const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === mailboxForm.provider) || DEFAULT_MAILBOX_PROVIDERS[0];
-  const selectedCalendarProvider = calendarProviders.find((provider) => provider.id === calendarSourceForm.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
+  const selectedCalendarProvider = calendarProviders.find((provider) => provider.id === calendarSourceForm.provider) || scopedCalendarProviders[0] || DEFAULT_CALENDAR_PROVIDERS[0];
   const selectedCalendarProviderFields = (selectedCalendarProvider.fields || []).filter(
     (field) => !(isCalendarOauthProvider(calendarSourceForm.provider) && field.key === 'calendar_id')
   );
   const mailboxDraftProvider = mailboxProviders.find((provider) => provider.id === mailboxDraft.provider) || DEFAULT_MAILBOX_PROVIDERS[0];
-  const calendarDraftProvider = calendarProviders.find((provider) => provider.id === calendarSourceDraft.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
+  const calendarDraftProvider = scopedCalendarProviders.find((provider) => provider.id === calendarSourceDraft.provider) || scopedCalendarProviders[0] || DEFAULT_CALENDAR_PROVIDERS[0];
   const mailboxDeleteTarget = useMemo(
     () => mailboxes.find((mailbox) => mailbox.id !== selectedMailboxId && !SEEDED_MAILBOX_IDS.has(mailbox.id))
       || mailboxes.find((mailbox) => mailbox.id !== selectedMailboxId)
@@ -1156,8 +1238,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         });
       }
     }
-    if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR) {
-      calendarSources.forEach((source) => {
+    if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR || activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+      scopedCalendarSources.forEach((source) => {
         const meta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
         if (meta.machine === 'reconnect_required' || meta.machine === 'unauthorized' || meta.machine === 'needs_config') {
           alerts.push({
@@ -1169,7 +1251,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       });
     }
     return alerts.slice(0, 4);
-  }, [activeCategory, calendarSourceStateMetaById, calendarSources, emailVerifierConfig, mailboxStateMetaById, mailboxes]);
+  }, [activeCategory, calendarSourceStateMetaById, emailVerifierConfig, mailboxStateMetaById, mailboxes, scopedCalendarSources]);
 
   const categoryCounts = useMemo(() => {
     const counts = {};
@@ -1179,7 +1261,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       } else if (category.id === INTEGRATION_CATEGORIES.EMAIL) {
         counts[category.id] = mailboxes.length + configuredEmailVerifierCount;
       } else if (category.id === INTEGRATION_CATEGORIES.CALENDAR) {
-        counts[category.id] = calendarSources.length;
+        counts[category.id] = standardCalendarSources.length;
+      } else if (category.id === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+        counts[category.id] = videoConferencingSources.length;
       } else if (category.id === INTEGRATION_CATEGORIES.LLMS) {
         counts[category.id] = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
       } else if (category.id === INTEGRATION_CATEGORIES.PAYMENTS) {
@@ -1189,7 +1273,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       }
     });
     return counts;
-  }, [aiProviderConfigs, automationProviderConfigs.length, calendarSources.length, categories, configuredEmailVerifierCount, integrations, mailboxes.length, paymentProviderConfigs.length]);
+  }, [aiProviderConfigs, automationProviderConfigs.length, categories, configuredEmailVerifierCount, integrations, mailboxes.length, paymentProviderConfigs.length, standardCalendarSources.length, videoConferencingSources.length]);
 
   const currentCategory = categories.find((category) => category.id === activeCategory);
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
@@ -1257,6 +1341,30 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         await upsertAiProviderConfigApi(providerKey, payload);
         setSelectedAiProviderKey(providerKey);
         setNotice({ tone: 'success', message: `${payload.label || providerKey} added to this workspace.` });
+        await loadAll();
+        return true;
+      } catch (error) {
+        setNotice({ tone: 'error', message: readErrorMessage(error) });
+        throw error;
+      }
+    }
+
+    if (data.category === INTEGRATION_CATEGORIES.CALENDAR || data.category === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+      const providerKey = data.providerId;
+      const config = data.config || {};
+      try {
+        const source = await createCalendarSourceApi({
+          name: (config.name || config.label || getProviderConfig(providerKey)?.name || providerKey).trim(),
+          provider: providerKey,
+          sync_direction: 'two-way',
+          config: {
+            authority_mode: config.authority_mode || 'local-first',
+            import_policy: config.import_policy || 'review',
+            ...config,
+          },
+        });
+        setSelectedCalendarSourceId(source?.id || null);
+        setNotice({ tone: 'success', message: `${source?.name || providerKey} added to this workspace.` });
         await loadAll();
         return true;
       } catch (error) {
@@ -2042,13 +2150,26 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     </div>
   );
 
-  const renderCalendarAdmin = () => (
+  const renderCalendarAdmin = (mode = 'calendar') => {
+    const isVideoMode = mode === 'video';
+    const scopedSources = isVideoMode ? videoConferencingSources : standardCalendarSources;
+    const scopedProviders = isVideoMode ? videoConferencingProviders : standardCalendarProviders;
+    const sectionTitle = isVideoMode ? 'Video Conferencing' : 'Calendar Sources';
+    const sectionDescription = isVideoMode
+      ? 'Meeting platforms, room links, and ingestion authority'
+      : 'OAuth, feed, and reconciliation authority';
+    const controlPlaneTitle = isVideoMode ? 'Video Conferencing Control Plane' : 'Calendar Control Plane';
+    const emptyStateCopy = isVideoMode
+      ? 'Create or select a conferencing source to manage API credentials, OAuth, and ingestion readiness.'
+      : 'Create or select a calendar source to manage OAuth, sync rules, and import policy.';
+
+    return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pr-1">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar Sources</div>
-            <div className="text-sm text-[var(--color-text-secondary)]">OAuth, feed, and reconciliation authority</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{sectionTitle}</div>
+            <div className="text-sm text-[var(--color-text-secondary)]">{sectionDescription}</div>
           </div>
           <button onClick={() => setShowCalendarComposer((current) => !current)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
             {showCalendarComposer ? 'Close' : 'Add Integration'}
@@ -2058,7 +2179,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-4 space-y-3">
             <div className="grid gap-3 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceDraft.name} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceDraft.provider} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, provider: event.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{calendarProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceDraft.provider} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, provider: event.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceDraft.config?.authority_mode || 'local-first'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
@@ -2069,7 +2190,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           </div>
         ) : null}
         <div className="space-y-3">
-          {calendarSources.map((source) => {
+          {scopedSources.map((source) => {
             const calendarStateMeta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
             return (
             <ResourceCard
@@ -2097,7 +2218,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         {selectedCalendarSource ? (
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
-              <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
+              <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{controlPlaneTitle}</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setCalendarConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
                 {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
@@ -2131,7 +2252,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <fieldset disabled={calendarConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceForm.name} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{calendarProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceForm.config?.authority_mode || 'local-first'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceForm.config?.import_policy || 'review'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), import_policy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
             </div>
@@ -2141,10 +2262,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             </fieldset>
             <div className="flex flex-wrap gap-2 text-xs text-[var(--color-text-secondary)]"><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Authority {sourceRuleLabels[selectedCalendarSource.authority_mode] || selectedCalendarSource.authority_mode}</span><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Import {sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</span></div>
           </div>
-        ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-8 text-center text-[var(--color-text-secondary)]">Create or select a calendar source to manage OAuth, sync rules, and import policy.</div>}
+        ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-8 text-center text-[var(--color-text-secondary)]">{emptyStateCopy}</div>}
       </div>
     </div>
   );
+  };
 
   const renderAiAdmin = () => (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
@@ -2223,11 +2345,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             {(selectedAiProviderCatalog.fields || []).map((field) => (
               <label key={field.name || field.key} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
+                {(() => {
+                  const fieldName = getAiFieldName(field);
+                  return (
+                    <>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
                 </div>
                 
-                {field.name === 'model' && selectedAiProviderKey === 'ollama' ? (
+                {fieldName === 'model' && selectedAiProviderKey === 'ollama' ? (
                   <select
                     value={aiProviderForm.model || ''}
                     onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))}
@@ -2242,8 +2368,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 ) : field.type === 'textarea' ? (
                   <textarea
                     rows={4}
-                    value={resolveAiProviderFieldValue(aiProviderForm, field.name)}
-                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [field.name]: event.target.value }))}
+                    value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
+                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
                     placeholder={field.placeholder || ''}
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)] resize-none"
                   />
@@ -2251,12 +2377,15 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                   <input
                     type={field.type === 'password' ? 'password' : 'text'}
                     autoComplete={field.type === 'password' ? 'new-password' : undefined}
-                    value={resolveAiProviderFieldValue(aiProviderForm, field.name)}
-                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [field.name]: event.target.value }))}
-                    placeholder={field.name === 'api_key' && selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : field.placeholder || ''}
+                    value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
+                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
+                    placeholder={fieldName === 'api_key' && selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : field.placeholder || ''}
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
                   />
                 )}
+                    </>
+                  );
+                })()}
               </label>
             ))}
           </div>
@@ -2443,33 +2572,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
-      <ModuleHeader
-        title="Integrations"
-        subtitle="Admin control plane for mailbox accounts, calendar sources, and every other external system connected to AIO CRM."
-        showTitle={false}
-        showCompactTitle
-        className="bg-transparent"
-        actions={[
-          {
-            label: 'Add Integration',
-            icon: Plus,
-            onClick: () => {
-              if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
-                setShowMailboxComposer(true);
-              } else if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR) {
-                setShowCalendarComposer(true);
-              } else if (activeCategory === INTEGRATION_CATEGORIES.LLMS) {
-                setPanelOpen(true);
-              } else {
-                setPanelOpen(true);
-              }
-            },
-            variant: 'primary'
-          },
-          { label: 'Refresh', icon: RefreshCw, onClick: loadAll, variant: 'secondary' }
-        ]}
-        showActions
-      />
       <div className="px-6 pt-4">
         <div className="space-y-3">
           {moduleAlerts.map((alert) => (
@@ -2480,6 +2582,32 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           {notice ? <div className={`rounded-lg border px-4 py-3 ${toneClass(notice.tone)}`}>{notice.message}</div> : null}
         </div>
       </div>
+      <ModuleHeader
+        showTitle={false}
+        className="bg-transparent"
+        actions={[
+          {
+            label: 'Add Integration',
+            icon: Plus,
+            onClick: () => {
+              if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
+                setShowMailboxComposer(true);
+              } else if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR || activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
+                const nextProvider = activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING
+                  ? (videoConferencingProviders[0]?.id || 'zoom-api')
+                  : (standardCalendarProviders[0]?.id || 'google-calendar-oauth');
+                setCalendarSourceDraft(createCalendarSourceDraft(nextProvider));
+                setShowCalendarComposer(true);
+              } else {
+                setPanelOpen(true);
+              }
+            },
+            variant: 'primary'
+          },
+          { label: 'Refresh', icon: RefreshCw, onClick: loadAll, variant: 'secondary' }
+        ]}
+        showActions
+      />
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6 pt-4">
         <div className="flex flex-nowrap gap-4 overflow-x-auto no-scrollbar">
           <div className="min-w-[220px] flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Total Connections</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{totalConnected}</div></div>
@@ -2493,7 +2621,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             : activeCategory === INTEGRATION_CATEGORIES.EMAIL
             ? renderEmailAdmin()
             : activeCategory === INTEGRATION_CATEGORIES.CALENDAR
-              ? renderCalendarAdmin()
+              ? renderCalendarAdmin('calendar')
+              : activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING
+                ? renderCalendarAdmin('video')
               : activeCategory === INTEGRATION_CATEGORIES.LLMS
                 ? renderAiAdmin()
                 : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS

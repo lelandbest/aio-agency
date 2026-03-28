@@ -190,6 +190,28 @@ export const getBrandIcon = (providerId, size = 48) => {
         <text x="24" y="33" fontSize="14" fontWeight="bold" fill="white" textAnchor="middle">31</text>
       </svg>
     ),
+    'google-meet-oauth': (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+        <rect fill="#0F172A" width="48" height="48" rx="8" />
+        <path d="M13 17.5C13 15.567 14.567 14 16.5 14H28.5C30.433 14 32 15.567 32 17.5V30.5C32 32.433 30.433 34 28.5 34H16.5C14.567 34 13 32.433 13 30.5V17.5Z" fill="#34A853" />
+        <path d="M32 20L39 16.5V31.5L32 28V20Z" fill="#4285F4" />
+        <path d="M18 19H26" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    ),
+    'zoom-api': (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+        <rect fill="#2D8CFF" width="48" height="48" rx="8" />
+        <rect x="12" y="17" width="16" height="14" rx="4" fill="white" />
+        <path d="M28 21L36 17.5V30.5L28 27V21Z" fill="white" />
+      </svg>
+    ),
+    'jitsi-stub': (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+        <rect fill="#7C3AED" width="48" height="48" rx="8" />
+        <path d="M16 16H32V32H16V16Z" stroke="white" strokeWidth="2.5" />
+        <path d="M20 20L28 28M28 20L20 28" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    ),
     'microsoft365-calendar': (
       <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
         <rect fill="#111827" width="48" height="48" rx="8" />
@@ -252,7 +274,10 @@ export const getBrandColors = (providerId) => {
     sms: { primary: '#34C759', secondary: '#E8F5E9' },
     facebook: { primary: '#1877F2', secondary: '#E3F2FD' },
     'google-calendar-oauth': { primary: '#4285F4', secondary: '#E8F0FE' },
+    'google-meet-oauth': { primary: '#34A853', secondary: '#E8F5E9' },
     'microsoft365-calendar': { primary: '#2563EB', secondary: '#DBEAFE' },
+    'zoom-api': { primary: '#2D8CFF', secondary: '#E3F2FD' },
+    'jitsi-stub': { primary: '#7C3AED', secondary: '#F3E8FF' },
     'ics-url': { primary: '#0F766E', secondary: '#CCFBF1' },
   };
 
@@ -273,10 +298,13 @@ export const getProviderDisplayName = (providerId) => {
     google_ai: 'Google AI',
     'google-ai': 'Google AI',
     'google-calendar-oauth': 'Google Calendar',
+    'google-meet-oauth': 'Google Meet',
     microsoft: 'Microsoft',
     ms_365: 'Microsoft 365',
     'microsoft365-oauth': 'Microsoft 365 Mail',
     'microsoft365-calendar': 'Microsoft 365 Calendar',
+    'zoom-api': 'Zoom',
+    'jitsi-stub': 'Jitsi',
     aws: 'AWS',
     aws_ses: 'AWS SES',
     sendgrid: 'SendGrid',

@@ -504,13 +504,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
   const [actionNotice, setActionNotice] = useState(null);
   const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
-  const [isHeaderOverflowOpen, setIsHeaderOverflowOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1600 : window.innerWidth));
   const [leftPanelWidth, setLeftPanelWidth] = useState(360);
   const [rightPanelWidth, setRightPanelWidth] = useState(420);
   const [activeResizeSide, setActiveResizeSide] = useState(null);
   const layoutRef = useRef(null);
-  const headerOverflowRef = useRef(null);
 
   const refresh = async () => {
     try {
@@ -536,17 +534,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  useEffect(() => {
-    if (!isHeaderOverflowOpen || typeof document === 'undefined') return undefined;
-    const handlePointerDown = (event) => {
-      if (!headerOverflowRef.current?.contains(event.target)) {
-        setIsHeaderOverflowOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [isHeaderOverflowOpen]);
 
   useEffect(() => {
     if (clientMode) {
@@ -1043,6 +1030,38 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     () => (snapshot.agents || []).map((agent) => agent.name).filter(Boolean),
     [snapshot.agents]
   );
+  const latestAgentAction = useMemo(
+    () =>
+      completedThreadActions.find((action) => {
+        const agentName = `${action.agent_name || action.agent || ''}`.trim().toUpperCase();
+        return agentName && availableAgents.includes(agentName);
+      }) || null,
+    [availableAgents, completedThreadActions]
+  );
+  const latestAgentMessage = useMemo(() => {
+    const messages = (selectedThread?.messages || []).slice().reverse();
+    return (
+      messages.find((message) => {
+        const senderName = `${message.sender_name || ''}`.trim().toUpperCase();
+        return senderName && availableAgents.includes(senderName);
+      }) || null
+    );
+  }, [availableAgents, selectedThread]);
+  const activeAgentIdentity = useMemo(() => {
+    if (selectedThread?.activeAgentIdentity) {
+      return selectedThread.activeAgentIdentity;
+    }
+    const messageStamp = latestAgentMessage?.created_at ? new Date(latestAgentMessage.created_at).getTime() : 0;
+    const actionStamp = latestAgentAction?.created_at ? new Date(latestAgentAction.created_at).getTime() : 0;
+    const latestRuntimeSignal = actionStamp >= messageStamp
+      ? { name: `${latestAgentAction?.agent_name || latestAgentAction?.agent || ''}`.trim().toUpperCase(), zone: 'EXECUTION' }
+      : { name: `${latestAgentMessage?.sender_name || ''}`.trim().toUpperCase(), zone: 'EXECUTION' };
+    const assignedAgentName = `${selectedThread?.assignee || ''}`.trim().toUpperCase();
+    const agentName = latestRuntimeSignal.name || assignedAgentName;
+    if (!agentName) return '';
+    const agentZone = latestRuntimeSignal.name ? latestRuntimeSignal.zone : 'COMMS';
+    return `${agentName} • ${agentZone}`;
+  }, [latestAgentAction, latestAgentMessage, selectedThread?.activeAgentIdentity, selectedThread?.assignee]);
   const briefSummary = normalizeAiText(
     selectedThread?.brief?.summary,
     selectedThread?.preview || 'AI summary is being refined from the latest thread context.'
@@ -1145,44 +1164,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         fullHeaderActions.find((action) => action.label === 'Run Workflow'),
         fullHeaderActions.find((action) => action.label === 'Extract Tasks'),
       ].filter(Boolean);
-  const headerOverflowActions = clientMode
-    ? []
-    : fullHeaderActions.filter((action) => !compactPrimaryHeaderActions.includes(action));
   const headerActions = isCompactComms && !clientMode ? compactPrimaryHeaderActions : fullHeaderActions;
-  const headerOverflowSlot = isCompactComms && !clientMode && headerOverflowActions.length ? (
-    <div ref={headerOverflowRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setIsHeaderOverflowOpen((current) => !current)}
-        className="inline-flex h-7 items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 text-xs text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-      >
-        <Ellipsis size={14} />
-        <span>More</span>
-      </button>
-      {isHeaderOverflowOpen ? (
-        <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-2 shadow-2xl">
-          {headerOverflowActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.label}
-                type="button"
-                disabled={action.disabled}
-                onClick={() => {
-                  setIsHeaderOverflowOpen(false);
-                  action.onClick?.();
-                }}
-                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-[var(--color-text-primary)] transition hover:bg-[var(--color-bg-secondary)] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {Icon ? <Icon size={14} className="text-[var(--color-text-secondary)]" /> : null}
-                <span className="truncate">{action.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  ) : null;
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
@@ -1195,16 +1177,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
       `}</style>
       <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island" style={commsWindowStyle}>
-        <ModuleHeader
-          title="Comms"
-          titleIcon={Radio}
-          showTitle={false}
-          actions={headerActions}
-          toolbarRightSlot={headerOverflowSlot}
-          statusBadge={{ label: `${visibleThreads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
-          aiAssistSlot={clientMode ? null : <AIAssistButton onAssist={() => handleAiAction('summarize')} tooltip="Refresh AI brief" iconType="crosshair" />}
-        />
-
         {actionNotice ? (
           <div className={`mx-4 mt-4 rounded-xl border px-4 py-3 text-sm ${
             actionNotice.tone === 'success'
@@ -1216,6 +1188,13 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
             {actionNotice.message}
           </div>
         ) : null}
+
+        <ModuleHeader
+          showTitle={false}
+          actions={headerActions}
+          statusBadge={{ label: `${visibleThreads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
+          aiAssistSlot={clientMode ? null : <AIAssistButton onAssist={() => handleAiAction('summarize')} tooltip="Refresh AI brief" iconType="crosshair" />}
+        />
 
         <div className="flex-1 overflow-hidden">
           <div ref={layoutRef} className="h-full min-h-0 grid grid-cols-1" style={workspaceLayoutStyle}>
@@ -1468,6 +1447,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
                   <div className={`${isCompactComms ? 'mt-3' : 'mt-4'} mx-auto flex w-full ${COMMS_READING_WIDTH} flex-wrap items-start justify-between ${isCompactComms ? 'gap-3' : 'gap-4'} min-w-0`}>
                     <div className="min-w-0 flex-1">
+                      {activeAgentIdentity ? (
+                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">
+                          {activeAgentIdentity}
+                        </div>
+                      ) : null}
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <h2 className="min-w-0 break-words text-xl font-semibold text-[var(--color-text-primary)] [overflow-wrap:anywhere]">{selectedThread.subject}</h2>
                         <span className={`px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.2em] ${statusTone[selectedThread.status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>{selectedThread.status.replace(/_/g, ' ')}</span>

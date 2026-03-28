@@ -34,7 +34,7 @@ import {
 
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
-import { triggerFlowManualApi } from '../../services/backendApi';
+import { getAiRunApi, getAiRunsApi, triggerFlowManualApi } from '../../services/backendApi';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
 import TemplateLibraryPanel from './components/TemplateLibraryPanel';
@@ -43,6 +43,7 @@ import VariableMappingModal from './components/VariableMappingModal';
 import AiGeneratorModal from './components/AiGeneratorModal';
 import NodeConfigDrawer from './components/NodeConfigDrawer';
 import RunDetailInspector from './components/RunDetailInspector';
+import FlowRunHistoryPanel from './components/FlowRunHistoryPanel';
 import CustomNode from './components/nodes/CustomNode';
 import FrameNode from './components/nodes/FrameNode';
 import NoteNode from './components/nodes/NoteNode';
@@ -169,6 +170,53 @@ const normalizeRunInspector = (result, meta = {}) => {
   };
 };
 
+const getRunContextPayload = (run) => (run?.metadata && typeof run.metadata === 'object' && run.metadata.context && typeof run.metadata.context === 'object'
+  ? run.metadata.context
+  : {});
+
+const deriveRunError = (run) => {
+  if (!run) return null;
+  const steps = Array.isArray(run.steps) ? run.steps : [];
+  const failedStep = steps.find((step) => step?.error);
+  return failedStep?.error || (String(run.status || '').toLowerCase() === 'failed' ? run.result || null : null);
+};
+
+const deriveRunTriggerType = (run) => {
+  const context = getRunContextPayload(run);
+  return context?.trigger_event?.type || run?.triggerType || run?.intent || 'manual_trigger';
+};
+
+const buildRerunContext = (run, flowRecord) => {
+  const source = getRunContextPayload(run);
+  let nextContext = {};
+  try {
+    nextContext = JSON.parse(JSON.stringify(source || {}));
+  } catch {
+    nextContext = {};
+  }
+  [
+    'trigger_event',
+    'manual_trigger',
+    'flow',
+    'flow_id',
+    'flowId',
+    'flow_name',
+    'flowName',
+    'step_count',
+    'agent_chain',
+  ].forEach((key) => {
+    delete nextContext[key];
+  });
+  Object.keys(nextContext).forEach((key) => {
+    if (key.startsWith('_')) {
+      delete nextContext[key];
+    }
+  });
+  nextContext.flow_id = flowRecord?.id || null;
+  nextContext.flow_name = flowRecord?.name || 'Untitled Flow';
+  return nextContext;
+};
+
 const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContextChange = null, onSelectForAgents = null, onExit }) => {
   const getCssVar = (name, fallback = '') => {
     if (typeof window === 'undefined') return fallback;
@@ -228,6 +276,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [terminalLogs, setTerminalLogs] = useState([]);
   const [isRunningFlow, setIsRunningFlow] = useState(false);
   const [latestRunDetail, setLatestRunDetail] = useState(null);
+  const [flowRunHistory, setFlowRunHistory] = useState([]);
+  const [flowRunHistoryLoading, setFlowRunHistoryLoading] = useState(false);
+  const [flowRunHistoryError, setFlowRunHistoryError] = useState('');
+  const [historyInspectingRunId, setHistoryInspectingRunId] = useState('');
+  const [historyRerunningRunId, setHistoryRerunningRunId] = useState('');
   
   // Terminal logging helper
   const logToTerminal = useCallback((message, type = 'info') => {
@@ -252,9 +305,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           create_task: { channel: 'task', objective: 'Create a follow-up task', required_fields: ['title', 'owner', 'due_in_hours'] },
           verify_email: { email: '{{contact.email}}', contactId: '{{contact.id}}', mode: 'quick', writeback: true },
           verify_email_bulk: { contactIds: ['{{contact.id}}'], emails: [], mode: 'power', writeback: true },
+          generate_script: { topic: '{{trigger.payload.topic}}', tone: 'clear', duration: '10 minutes', context: 'Prospect-facing episode outline', provider: 'stub-script' },
+          generate_run_of_show: { topic: '{{trigger.payload.topic}}', duration: '30 minutes', context: 'Live production', provider: 'stub-run-of-show' },
+          generate_voice: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
+          text_to_speech: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
+          generate_thumbnail: { title: '{{trigger.payload.title}}', subtitle: 'Campaign cut', image: 'Bold studio backdrop', prompt: 'Create a bold thumbnail for the launch episode.', provider: 'stub-render' },
           generate_video: { templateId: 'promo-clip-v1', outputTarget: 'crm.contact', provider: 'stub-render', script: 'Create a short follow-up recap video for {{contact.name}}.' },
           transcribe_media: { sourceType: 'transcript_text', sourceRef: '{{previous.assetId}}', provider: 'elevenlabs_scribe', transcriptText: 'Speaker 1: Welcome to the meeting.', diarization: true, timestamps: true },
           ingest_meeting_artifacts: { meetingProvider: 'zoom', meetingRef: '{{booking.meeting_id}}', attachTarget: 'crm.contact', transcriptText: 'Speaker 1: Meeting summary goes here.' },
+          publish_asset: { publishTarget: 'internal.media', assetRef: '' },
         };
         return JSON.stringify(configByAction[actionType] || configByAction.send_email, null, 2);
       }
@@ -998,6 +1057,56 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     });
   }, [logToTerminal]);
 
+  const loadFlowRunHistory = useCallback(async (targetFlowId = flow?.id) => {
+    if (!targetFlowId) {
+      setFlowRunHistory([]);
+      setFlowRunHistoryError('');
+      return;
+    }
+    setFlowRunHistoryLoading(true);
+    setFlowRunHistoryError('');
+    try {
+      const runs = await getAiRunsApi(100, targetFlowId);
+      setFlowRunHistory(Array.isArray(runs) ? runs.slice(0, 8) : []);
+    } catch (error) {
+      setFlowRunHistory([]);
+      setFlowRunHistoryError(error.message || 'Unable to load stored flow runs.');
+    } finally {
+      setFlowRunHistoryLoading(false);
+    }
+  }, [flow?.id]);
+
+  useEffect(() => {
+    if (!flow?.id) {
+      setFlowRunHistory([]);
+      setFlowRunHistoryError('');
+      return;
+    }
+    loadFlowRunHistory(flow.id);
+  }, [flow?.id, loadFlowRunHistory]);
+
+  const inspectStoredRun = useCallback(async (historyRun) => {
+    if (!historyRun?.id) return;
+    setHistoryInspectingRunId(historyRun.id);
+    try {
+      const storedRun = await getAiRunApi(historyRun.id);
+      if (!storedRun) {
+        throw new Error('Stored run not found.');
+      }
+      setLatestRunDetail(normalizeRunInspector(storedRun, {
+        triggerType: deriveRunTriggerType(storedRun),
+        startedAt: storedRun.created_at || historyRun.created_at || null,
+        finishedAt: storedRun.updated_at || historyRun.updated_at || null,
+        error: deriveRunError(storedRun),
+      }));
+    } catch (error) {
+      logToTerminal(`Inspect run failed: ${error.message || 'Unknown error.'}`, 'error');
+      setTerminalOpen(true);
+    } finally {
+      setHistoryInspectingRunId('');
+    }
+  }, [logToTerminal]);
+
   const handleRunFlow = useCallback(async () => {
     if (!flow || isRunningFlow) return;
     setTerminalOpen(true);
@@ -1022,6 +1131,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         finishedAt: new Date().toISOString(),
       }));
       logFlowRunResult(result);
+      await loadFlowRunHistory(persistedFlow.id);
     } catch (error) {
       setLatestRunDetail(normalizeRunInspector({
         runId: null,
@@ -1039,7 +1149,51 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setIsRunningFlow(false);
       setTerminalOpen(true);
     }
-  }, [flow, isRunningFlow, logFlowRunResult, logToTerminal, persistCurrentFlow]);
+  }, [flow, isRunningFlow, loadFlowRunHistory, logFlowRunResult, logToTerminal, persistCurrentFlow]);
+
+  const rerunStoredRun = useCallback(async (historyRun) => {
+    if (!flow || isRunningFlow || !historyRun?.id) return;
+    setTerminalOpen(true);
+    setIsRunningFlow(true);
+    setHistoryRerunningRunId(historyRun.id);
+    const runStartedAt = new Date().toISOString();
+    try {
+      const persistedFlow = await persistCurrentFlow({ silentSuccess: true });
+      if (!persistedFlow?.id) {
+        return;
+      }
+      const command = historyRun.command_text || `Rerun for flow ${persistedFlow.name || 'Untitled Flow'}`;
+      logToTerminal(`Rerunning stored execution ${historyRun.id} for ${persistedFlow.name || 'Untitled Flow'}...`, 'info');
+      const result = await triggerFlowManualApi(persistedFlow.id, {
+        command,
+        context: buildRerunContext(historyRun, persistedFlow),
+      });
+      setLatestRunDetail(normalizeRunInspector(result, {
+        triggerType: deriveRunTriggerType(historyRun),
+        startedAt: runStartedAt,
+        finishedAt: new Date().toISOString(),
+      }));
+      logFlowRunResult(result);
+      await loadFlowRunHistory(persistedFlow.id);
+    } catch (error) {
+      setLatestRunDetail(normalizeRunInspector({
+        runId: null,
+        status: 'failed',
+        error: error.message || 'Unknown error.',
+        steps: [],
+      }, {
+        triggerType: deriveRunTriggerType(historyRun),
+        startedAt: runStartedAt,
+        finishedAt: new Date().toISOString(),
+        error: error.message || 'Unknown error.',
+      }));
+      logToTerminal(`Rerun failed: ${error.message || 'Unknown error.'}`, 'error');
+    } finally {
+      setHistoryRerunningRunId('');
+      setIsRunningFlow(false);
+      setTerminalOpen(true);
+    }
+  }, [flow, isRunningFlow, loadFlowRunHistory, logFlowRunResult, logToTerminal, persistCurrentFlow]);
 
   const handleSaveAsTemplate = useCallback(() => {
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
@@ -1631,9 +1785,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="get_booking">Get Booking</option>
                             <option value="verify_email">Verify Email</option>
                             <option value="verify_email_bulk">Verify Email Bulk</option>
+                            <option value="generate_script">Generate Script</option>
+                            <option value="generate_run_of_show">Generate Run of Show</option>
+                            <option value="generate_voice">Generate Voice</option>
+                            <option value="text_to_speech">Text to Speech</option>
+                            <option value="generate_thumbnail">Generate Thumbnail</option>
                             <option value="generate_video">Generate Video</option>
                             <option value="transcribe_media">Transcribe Media</option>
                             <option value="ingest_meeting_artifacts">Ingest Meeting Artifacts</option>
+                            <option value="publish_asset">Publish Asset</option>
                           </select>
                         </div>
                         {nodeConfigDraft.actionType === 'verify_email' && (
@@ -1733,6 +1893,247 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                                   Write back on completion
                                 </label>
                               </div>
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'generate_script' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Topic
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.topic || ''}
+                                  onChange={(e) => updateField('topic', e.target.value)}
+                                  placeholder="Launch episode"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Tone
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.tone || ''}
+                                  onChange={(e) => updateField('tone', e.target.value)}
+                                  placeholder="Clear and direct"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Length
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.length || nodeConfigDraft.duration || ''}
+                                  onChange={(e) => { updateField('length', e.target.value); updateField('duration', e.target.value); }}
+                                  placeholder="10 minutes"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Provider
+                                </label>
+                                <select
+                                  value={nodeConfigDraft.provider || 'stub-script'}
+                                  onChange={(e) => updateField('provider', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                >
+                                  <option value="stub-script">Stub Script</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Context
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.context || ''}
+                                onChange={(e) => updateField('context', e.target.value)}
+                                placeholder="Who is this for and how should the script be used?"
+                                className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'generate_run_of_show' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Topic
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.topic || ''}
+                                  onChange={(e) => updateField('topic', e.target.value)}
+                                  placeholder="Weekly production sync"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Duration
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.duration || ''}
+                                  onChange={(e) => updateField('duration', e.target.value)}
+                                  placeholder="30 minutes"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Context
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.context || ''}
+                                onChange={(e) => updateField('context', e.target.value)}
+                                placeholder="Live production context, guests, or stage notes"
+                                className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'generate_voice' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Voice
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.voice || ''}
+                                  onChange={(e) => updateField('voice', e.target.value)}
+                                  placeholder="Rachel"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Style
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.style || ''}
+                                  onChange={(e) => updateField('style', e.target.value)}
+                                  placeholder="Conversational"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Text or Script
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.text || nodeConfigDraft.scriptText || ''}
+                                onChange={(e) => updateField('text', e.target.value)}
+                                placeholder="Use raw text or a mapped script token like {{previous.artifact.script_text}}"
+                                className="w-full min-h-[120px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'text_to_speech' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Voice
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.voice || ''}
+                                  onChange={(e) => updateField('voice', e.target.value)}
+                                  placeholder="Rachel"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Style
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.style || ''}
+                                  onChange={(e) => updateField('style', e.target.value)}
+                                  placeholder="Conversational"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Text or Script
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.text || nodeConfigDraft.scriptText || ''}
+                                onChange={(e) => updateField('text', e.target.value)}
+                                placeholder="Use raw text or a mapped script token like {{previous.artifact.script_text}}"
+                                className="w-full min-h-[120px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'generate_thumbnail' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Title
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.title || ''}
+                                  onChange={(e) => updateField('title', e.target.value)}
+                                  placeholder="Episode launch"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Subtitle
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.subtitle || ''}
+                                  onChange={(e) => updateField('subtitle', e.target.value)}
+                                  placeholder="Campaign cut"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Background
+                              </label>
+                              <input
+                                type="text"
+                                value={nodeConfigDraft.image || ''}
+                                onChange={(e) => updateField('image', e.target.value)}
+                                placeholder="Bold studio backdrop"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Prompt
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.prompt || ''}
+                                onChange={(e) => updateField('prompt', e.target.value)}
+                                placeholder="Describe the thumbnail composition"
+                                className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
                             </div>
                           </div>
                         )}
@@ -1965,6 +2366,36 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                                 placeholder="Speaker 1: Meeting summary goes here..."
                                 className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
                               />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'publish_asset' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Publish Target
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.publishTarget || ''}
+                                  onChange={(e) => updateField('publishTarget', e.target.value)}
+                                  placeholder="internal.media"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Asset Ref
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.assetRef || ''}
+                                  onChange={(e) => updateField('assetRef', e.target.value)}
+                                  placeholder="{{previous.assets.0.id}}"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
                             </div>
                           </div>
                         )}
@@ -2755,6 +3186,23 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           </div>
         </div>
       )}
+
+      {flow?.id ? (
+        <div className={`pointer-events-none absolute bottom-20 z-30 ${leftPanelOpen ? 'left-[21rem]' : 'left-4'}`}>
+          <div className="pointer-events-auto">
+            <FlowRunHistoryPanel
+              runs={flowRunHistory}
+              loading={flowRunHistoryLoading}
+              error={flowRunHistoryError}
+              activeRunId={latestRunDetail?.runId || ''}
+              inspectingRunId={historyInspectingRunId}
+              rerunningRunId={historyRerunningRunId}
+              onInspect={inspectStoredRun}
+              onRerun={rerunStoredRun}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {latestRunDetail ? <RunDetailInspector run={latestRunDetail} /> : null}
 

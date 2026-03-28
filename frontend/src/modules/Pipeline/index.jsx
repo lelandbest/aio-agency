@@ -118,6 +118,13 @@ const PipelineModule = () => {
     return { total, open, highValue, noOwner };
   }, [contacts]);
 
+  const toolbarStats = [
+    { label: 'Open Deals', value: pipelineStats.open, valueClassName: 'text-[var(--color-text-primary)]' },
+    { label: 'Tracked Contacts', value: pipelineStats.total, valueClassName: 'text-[var(--color-text-primary)]' },
+    { label: 'High Signal', value: pipelineStats.highValue, valueClassName: 'text-emerald-300' },
+    { label: 'Needs Owner', value: pipelineStats.noOwner, valueClassName: 'text-amber-300' },
+  ];
+
   const handleDragStart = (event, contactId, columnId) => {
     setDraggedCard({ contactId, columnId });
     event.dataTransfer.effectAllowed = 'move';
@@ -317,8 +324,6 @@ const PipelineModule = () => {
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <ModuleHeader
-        title="Pipelines"
-        titleIcon={GitMerge}
         showTitle={false}
         showActions={true}
         actions={[
@@ -340,28 +345,24 @@ const PipelineModule = () => {
             iconType="crosshair"
           />
         )}
+        toolbarCenterSlot={(
+          <div className="flex min-w-0 max-w-full items-center gap-3 overflow-x-auto no-scrollbar">
+            {toolbarStats.map((stat) => (
+              <div
+                key={stat.label}
+                className={innerPanelClass + ' min-w-[160px] px-4 py-3'}
+              >
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
+                  {stat.label}
+                </div>
+                <div className={`mt-2 text-2xl font-semibold ${stat.valueClassName}`}>
+                  {stat.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       />
-
-      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-6 py-5">
-        <div className="grid gap-3 md:grid-cols-4">
-          <div className={innerPanelClass + ' p-4'}>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Open Deals</div>
-            <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{pipelineStats.open}</div>
-          </div>
-          <div className={innerPanelClass + ' p-4'}>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Tracked Contacts</div>
-            <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{pipelineStats.total}</div>
-          </div>
-          <div className={innerPanelClass + ' p-4'}>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">High Signal</div>
-            <div className="mt-2 text-2xl font-semibold text-emerald-300">{pipelineStats.highValue}</div>
-          </div>
-          <div className={innerPanelClass + ' p-4'}>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Needs Owner</div>
-            <div className="mt-2 text-2xl font-semibold text-amber-300">{pipelineStats.noOwner}</div>
-          </div>
-        </div>
-      </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
         {loading ? (

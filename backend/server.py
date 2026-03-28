@@ -41,7 +41,7 @@ from data_provider import create_provider, get_request_tenant_id, reset_request_
 from orchestration import ExecutionEngine, emit_system_event, run_resume_worker, validate_prepared_flow_steps
 try:
     from backend.planner import create_booking_execution_plan
-    from backend.agent_definitions import AGENT_DEFINITIONS
+    from backend.agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
     from backend.agent_runtime import AgentRegistry
     from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
     from backend.cortext_service import cortext_service
@@ -53,7 +53,7 @@ try:
     from backend.media_engine import get_media_engine
 except ModuleNotFoundError:
     from planner import create_booking_execution_plan
-    from agent_definitions import AGENT_DEFINITIONS
+    from agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
     from cortext_service import cortext_service
@@ -963,7 +963,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         or data.get("logicType")
         or ""
     ).strip().lower()
-    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_video", "transcribe_media", "ingest_meeting_artifacts"}:
+    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset"}:
         return action_type
     if action_type in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
         return action_type
@@ -973,7 +973,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         return "time_delay"
     if template_id in {"filter", "switch"}:
         return template_id
-    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_video", "transcribe_media", "ingest_meeting_artifacts"}:
+    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset"}:
         return template_id
     if node_type == "webhook" and template_id == "webhook":
         return "webhook"
@@ -1861,6 +1861,7 @@ class FlowManualTriggerRequest(BaseModel):
 class MediaRenderRequest(BaseModel):
     provider: str | None = None
     title: str | None = None
+    asset_type: str | None = None
     media_type: str | None = "video"
     source_url: str | None = None
     output_url: str | None = None
@@ -1895,6 +1896,48 @@ class MediaIngestRequest(BaseModel):
     speaker_segments: list[dict[str, Any]] | None = None
     transcription_provider: str | None = None
     auto_transcribe: bool = True
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class MediaScriptRequest(BaseModel):
+    provider: str | None = None
+    title: str | None = None
+    topic: str | None = None
+    tone: str | None = None
+    duration: str | None = None
+    context: str | None = None
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class MediaRunOfShowRequest(BaseModel):
+    provider: str | None = None
+    title: str | None = None
+    topic: str | None = None
+    duration: str | None = None
+    context: str | None = None
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class MediaAudioRenderRequest(BaseModel):
+    provider: str | None = None
+    title: str | None = None
+    text: str | None = None
+    voice: str | None = None
+    style: str | None = None
+    output_url: str | None = None
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class MediaPublishRequest(BaseModel):
+    title: str | None = None
+    publish_target: str | None = None
+    publishTarget: str | None = None
+    asset_ids: list[str] | None = None
+    artifact_ids: list[str] | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
 
@@ -2499,21 +2542,7 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
 @app.get("/api/ai/agents/definitions")
 async def get_agent_definitions(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI Agent definitions.")
-    # Convert dataclasses to dicts for JSON serialization
-    defs = {k: {
-        "name": v.name,
-        "agentId": v.agent_id,
-        "label": v.label,
-        "role": v.role,
-        "specialization": v.specialization,
-        "capabilities": v.capabilities,
-        "tools": v.tools,
-        "rank": v.rank,
-        "visibility": v.visibility,
-        "capability_tier": v.capability_tier,
-        "subordinates": v.subordinates,
-        "system_prompt": v.system_prompt
-    } for k, v in AGENT_DEFINITIONS.items()}
+    defs = {key: value.to_dict() for key, value in AGENT_DEFINITIONS.items()}
     return {"data": defs}
 
 
@@ -2790,6 +2819,18 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
         context=resolved_context,
     )
     resolved_agent_role = routing["executing_agent"]
+    agent_definition = AGENT_DEFINITIONS.get(resolved_agent_role)
+    if not agent_definition:
+        raise HTTPException(status_code=400, detail=f"Agent '{resolved_agent_role}' is not available in the canonical runtime registry.")
+    assist_policy_inputs = [resolved_intent, resolved_field]
+    if resolved_intent in {"draft", "assist"} and resolved_field in {"content", "general"}:
+        assist_policy_inputs.append("agent_task")
+    assist_policy_error = validate_agent_action(
+        agent_definition,
+        *expand_agent_action_tokens(*assist_policy_inputs),
+    )
+    if assist_policy_error:
+        raise HTTPException(status_code=403, detail=assist_policy_error)
     resolved_context.update(routing)
     resolved_context["route"] = {
         "provider_key": route.get("provider_key"),
@@ -2837,11 +2878,15 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
     applied_thread = None
     draft_text = ""
     if resolved_module == "comms" and resolved_context.get("thread_id"):
+        action_metadata = {
+            **(result.metadata or {}),
+            "agent_name": resolved_agent_role,
+        }
         applied = provider.apply_thread_ai_result(
             thread_id=str(resolved_context["thread_id"]),
             mode=resolved_field or "summary",
             suggestion=result.suggestion,
-            metadata=result.metadata or {},
+            metadata=action_metadata,
         )
         applied_thread = applied.get("thread")
         response["thread"] = applied_thread
@@ -2914,10 +2959,13 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
 
 
 @app.get("/api/ai/runs")
-async def list_ai_runs(request: Request, limit: int = 50):
+async def list_ai_runs(request: Request, limit: int = 50, flow_id: str | None = None):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view AI activity.")
     try:
         runs = [project_engine_run_for_ui(run) for run in provider.list_ai_runs(limit=limit)]
+        normalized_flow_id = str(flow_id or "").strip()
+        if normalized_flow_id:
+            runs = [run for run in runs if run and str(run.get("flow_id") or run.get("flowId") or "").strip() == normalized_flow_id]
         return {"data": [run for run in runs if run]}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -3884,7 +3932,7 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
             raise ValueError("Calendar source not found")
         config = source.get("config") or {}
 
-        if pending["provider"] == "google-calendar-oauth":
+        if pending["provider"] in {"google-calendar-oauth", "google-meet-oauth"}:
             token_data = exchange_google_code(config.get("client_id"), config.get("client_secret"), code, oauth_callback_url())
             access_token = token_data.get("access_token")
             available_calendars = google_calendar_list(access_token) if access_token else []
@@ -4303,6 +4351,93 @@ async def list_transcript_artifacts(request: Request):
     return {"data": get_media_engine().list_transcript_artifacts()}
 
 
+@app.get("/api/media/script-jobs")
+async def list_script_jobs(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view script jobs.")
+    return {"data": get_media_engine().list_script_jobs()}
+
+
+@app.get("/api/media/script-artifacts")
+async def list_script_artifacts(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view script artifacts.")
+    return {"data": get_media_engine().list_script_artifacts()}
+
+
+@app.get("/api/media/run-of-show-jobs")
+async def list_run_of_show_jobs(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view run-of-show jobs.")
+    return {"data": get_media_engine().list_run_of_show_jobs()}
+
+
+@app.get("/api/media/run-of-show-artifacts")
+async def list_run_of_show_artifacts(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view run-of-show artifacts.")
+    return {"data": get_media_engine().list_run_of_show_artifacts()}
+
+
+@app.get("/api/media/audio-render-jobs")
+async def list_audio_render_jobs(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view audio render jobs.")
+    return {"data": get_media_engine().list_audio_render_jobs()}
+
+
+@app.get("/api/media/publish-jobs")
+async def list_publish_jobs(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view publish jobs.")
+    return {"data": get_media_engine().list_publish_jobs()}
+
+
+@app.get("/api/media/publish-artifacts")
+async def list_publish_artifacts(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view publish artifacts.")
+    return {"data": get_media_engine().list_publish_artifacts()}
+
+
+@app.post("/api/media/script-jobs")
+async def create_script_job(request: Request, payload: MediaScriptRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create script jobs.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().generate_script(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/run-of-show-jobs")
+async def create_run_of_show_job(request: Request, payload: MediaRunOfShowRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create run-of-show jobs.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().generate_run_of_show(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/audio-render-jobs")
+async def create_audio_render_job(request: Request, payload: MediaAudioRenderRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create audio render jobs.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().render_audio(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.post("/api/media/render-jobs")
 async def create_render_job(request: Request, payload: MediaRenderRequest):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create media jobs.")
@@ -4339,6 +4474,21 @@ async def ingest_meeting_media(request: Request, payload: MediaIngestRequest):
     tenant = session.get("tenant") or {}
     try:
         result = get_media_engine().ingest_meeting_artifacts(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/publish-jobs")
+async def create_publish_job(request: Request, payload: MediaPublishRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create publish jobs.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().publish_asset(
             payload.model_dump(exclude_none=True),
             tenant_id=tenant.get("id"),
             context={},
@@ -4471,7 +4621,7 @@ async def authorize_calendar_source(source_id: str, request: Request):
     )
     redirect_uri = oauth_callback_url()
 
-    if source.get("provider") == "google-calendar-oauth":
+    if source.get("provider") in {"google-calendar-oauth", "google-meet-oauth"}:
         client_id = config.get("client_id")
         if not client_id:
             raise HTTPException(status_code=400, detail="Missing Google client_id in calendar source config")

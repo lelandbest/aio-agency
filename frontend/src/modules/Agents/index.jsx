@@ -845,8 +845,6 @@ const AIOAgentsModule = () => {
   return (
      <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
       <ModuleHeader
-        title="Agent Control"
-        titleIcon={Bot}
         showTitle={false}
         statusBadge={{ label: 'Systems Online', color: 'success' }}
         actions={[
@@ -986,7 +984,7 @@ const AIOAgentsModule = () => {
                 }
               `}</style>
               {/* LEFT - Command Islands */}
-              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-3 lg:p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] flex flex-col gap-4 shadow-sm overflow-hidden">
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-3 lg:p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] flex flex-col gap-3 shadow-sm overflow-hidden">
 
                 {/* ISLAND 1 — ALPHA */}
                 {alpha && (
@@ -1068,20 +1066,20 @@ const AIOAgentsModule = () => {
                     <span className="text-[8px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">3 × 4 Fixed Grid</span>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto no-scrollbar pr-1">
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 auto-rows-fr">
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                  <div className="grid h-full grid-cols-2 xl:grid-cols-4 gap-1.5 auto-rows-fr">
                     {regularAgents.map((agent, idx) => {
                       const agentKey = agent.registryKey || agent.registry_key;
-                      const row = Math.floor(idx / 3);
-                      const col = idx % 3;
-                      const c = (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col]) || ROW_COLOR_LANES[0][0];
+                      const row = Math.floor(idx / 4);
+                      const col = idx % 4;
+                      const c = (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
                       return (
                       <div
                         key={agentKey || agent.id || idx}
                         onClick={() => { setActiveAgent(agent); setActiveRun(null); setView('command'); }}
                         className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
                       >
-                        <div className="bg-[var(--color-bg-secondary)] rounded-t-lg p-2 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
+                        <div className="bg-[var(--color-bg-secondary)] rounded-t-lg px-2 py-1.5 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2">
                               <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center shadow-[0_0_10px_${c.shadow}]`}>
@@ -1097,13 +1095,13 @@ const AIOAgentsModule = () => {
                             <div className={`w-1.5 h-1.5 rounded-full mt-1 ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.7)]' : 'bg-[var(--color-text-tertiary)]'}`} />
                           </div>
                         </div>
-                        <div className="px-2 py-1.5 flex-1">
+                        <div className="px-2 py-1 flex-1">
                             <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                             <Target size={9} className={`${c.icon} shrink-0`} />
                             <span className="truncate">{agent.specialization}</span>
                           </div>
                         </div>
-                        <div className={`px-2 py-1.5 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
+                        <div className={`px-2 py-1 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
                           <span className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wider font-mono font-bold opacity-70">
                             ID: {agent.id}
                           </span>

@@ -319,13 +319,10 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 bg-[var(--color-bg-primary)] p-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <ModuleHeader
         title="Flows"
-        titleIcon={Workflow}
-        subtitle={selectionMode ? 'Selection mode active. Choose a flow to bind back into Agents.' : 'Select, create, and launch automation flows from one workspace.'}
         showTitle={false}
-        showCompactTitle
         actions={[
           {
             label: 'Create Flow',
@@ -354,46 +351,48 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             />
           </div>
         )}
+        toolbarRightSlot={(
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
+              <FolderOpen size={14} className="text-[var(--color-text-tertiary)]" />
+              <span>Saved</span>
+              <span className="text-[var(--color-text-primary)]">{flows.length}</span>
+            </div>
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
+              <Tag size={14} className="text-[var(--color-text-tertiary)]" />
+              <span>Template-based</span>
+              <span className="text-[var(--color-text-primary)]">{totalTemplatesUsed}</span>
+            </div>
+          </div>
+        )}
       />
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-          <div className="min-w-0 space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Flows</div>
+        <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
+          <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
+            <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Flows</div>
             {recentFlows.length > 0 ? (
-              <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
-                {recentFlows.map((flow) => (
-                  <button
-                    key={flow.id}
-                    type="button"
-                    onClick={() => onOpenFlow?.(flow)}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-hover)]"
-                  >
-                    <FolderOpen size={14} />
-                    {flow.name || 'Untitled Flow'}
-                  </button>
-                ))}
-              </div>
+              recentFlows.map((flow) => (
+                <button
+                  key={flow.id}
+                  type="button"
+                  onClick={() => onOpenFlow?.(flow)}
+                  className="inline-flex shrink-0 items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2.5 text-left text-xs text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-hover)]"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-violet-300">
+                    <Workflow size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{flow.name || 'Untitled Flow'}</div>
+                    <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+                      {(flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0)} nodes • {flow.status || 'Draft'}
+                    </div>
+                  </div>
+                </button>
+              ))
             ) : (
-              <div className="text-sm text-[var(--color-text-secondary)]">Create a blank flow or start from a template to populate this workspace.</div>
+              <div className="shrink-0 text-sm text-[var(--color-text-secondary)]">Create a blank flow or start from a template to populate this workspace.</div>
             )}
-          </div>
-
-          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar">
-            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">
-                <FolderOpen size={14} />
-                Saved Flows
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{flows.length}</div>
-            </div>
-            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">
-                <Tag size={14} />
-                Template-based
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">{totalTemplatesUsed}</div>
-            </div>
           </div>
         </div>
       </div>
@@ -404,27 +403,29 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         </div>
       ) : null}
 
-      <FolderTable
-        title="Flows"
-        description="Open, rename, or launch your saved flows."
-        folders={flowFolders}
-        items={flows}
-        columns={tableColumns}
-        onFolderToggle={() => setSavedFlowsExpanded((current) => !current)}
-        onItemSelect={(flowId) => {
-          setSelectedFlowIds((current) =>
-            current.includes(flowId) ? current.filter((item) => item !== flowId) : [...current, flowId]
-          );
-        }}
-        selectedItems={selectedFlowIds}
-        onCreateItem={handleCreateBlank}
-        createItemLabel="Create Flow"
-        actions={tableActions}
-        folderProperty="flow_group"
-        showHeader={false}
-        searchQuery={tableSearch}
-        onSearchQueryChange={setTableSearch}
-      />
+      <div className="min-h-0 flex-1">
+        <FolderTable
+          title="Flows"
+          description="Open, rename, or launch your saved flows."
+          folders={flowFolders}
+          items={flows}
+          columns={tableColumns}
+          onFolderToggle={() => setSavedFlowsExpanded((current) => !current)}
+          onItemSelect={(flowId) => {
+            setSelectedFlowIds((current) =>
+              current.includes(flowId) ? current.filter((item) => item !== flowId) : [...current, flowId]
+            );
+          }}
+          selectedItems={selectedFlowIds}
+          onCreateItem={handleCreateBlank}
+          createItemLabel="Create Flow"
+          actions={tableActions}
+          folderProperty="flow_group"
+          showHeader={false}
+          searchQuery={tableSearch}
+          onSearchQueryChange={setTableSearch}
+        />
+      </div>
 
       <TemplateGallery
         isOpen={showTemplateGallery}

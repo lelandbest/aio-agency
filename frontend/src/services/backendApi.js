@@ -157,8 +157,12 @@ export async function runAiCommandApi(payload) {
   return response.result || null;
 }
 
-export async function getAiRunsApi(limit = 50) {
-  const response = await request(`/api/ai/runs?limit=${encodeURIComponent(limit)}`);
+export async function getAiRunsApi(limit = 50, flowId = '') {
+  const search = new URLSearchParams({ limit: String(limit) });
+  if (flowId) {
+    search.set('flow_id', flowId);
+  }
+  const response = await request(`/api/ai/runs?${search.toString()}`);
   return response.data || [];
 }
 
@@ -406,6 +410,117 @@ export async function deleteFlowDraftApi(draftId) {
   return request(`/api/flow-drafts/${encodeURIComponent(draftId)}`, {
     method: 'DELETE'
   });
+}
+
+export async function getMediaAssetsApi() {
+  const response = await request('/api/media/assets');
+  return response.data || [];
+}
+
+export async function getMediaRenderJobsApi() {
+  const response = await request('/api/media/render-jobs');
+  return response.data || [];
+}
+
+export async function getMediaTranscriptJobsApi() {
+  const response = await request('/api/media/transcript-jobs');
+  return response.data || [];
+}
+
+export async function getMediaTranscriptArtifactsApi() {
+  const response = await request('/api/media/transcript-artifacts');
+  return response.data || [];
+}
+
+export async function getMediaScriptJobsApi() {
+  const response = await request('/api/media/script-jobs');
+  return response.data || [];
+}
+
+export async function getMediaScriptArtifactsApi() {
+  const response = await request('/api/media/script-artifacts');
+  return response.data || [];
+}
+
+export async function getMediaRunOfShowJobsApi() {
+  const response = await request('/api/media/run-of-show-jobs');
+  return response.data || [];
+}
+
+export async function getMediaRunOfShowArtifactsApi() {
+  const response = await request('/api/media/run-of-show-artifacts');
+  return response.data || [];
+}
+
+export async function getMediaAudioRenderJobsApi() {
+  const response = await request('/api/media/audio-render-jobs');
+  return response.data || [];
+}
+
+export async function getMediaPublishJobsApi() {
+  const response = await request('/api/media/publish-jobs');
+  return response.data || [];
+}
+
+export async function getMediaPublishArtifactsApi() {
+  const response = await request('/api/media/publish-artifacts');
+  return response.data || [];
+}
+
+export async function createMediaScriptJobApi(payload) {
+  const response = await request('/api/media/script-jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function createMediaRunOfShowJobApi(payload) {
+  const response = await request('/api/media/run-of-show-jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function createMediaAudioRenderJobApi(payload) {
+  const response = await request('/api/media/audio-render-jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function createMediaRenderJobApi(payload) {
+  const response = await request('/api/media/render-jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function createMediaTranscriptJobApi(payload) {
+  const response = await request('/api/media/transcript-jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function ingestMeetingMediaApi(payload) {
+  const response = await request('/api/media/meeting-ingestion', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function createMediaPublishJobApi(payload) {
+  const response = await request('/api/media/publish-jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
 }
 
 export async function addWorkspaceMemberApi(workspaceId, payload) {

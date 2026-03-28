@@ -12,6 +12,7 @@ export const INTEGRATION_CATEGORIES = {
   AUTOMATION: 'automation',
   EMAIL: 'email',
   CALENDAR: 'calendar',
+  VIDEO_CONFERENCING: 'video-conferencing',
   LLMS: 'llms',
   SMS: 'sms',
   TRACKING: 'tracking',
@@ -165,6 +166,49 @@ export const integrationConfigs = {
         description: 'Open source scheduling infrastructure.',
         fields: [
           { name: 'api_key', label: 'API Key', type: 'password', required: true },
+        ],
+        logo: null,
+      },
+    ]
+  },
+
+  [INTEGRATION_CATEGORIES.VIDEO_CONFERENCING]: {
+    id: INTEGRATION_CATEGORIES.VIDEO_CONFERENCING,
+    name: 'Video Conferencing',
+    icon: 'video',
+    description: 'Meeting platforms, room links, and conference ingestion sources.',
+    providers: [
+      {
+        id: 'zoom-api',
+        name: 'Zoom',
+        icon: 'zoom-api',
+        description: 'Zoom API-backed meeting and recording connectivity.',
+        fields: [
+          { name: 'account_id', label: 'Account ID', type: 'text', required: true },
+          { name: 'client_id', label: 'Client ID', type: 'text', required: true },
+          { name: 'client_secret', label: 'Client Secret', type: 'password', required: true },
+          { name: 'user_id', label: 'User ID', type: 'text' },
+        ],
+        logo: null,
+      },
+      {
+        id: 'google-meet-oauth',
+        name: 'Google Meet',
+        icon: 'google-meet-oauth',
+        description: 'Google OAuth-backed meeting connectivity and calendar-linked Meet sessions.',
+        fields: [],
+        oauth: true,
+        logo: null,
+      },
+      {
+        id: 'jitsi-stub',
+        name: 'Jitsi',
+        icon: 'jitsi-stub',
+        description: 'Placeholder only for now. Live backend connectivity is not implemented yet.',
+        fields: [
+          { name: 'server_url', label: 'Server URL', type: 'text' },
+          { name: 'room_prefix', label: 'Room Prefix', type: 'text' },
+          { name: 'api_key', label: 'API Key', type: 'password' },
         ],
         logo: null,
       },

@@ -1380,59 +1380,45 @@ const CalendarModule = ({ clientMode = false }) => {
   return (
     <div className="calendar-surface h-full flex flex-col relative rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)] shadow-island">
       <ModuleHeader
-        title="Calendar"
-        titleIcon={CalendarIcon}
         showTitle={false}
-        showCompactTitle
-        subtitle={
-          activeTab === 'calendar'
-            ? 'Coordinate sources, booking types, and scheduled meetings from one workspace.'
-            : activeTab === 'bookers'
-              ? 'Manage meeting types without crowding the live calendar grid.'
-              : 'Browse and update scheduled bookings from one operational list.'
-        }
         statusBadge={{
           label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
           color: 'info'
         }}
         showActions={true}
-        actions={
-          activeTab === 'calendar'
-            ? [
-              ...(!clientMode ? [{
-                label: 'Manage Sources',
-                icon: CalendarIcon,
-                onClick: openCalendarAdmin,
-                variant: 'secondary'
-              }] : []),
-              {
-                label: 'Create Event',
-                icon: Plus,
-                onClick: handleCreateEvent,
-                variant: 'primary',
-                color: 'primary'
-              }
-            ]
-            : activeTab === 'bookers'
-              ? [{
-                label: 'Create Meeting Type',
-                icon: Plus,
-                onClick: () => {
-                  setSelectedBooker(null);
-                  setShowBookerModal(true);
-                },
-                variant: 'primary',
-                color: 'primary'
-              }]
-              : [{
-                label: 'Create Event',
-                icon: Plus,
-                onClick: handleCreateEvent,
-                variant: 'primary',
-                color: 'primary'
-              }]
-        }
+        actions={[
+          ...(!clientMode ? [{
+            label: 'Manage Sources',
+            icon: CalendarIcon,
+            onClick: openCalendarAdmin,
+            variant: 'secondary'
+          }] : []),
+          {
+            label: 'Create Event',
+            icon: Plus,
+            onClick: handleCreateEvent,
+            variant: 'primary',
+            color: 'primary'
+          }
+        ]}
         className="border-b-0"
+        toolbarLeftSlot={
+          <div className="flex flex-wrap items-center gap-2">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] transition ${
+                  activeTab === tab
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-on-primary)]'
+                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)]'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        }
         toolbarCenterSlot={
           activeTab === 'bookers' || activeTab === 'bookings' ? (
             <div className="relative w-full max-w-sm">
@@ -1468,19 +1454,6 @@ const CalendarModule = ({ clientMode = false }) => {
           ) : null
         }
       />
-      <div className="bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)]">
-        <div className="flex px-4 gap-6">
-          {visibleTabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium border-b-2 transition capitalize ${activeTab === tab ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]' : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'}`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden relative">
@@ -2146,6 +2119,16 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
   const [assistTarget, setAssistTarget] = useState('');
   const [assistError, setAssistError] = useState('');
 
+  useEffect(() => {
+    const handleEscape = (evt) => {
+      if (evt.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   const buildEventAssistText = (field) => {
     if (field === 'title') {
       const titleByType = {
@@ -2272,8 +2255,14 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-island">
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button
+        type="button"
+        aria-label="Close event panel"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/25"
+      />
+      <div className="relative flex h-screen w-full max-w-[30rem] flex-col overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-[0_0_0_1px_rgba(15,23,42,0.18),-24px_0_48px_rgba(2,6,23,0.38)]">
         <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
           <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{readOnly ? 'Event Signal' : event ? 'Edit Event' : 'Create Event'}</h3>
           <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">

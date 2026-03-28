@@ -201,6 +201,47 @@ export const validateFlowSpec = (spec) => {
       }
     }
 
+    if (intent === 'generate_script') {
+      if (!String(config.topic || config.inputs?.topic || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a topic.`);
+      }
+    }
+
+    if (intent === 'generate_run_of_show') {
+      if (!String(config.topic || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a topic.`);
+      }
+      if (!String(config.duration || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a duration.`);
+      }
+    }
+
+    if (intent === 'generate_voice') {
+      const text = String(config.text || config.script || config.scriptText || config.inputs?.text || '').trim();
+      if (!text) {
+        blockers.push(`${node?.data?.label || nodeId} is missing text or script input.`);
+      }
+    }
+
+    if (intent === 'text_to_speech') {
+      const text = String(config.text || config.script || config.scriptText || config.inputs?.text || '').trim();
+      if (!text) {
+        blockers.push(`${node?.data?.label || nodeId} is missing text or script input.`);
+      }
+    }
+
+    if (intent === 'generate_thumbnail') {
+      if (!String(config.title || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a title.`);
+      }
+    }
+
+    if (intent === 'publish_asset') {
+      if (!String(config.publishTarget || '').trim()) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a publish target.`);
+      }
+    }
+
     if (intent === 'transcribe_media') {
       const sourceType = String(config.sourceType || '').trim();
       const sourceRef = String(config.sourceRef || '').trim();

@@ -53,9 +53,15 @@ DIRECT_EXECUTION_INTENTS = {
     "verify_email_bulk",
     "wait_for_verification",
     "verification_branch",
+    "generate_script",
+    "generate_run_of_show",
+    "generate_voice",
+    "text_to_speech",
+    "generate_thumbnail",
     "generate_video",
     "transcribe_media",
     "ingest_meeting_artifacts",
+    "publish_asset",
 }
 
 BOOKING_WRITE_INTENTS = {"schedule_calendar", "create_booking", "update_booking", "cancel_booking"}
@@ -596,6 +602,66 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
             "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
             "createdAt": "now"
         })
+    elif intent == "generate_script":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "script_generation",
+            "title": "Script Job",
+            "summary": "A script job was completed through the media layer.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "generate_run_of_show":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "run_of_show_generation",
+            "title": "Run of Show Job",
+            "summary": "A structured run of show was generated.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "generate_voice":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "audio_render",
+            "title": "Audio Render Job",
+            "summary": "A voice render job was queued or completed.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "text_to_speech":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "audio_render",
+            "title": "Text to Speech Job",
+            "summary": "A text-to-speech render job was queued or completed.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "generate_thumbnail":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "image_generation",
+            "title": "Thumbnail Job",
+            "summary": "A thumbnail render was queued or completed.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "publish_asset":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "media_publication",
+            "title": "Publish Asset",
+            "summary": "A media publication record was created.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
     elif intent == "transcribe_media":
         artifacts.append({
             "id": f"art-{unique_suffix()}",
@@ -639,9 +705,15 @@ class StepExecutor:
             "verify_email_bulk": {"service": "verificationService", "handlerType": "direct", "executionType": "deterministic"},
             "wait_for_verification": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
             "verification_branch": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "generate_script": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "generate_run_of_show": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "generate_voice": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "text_to_speech": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "generate_thumbnail": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "generate_video": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "transcribe_media": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "ingest_meeting_artifacts": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "publish_asset": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
         }
         self.executors = {
             "draft_email": self._draft_email,
@@ -666,9 +738,15 @@ class StepExecutor:
             "verify_email_bulk": self._verify_email_bulk,
             "wait_for_verification": self._wait_for_verification,
             "verification_branch": self._verification_branch,
+            "generate_script": self._generate_script,
+            "generate_run_of_show": self._generate_run_of_show,
+            "generate_voice": self._generate_voice,
+            "text_to_speech": self._generate_voice,
+            "generate_thumbnail": self._generate_thumbnail,
             "generate_video": self._generate_video,
             "transcribe_media": self._transcribe_media,
             "ingest_meeting_artifacts": self._ingest_meeting_artifacts,
+            "publish_asset": self._publish_asset,
         }
 
     def _merged_step_config(self, step: dict[str, Any]) -> dict[str, Any]:
@@ -759,6 +837,11 @@ class StepExecutor:
                     "kind": "crm_contact",
                     "id": merged.get("contact_id") or context.get("contact_id") or trigger_payload.get("contact_id"),
                     "label": clean_text(context.get("contact", {}).get("email") if isinstance(context.get("contact"), dict) else trigger_payload.get("email")),
+                },
+                {
+                    "kind": "attachment_target",
+                    "id": merged.get("attachTarget") or merged.get("attach_target") or merged.get("outputTarget") or merged.get("output_target"),
+                    "label": clean_text(merged.get("attachTarget") or merged.get("attach_target") or merged.get("outputTarget") or merged.get("output_target")),
                 },
             ]
             if clean_text(item.get("id"))
@@ -2026,7 +2109,7 @@ class StepExecutor:
 
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
-                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_video", "transcribe_media", "ingest_meeting_artifacts"}:
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset"}:
                     return finalize(handler(step, context, runtime))
                 return finalize(handler(step, context))
             except Exception as exc:
@@ -2525,6 +2608,7 @@ class StepExecutor:
 
     def _resolved_media_payload(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         config = self._normalized_service_config(step)
+        raw_inputs = config.get("inputs") if isinstance(config.get("inputs"), dict) else {}
         trigger_payload = self._trigger_payload(context)
         missing: list[str] = []
 
@@ -2547,10 +2631,42 @@ class StepExecutor:
         meeting_ref = config.get("meetingRef") if "meetingRef" in config else config.get("meeting_ref")
         resolved_source_ref = resolve_media_value(source_ref, "sourceRef") if source_ref is not None else None
         resolved_meeting_ref = resolve_media_value(meeting_ref, "meetingRef") if meeting_ref is not None else None
+        topic = config.get("topic") if "topic" in config else raw_inputs.get("topic")
+        tone_value = config.get("tone") if "tone" in config else raw_inputs.get("tone")
+        duration = config.get("duration") if "duration" in config else config.get("length")
+        if duration is None:
+            duration = raw_inputs.get("duration") if "duration" in raw_inputs else raw_inputs.get("length")
+        context_value = config.get("context") if "context" in config else raw_inputs.get("context")
+        text_value = config.get("text") if "text" in config else config.get("scriptText")
+        if text_value is None:
+            text_value = raw_inputs.get("text") if "text" in raw_inputs else raw_inputs.get("scriptText")
+        title_value = config.get("title") if "title" in config else raw_inputs.get("title")
+        subtitle_value = config.get("subtitle") if "subtitle" in config else raw_inputs.get("subtitle")
+        prompt_value = config.get("prompt") if "prompt" in config else raw_inputs.get("prompt")
+        voice_value = config.get("voice") if "voice" in config else raw_inputs.get("voice")
+        style_value = config.get("style") if "style" in config else raw_inputs.get("style")
+        image_value = config.get("image") if "image" in config else raw_inputs.get("image")
+        asset_ref_value = config.get("assetRef") if "assetRef" in config else config.get("asset_ref")
+        artifact_ref_value = config.get("artifactRef") if "artifactRef" in config else config.get("artifact_ref")
+        publish_target_value = config.get("publishTarget") if "publishTarget" in config else config.get("publish_target")
+        resolved_topic = resolve_media_value(topic, "topic") if topic is not None else None
+        resolved_tone_value = resolve_media_value(tone_value, "tone") if tone_value is not None else None
+        resolved_duration = resolve_media_value(duration, "duration") if duration is not None else None
+        resolved_context_value = resolve_media_value(context_value, "context") if context_value is not None else None
+        resolved_text_value = resolve_media_value(text_value, "text") if text_value is not None else None
+        resolved_title_value = resolve_media_value(title_value, "title") if title_value is not None else None
+        resolved_subtitle_value = resolve_media_value(subtitle_value, "subtitle") if subtitle_value is not None else None
+        resolved_prompt_value = resolve_media_value(prompt_value, "prompt") if prompt_value is not None else None
+        resolved_voice_value = resolve_media_value(voice_value, "voice") if voice_value is not None else None
+        resolved_style_value = resolve_media_value(style_value, "style") if style_value is not None else None
+        resolved_image_value = resolve_media_value(image_value, "image") if image_value is not None else None
+        resolved_asset_ref_value = resolve_media_value(asset_ref_value, "assetRef") if asset_ref_value is not None else None
+        resolved_artifact_ref_value = resolve_media_value(artifact_ref_value, "artifactRef") if artifact_ref_value is not None else None
+        resolved_publish_target_value = resolve_media_value(publish_target_value, "publishTarget") if publish_target_value is not None else None
 
         payload = {
             "provider": config.get("provider") or config.get("mediaProvider") or config.get("transcriptionProvider"),
-            "title": config.get("title") or context.get("flow_name") or "Media Job",
+            "title": resolved_title_value if resolved_title_value is not None else config.get("title") or context.get("flow_name") or "Media Job",
             "templateId": config.get("templateId") or config.get("template_id"),
             "outputTarget": config.get("outputTarget") or config.get("output_target"),
             "source_url": config.get("source_url") or config.get("sourceUrl") or trigger_payload.get("source_url") or trigger_payload.get("recording_url"),
@@ -2561,7 +2677,21 @@ class StepExecutor:
             "meeting_id": config.get("meeting_id") or config.get("meetingId") or trigger_payload.get("meeting_id"),
             "meeting_title": config.get("meeting_title") or config.get("meetingTitle") or trigger_payload.get("meeting_title"),
             "media_type": config.get("media_type") or config.get("mediaType") or "video",
-            "script": config.get("script") or config.get("prompt"),
+            "script": config.get("script") or resolved_prompt_value or config.get("prompt"),
+            "text": resolved_text_value if resolved_text_value is not None else text_value,
+            "topic": resolved_topic if resolved_topic is not None else topic,
+            "tone": resolved_tone_value if resolved_tone_value is not None else config.get("tone") or raw_inputs.get("tone"),
+            "duration": resolved_duration if resolved_duration is not None else duration,
+            "context": resolved_context_value if resolved_context_value is not None else context_value,
+            "subtitle": resolved_subtitle_value if resolved_subtitle_value is not None else subtitle_value,
+            "prompt": resolved_prompt_value if resolved_prompt_value is not None else prompt_value,
+            "voice": resolved_voice_value if resolved_voice_value is not None else voice_value,
+            "style": resolved_style_value if resolved_style_value is not None else style_value,
+            "image": resolved_image_value if resolved_image_value is not None else image_value,
+            "assetRef": resolved_asset_ref_value if resolved_asset_ref_value is not None else asset_ref_value,
+            "artifactRef": resolved_artifact_ref_value if resolved_artifact_ref_value is not None else artifact_ref_value,
+            "publishTarget": resolved_publish_target_value if resolved_publish_target_value is not None else publish_target_value,
+            "attachTarget": config.get("attachTarget") or config.get("attach_target"),
             "metadata": config.get("metadata") if isinstance(config.get("metadata"), dict) else {},
             "attachments": self._media_attachments(context, runtime, config),
             "auto_transcribe": parse_bool(config.get("auto_transcribe"), True),
@@ -2590,6 +2720,116 @@ class StepExecutor:
             payload["transcript_text"] = config.get("transcriptText") if config.get("transcriptText") is not None else config.get("transcript_text")
 
         return payload, missing
+
+    def _generate_script(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "artifact": None})
+        if not clean_text(payload.get("topic")):
+            return self._service_error(step, "Generate Script requires a topic.", data={"job": None, "artifact": None})
+        result = get_media_engine().generate_script(
+            {
+                **payload,
+                "provider": clean_text(payload.get("provider")) or "stub-script",
+                "title": clean_text(payload.get("title")) or f"{clean_text(payload.get('topic'))} Script",
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _generate_run_of_show(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "artifact": None})
+        if not clean_text(payload.get("topic")):
+            return self._service_error(step, "Generate Run of Show requires a topic.", data={"job": None, "artifact": None})
+        if not clean_text(payload.get("duration")):
+            return self._service_error(step, "Generate Run of Show requires a duration.", data={"job": None, "artifact": None})
+        result = get_media_engine().generate_run_of_show(
+            {
+                **payload,
+                "provider": clean_text(payload.get("provider")) or "stub-run-of-show",
+                "title": clean_text(payload.get("title")) or clean_text(payload.get("topic")) or "Run of Show",
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _generate_voice(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "assets": []})
+        text_input = clean_text(payload.get("text") or payload.get("script") or payload.get("transcript_text"))
+        if not text_input:
+            return self._service_error(step, "Generate Voice requires text or script input.", data={"job": None, "assets": []})
+        result = get_media_engine().render_audio(
+            {
+                **payload,
+                "provider": clean_text(payload.get("provider")) or "elevenlabs_tts",
+                "title": clean_text(payload.get("title")) or "Voice Render",
+                "text": text_input,
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _generate_thumbnail(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "assets": []})
+        if not clean_text(payload.get("title")):
+            return self._service_error(step, "Generate Thumbnail requires a title.", data={"job": None, "assets": []})
+        prompt = clean_text(payload.get("prompt")) or clean_text(payload.get("image")) or clean_text(payload.get("subtitle")) or f"Thumbnail for {clean_text(payload.get('title'))}"
+        result = get_media_engine().render_media(
+            {
+                **payload,
+                "provider": clean_text(payload.get("provider")) or "stub-render",
+                "title": clean_text(payload.get("title")) or "Thumbnail",
+                "asset_type": "thumbnail",
+                "media_type": "image",
+                "script": prompt,
+                "metadata": {
+                    **(payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}),
+                    "thumbnail_title": clean_text(payload.get("title")),
+                    "thumbnail_subtitle": clean_text(payload.get("subtitle")),
+                    "thumbnail_background": clean_text(payload.get("image")),
+                },
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
 
     def _generate_video(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         payload, missing = self._resolved_media_payload(step, context, runtime)
@@ -2697,6 +2937,46 @@ class StepExecutor:
             "data": result,
             "error": transcript_job.get("last_error") if failed else None,
         }
+
+    def _publish_asset(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "artifact": None})
+        previous_data = runtime.get("previous") if isinstance(runtime.get("previous"), dict) else {}
+        configured_asset_ref = clean_text(payload.get("assetRef") or payload.get("asset_ref"))
+        configured_artifact_ref = clean_text(payload.get("artifactRef") or payload.get("artifact_ref"))
+        asset_ids = [configured_asset_ref] if configured_asset_ref else []
+        artifact_ids = [configured_artifact_ref] if configured_artifact_ref else []
+        if not asset_ids:
+            asset_ids = [clean_text(item.get("id")) for item in (previous_data.get("assets") or []) if isinstance(item, dict) and clean_text(item.get("id"))]
+        if not artifact_ids:
+            previous_artifact = previous_data.get("artifact") if isinstance(previous_data.get("artifact"), dict) else {}
+            previous_transcript_artifact = previous_data.get("transcript_artifact") if isinstance(previous_data.get("transcript_artifact"), dict) else {}
+            artifact_ids = [item for item in [clean_text(previous_artifact.get("id")), clean_text(previous_transcript_artifact.get("id"))] if item]
+        publish_target = clean_text(payload.get("publishTarget") or payload.get("publish_target") or payload.get("attachTarget") or payload.get("outputTarget"))
+        if not publish_target:
+            return self._service_error(step, "Publish Asset requires a publishTarget.", data={"job": None, "artifact": None})
+        if not asset_ids and not artifact_ids:
+            return self._service_error(step, "Publish Asset requires an upstream asset or artifact.", data={"job": None, "artifact": None})
+        result = get_media_engine().publish_asset(
+            {
+                **payload,
+                "title": clean_text(payload.get("title")) or "Publish Asset",
+                "publish_target": publish_target,
+                "asset_ids": asset_ids,
+                "artifact_ids": artifact_ids,
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
 
     def _filter(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         condition = self._extract_if_then_condition(step)
@@ -3154,6 +3434,28 @@ def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, l
                 blockers.append(f"{node_label}: Generate Video requires an outputTarget.")
             if not clean_text(config.get("script")) and not clean_text(config.get("prompt")):
                 warnings.append(f"{node_label}: Generate Video has no script or prompt yet.")
+        elif intent == "generate_script":
+            if not clean_text(config.get("topic")):
+                blockers.append(f"{node_label}: Generate Script requires a topic.")
+            if not clean_text(config.get("length")) and not clean_text(config.get("duration")):
+                warnings.append(f"{node_label}: Generate Script has no target length yet.")
+        elif intent == "generate_run_of_show":
+            if not clean_text(config.get("topic")):
+                blockers.append(f"{node_label}: Generate Run of Show requires a topic.")
+            if not clean_text(config.get("duration")):
+                blockers.append(f"{node_label}: Generate Run of Show requires a duration.")
+        elif intent == "generate_voice":
+            if not clean_text(config.get("text")) and not clean_text(config.get("script")) and not clean_text(config.get("scriptText")):
+                blockers.append(f"{node_label}: Generate Voice requires text or script input.")
+        elif intent == "text_to_speech":
+            if not clean_text(config.get("text")) and not clean_text(config.get("script")) and not clean_text(config.get("scriptText")):
+                blockers.append(f"{node_label}: Text to Speech requires text or script input.")
+        elif intent == "generate_thumbnail":
+            if not clean_text(config.get("title")):
+                blockers.append(f"{node_label}: Generate Thumbnail requires a title.")
+        elif intent == "publish_asset":
+            if not clean_text(config.get("publishTarget") or config.get("publish_target")):
+                blockers.append(f"{node_label}: Publish Asset requires a publishTarget.")
         elif intent == "transcribe_media":
             if not clean_text(config.get("sourceType") or config.get("source_type")):
                 blockers.append(f"{node_label}: Transcribe Media requires a sourceType.")
@@ -3165,7 +3467,7 @@ def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, l
             if not clean_text(config.get("meetingRef") or config.get("meeting_ref")):
                 blockers.append(f"{node_label}: Ingest Meeting requires a meetingRef.")
 
-        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
+        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
             warnings.append(f"{node_label}: no downstream node is connected.")
 
     return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}

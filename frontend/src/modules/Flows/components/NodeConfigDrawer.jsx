@@ -166,11 +166,175 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
               <option value="update_booking">Update Booking</option>
               <option value="cancel_booking">Cancel Booking</option>
               <option value="get_booking">Get Booking</option>
+              <option value="generate_script">Generate Script</option>
+              <option value="generate_run_of_show">Generate Run of Show</option>
+              <option value="generate_voice">Generate Voice</option>
+              <option value="text_to_speech">Text to Speech</option>
+              <option value="generate_thumbnail">Generate Thumbnail</option>
               <option value="generate_video">Generate Video</option>
               <option value="transcribe_media">Transcribe Media</option>
               <option value="ingest_meeting_artifacts">Ingest Meeting Artifacts</option>
+              <option value="publish_asset">Publish Asset</option>
             </select>
           </div>
+
+          {config.actionType === 'generate_script' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.topic || ''}
+                onChange={(e) => handleInputChange('topic', e.target.value)}
+                placeholder="Topic"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.tone || ''}
+                onChange={(e) => handleInputChange('tone', e.target.value)}
+                placeholder="Tone"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.length || config.duration || ''}
+                onChange={(e) => { handleInputChange('length', e.target.value); handleInputChange('duration', e.target.value); }}
+                placeholder="Length"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.context || ''}
+                onChange={(e) => handleInputChange('context', e.target.value)}
+                placeholder="Context"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'generate_run_of_show' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.topic || ''}
+                onChange={(e) => handleInputChange('topic', e.target.value)}
+                placeholder="Topic"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.duration || ''}
+                onChange={(e) => handleInputChange('duration', e.target.value)}
+                placeholder="Duration"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.context || ''}
+                onChange={(e) => handleInputChange('context', e.target.value)}
+                placeholder="Production context"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'generate_voice' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.voice || ''}
+                onChange={(e) => handleInputChange('voice', e.target.value)}
+                placeholder="Voice"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.style || ''}
+                onChange={(e) => handleInputChange('style', e.target.value)}
+                placeholder="Style"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.text || config.scriptText || ''}
+                onChange={(e) => handleInputChange('text', e.target.value)}
+                placeholder="Text or script input"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[120px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'text_to_speech' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.voice || ''}
+                onChange={(e) => handleInputChange('voice', e.target.value)}
+                placeholder="Voice"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.style || ''}
+                onChange={(e) => handleInputChange('style', e.target.value)}
+                placeholder="Style"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.text || config.scriptText || ''}
+                onChange={(e) => handleInputChange('text', e.target.value)}
+                placeholder="Text or script input"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[120px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'generate_thumbnail' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.title || ''}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                placeholder="Title"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.subtitle || ''}
+                onChange={(e) => handleInputChange('subtitle', e.target.value)}
+                placeholder="Subtitle"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.image || ''}
+                onChange={(e) => handleInputChange('image', e.target.value)}
+                placeholder="Background"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.prompt || ''}
+                onChange={(e) => handleInputChange('prompt', e.target.value)}
+                placeholder="Prompt"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'publish_asset' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.publishTarget || ''}
+                onChange={(e) => handleInputChange('publishTarget', e.target.value)}
+                placeholder="Publish Target"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.assetRef || ''}
+                onChange={(e) => handleInputChange('assetRef', e.target.value)}
+                placeholder="Asset Ref (optional)"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+            </div>
+          )}
 
           {config.actionType === 'generate_video' && (
             <div className="grid grid-cols-1 gap-3">

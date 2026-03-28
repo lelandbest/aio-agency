@@ -2894,13 +2894,25 @@ const CRMModule = ({ initialContactId = null }) => {
         onChange={handleImportContacts}
         className="hidden"
       />
+      {!canUseEmailVerification ? (
+        <div className="border-b border-[var(--color-border)] px-4 py-3">
+          <div className="rounded-[var(--radius-card)] border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-200">
+            Email verification is unavailable until Reoon is configured for this workspace.
+          </div>
+        </div>
+      ) : null}
+
+      {emailVerificationNotice?.message ? (
+        <div className="border-b border-[var(--color-border)] px-4 py-3">
+          <div className={`rounded-[var(--radius-card)] border px-3 py-2 text-sm ${emailVerificationNoticeClass}`}>
+            {emailVerificationNotice.message}
+          </div>
+        </div>
+      ) : null}
+
       {/* Header with Actions - Using ModuleHeader Component */}
       <ModuleHeader
-        title="CRM"
-        titleIcon={Users}
         showTitle={false}
-        showCompactTitle
-        subtitle="Search, segment, and operate on contact records from one workspace."
         actions={[
           { label: 'Verify Selected', icon: Shield, onClick: () => startBulkEmailVerification('selected'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
           { label: 'Verify Filtered', icon: Shield, onClick: () => startBulkEmailVerification('filtered'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
@@ -2967,22 +2979,6 @@ const CRMModule = ({ initialContactId = null }) => {
           />
         )}
       />
-
-      {!canUseEmailVerification ? (
-        <div className="border-b border-[var(--color-border)] px-4 py-3">
-          <div className="rounded-[var(--radius-card)] border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-200">
-            Email verification is unavailable until Reoon is configured for this workspace.
-          </div>
-        </div>
-      ) : null}
-
-      {emailVerificationNotice?.message ? (
-        <div className="border-b border-[var(--color-border)] px-4 py-3">
-          <div className={`rounded-[var(--radius-card)] border px-3 py-2 text-sm ${emailVerificationNoticeClass}`}>
-            {emailVerificationNotice.message}
-          </div>
-        </div>
-      ) : null}
 
       {/* Content */}
       {renderContactsTab()}

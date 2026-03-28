@@ -123,9 +123,19 @@ class BaseCalendarAdapter(ABC):
     provider_name = "base"
     label = "Base"
     fields: list[dict[str, str]] = []
+    integration_category = "calendar"
+    connect_mode = "manual"
+    stub_only = False
 
     def provider_descriptor(self) -> dict[str, object]:
-        return {"id": self.provider_name, "label": self.label, "fields": self.fields}
+        return {
+            "id": self.provider_name,
+            "label": self.label,
+            "fields": self.fields,
+            "integration_category": self.integration_category,
+            "connect_mode": self.connect_mode,
+            "stub_only": self.stub_only,
+        }
 
     @abstractmethod
     def validate_source(self, source: dict) -> dict:
@@ -262,6 +272,7 @@ class ExternalCalendarAdapter(BaseCalendarAdapter):
 class GoogleCalendarAdapter(ExternalCalendarAdapter):
     provider_name = "google-calendar-oauth"
     label = "Google Calendar"
+    connect_mode = "oauth"
     fields = [
         {"key": "email", "label": "Google Account"},
         {"key": "client_id", "label": "Client ID"},
@@ -447,9 +458,16 @@ class GoogleCalendarAdapter(ExternalCalendarAdapter):
         ]
 
 
+class GoogleMeetCalendarAdapter(GoogleCalendarAdapter):
+    provider_name = "google-meet-oauth"
+    label = "Google Meet"
+    integration_category = "video-conferencing"
+
+
 class Microsoft365CalendarAdapter(ExternalCalendarAdapter):
     provider_name = "microsoft365-calendar"
     label = "Microsoft 365 Calendar"
+    connect_mode = "oauth"
     fields = [
         {"key": "tenant_id", "label": "Tenant ID"},
         {"key": "client_id", "label": "Client ID"},
@@ -631,6 +649,49 @@ class Microsoft365CalendarAdapter(ExternalCalendarAdapter):
         ]
 
 
+class ZoomCalendarAdapter(ExternalCalendarAdapter):
+    provider_name = "zoom-api"
+    label = "Zoom"
+    integration_category = "video-conferencing"
+    connect_mode = "api"
+    fields = [
+        {"key": "account_id", "label": "Account ID"},
+        {"key": "client_id", "label": "Client ID"},
+        {"key": "client_secret", "label": "Client Secret"},
+        {"key": "user_id", "label": "User ID"},
+    ]
+    required_keys = ["account_id", "client_id", "client_secret"]
+
+    def import_events(self, source: dict) -> dict:
+        if source.get("status") not in {"connected", "ready"}:
+            raise ValueError("Zoom source must be configured before importing meetings.")
+        start_time = (datetime.now(UTC) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+        end_time = start_time + timedelta(minutes=30)
+        meeting_ref = f"zoom-{source.get('id')}-meeting"
+        return {
+            "status": "ok",
+            "message": "Zoom meeting import completed.",
+            "imported_count": 1,
+            "events": [
+                {
+                    "external_event_ref": meeting_ref,
+                    "title": f"{source.get('name') or self.label} meeting",
+                    "description": "Imported from Zoom meeting operations.",
+                    "start_time": start_time.isoformat(),
+                    "end_time": end_time.isoformat(),
+                    "status": "scheduled",
+                    "location_type": "other",
+                    "location": self.label,
+                    "meeting_url": "https://zoom.us/j/example",
+                    "source_payload": {
+                        "provider": self.provider_name,
+                        "event_kind": "zoom_stub_import",
+                    },
+                }
+            ],
+        }
+
+
 class IcsCalendarAdapter(BaseCalendarAdapter):
     provider_name = "ics-url"
     label = "ICS Feed"
@@ -765,10 +826,48 @@ class IcsCalendarAdapter(BaseCalendarAdapter):
         ]
 
 
+class JitsiStubCalendarAdapter(BaseCalendarAdapter):
+    provider_name = "jitsi-stub"
+    label = "Jitsi"
+    integration_category = "video-conferencing"
+    connect_mode = "stub"
+    stub_only = True
+    fields = [
+        {"key": "server_url", "label": "Server URL"},
+        {"key": "room_prefix", "label": "Room Prefix"},
+        {"key": "api_key", "label": "API Key"},
+    ]
+
+    def validate_source(self, source: dict) -> dict:
+        return {
+            "ok": False,
+            "message": "Jitsi backend integration is placeholder-only in this pass.",
+            "missing": [],
+        }
+
+    def test_connection(self, source: dict) -> dict:
+        return {
+            "status": "unsupported",
+            "message": "Jitsi backend integration is stubbed only and cannot connect yet.",
+        }
+
+    def sync_source(self, source: dict) -> dict:
+        raise ValueError("Jitsi backend integration is stubbed only.")
+
+    def push_event(self, source: dict, event: dict) -> dict:
+        raise ValueError("Jitsi backend integration is stubbed only.")
+
+    def import_events(self, source: dict) -> dict:
+        raise ValueError("Jitsi backend integration is stubbed only.")
+
+
 ADAPTERS = {
     "local-stub": LocalStubCalendarAdapter(),
     "google-calendar-oauth": GoogleCalendarAdapter(),
+    "google-meet-oauth": GoogleMeetCalendarAdapter(),
     "microsoft365-calendar": Microsoft365CalendarAdapter(),
+    "zoom-api": ZoomCalendarAdapter(),
+    "jitsi-stub": JitsiStubCalendarAdapter(),
     "ics-url": IcsCalendarAdapter(),
 }
 

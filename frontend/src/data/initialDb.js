@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon, GraduationCap,
+  LayoutDashboard, Users, Bot, Workflow, Radio, RadioTower, Calendar as CalendarIcon, GraduationCap,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
   Phone, Settings, ChevronDown, ChevronRight, Search, Plus, Video,
   CreditCard, Zap, Shield, Tag, Layout, EyeOff, Activity, Crosshair,
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export const ICON_LIBRARY = {
-  LayoutDashboard, Users, Bot, Workflow, Radio, CalendarIcon,
+  LayoutDashboard, Users, Bot, Workflow, Radio, RadioTower, CalendarIcon,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
   Phone, Settings, Video, CreditCard, Zap, Shield, Tag, Layout,
   EyeOff, Activity, Crosshair, Box, CheckSquare, Key, Lock,
@@ -140,9 +140,10 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Operations",
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "chat", label: "Comms", icon: "MessageSquare", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "chat", label: "Comms", icon: "RadioTower", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "media", label: "Media", icon: "Video", type: "internal", visible: true, iconColor: "#9ca3af", description: "Operate scripts, voice, renders, transcripts, and ingest workflows from one workspace." },
       { id: "flows", label: "Flows", icon: "Workflow", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "forms", label: "Forms", icon: "FileText", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "orders", label: "Orders", icon: "ShoppingCart", type: "internal", visible: true, iconColor: "#9ca3af" },

@@ -212,7 +212,7 @@ const mapDataToSignals = (rawData) => {
  * UI COMPONENTS
  */
 
-const SignalSummaryStrip = ({ signals }) => {
+const SignalSummaryStrip = ({ signals, compact = false }) => {
   const counts = signals.reduce(
     (acc, signal) => {
       acc[signal.severity] += 1;
@@ -224,19 +224,19 @@ const SignalSummaryStrip = ({ signals }) => {
   if (!signals.length) return null;
 
   return (
-    <div className="px-6 py-3 border-b border-[var(--color-border)] bg-black/10">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+    <div className={compact ? 'flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar' : 'px-6 py-3 border-b border-[var(--color-border)] bg-black/10'}>
+      <div className={`flex ${compact ? 'flex-nowrap' : 'flex-wrap'} items-center gap-2`}>
+        <div className={`inline-flex items-center gap-2 rounded-lg border border-white/5 bg-black/20 ${compact ? 'px-3 py-2 shrink-0' : 'px-3 py-2'}`}>
           <AlertCircle size={12} className="text-[var(--color-text-tertiary)]" />
           <span className="text-[9px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Signal Summary</span>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-red-300">
+        <div className={`inline-flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-red-300 ${compact ? 'shrink-0' : ''}`}>
           Critical {counts.critical}
         </div>
-        <div className="inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-amber-300">
+        <div className={`inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-amber-300 ${compact ? 'shrink-0' : ''}`}>
           Warning {counts.warning}
         </div>
-        <div className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-300">
+        <div className={`inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-300 ${compact ? 'shrink-0' : ''}`}>
           Info {counts.info}
         </div>
       </div>
@@ -355,7 +355,7 @@ const SignalHistory = ({ signals }) => {
   );
 };
 
-const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false }) => {
+const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false, compact = false }) => {
   const colorClass = {
     purple: 'text-purple-400',
     blue: 'text-blue-400',
@@ -366,7 +366,7 @@ const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false })
   }[color] || 'text-purple-400';
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 bg-black/15 rounded-xl border border-white/5">
+    <div className={`flex items-center gap-2.5 bg-black/15 rounded-xl border border-white/5 ${compact ? 'min-w-[170px] shrink-0 px-3 py-2' : 'px-3 py-2'}`}>
       <div className={`${colorClass} shrink-0`}>
         <Icon size={15} />
       </div>
@@ -381,10 +381,10 @@ const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false })
   );
 };
 
-const PulseBand = ({ stats }) => {
+const PulseBand = ({ stats, compact = false }) => {
   return (
-    <div className="px-6 py-3 border-b border-[var(--color-border)] bg-black/10">
-      <div className="flex items-center justify-between mb-2">
+    <div className={compact ? 'flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar' : 'px-6 py-3 border-b border-[var(--color-border)] bg-black/10'}>
+      <div className={`flex items-center ${compact ? 'gap-3 shrink-0' : 'justify-between mb-2'}`}>
         <div className="flex items-center gap-2">
           <Activity size={12} className="text-[var(--color-primary)]" />
           <span className="text-[9px] font-black text-[var(--color-text-tertiary)] uppercase tracking-[0.3em]">Ops Pulse</span>
@@ -394,11 +394,11 @@ const PulseBand = ({ stats }) => {
           Workspace Feed
         </div>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} />
-        <PulseCard title="Pipelines" value={stats.pipeline} icon={Target} color="green" live={true} />
-        <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} />
-        <PulseCard title="Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} />
+      <div className={compact ? 'flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar' : 'grid grid-cols-2 lg:grid-cols-4 gap-3'}>
+        <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} compact={compact} />
+        <PulseCard title="Pipelines" value={stats.pipeline} icon={Target} color="green" live={true} compact={compact} />
+        <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} compact={compact} />
+        <PulseCard title="Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} compact={compact} />
       </div>
     </div>
   );
@@ -462,10 +462,7 @@ const SignalsModule = () => {
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-2xl border border-[var(--color-border)] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
       <ModuleHeader
-        title="Signals"
-        subtitle="Operator feed for bookings, comms, pipeline, and automation heuristics."
         showTitle={false}
-        showCompactTitle
         toolbarLeftSlot={(
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {quickActions.map(action => (
@@ -480,6 +477,12 @@ const SignalsModule = () => {
             ))}
           </div>
         )}
+        toolbarCenterSlot={(
+          <div className="flex min-w-0 max-w-full items-center gap-3 overflow-x-auto no-scrollbar">
+            <PulseBand stats={stats} compact />
+            {!loading ? <SignalSummaryStrip signals={signals} compact /> : null}
+          </div>
+        )}
         toolbarRightSlot={(
           <div className="flex items-center gap-3">
             <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Heuristic Feed</div>
@@ -492,10 +495,6 @@ const SignalsModule = () => {
           </div>
         )}
       />
-
-      <PulseBand stats={stats} />
-      
-      {!loading && <SignalSummaryStrip signals={signals} />}
 
       <div className="flex-1 min-h-0 p-6 bg-gradient-to-b from-transparent to-black/10">
         {loading ? (

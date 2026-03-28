@@ -23,6 +23,7 @@ const CalendarModule = lazy(() => import('./modules/Calendar'));
 const OrdersModule = lazy(() => import('./modules/Orders'));
 const AIOAgentsModule = lazy(() => import('./modules/Agents'));
 const DesignModule = lazy(() => import('./modules/Design'));
+const MediaModule = lazy(() => import('./modules/Media'));
 const IntegrationsManager = lazy(() => import('./modules/Integrations'));
 const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
@@ -112,12 +113,30 @@ const ICON_MAP = {
 };
 
 const MODULE_SUBTITLE_MAP = {
+  'aio-brain': 'Direct the Cortex layer for reasoning, planning, and system-level AI coordination.',
+  dashboard: 'Operator feed for bookings, comms, pipeline, and automation heuristics.',
+  'aio-agents': 'Coordinate specialist agents, live command runs, and system execution posture.',
+  calendar: 'Coordinate sources, booking types, and scheduled meetings from one workspace.',
+  crm: 'Search, segment, and operate on contact records from one workspace.',
   flows: 'Manage and launch your automation flows.',
+  forms: 'Create, organize, and deploy workspace forms.',
   chat: 'Thread-first Comms for triage, actions, and audit logs.',
+  integrations: 'Admin control plane for mailbox accounts, calendar sources, and every other external system connected to AIO CRM.',
+  media: 'Operate scripts, voice, renders, transcripts, and ingest workflows from one workspace.',
+  orders: 'Review order records, payment state, and fulfillment posture from one workspace.',
+  pipelines: 'Operate deal stages, next moves, and relationship records from one workspace.',
+  settings: 'Manage account, workspace, security, branding, and automation settings.',
   'system-health': 'Operator-only visibility into current failures, degradation, and deployment risk.'
 };
 
 const SPECIAL_MODULE_META = {
+  media: {
+    label: 'Media',
+    icon: 'Video',
+    subtitle: MODULE_SUBTITLE_MAP.media,
+    type: 'internal',
+    searchPlaceholder: 'Search media jobs, assets, and artifacts...',
+  },
   'system-health': {
     label: 'System Health',
     icon: 'Activity',
@@ -148,6 +167,41 @@ const isUsableMenuStructure = (value) => (
   && value.length > 0
   && value.every(isValidMenuCategory)
 );
+
+const MEDIA_MENU_ITEM = {
+  id: 'media',
+  label: 'Media',
+  icon: 'Video',
+  type: 'internal',
+  visible: true,
+  iconColor: '#9ca3af',
+  description: MODULE_SUBTITLE_MAP.media,
+};
+
+const ensureMediaMenuItem = (structure = []) => {
+  if (!Array.isArray(structure) || structure.length === 0) {
+    return structure;
+  }
+  const hasMediaItem = structure.some((category) =>
+    Array.isArray(category?.items) && category.items.some((item) => item?.id === 'media')
+  );
+  if (hasMediaItem) {
+    return structure;
+  }
+  return structure.map((category) => {
+    if (category?.category !== 'Operations' || !Array.isArray(category.items)) {
+      return category;
+    }
+    const nextItems = [...category.items];
+    const designIndex = nextItems.findIndex((item) => item?.id === 'design');
+    const insertIndex = designIndex >= 0 ? designIndex + 1 : nextItems.length;
+    nextItems.splice(insertIndex, 0, MEDIA_MENU_ITEM);
+    return {
+      ...category,
+      items: nextItems,
+    };
+  });
+};
 
 const filterMenuForClient = (structure = []) => {
   const filtered = (Array.isArray(structure) ? structure : []).map((category) => ({
@@ -204,7 +258,7 @@ const App = () => {
 
     // Canonical tenant navigation is authoritative only when it contains a usable persisted menu.
     // Empty canonical/legacy arrays mean "not configured yet" and must not blank the sidebar.
-    setMenuStructure(nextMenu);
+    setMenuStructure(ensureMediaMenuItem(nextMenu));
   }, [session?.tenant?.id, canonicalMenu, legacyMenu]);
 
   useEffect(() => {
@@ -583,6 +637,8 @@ const App = () => {
         return <OrdersModule />;
       case 'design':
         return <DesignModule />;
+      case 'media':
+        return <MediaModule />;
       case 'integrations':
         return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':
