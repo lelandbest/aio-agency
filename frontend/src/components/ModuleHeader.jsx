@@ -62,7 +62,7 @@ const Actions = ({ actions }) => {
   if (!actions.length) return null;
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex max-w-full items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap">
       {actions.map((action, idx) => {
         const ActionIcon = action.icon;
         const colorClass = colorClasses[action.color] || colorClasses.slate;
@@ -78,6 +78,7 @@ const Actions = ({ actions }) => {
               disabled={action.disabled}
               className={`
                 ${isSkeuo ? 'btn-primary-skeuo' : 'btn-secondary'}
+                shrink-0 whitespace-nowrap
                 text-[10px] sm:text-xs py-1.5 px-3
                 ${!isSkeuo && action.color && action.color !== 'slate' ? colorClasses[action.color] : ''}
                 disabled:opacity-40 disabled:cursor-not-allowed

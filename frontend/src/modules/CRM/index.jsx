@@ -2899,6 +2899,8 @@ const CRMModule = ({ initialContactId = null }) => {
         title="CRM"
         titleIcon={Users}
         showTitle={false}
+        showCompactTitle
+        subtitle="Search, segment, and operate on contact records from one workspace."
         actions={[
           { label: 'Verify Selected', icon: Shield, onClick: () => startBulkEmailVerification('selected'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
           { label: 'Verify Filtered', icon: Shield, onClick: () => startBulkEmailVerification('filtered'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
@@ -2943,6 +2945,18 @@ const CRMModule = ({ initialContactId = null }) => {
             </div>
           ) : null
         }
+        toolbarCenterSlot={!selectedContact ? (
+          <div className="relative w-full max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search contacts"
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+            />
+          </div>
+        ) : null}
         statusBadge={emailVerificationStatusBadge}
         showActions={true}
         aiAssistSlot={(

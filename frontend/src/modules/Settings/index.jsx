@@ -2502,7 +2502,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-bg-primary)]">
+    <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-primary)]">
       <ModuleHeader title="Settings" titleIcon={Settings} showTitle={false} showActions={false} />
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-6 py-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -2532,7 +2532,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
           })}
         </div>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {renderContent()}
       </div>
     </div>

@@ -38,7 +38,7 @@ from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
 from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_config
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
-from orchestration import ExecutionEngine, emit_system_event, run_resume_worker
+from orchestration import ExecutionEngine, emit_system_event, run_resume_worker, validate_prepared_flow_steps
 try:
     from backend.planner import create_booking_execution_plan
     from backend.agent_definitions import AGENT_DEFINITIONS
@@ -50,6 +50,7 @@ try:
     from backend.system_health import build_system_health
     from backend.tenant_deployment import DeploymentFailureError
     from backend.tools import AIOToolRegistry
+    from backend.media_engine import get_media_engine
 except ModuleNotFoundError:
     from planner import create_booking_execution_plan
     from agent_definitions import AGENT_DEFINITIONS
@@ -61,6 +62,7 @@ except ModuleNotFoundError:
     from system_health import build_system_health
     from tenant_deployment import DeploymentFailureError
     from tools import AIOToolRegistry
+    from media_engine import get_media_engine
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -961,7 +963,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         or data.get("logicType")
         or ""
     ).strip().lower()
-    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk"}:
+    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_video", "transcribe_media", "ingest_meeting_artifacts"}:
         return action_type
     if action_type in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
         return action_type
@@ -971,7 +973,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         return "time_delay"
     if template_id in {"filter", "switch"}:
         return template_id
-    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
+    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_video", "transcribe_media", "ingest_meeting_artifacts"}:
         return template_id
     if node_type == "webhook" and template_id == "webhook":
         return "webhook"
@@ -1180,6 +1182,49 @@ def build_flow_execution_steps(
             }
         )
     return raw_steps, agent_chain
+
+
+def validate_flow_graph(flow: dict[str, Any]) -> dict[str, list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    nodes, edges = extract_flow_graph(flow)
+    if not nodes:
+        blockers.append("Flow has no nodes.")
+        return {"blockers": blockers, "warnings": warnings}
+
+    node_ids = {clean_text(node.get("id")) for node in nodes if clean_text(node.get("id"))}
+    trigger_nodes = [node for node in nodes if clean_text(node.get("type")).lower() == "trigger"]
+    if not trigger_nodes:
+        blockers.append("Flow requires at least one trigger node.")
+
+    for edge in edges:
+        source = clean_text(edge.get("source"))
+        target = clean_text(edge.get("target"))
+        if not source or not target:
+            blockers.append("Flow contains an edge without both source and target.")
+            continue
+        if source not in node_ids or target not in node_ids:
+            blockers.append(f"Flow edge '{clean_text(edge.get('id')) or f'{source}->{target}'}' references a missing node.")
+
+    if trigger_nodes:
+        reachable = reachable_flow_node_ids(edges, [clean_text(node.get("id")) for node in trigger_nodes])
+        for node in nodes:
+            node_id = clean_text(node.get("id"))
+            node_type = clean_text(node.get("type")).lower()
+            if node_type in {"trigger", "frame", "note"}:
+                continue
+            if node_id and node_id not in reachable:
+                blockers.append(f"Node '{clean_text((node.get('data') or {}).get('label')) or node_id}' is not reachable from any trigger.")
+    return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}
+
+
+def flow_preflight_validation(flow: dict[str, Any], raw_steps: list[dict[str, Any]]) -> dict[str, list[str]]:
+    graph_validation = validate_flow_graph(flow)
+    step_validation = validate_prepared_flow_steps(raw_steps)
+    return {
+        "blockers": list(dict.fromkeys([*graph_validation["blockers"], *step_validation["blockers"]])),
+        "warnings": list(dict.fromkeys([*graph_validation["warnings"], *step_validation["warnings"]])),
+    }
 
 
 def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -1811,6 +1856,47 @@ class FlowDraftRequest(BaseModel):
 class FlowManualTriggerRequest(BaseModel):
     command: str | None = None
     context: dict[str, Any] | None = None
+
+
+class MediaRenderRequest(BaseModel):
+    provider: str | None = None
+    title: str | None = None
+    media_type: str | None = "video"
+    source_url: str | None = None
+    output_url: str | None = None
+    script: str | None = None
+    render_profile: str | None = None
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class MediaTranscriptRequest(BaseModel):
+    provider: str | None = None
+    title: str | None = None
+    source_url: str | None = None
+    transcript_text: str | None = None
+    speaker_segments: list[dict[str, Any]] | None = None
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
+    api_key: str | None = None
+    access_key_id: str | None = None
+    secret_access_key: str | None = None
+
+
+class MediaIngestRequest(BaseModel):
+    provider: str | None = None
+    source: str | None = None
+    meeting_id: str | None = None
+    meeting_title: str | None = None
+    recording_files: list[dict[str, Any]] | None = None
+    drive_files: list[dict[str, Any]] | None = None
+    transcript: dict[str, Any] | None = None
+    transcript_text: str | None = None
+    speaker_segments: list[dict[str, Any]] | None = None
+    transcription_provider: str | None = None
+    auto_transcribe: bool = True
+    attachments: list[dict[str, Any]] | None = None
+    metadata: dict[str, Any] | None = None
 
 class MailSendRequest(BaseModel):
     mailbox_id: str
@@ -4092,7 +4178,18 @@ async def get_flow(flow_id: str, request: Request):
 @app.put("/api/flows/{flow_id}")
 async def save_flow(flow_id: str, request: Request, payload: FlowSaveRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save flows.")
-    return {"data": provider.save_flow({**payload.model_dump(), "id": flow_id})}
+    flow_payload = {**payload.model_dump(), "id": flow_id}
+    raw_steps, _ = build_flow_execution_steps(
+        flow_payload,
+        f"Save flow {flow_payload.get('name') or 'Untitled Flow'}",
+        "ALPHA",
+        runtime_context={},
+    )
+    preflight = flow_preflight_validation(flow_payload, raw_steps)
+    if str(flow_payload.get("status") or "").strip().lower() == "active" and preflight["blockers"]:
+        raise HTTPException(status_code=400, detail=f"Active flow validation failed: {'; '.join(preflight['blockers'])}")
+    saved = provider.save_flow(flow_payload)
+    return {"data": {**saved, "validation": preflight}}
 
 
 @app.post("/api/flows/{flow_id}/trigger/manual")
@@ -4131,6 +4228,9 @@ async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowMan
     )
     if not raw_steps:
         raise HTTPException(status_code=400, detail="Manual trigger did not resolve any executable nodes.")
+    preflight = flow_preflight_validation(flow, raw_steps)
+    if preflight["blockers"]:
+        raise HTTPException(status_code=400, detail=f"Flow validation failed before execution: {'; '.join(preflight['blockers'])}")
     flow_context = {
         "module": "flows",
         "surface": "manual-trigger",
@@ -4154,7 +4254,7 @@ async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowMan
         actor=user,
         tenant=tenant,
     )
-    return {"data": result}
+    return {"data": {**result, "validation": preflight}}
 
 
 @app.post("/api/flow-drafts")
@@ -4177,6 +4277,75 @@ async def delete_flow_draft(draft_id: str, request: Request):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage flow drafts.")
     provider.delete_flow_draft(draft_id)
     return {"success": True}
+
+
+@app.get("/api/media/assets")
+async def list_media_assets(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media assets.")
+    return {"data": get_media_engine().list_assets()}
+
+
+@app.get("/api/media/render-jobs")
+async def list_render_jobs(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view render jobs.")
+    return {"data": get_media_engine().list_render_jobs()}
+
+
+@app.get("/api/media/transcript-jobs")
+async def list_transcript_jobs(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view transcript jobs.")
+    return {"data": get_media_engine().list_transcript_jobs()}
+
+
+@app.get("/api/media/transcript-artifacts")
+async def list_transcript_artifacts(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view transcript artifacts.")
+    return {"data": get_media_engine().list_transcript_artifacts()}
+
+
+@app.post("/api/media/render-jobs")
+async def create_render_job(request: Request, payload: MediaRenderRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create media jobs.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().render_media(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/transcript-jobs")
+async def create_transcript_job(request: Request, payload: MediaTranscriptRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create transcript jobs.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().transcribe_media(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/meeting-ingestion")
+async def ingest_meeting_media(request: Request, payload: MediaIngestRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest meeting media.")
+    tenant = session.get("tenant") or {}
+    try:
+        result = get_media_engine().ingest_meeting_artifacts(
+            payload.model_dump(exclude_none=True),
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        return {"data": result}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/calendars")

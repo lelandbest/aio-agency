@@ -19,6 +19,7 @@ try:
         get_bulk_results as get_email_verifier_bulk_results,
         verify_single_email as verify_single_email_address,
     )
+    from backend.media_engine import get_media_engine
 except ModuleNotFoundError:
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
@@ -28,6 +29,7 @@ except ModuleNotFoundError:
         get_bulk_results as get_email_verifier_bulk_results,
         verify_single_email as verify_single_email_address,
     )
+    from media_engine import get_media_engine
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,9 @@ DIRECT_EXECUTION_INTENTS = {
     "verify_email_bulk",
     "wait_for_verification",
     "verification_branch",
+    "generate_video",
+    "transcribe_media",
+    "ingest_meeting_artifacts",
 }
 
 BOOKING_WRITE_INTENTS = {"schedule_calendar", "create_booking", "update_booking", "cancel_booking"}
@@ -581,6 +586,36 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
             "uiBinding": {"module": "crm", "recordId": step_id, "view": "list"},
             "createdAt": "now"
         })
+    elif intent == "generate_video":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "media_render",
+            "title": "Media Render Job",
+            "summary": "A media render job was queued or completed.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "transcribe_media":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "media_transcript",
+            "title": "Transcript Job",
+            "summary": "Media transcription state updated.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
+    elif intent == "ingest_meeting_artifacts":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "meeting_ingest",
+            "title": "Meeting Ingestion",
+            "summary": "Meeting artifacts were normalized and attached.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
     return artifacts
 
 class StepExecutor:
@@ -604,6 +639,9 @@ class StepExecutor:
             "verify_email_bulk": {"service": "verificationService", "handlerType": "direct", "executionType": "deterministic"},
             "wait_for_verification": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
             "verification_branch": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "generate_video": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "transcribe_media": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "ingest_meeting_artifacts": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
         }
         self.executors = {
             "draft_email": self._draft_email,
@@ -628,6 +666,9 @@ class StepExecutor:
             "verify_email_bulk": self._verify_email_bulk,
             "wait_for_verification": self._wait_for_verification,
             "verification_branch": self._verification_branch,
+            "generate_video": self._generate_video,
+            "transcribe_media": self._transcribe_media,
+            "ingest_meeting_artifacts": self._ingest_meeting_artifacts,
         }
 
     def _merged_step_config(self, step: dict[str, Any]) -> dict[str, Any]:
@@ -698,6 +739,30 @@ class StepExecutor:
         settings = runtime_tenant_settings(context)
         variables = settings.get("tenant", {}).get("globalVariables") if isinstance(settings.get("tenant"), dict) else {}
         return variables if isinstance(variables, dict) else {}
+
+    def _media_attachments(self, context: dict[str, Any], runtime: dict[str, Any], merged: dict[str, Any]) -> list[dict[str, Any]]:
+        trigger_payload = self._trigger_payload(context)
+        return [
+            item
+            for item in [
+                {
+                    "kind": "flow_run",
+                    "id": runtime.get("runId"),
+                    "label": clean_text((context.get("flow") or {}).get("name") if isinstance(context.get("flow"), dict) else context.get("flow_name")),
+                },
+                {
+                    "kind": "comms_thread",
+                    "id": merged.get("thread_id") or context.get("thread_id") or trigger_payload.get("thread_id"),
+                    "label": clean_text(context.get("subject") or trigger_payload.get("subject")),
+                },
+                {
+                    "kind": "crm_contact",
+                    "id": merged.get("contact_id") or context.get("contact_id") or trigger_payload.get("contact_id"),
+                    "label": clean_text(context.get("contact", {}).get("email") if isinstance(context.get("contact"), dict) else trigger_payload.get("email")),
+                },
+            ]
+            if clean_text(item.get("id"))
+        ]
 
     def _resolve_reference(self, reference: str, context: dict[str, Any], runtime: dict[str, Any]) -> tuple[Any, bool]:
         token = clean_text(reference)
@@ -1961,7 +2026,7 @@ class StepExecutor:
 
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
-                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request"}:
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_video", "transcribe_media", "ingest_meeting_artifacts"}:
                     return finalize(handler(step, context, runtime))
                 return finalize(handler(step, context))
             except Exception as exc:
@@ -2458,6 +2523,181 @@ class StepExecutor:
         step_status = self._verification_runtime_status(data.get("status"), data.get("error"))
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": step_status, "data": data, "error": data.get("error")}
 
+    def _resolved_media_payload(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        config = self._normalized_service_config(step)
+        trigger_payload = self._trigger_payload(context)
+        missing: list[str] = []
+
+        def resolve_media_value(value: Any, field_name: str) -> Any:
+            if value is None:
+                missing.append(field_name)
+                return None
+            syntax_errors = self._token_syntax_errors(value, field_name)
+            if syntax_errors:
+                missing.extend(syntax_errors)
+                return None
+            resolved, unresolved = self._resolve_value(value, context, runtime)
+            if unresolved:
+                missing.append(f"{field_name}: {', '.join(unresolved)}")
+            return resolved
+
+        source_type = clean_text(config.get("sourceType") or config.get("source_type")).lower()
+        source_ref = config.get("sourceRef") if "sourceRef" in config else config.get("source_ref")
+        meeting_provider = clean_text(config.get("meetingProvider") or config.get("meeting_provider") or config.get("provider"))
+        meeting_ref = config.get("meetingRef") if "meetingRef" in config else config.get("meeting_ref")
+        resolved_source_ref = resolve_media_value(source_ref, "sourceRef") if source_ref is not None else None
+        resolved_meeting_ref = resolve_media_value(meeting_ref, "meetingRef") if meeting_ref is not None else None
+
+        payload = {
+            "provider": config.get("provider") or config.get("mediaProvider") or config.get("transcriptionProvider"),
+            "title": config.get("title") or context.get("flow_name") or "Media Job",
+            "templateId": config.get("templateId") or config.get("template_id"),
+            "outputTarget": config.get("outputTarget") or config.get("output_target"),
+            "source_url": config.get("source_url") or config.get("sourceUrl") or trigger_payload.get("source_url") or trigger_payload.get("recording_url"),
+            "transcript_text": config.get("transcript_text") or config.get("transcriptText") or trigger_payload.get("transcript_text"),
+            "speaker_segments": config.get("speaker_segments") or config.get("speakerSegments") or trigger_payload.get("speaker_segments"),
+            "recording_files": config.get("recording_files") or config.get("recordingFiles") or trigger_payload.get("recording_files"),
+            "drive_files": config.get("drive_files") or config.get("driveFiles") or trigger_payload.get("drive_files"),
+            "meeting_id": config.get("meeting_id") or config.get("meetingId") or trigger_payload.get("meeting_id"),
+            "meeting_title": config.get("meeting_title") or config.get("meetingTitle") or trigger_payload.get("meeting_title"),
+            "media_type": config.get("media_type") or config.get("mediaType") or "video",
+            "script": config.get("script") or config.get("prompt"),
+            "metadata": config.get("metadata") if isinstance(config.get("metadata"), dict) else {},
+            "attachments": self._media_attachments(context, runtime, config),
+            "auto_transcribe": parse_bool(config.get("auto_transcribe"), True),
+            "api_key": config.get("api_key"),
+            "access_key_id": config.get("access_key_id"),
+            "secret_access_key": config.get("secret_access_key"),
+        }
+        if source_type == "source_url":
+            payload["source_url"] = clean_text(resolved_source_ref) or payload.get("source_url")
+        elif source_type in {"transcript_text", "inline_transcript"}:
+            payload["transcript_text"] = clean_text(resolved_source_ref) or payload.get("transcript_text")
+        elif source_type == "speaker_segments":
+            payload["speaker_segments"] = resolved_source_ref if isinstance(resolved_source_ref, list) else payload.get("speaker_segments")
+
+        if meeting_provider:
+            payload["provider"] = meeting_provider
+        if resolved_meeting_ref is not None:
+            payload["meeting_id"] = clean_text(resolved_meeting_ref) or payload.get("meeting_id")
+        if clean_text(config.get("meetingTitle") or config.get("meeting_title")):
+            payload["meeting_title"] = clean_text(config.get("meetingTitle") or config.get("meeting_title"))
+        if config.get("recordingFiles") is not None or config.get("recording_files") is not None:
+            payload["recording_files"] = config.get("recordingFiles") if config.get("recordingFiles") is not None else config.get("recording_files")
+        if config.get("driveFiles") is not None or config.get("drive_files") is not None:
+            payload["drive_files"] = config.get("driveFiles") if config.get("driveFiles") is not None else config.get("drive_files")
+        if config.get("transcriptText") is not None or config.get("transcript_text") is not None:
+            payload["transcript_text"] = config.get("transcriptText") if config.get("transcriptText") is not None else config.get("transcript_text")
+
+        return payload, missing
+
+    def _generate_video(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "assets": []})
+        if not clean_text(payload.get("templateId") or payload.get("template_id") or (self._normalized_service_config(step).get("templateId"))):
+            return self._service_error(step, "Generate Video requires a templateId.", data={"job": None, "assets": []})
+        if not clean_text(self._normalized_service_config(step).get("outputTarget") or self._normalized_service_config(step).get("output_target")):
+            return self._service_error(step, "Generate Video requires an outputTarget.", data={"job": None, "assets": []})
+        if not clean_text(payload.get("script")):
+            return self._service_error(step, "Generate Video requires a script or prompt.", data={"job": None, "assets": []})
+        result = get_media_engine().render_media(
+            {
+                **payload,
+                "provider": clean_text(payload.get("provider")) or "stub-render",
+                "title": clean_text(payload.get("title")) or "Generated Video",
+                "media_type": "video",
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _transcribe_media(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(step, "; ".join(missing), data={"job": None, "artifact": None})
+        source_type = clean_text(self._normalized_service_config(step).get("sourceType") or self._normalized_service_config(step).get("source_type"))
+        if not source_type:
+            return self._service_error(step, "Transcribe Media requires a sourceType.", data={"job": None, "artifact": None})
+        if not clean_text(payload.get("source_url")) and not clean_text(payload.get("transcript_text")) and not payload.get("speaker_segments"):
+            return self._service_error(step, "Transcribe Media requires source_url, transcript_text, or speaker_segments.", data={"job": None, "artifact": None})
+        result = get_media_engine().transcribe_media(
+            {
+                **payload,
+                "provider": clean_text(payload.get("provider")) or "elevenlabs_scribe",
+                "title": clean_text(payload.get("title")) or "Transcript Job",
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _ingest_meeting_artifacts(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            return self._service_error(
+                step,
+                "; ".join(missing),
+                data={"provider": None, "assets": [], "transcript_job": None, "transcript_artifact": None},
+            )
+        provider_id = clean_text(payload.get("provider")) or clean_text(self._trigger_payload(context).get("provider")) or "zoom"
+        if not provider_id:
+            return self._service_error(
+                step,
+                "Ingest Meeting requires a meetingProvider.",
+                data={"provider": None, "assets": [], "transcript_job": None, "transcript_artifact": None},
+            )
+        if not clean_text(payload.get("meeting_id")):
+            return self._service_error(
+                step,
+                "Ingest Meeting requires a meetingRef.",
+                data={"provider": provider_id, "assets": [], "transcript_job": None, "transcript_artifact": None},
+            )
+        if not payload.get("recording_files") and not payload.get("drive_files") and not clean_text(payload.get("transcript_text")):
+            return self._service_error(
+                step,
+                "Ingest Meeting requires recording_files, drive_files, or transcript_text.",
+                data={"provider": provider_id, "assets": [], "transcript_job": None, "transcript_artifact": None},
+            )
+        result = get_media_engine().ingest_meeting_artifacts(
+            {
+                **payload,
+                "provider": provider_id,
+                "title": clean_text(payload.get("meeting_title")) or clean_text(payload.get("title")) or "Meeting Ingestion",
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        transcript_job = result.get("transcript_job") or {}
+        failed = transcript_job and clean_text(transcript_job.get("status")) == "failed"
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "failed" if failed else "success",
+            "data": result,
+            "error": transcript_job.get("last_error") if failed else None,
+        }
+
     def _filter(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         condition = self._extract_if_then_condition(step)
         operator = clean_text(condition.get("operator")).lower()
@@ -2809,6 +3049,127 @@ class StepExecutor:
             "source": source,
         }
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+
+
+def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, list[str]]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not raw_steps:
+        return {"blockers": ["Flow does not resolve any executable steps."], "warnings": []}
+
+    executor = StepExecutor(provider=None)
+    seen_node_ids: set[str] = set()
+    supported_if_then_ops = {
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "contains",
+        "not_contains",
+        "is_empty",
+        "is_not_empty",
+    }
+
+    for step in raw_steps:
+        params = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
+        node_id = clean_text(params.get("node_id") or step.get("id"))
+        node_label = clean_text(params.get("node_label")) or node_id or "Unnamed step"
+        intent = clean_text(step.get("intent"))
+        config = executor._normalized_service_config(step)
+        outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+
+        if node_id:
+            if node_id in seen_node_ids:
+                blockers.append(f"{node_label}: duplicate node id '{node_id}' detected in runtime plan.")
+            seen_node_ids.add(node_id)
+
+        if intent == "if_then":
+            definition = executor._extract_if_then_condition(step)
+            operator = clean_text(definition.get("operator")).lower()
+            left = definition.get("left")
+            right = definition.get("right")
+            unary = operator in {"is_empty", "is_not_empty"}
+            if not operator:
+                blockers.append(f"{node_label}: If/Then condition is missing an operator.")
+            elif operator not in supported_if_then_ops:
+                blockers.append(f"{node_label}: unsupported If/Then operator '{operator}'.")
+            if left is None:
+                blockers.append(f"{node_label}: If/Then condition is missing the left operand.")
+            if not unary and right is None:
+                blockers.append(f"{node_label}: If/Then condition is missing the right operand.")
+            blockers.extend(executor._token_syntax_errors(left, f"{node_label} left operand"))
+            if not unary:
+                blockers.extend(executor._token_syntax_errors(right, f"{node_label} right operand"))
+            matched_true, default_targets = executor._branch_edge_targets(outgoing_edges, "true")
+            matched_false, _ = executor._branch_edge_targets(outgoing_edges, "false")
+            if outgoing_edges and not matched_true and not matched_false and len(default_targets) > 1:
+                blockers.append(f"{node_label}: If/Then branch routing is ambiguous. Label outgoing edges for true/false routing.")
+        elif intent == "filter":
+            definition = executor._extract_if_then_condition(step)
+            operator = clean_text(definition.get("operator")).lower()
+            left = definition.get("left")
+            right = definition.get("right")
+            unary = operator in {"is_empty", "is_not_empty"}
+            if not operator:
+                blockers.append(f"{node_label}: Filter is missing an operator.")
+            if left is None:
+                blockers.append(f"{node_label}: Filter is missing the left operand.")
+            if not unary and right is None:
+                blockers.append(f"{node_label}: Filter is missing the right operand.")
+            blockers.extend(executor._token_syntax_errors(left, f"{node_label} left operand"))
+            if not unary:
+                blockers.extend(executor._token_syntax_errors(right, f"{node_label} right operand"))
+            matched_true, default_targets = executor._branch_edge_targets(outgoing_edges, "true")
+            if outgoing_edges and not matched_true and len(default_targets) > 1:
+                blockers.append(f"{node_label}: Filter routing is ambiguous. Use one default edge or label explicit true/false edges.")
+        elif intent == "switch":
+            definition = executor._extract_switch_definition(step)
+            source = definition.get("source")
+            if source is None:
+                blockers.append(f"{node_label}: Switch is missing a source value.")
+            blockers.extend(executor._token_syntax_errors(source, f"{node_label} switch source"))
+            if not outgoing_edges:
+                blockers.append(f"{node_label}: Switch requires labeled outgoing edges.")
+            for edge in outgoing_edges:
+                edge_label = clean_text(edge.get("filters") or ((edge.get("data") or {}) if isinstance(edge.get("data"), dict) else {}).get("filters") or edge.get("sourceHandle") or edge.get("label"))
+                if not edge_label:
+                    blockers.append(f"{node_label}: Switch routing requires labeled outgoing edges or explicit edge filters.")
+                    break
+        elif intent == "time_delay":
+            blockers.extend(executor._token_syntax_errors(config.get("duration"), f"{node_label} delay duration"))
+            blockers.extend(executor._token_syntax_errors(config.get("unit"), f"{node_label} delay unit"))
+            if config.get("duration") in {None, ""}:
+                blockers.append(f"{node_label}: Time-delay is missing a duration.")
+            if config.get("unit") in {None, ""}:
+                blockers.append(f"{node_label}: Time-delay is missing a unit.")
+            _, route_error = executor._resolve_single_downstream_target(step)
+            if route_error:
+                blockers.append(f"{node_label}: {route_error}")
+        elif intent == "generate_video":
+            if not clean_text(config.get("templateId") or config.get("template_id")):
+                blockers.append(f"{node_label}: Generate Video requires a templateId.")
+            if not clean_text(config.get("outputTarget") or config.get("output_target")):
+                blockers.append(f"{node_label}: Generate Video requires an outputTarget.")
+            if not clean_text(config.get("script")) and not clean_text(config.get("prompt")):
+                warnings.append(f"{node_label}: Generate Video has no script or prompt yet.")
+        elif intent == "transcribe_media":
+            if not clean_text(config.get("sourceType") or config.get("source_type")):
+                blockers.append(f"{node_label}: Transcribe Media requires a sourceType.")
+            if not clean_text(config.get("sourceRef") or config.get("source_ref")):
+                blockers.append(f"{node_label}: Transcribe Media requires a sourceRef.")
+        elif intent == "ingest_meeting_artifacts":
+            if not clean_text(config.get("meetingProvider") or config.get("meeting_provider")):
+                blockers.append(f"{node_label}: Ingest Meeting requires a meetingProvider.")
+            if not clean_text(config.get("meetingRef") or config.get("meeting_ref")):
+                blockers.append(f"{node_label}: Ingest Meeting requires a meetingRef.")
+
+        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
+            warnings.append(f"{node_label}: no downstream node is connected.")
+
+    return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}
+
 
 class ExecutionEngine:
     def __init__(self, provider: Any) -> None:

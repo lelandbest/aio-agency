@@ -24,10 +24,15 @@ const FolderTable = ({
     createItemLabel = "Create New",
     actions,
     folderProperty = "folder_id", // The property on items that links to folder.id
+    showHeader = true,
+    searchQuery: controlledSearchQuery,
+    onSearchQueryChange,
+    searchPlaceholder = "Search...",
 }) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [localSearchQuery, setLocalSearchQuery] = useState('');
     const [editingFolderId, setEditingFolderId] = useState(null);
     const [renameValue, setRenameValue] = useState('');
+    const searchQuery = controlledSearchQuery ?? localSearchQuery;
 
     const startRename = (e, folder) => {
         e.stopPropagation();
@@ -76,38 +81,45 @@ const FolderTable = ({
 
     return (
         <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-lg font-bold text-[var(--color-text-primary)]">{title}</h2>
-                    {description && <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{description}</p>}
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="relative w-48">
-                        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-8 pr-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-xs focus:border-purple-500 focus:outline-none"
-                        />
+            {showHeader ? (
+                <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-[var(--color-text-primary)]">{title}</h2>
+                        {description && <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{description}</p>}
                     </div>
-                    <div className="flex flex-wrap items-center justify-end gap-3">
-                    {actions}
-                    {headerActions.map((action, idx) => (
-                        <button
-                            key={idx}
-                            onClick={action.onClick}
-                            className={`${action.variant === 'primary' ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white' : 'bg-[var(--color-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-border)]'} px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2 transition`}
-                        >
-                            {action.icon && <action.icon size={16} />}
-                            {action.label}
-                        </button>
-                    ))}
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-48">
+                            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+                            <input
+                                type="text"
+                                placeholder={searchPlaceholder}
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    if (onSearchQueryChange) {
+                                        onSearchQueryChange(e.target.value);
+                                        return;
+                                    }
+                                    setLocalSearchQuery(e.target.value);
+                                }}
+                                className="w-full pl-8 pr-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-xs focus:border-purple-500 focus:outline-none"
+                            />
+                        </div>
+                        <div className="flex items-center justify-end gap-2 overflow-x-auto no-scrollbar">
+                        {actions}
+                        {headerActions.map((action, idx) => (
+                            <button
+                                key={idx}
+                                onClick={action.onClick}
+                                className={`${action.variant === 'primary' ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white' : 'bg-[var(--color-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-border)]'} px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2 transition`}
+                            >
+                                {action.icon && <action.icon size={16} />}
+                                {action.label}
+                            </button>
+                        ))}
+                        </div>
                     </div>
                 </div>
-            </div>
+            ) : null}
 
             {/* Table */}
             <div className="no-scrollbar flex-1 overflow-auto px-4">
@@ -246,7 +258,11 @@ FolderTable.propTypes = {
     onCreateItem: PropTypes.func,
     createItemLabel: PropTypes.string,
     actions: PropTypes.node,
-    folderProperty: PropTypes.string
+    folderProperty: PropTypes.string,
+    showHeader: PropTypes.bool,
+    searchQuery: PropTypes.string,
+    onSearchQueryChange: PropTypes.func,
+    searchPlaceholder: PropTypes.string
 };
 
 export default FolderTable;

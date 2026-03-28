@@ -14,6 +14,7 @@ import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FolderTable from '../../components/FolderTable';
+import ModuleHeader from '../../components/ModuleHeader';
 import {
   FileText, Plus, ArrowRight, User, Box, Briefcase, Mail, Phone,
   Type, AlignLeft, CheckSquare, Hash, Lock, AtSign, ChevronDown, Radio,
@@ -114,6 +115,7 @@ const FormBuilderModule = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareForm, setShareForm] = useState(null);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [tableSearch, setTableSearch] = useState('');
 
   // Sidebar Category State
   const [expandedCategories, setExpandedCategories] = useState({ 0: true });
@@ -592,6 +594,14 @@ const FormBuilderModule = () => {
   };
 
   if (view === 'list') {
+    const recentForms = [...forms]
+      .sort((left, right) => {
+        const leftTime = Date.parse(left?.last_modified_at || left?.updated_at || left?.created_at || '');
+        const rightTime = Date.parse(right?.last_modified_at || right?.updated_at || right?.created_at || '');
+        return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+      })
+      .slice(0, 6);
+
     const tableColumns = [
       {
         header: "",
@@ -714,42 +724,108 @@ const FormBuilderModule = () => {
       }
     ];
 
-    const actions = (
-      <>
-        <button
-          type="button"
-          onClick={() => setShowTemplateGallery(true)}
-          className="bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition"
-        >
-          <Layers size={16} /> Browse Templates
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('cms')}
-          className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-4 py-2 rounded text-sm font-medium flex items-center gap-2"
-        >
-          <Database size={16} /> CMS Data
-        </button>
-      </>
-    );
-
     return (
       <>
-        <FolderTable
-          title="Forms"
-          description="Select, create, or manage your custom forms."
-          folders={folders}
-          items={forms}
-          columns={tableColumns}
-          onFolderToggle={toggleFolder}
-          onFolderCreate={handleCreateFolder}
-          onFolderRename={handleRenameFolder}
-          onItemSelect={() => { }}
-          selectedItems={selectedForms}
-          onCreateItem={createNewForm}
-          createItemLabel="Create Form"
-          actions={actions}
-        />
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <ModuleHeader
+            title="Forms"
+            titleIcon={FileText}
+            subtitle="Create, organize, and deploy workspace forms."
+            showTitle={false}
+            showCompactTitle
+            actions={[
+              {
+                label: 'Create Form',
+                icon: Plus,
+                onClick: createNewForm,
+                variant: 'primary',
+                color: 'primary'
+              },
+              {
+                label: 'Browse Templates',
+                icon: Layers,
+                onClick: () => setShowTemplateGallery(true),
+                variant: 'secondary'
+              }
+            ]}
+            toolbarCenterSlot={(
+              <div className="relative w-full max-w-sm">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+                <input
+                  type="text"
+                  value={tableSearch}
+                  onChange={(event) => setTableSearch(event.target.value)}
+                  placeholder="Search forms"
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                />
+              </div>
+            )}
+          />
+
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Forms</div>
+                {recentForms.length > 0 ? (
+                  <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
+                    {recentForms.map((form) => (
+                      <button
+                        key={form.id}
+                        type="button"
+                        onClick={() => {
+                          setCurrentForm(form);
+                          setView('editor');
+                        }}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-hover)]"
+                      >
+                        <FolderOpen size={14} />
+                        <span>{form.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-[var(--color-text-secondary)]">Create a form or browse templates to populate this workspace.</div>
+                )}
+              </div>
+
+              <div className="flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setView('cms')}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                >
+                  <Database size={16} />
+                  CMS Data
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateFolder}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                >
+                  <Folder size={16} />
+                  New Folder
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1">
+            <FolderTable
+              title="Saved Forms"
+              description="Browse folders, search forms, and open the full builder."
+              folders={folders}
+              items={forms}
+              columns={tableColumns}
+              onFolderToggle={toggleFolder}
+              onFolderRename={handleRenameFolder}
+              onItemSelect={() => { }}
+              selectedItems={selectedForms}
+              showHeader={false}
+              searchQuery={tableSearch}
+              onSearchQueryChange={setTableSearch}
+            />
+          </div>
+        </div>
         <FormTemplateGallery
           isOpen={showTemplateGallery}
           onClose={() => setShowTemplateGallery(false)}
@@ -787,9 +863,9 @@ const FormBuilderModule = () => {
 
   // Editor View
   return (
-    <div className="h-full flex bg-transparent gap-[5px]">
+    <div className="flex h-full min-h-0 bg-transparent gap-[5px]">
       {/* Left Sidebar - Field Tools */}
-      <div className="w-56 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
+      <div className="w-56 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
         <div className="p-3 border-b border-[var(--color-border)] sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
           <button 
             onClick={() => setView('list')} 
@@ -830,7 +906,7 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 flex flex-col bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
         {/* Editor Header */}
         <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-4 px-6 py-4 bg-[var(--color-bg-tertiary)]">
           <div className="flex-1 min-w-0">
@@ -863,7 +939,7 @@ const FormBuilderModule = () => {
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-8 relative">
+        <div className="flex-1 min-h-0 overflow-y-auto p-8 relative">
           <div className="max-w-3xl mx-auto space-y-4 pb-20">
             {currentForm?.schema?.length === 0 && (
               <div className="text-center text-[var(--color-text-tertiary)] py-20 border-2 border-dashed border-[var(--color-border)] rounded-xl flex flex-col items-center justify-center">
@@ -930,7 +1006,7 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Right Sidebar - Field Configuration */}
-      <div className="w-80 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
+      <div className="w-80 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-hidden">
         {selectedField ? (
           <>
             <div className="border-b border-[var(--color-border)] flex bg-[var(--color-bg-primary)]">
@@ -947,7 +1023,7 @@ const FormBuilderModule = () => {
                 </button>
               ))}
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 min-h-0 overflow-y-auto p-5">
               {activeTab === 'display' && (
                 <div className="space-y-4">
                   <div>
@@ -1233,6 +1309,3 @@ FormBuilderModule.propTypes = {
 };
 
 export default FormBuilderModule;
-
-
-

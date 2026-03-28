@@ -1,0 +1,255 @@
+{
+  "assets": [
+    {
+      "id": "media-asset-378821d1e5f3",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "asset_type": "render_output",
+      "media_type": "video",
+      "title": "Stub Video",
+      "source_url": null,
+      "metadata": {
+        "stub": true,
+        "script": "Hello",
+        "render_profile": "foundation"
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-1",
+          "label": ""
+        }
+      ],
+      "created_at": "2026-03-28T17:09:17.576746+00:00",
+      "updated_at": "2026-03-28T17:09:17.583168+00:00"
+    },
+    {
+      "id": "media-asset-5c8c7a502b7f",
+      "tenant_id": null,
+      "provider": "zoom",
+      "asset_type": "meeting_recording",
+      "media_type": "video",
+      "title": "meeting.mp4",
+      "source_url": "https://example.com/meeting.mp4",
+      "metadata": {
+        "recording_id": "",
+        "duration_seconds": null,
+        "meeting": {
+          "meeting_id": "",
+          "title": "Ops Review",
+          "started_at": null
+        }
+      },
+      "attachments": [],
+      "created_at": "2026-03-28T17:09:17.621908+00:00",
+      "updated_at": "2026-03-28T17:09:17.628821+00:00"
+    }
+  ],
+  "render_jobs": [
+    {
+      "id": "render-job-69b9a2ee6427",
+      "tenant_id": null,
+      "provider": "stub-render",
+      "title": "Stub Video",
+      "status": "complete",
+      "input_payload": {
+        "title": "Stub Video",
+        "script": "Hello",
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-1"
+          }
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-1",
+          "label": ""
+        }
+      ],
+      "output_asset_ids": [
+        "media-asset-378821d1e5f3"
+      ],
+      "last_error": null,
+      "created_at": "2026-03-28T17:09:17.569513+00:00",
+      "updated_at": "2026-03-28T17:09:17.590578+00:00",
+      "started_at": "2026-03-28T17:09:17.570206+00:00",
+      "completed_at": "2026-03-28T17:09:17.583604+00:00",
+      "result": {
+        "message": "Render job completed through the stub media provider.",
+        "asset_count": 1
+      }
+    }
+  ],
+  "transcript_jobs": [
+    {
+      "id": "transcript-job-bbce2d2bbbc5",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Transcript",
+      "status": "complete",
+      "input_payload": {
+        "title": "Transcript",
+        "transcript_text": "Hello world",
+        "speaker_segments": [
+          {
+            "speaker": "A",
+            "text": "Hello world",
+            "start": 0,
+            "end": 1
+          }
+        ]
+      },
+      "attachments": [],
+      "artifact_id": "transcript-artifact-5d60b46a5877",
+      "last_error": null,
+      "created_at": "2026-03-28T17:09:17.591089+00:00",
+      "updated_at": "2026-03-28T17:09:17.621399+00:00",
+      "started_at": "2026-03-28T17:09:17.598738+00:00",
+      "completed_at": "2026-03-28T17:09:17.614217+00:00",
+      "result": {
+        "message": "Transcript normalized from provided text.",
+        "segment_count": 1
+      }
+    },
+    {
+      "id": "transcript-job-4e5245431459",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Ops Review",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "Ops Review",
+        "transcript_text": "Meeting notes",
+        "speaker_segments": [],
+        "attachments": []
+      },
+      "attachments": [],
+      "artifact_id": "transcript-artifact-625a2247d7f9",
+      "last_error": null,
+      "created_at": "2026-03-28T17:09:17.629247+00:00",
+      "updated_at": "2026-03-28T17:09:17.662654+00:00",
+      "started_at": "2026-03-28T17:09:17.637677+00:00",
+      "completed_at": "2026-03-28T17:09:17.655212+00:00",
+      "result": {
+        "message": "Transcript normalized from provided text.",
+        "segment_count": 0
+      }
+    },
+    {
+      "id": "transcript-job-84da2d069107",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Inline Transcript",
+      "status": "complete",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "Inline Transcript",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": null,
+        "transcript_text": "Speaker 1: Welcome to the meeting. Speaker 2: We are ready to begin.",
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-934f119fe9",
+            "label": "Media Proof Flow"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-934f119fe9",
+          "label": "Media Proof Flow"
+        }
+      ],
+      "artifact_id": "transcript-artifact-106abf1ee33d",
+      "last_error": null,
+      "created_at": "2026-03-28T17:31:20.668148+00:00",
+      "updated_at": "2026-03-28T17:31:20.692771+00:00",
+      "started_at": "2026-03-28T17:31:20.668942+00:00",
+      "completed_at": "2026-03-28T17:31:20.685165+00:00",
+      "result": {
+        "message": "Transcript normalized from provided text.",
+        "segment_count": 0
+      }
+    }
+  ],
+  "transcript_artifacts": [
+    {
+      "id": "transcript-artifact-5d60b46a5877",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Transcript",
+      "transcript_text": "Hello world",
+      "speaker_segments": [
+        {
+          "id": "segment-1",
+          "speaker": "A",
+          "text": "Hello world",
+          "start": null,
+          "end": 1
+        }
+      ],
+      "timestamps": [
+        {
+          "start": null,
+          "end": 1,
+          "speaker": "A"
+        }
+      ],
+      "attachments": [],
+      "source_asset_ids": [],
+      "created_at": "2026-03-28T17:09:17.606584+00:00",
+      "updated_at": "2026-03-28T17:09:17.613795+00:00"
+    },
+    {
+      "id": "transcript-artifact-625a2247d7f9",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Ops Review",
+      "transcript_text": "Meeting notes",
+      "speaker_segments": [],
+      "timestamps": [],
+      "attachments": [],
+      "source_asset_ids": [],
+      "created_at": "2026-03-28T17:09:17.646677+00:00",
+      "updated_at": "2026-03-28T17:09:17.654726+00:00"
+    },
+    {
+      "id": "transcript-artifact-106abf1ee33d",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Inline Transcript",
+      "transcript_text": "Speaker 1: Welcome to the meeting. Speaker 2: We are ready to begin.",
+      "speaker_segments": [],
+      "timestamps": [],
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-934f119fe9",
+          "label": "Media Proof Flow"
+        }
+      ],
+      "source_asset_ids": [],
+      "created_at": "2026-03-28T17:31:20.677028+00:00",
+      "updated_at": "2026-03-28T17:31:20.684611+00:00"
+    }
+  ]
+}

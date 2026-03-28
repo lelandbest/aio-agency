@@ -13,6 +13,24 @@ from mail_adapters import get_mail_adapter, get_provider_catalog
 
 DEFAULT_TENANT_ID = "tenant-primary"
 CURRENT_TENANT_ID: ContextVar[str | None] = ContextVar("current_tenant_id", default=None)
+MAIL_OAUTH_PROVIDERS = {"gmail-oauth", "microsoft365-oauth"}
+CALENDAR_OAUTH_PROVIDERS = {"google-calendar-oauth", "microsoft365-calendar"}
+AUTH_FAILURE_MARKERS = (
+    "invalid_grant",
+    "invalid_client",
+    "unauthorized",
+    "authoriz",
+    "token exchange",
+    "access token",
+    "refresh token",
+    "refresh_token",
+    "oauth",
+    "expired",
+    "revoked",
+    "forbidden",
+    "401",
+    "403",
+)
 
 
 def utcnow() -> str:
@@ -691,6 +709,78 @@ class BaseProvider(ABC):
             "last_tested_at": latest_test.get("created_at") if latest_test else None,
         }
 
+    @staticmethod
+    def _has_config_value(config: dict[str, Any] | None, key: str) -> bool:
+        return bool(str((config or {}).get(key) or "").strip())
+
+    @staticmethod
+    def _last_error_text(record: dict[str, Any]) -> str:
+        config = record.get("config") or {}
+        return str(config.get("last_error") or record.get("last_error") or "").strip()
+
+    def _is_auth_failure_error(self, message: str | None) -> bool:
+        lowered = str(message or "").strip().lower()
+        return bool(lowered) and any(marker in lowered for marker in AUTH_FAILURE_MARKERS)
+
+    def _canonical_mailbox_status(self, mailbox: dict[str, Any]) -> str:
+        provider = str(mailbox.get("provider") or "").strip()
+        raw_status = str(mailbox.get("status") or "").strip().lower()
+        config = mailbox.get("config") or {}
+
+        if provider in {"", "local-stub", "not-connected"} or raw_status == "disconnected":
+            return "disconnected"
+        if raw_status == "unauthorized":
+            return "unauthorized"
+        if provider in MAIL_OAUTH_PROVIDERS and not self._has_config_value(config, "refresh_token"):
+            return "reconnect_required"
+        if self._is_auth_failure_error(self._last_error_text(mailbox)):
+            return "unauthorized"
+
+        validation = get_mail_adapter(provider).validate_mailbox(
+            {
+                "provider": provider,
+                "config": config,
+                "address": mailbox.get("address"),
+                "inbound_enabled": mailbox.get("inbound_enabled", True),
+                "outbound_enabled": mailbox.get("outbound_enabled", True),
+            }
+        )
+        if not validation["ok"] or raw_status in {"needs_config", "error", "invalid"}:
+            return "needs_config"
+        return "connected"
+
+    def _canonical_calendar_source_status(self, source: dict[str, Any]) -> str:
+        provider = str(source.get("provider") or "").strip()
+        raw_status = str(source.get("status") or "").strip().lower()
+        config = source.get("config") or {}
+
+        if provider in {"", "local-stub", "not-connected"} or raw_status == "disconnected":
+            return "disconnected"
+        if raw_status == "unauthorized":
+            return "unauthorized"
+        if provider in CALENDAR_OAUTH_PROVIDERS and not self._has_config_value(config, "refresh_token"):
+            return "reconnect_required"
+        if self._is_auth_failure_error(self._last_error_text(source)):
+            return "unauthorized"
+
+        validation = get_calendar_adapter(provider).validate_source(
+            {
+                "provider": provider,
+                "config": config,
+                "name": source.get("name"),
+                "sync_direction": source.get("sync_direction"),
+            }
+        )
+        if not validation["ok"] or raw_status in {"needs_config", "error", "invalid"}:
+            return "needs_config"
+        return "connected"
+
+    def _annotate_mailbox_status_canonical(self, mailbox: dict[str, Any]) -> dict[str, Any]:
+        return {**mailbox, "status_canonical": self._canonical_mailbox_status(mailbox)}
+
+    def _annotate_calendar_source_status_canonical(self, source: dict[str, Any]) -> dict[str, Any]:
+        return {**source, "status_canonical": self._canonical_calendar_source_status(source)}
+
     def _summarize_mailboxes(
         self,
         mailboxes: list[dict[str, Any]],
@@ -732,14 +822,16 @@ class BaseProvider(ABC):
             }
             latest_thread = max(mailbox_threads, key=lambda item: item.get("last_activity_at") or "", default=None)
             summaries.append(
-                self.mail_adapter.describe_mailbox(
-                    {
-                        **effective_mailbox,
-                        "stats": stats,
-                        "queue_counts": queue_counts,
-                        "health": self._mailbox_health_summary(effective_mailbox, events_by_mailbox.get(mailbox["id"], [])),
-                        "latest_thread_at": latest_thread.get("last_activity_at") if latest_thread else None,
-                    }
+                self._annotate_mailbox_status_canonical(
+                    self.mail_adapter.describe_mailbox(
+                        {
+                            **effective_mailbox,
+                            "stats": stats,
+                            "queue_counts": queue_counts,
+                            "health": self._mailbox_health_summary(effective_mailbox, events_by_mailbox.get(mailbox["id"], [])),
+                            "latest_thread_at": latest_thread.get("last_activity_at") if latest_thread else None,
+                        }
+                    )
                 )
             )
         return summaries
@@ -762,32 +854,34 @@ class BaseProvider(ABC):
             authority_mode = source_config_value(source, "authority_mode", "local-first")
             import_policy = source_config_value(source, "import_policy", "review")
             summaries.append(
-                {
-                    **get_calendar_adapter(source.get("provider")).describe_source(source),
-                    **({"provider": "not-connected"} if source.get("provider") == "local-stub" else {}),
-                    "authority_mode": authority_mode,
-                    "import_policy": import_policy,
-                    "event_counts": {
-                        "total": len(source_events),
-                        "synced": synced_count,
-                        "imported": imported_count,
-                        "conflicts": conflict_count,
-                        "pending": max(len(source_events) - synced_count, 0),
-                    },
-                    "health": {
-                        "state": "healthy" if effective_source.get("status") == "connected" else "attention" if effective_source.get("status") == "needs_config" else "limited",
-                        "label": "Connected" if effective_source.get("status") == "connected" else "Needs Config" if effective_source.get("status") == "needs_config" else "Not Connected",
-                        "detail": (
-                            f"Authority {authority_mode}. Import policy {import_policy}. {conflict_count} conflicts awaiting review."
-                            if conflict_count
-                            else f"Authority {authority_mode}. Import policy {import_policy}. Calendar source is ready for export."
-                            if effective_source.get("status") == "connected"
-                            else "Complete configuration and run a test."
-                            if effective_source.get("status") == "needs_config"
-                            else "No calendar source is connected yet."
-                        ),
-                    },
-                }
+                self._annotate_calendar_source_status_canonical(
+                    {
+                        **get_calendar_adapter(source.get("provider")).describe_source(source),
+                        **({"provider": "not-connected"} if source.get("provider") == "local-stub" else {}),
+                        "authority_mode": authority_mode,
+                        "import_policy": import_policy,
+                        "event_counts": {
+                            "total": len(source_events),
+                            "synced": synced_count,
+                            "imported": imported_count,
+                            "conflicts": conflict_count,
+                            "pending": max(len(source_events) - synced_count, 0),
+                        },
+                        "health": {
+                            "state": "healthy" if effective_source.get("status") == "connected" else "attention" if effective_source.get("status") == "needs_config" else "limited",
+                            "label": "Connected" if effective_source.get("status") == "connected" else "Needs Config" if effective_source.get("status") == "needs_config" else "Not Connected",
+                            "detail": (
+                                f"Authority {authority_mode}. Import policy {import_policy}. {conflict_count} conflicts awaiting review."
+                                if conflict_count
+                                else f"Authority {authority_mode}. Import policy {import_policy}. Calendar source is ready for export."
+                                if effective_source.get("status") == "connected"
+                                else "Complete configuration and run a test."
+                                if effective_source.get("status") == "needs_config"
+                                else "No calendar source is connected yet."
+                            ),
+                        },
+                    }
+                )
             )
         return summaries
 
@@ -1878,7 +1972,7 @@ class MockProvider(BaseProvider):
             "config": resolved_config,
         }
         self.mailboxes.append(mailbox)
-        return self.mail_adapter.describe_mailbox(mailbox)
+        return self._annotate_mailbox_status_canonical(self.mail_adapter.describe_mailbox(mailbox))
 
     def update_mailbox(self, mailbox_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
@@ -1896,7 +1990,7 @@ class MockProvider(BaseProvider):
             adapter = get_mail_adapter(mailbox.get("provider"))
             validation = adapter.validate_mailbox(mailbox)
             mailbox["status"] = "connected" if mailbox.get("provider") == "local-stub" else "ready" if validation["ok"] else "needs_config"
-        return get_mail_adapter(mailbox.get("provider")).describe_mailbox(mailbox)
+        return self._annotate_mailbox_status_canonical(get_mail_adapter(mailbox.get("provider")).describe_mailbox(mailbox))
 
     def delete_mailbox(self, mailbox_id: str, fallback_mailbox_id: str | None = None) -> dict[str, Any]:
         mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
@@ -1961,7 +2055,7 @@ class MockProvider(BaseProvider):
             {"message": f"{mailbox.get('name')} was disconnected and must reconnect before use."},
             source_provider=mailbox.get("provider"),
         )
-        return self.mail_adapter.describe_mailbox(mailbox)
+        return self._annotate_mailbox_status_canonical(self.mail_adapter.describe_mailbox(mailbox))
 
     def list_mail_events(self, mailbox_id: str | None = None, thread_id: str | None = None) -> list[dict[str, Any]]:
         events = self.mail_events
@@ -2398,7 +2492,11 @@ class MockProvider(BaseProvider):
             mailbox["config"] = {**(mailbox.get("config") or {}), **config_updates}
         if not payload:
             event = self._record_mail_event(mailbox_id, "mailbox.synced", {"status": "noop", "message": "No new messages found."}, source_provider=adapter.provider_name)
-            return {"mailbox": adapter.describe_mailbox(mailbox), "result": {"status": "noop", "message": "No new messages found."}, "event": event}
+            return {
+                "mailbox": self._annotate_mailbox_status_canonical(adapter.describe_mailbox(mailbox)),
+                "result": {"status": "noop", "message": "No new messages found."},
+                "event": event,
+            }
         thread = self.ingest_mail_message(
             mailbox_id=mailbox_id,
             subject=payload["subject"],
@@ -2408,7 +2506,11 @@ class MockProvider(BaseProvider):
             recipients=payload.get("recipients"),
         )
         event = self._record_mail_event(mailbox_id, "mailbox.synced", payload, thread_id=thread["id"], message_id=thread["latestMessage"]["id"] if thread.get("latestMessage") else None, source_provider=adapter.provider_name)
-        return {"mailbox": adapter.describe_mailbox(mailbox), "thread": thread, "event": event}
+        return {
+            "mailbox": self._annotate_mailbox_status_canonical(adapter.describe_mailbox(mailbox)),
+            "thread": thread,
+            "event": event,
+        }
 
     def test_mailbox_connection(self, mailbox_id: str) -> dict[str, Any]:
         mailbox = next((item for item in self.mailboxes if item["id"] == mailbox_id), None)
@@ -2421,7 +2523,11 @@ class MockProvider(BaseProvider):
             mailbox["status"] = "connected"
         else:
             mailbox["status"] = "needs_config"
-        return {"mailbox": adapter.describe_mailbox(mailbox), "result": result, "event": event}
+        return {
+            "mailbox": self._annotate_mailbox_status_canonical(adapter.describe_mailbox(mailbox)),
+            "result": result,
+            "event": event,
+        }
 
     def ingest_mail_message(
         self,
@@ -6932,7 +7038,7 @@ class SQLiteProvider(BaseProvider):
                 ),
             )
             conn.commit()
-        return self.mail_adapter.describe_mailbox(mailbox)
+        return self._annotate_mailbox_status_canonical(self.mail_adapter.describe_mailbox(mailbox))
 
     def update_mailbox(self, mailbox_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         mailbox = self._get_mailbox_row(mailbox_id)
@@ -6974,7 +7080,9 @@ class SQLiteProvider(BaseProvider):
                 ),
             )
             conn.commit()
-        return get_mail_adapter(next_mailbox.get("provider")).describe_mailbox(next_mailbox)
+        return self._annotate_mailbox_status_canonical(
+            get_mail_adapter(next_mailbox.get("provider")).describe_mailbox(next_mailbox)
+        )
 
     def delete_mailbox(self, mailbox_id: str, fallback_mailbox_id: str | None = None) -> dict[str, Any]:
         mailbox = self._get_mailbox_row(mailbox_id)
@@ -7216,7 +7324,11 @@ class SQLiteProvider(BaseProvider):
             recipients=payload.get("recipients"),
         )
         event = self._record_mail_event(mailbox_id, "mailbox.synced", payload, thread_id=thread["id"], message_id=thread["latestMessage"]["id"] if thread.get("latestMessage") else None, source_provider=adapter.provider_name)
-        return {"mailbox": adapter.describe_mailbox(mailbox), "thread": thread, "event": event}
+        return {
+            "mailbox": self._annotate_mailbox_status_canonical(adapter.describe_mailbox(mailbox)),
+            "thread": thread,
+            "event": event,
+        }
 
     def test_mailbox_connection(self, mailbox_id: str) -> dict[str, Any]:
         mailbox = self._get_mailbox_row(mailbox_id)

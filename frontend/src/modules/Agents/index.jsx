@@ -843,7 +843,7 @@ const AIOAgentsModule = () => {
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
 
   return (
-     <div className="h-full flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
+     <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
       <ModuleHeader
         title="Agent Control"
         titleIcon={Bot}
@@ -867,7 +867,7 @@ const AIOAgentsModule = () => {
       />
 
       {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         
         {/* BARRACKS VIEW */}
         {view === 'barracks' && (() => {
@@ -974,7 +974,7 @@ const AIOAgentsModule = () => {
           });
 
           return (
-            <div className="flex-1 flex gap-2 p-1.5 overflow-hidden relative">
+            <div className="flex-1 min-h-0 flex gap-2 p-1.5 overflow-hidden relative">
               <style>{`
                 @keyframes route-flow {
                   0% { transform: translateX(-10%); opacity: 0.25; }
@@ -986,7 +986,7 @@ const AIOAgentsModule = () => {
                 }
               `}</style>
               {/* LEFT - Command Islands */}
-              <div className="flex-1 w-1/2 p-3 lg:p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] flex flex-col gap-4 shadow-sm overflow-hidden">
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-3 lg:p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] flex flex-col gap-4 shadow-sm overflow-hidden">
 
                 {/* ISLAND 1 — ALPHA */}
                 {alpha && (
@@ -1164,7 +1164,7 @@ const AIOAgentsModule = () => {
               </div>
 
               {/* RIGHT - Activity Panel (Monitors & Lightbars) */}
-              <div className="flex-1 w-1/2 flex flex-col gap-3 overflow-hidden">
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 flex flex-col gap-3 overflow-hidden">
                 
                 {/* TOP: COMMAND MONITORS */}
                 <div className="h-[42%] flex gap-3 p-3 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] shadow-sm">
@@ -1348,9 +1348,9 @@ const AIOAgentsModule = () => {
 
         {/* COMMAND VIEW (Session) */}
         {view === 'command' && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 min-h-0 flex overflow-hidden">
              {/* Left: Command Context */}
-             <div className="w-80 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
+             <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
                    <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight">Command Session</h3>
                    <div className="flex items-center gap-2 mt-2">
@@ -1414,7 +1414,7 @@ const AIOAgentsModule = () => {
              </div>
 
              {/* Center: Command Stream */}
-             <div className="flex-1 flex flex-col bg-[var(--color-bg-tertiary)]/30 backdrop-blur-sm relative overflow-hidden">
+             <div className="flex-1 min-h-0 flex flex-col bg-[var(--color-bg-tertiary)]/30 backdrop-blur-sm relative overflow-hidden">
                 <div className="p-5 border-b border-[var(--color-border)]/50 flex items-center justify-between bg-[var(--color-bg-primary)]/20">
                   <div>
                     <div className="flex items-center gap-3">
@@ -1700,7 +1700,7 @@ const AIOAgentsModule = () => {
                    </div>
                 </div>
              </div>
-             <div className="w-80 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]/60 flex flex-col">
+             <div className="w-80 min-h-0 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]/60 flex flex-col">
                 <div className="p-5 border-b border-[var(--color-border)]">
                   <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Run Core</h4>
                 </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Clock, MapPin, Trash2, Edit, Eye, Copy, ExternalLink } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Clock, MapPin, Trash2, Edit, Eye, Copy, ExternalLink, Search } from 'lucide-react';
 import {
   createBookingTypeApi,
   createCalendarEventApi,
@@ -149,6 +149,7 @@ const CalendarModule = ({ clientMode = false }) => {
   const [sourceForm, setSourceForm] = useState(() => createCalendarSourceDraft());
   const [calendarNotice, setCalendarNotice] = useState(null);
   const [showCalendarOps, setShowCalendarOps] = useState(false);
+  const [moduleSearch, setModuleSearch] = useState('');
   const visibleTabs = clientMode ? ['calendar', 'bookings'] : ['calendar', 'bookers', 'bookings'];
 
   const fetchData = async () => {
@@ -352,6 +353,36 @@ const CalendarModule = ({ clientMode = false }) => {
   const selectedCalendarProvider = calendarProviders.find((provider) => provider.id === sourceDraft.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
   const selectedCalendarSourceProvider = calendarProviders.find((provider) => provider.id === sourceForm.provider) || DEFAULT_CALENDAR_PROVIDERS[0];
   const calendarCanvasPrimary = activeTab === 'calendar';
+  const normalizedModuleSearch = moduleSearch.trim().toLowerCase();
+  const filteredBookingTypes = normalizedModuleSearch
+    ? bookingTypes.filter((booker) =>
+      [
+        booker.name,
+        booker.description,
+        booker.location,
+        booker.slug,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedModuleSearch))
+    )
+    : bookingTypes;
+  const filteredEvents = normalizedModuleSearch
+    ? events.filter((evt) =>
+      [
+        evt.title,
+        evt.guest_name,
+        evt.guest_email,
+        evt.location,
+        evt.status,
+      ].some((value) => String(value || '').toLowerCase().includes(normalizedModuleSearch))
+    )
+    : events;
+  const selectedDayEvents = [...getEventsForDay(currentDate)].sort((left, right) => new Date(left.start_time) - new Date(right.start_time));
+  const upcomingBookings = [...events]
+    .filter((evt) => {
+      const start = new Date(evt.start_time).getTime();
+      return start >= Date.now() && String(evt.status || '').toLowerCase() !== 'cancelled';
+    })
+    .sort((left, right) => new Date(left.start_time) - new Date(right.start_time))
+    .slice(0, 8);
 
   useEffect(() => {
     if (!selectedCalendarSource) {
@@ -487,6 +518,7 @@ const CalendarModule = ({ clientMode = false }) => {
             return (
               <div
                 key={i}
+                onClick={() => setCurrentDate(day.fullDate)}
                 className={`calendar-cell calendar-cell-hover min-h-[120px] p-2 transition group relative ${!day.isCurrentMonth ? 'opacity-40' : ''
                   }`}
               >
@@ -533,7 +565,7 @@ const CalendarModule = ({ clientMode = false }) => {
       const hours = Array.from({ length: 24 }, (_, i) => i);
 
       return (
-        <div className="overflow-auto">
+        <div className="overflow-x-auto no-scrollbar">
           <div className="min-w-[800px]">
             {/* Week header */}
             <div className="grid grid-cols-8 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-t-[var(--radius-panel)] overflow-hidden">
@@ -604,7 +636,7 @@ const CalendarModule = ({ clientMode = false }) => {
             </div>
           </div>
 
-          <div className="overflow-auto max-h-[600px]">
+          <div>
             {hours.map(hour => {
               const hourEvents = dayEvents.filter(evt => {
                 const evtHour = new Date(evt.start_time).getHours();
@@ -665,95 +697,233 @@ const CalendarModule = ({ clientMode = false }) => {
   const renderContent = () => {
     if (activeTab === 'calendar') {
       return (
-        <div className="flex h-full calendar-panel">
-          {/* Sidebar */}
-          <div className="w-64 border-r border-[var(--color-border)] p-4 hidden md:block calendar-panel-soft">
-            <button
-              onClick={handleCreateEvent}
-              className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] font-medium py-2 rounded-[var(--radius-card)] text-sm mb-6 shadow-island-sm"
-            >
-              + Create Event
-            </button>
-            <div className="space-y-4">
-              <div className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider">My Calendars</div>
-              <div className="space-y-2">
-                {calendars.map(cal => (
-                  <div key={cal.id} className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-                    <input
-                      type="checkbox"
-                      checked={cal.is_visible}
-                      onChange={() => toggleCalendar(cal.id)}
-                      className="rounded bg-[var(--color-bg-primary)] border-[var(--color-border)]"
-                      style={{ accentColor: cal.color }}
-                    />
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cal.color }}></div>
-                    {cal.name}
+        <div className="flex h-full min-h-0">
+          {!clientMode ? (
+            <aside className="hidden lg:flex w-72 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/85">
+              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Active Source</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource?.name || 'No source selected'}</div>
+                    </div>
+                    <button
+                      onClick={() => setShowCalendarOps((current) => !current)}
+                      className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
+                    >
+                      {showCalendarOps ? 'Hide Details' : 'Source Details'}
+                    </button>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                  <select
+                    value={selectedCalendarSourceId || ''}
+                    onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
+                    className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                  >
+                    {calendarSources.map((source) => (
+                      <option key={source.id} value={source.id}>{source.name}</option>
+                    ))}
+                  </select>
+                  {selectedCalendarSource ? (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Events {selectedCalendarSource.event_counts?.total || 0}</span>
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.event_counts?.conflicts || 0}</span>
+                    </div>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync</button>
+                    <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">Import</button>
+                    <button onClick={() => setShowSourceComposer((current) => !current)} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">
+                      {showSourceComposer ? 'Hide New Source' : 'New Source'}
+                    </button>
+                    <button onClick={openCalendarAdmin} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">Integrations</button>
+                  </div>
+                </div>
 
-          {/* Main Calendar */}
-          <div className="flex-1 p-6 overflow-auto calendar-panel-soft">
-            {/* Calendar Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
-                  {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigateMonth(-1)}
-                    className="p-2 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                  >
-                    <ChevronLeft size={20} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentDate(new Date())}
-                    className="px-3 py-1 hover:bg-[var(--color-hover)] rounded text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                  >
-                    Today
-                  </button>
-                  <button
-                    onClick={() => navigateMonth(1)}
-                    className="p-2 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                  >
-                    <ChevronRight size={20} />
-                  </button>
+                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                  <div className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider">Visible Calendars</div>
+                  <div className="space-y-2">
+                    {calendars.map(cal => (
+                      <label key={cal.id} className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+                        <input
+                          type="checkbox"
+                          checked={cal.is_visible}
+                          onChange={() => toggleCalendar(cal.id)}
+                          className="rounded bg-[var(--color-bg-primary)] border-[var(--color-border)]"
+                          style={{ accentColor: cal.color }}
+                        />
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.color }}></div>
+                        <span className="truncate">{cal.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setView('day')}
-                  className={`px-3 py-1.5 rounded text-xs ${view === 'day' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'}`}
-                >
-                  Day
-                </button>
-                <button
-                  onClick={() => setView('week')}
-                  className={`px-3 py-1.5 rounded text-xs ${view === 'week' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'}`}
-                >
-                  Week
-                </button>
-                <button
-                  onClick={() => setView('month')}
-                  className={`px-3 py-1.5 rounded-[var(--radius-card)] text-xs font-semibold uppercase tracking-wider ${view === 'month' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
-                >
-                  Month
-                </button>
+            </aside>
+          ) : null}
+
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+            <div className="calendar-panel-soft border-b border-[var(--color-border)] px-4 py-3">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
+                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => navigateMonth(-1)}
+                      className="rounded-[var(--radius-card)] p-2 text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      onClick={() => setCurrentDate(new Date())}
+                      className="rounded-[var(--radius-card)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => navigateMonth(1)}
+                      className="rounded-[var(--radius-card)] p-2 text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
+                  {['day', 'week', 'month'].map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setView(mode)}
+                      className={`shrink-0 rounded-[var(--radius-card)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${view === mode ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {renderCalendarView()}
+            <div className="flex-1 min-h-0 overflow-auto no-scrollbar p-4 md:p-6">
+              {renderCalendarView()}
+            </div>
           </div>
+
+          {(!clientMode || selectedDayEvents.length > 0 || upcomingBookings.length > 0 || calendarNotice) ? (
+            <aside className="hidden xl:flex w-[340px] shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]/85">
+              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+                {calendarNotice ? (
+                  <div className={`rounded-[var(--radius-panel)] border px-3 py-3 text-sm ${calendarNotice.tone === 'success' ? 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)]'}`}>
+                    {calendarNotice.message}
+                  </div>
+                ) : null}
+
+                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Selected Day</div>
+                  <div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
+                    {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {selectedDayEvents.length > 0 ? selectedDayEvents.map((evt) => (
+                      <button
+                        key={evt.id}
+                        type="button"
+                        onClick={() => handleEditEvent(evt)}
+                        className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-left transition hover:border-[var(--color-primary)]/40"
+                      >
+                        <div className="text-sm font-medium text-[var(--color-text-primary)]">{evt.title}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                          {new Date(evt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </div>
+                        {evt.guest_name || evt.guest_email ? (
+                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guest_name || evt.guest_email}</div>
+                        ) : null}
+                      </button>
+                    )) : (
+                      <div className="text-sm text-[var(--color-text-secondary)]">No bookings on the selected day.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Upcoming Bookings</div>
+                  <div className="mt-3 space-y-3">
+                    {upcomingBookings.length > 0 ? upcomingBookings.map((evt) => (
+                      <button
+                        key={evt.id}
+                        type="button"
+                        onClick={() => {
+                          setCurrentDate(new Date(evt.start_time));
+                          handleEditEvent(evt);
+                        }}
+                        className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-left transition hover:border-[var(--color-primary)]/40"
+                      >
+                        <div className="text-sm font-medium text-[var(--color-text-primary)]">{evt.title}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                          {new Date(evt.start_time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </div>
+                        {evt.guest_name || evt.guest_email ? (
+                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guest_name || evt.guest_email}</div>
+                        ) : null}
+                      </button>
+                    )) : (
+                      <div className="text-sm text-[var(--color-text-secondary)]">No upcoming bookings are scheduled.</div>
+                    )}
+                  </div>
+                </div>
+
+                {!clientMode && selectedCalendarSource && showCalendarOps ? (
+                  <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[var(--color-text-primary)] font-semibold">Source Details</div>
+                      <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
+                    </div>
+                    <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+                      <div><span className="text-[var(--color-text-primary)] font-medium">Provider:</span> {selectedCalendarSource.provider}</div>
+                      <div><span className="text-[var(--color-text-primary)] font-medium">Authority:</span> {sourceRuleLabels[selectedCalendarSource.authority_mode] || selectedCalendarSource.authority_mode}</div>
+                      <div><span className="text-[var(--color-text-primary)] font-medium">Import:</span> {sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</div>
+                      <div>{selectedCalendarSource.health?.detail || 'Calendar source ready.'}</div>
+                    </div>
+                    <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                      Calendar credentials, OAuth connection, and authority settings live in Integrations. Calendar keeps operational sync and import controls only.
+                    </div>
+                  </div>
+                ) : null}
+
+                {!clientMode && showSourceComposer ? (
+                  <div className="rounded-[var(--radius-panel)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 p-4 space-y-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">New Source</div>
+                    <div className="grid gap-3 text-sm">
+                      <label className="space-y-1">
+                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Source Name</div>
+                        <input value={sourceDraft.name} onChange={(e) => setSourceDraft((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                      </label>
+                      <label className="space-y-1">
+                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
+                        <select value={sourceDraft.provider} onChange={(e) => setSourceDraft((current) => ({ ...current, provider: e.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                          {calendarProviders.map((provider) => (
+                            <option key={provider.id} value={provider.id}>{provider.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => { setShowSourceComposer(false); setSourceDraft(createCalendarSourceDraft()); }} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">Cancel</button>
+                      <button onClick={handleCreateCalendarSource} disabled={!sourceDraft.name.trim()} className="rounded-[var(--radius-card)] bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-on-primary)] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50">Create Source</button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </aside>
+          ) : null}
         </div>
       );
     }
     if (activeTab === 'bookers') {
       if (viewMode === 'card') {
         return (
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="h-full overflow-auto no-scrollbar p-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             <button
               onClick={() => {
                 setSelectedBooker(null);
@@ -767,7 +937,7 @@ const CalendarModule = ({ clientMode = false }) => {
               <span className="font-medium">Create Meeting Type</span>
             </button>
 
-            {bookingTypes.map(booker => (
+            {filteredBookingTypes.map(booker => (
               <div key={booker.id} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-5 hover:border-[var(--color-primary)]/50 transition group flex flex-col h-48 shadow-island-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">
@@ -819,12 +989,18 @@ const CalendarModule = ({ clientMode = false }) => {
                 </div>
               </div>
             ))}
+            {filteredBookingTypes.length === 0 ? (
+              <div className="col-span-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-8 text-center text-[var(--color-text-secondary)]">
+                No meeting types match the current search.
+              </div>
+            ) : null}
+            </div>
           </div>
         );
       } else {
         // List view
         return (
-          <div className="p-6">
+          <div className="h-full overflow-auto no-scrollbar p-6">
             <div className="mb-4">
               <button
                 onClick={() => {
@@ -849,7 +1025,7 @@ const CalendarModule = ({ clientMode = false }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
-                  {bookingTypes.map(booker => (
+                  {filteredBookingTypes.map(booker => (
                     <tr key={booker.id} className="hover:bg-[var(--color-hover)]/20">
                       <td className="p-4">
                         <div className="flex items-center gap-2">
@@ -909,10 +1085,10 @@ const CalendarModule = ({ clientMode = false }) => {
                       </td>
                     </tr>
                   ))}
-                  {bookingTypes.length === 0 && (
+                  {filteredBookingTypes.length === 0 && (
                     <tr>
                       <td colSpan="5" className="p-8 text-center text-[var(--color-text-tertiary)]">
-                        No meeting types yet
+                        No meeting types match the current search
                       </td>
                     </tr>
                   )}
@@ -926,8 +1102,9 @@ const CalendarModule = ({ clientMode = false }) => {
     if (activeTab === 'bookings') {
       if (viewMode === 'card') {
         return (
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map(evt => {
+          <div className="h-full overflow-auto no-scrollbar p-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredEvents.map(evt => {
               const cal = calendars.find(c => c.id === evt.calendar_id);
               return (
                 <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-[var(--radius-panel)] p-5 transition shadow-island-sm ${evt.is_backend_artifact ? 'border-[var(--color-success)]/30' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40'}`}>
@@ -1058,17 +1235,18 @@ const CalendarModule = ({ clientMode = false }) => {
                 </div>
               );
             })}
-            {events.length === 0 && (
+            {filteredEvents.length === 0 && (
               <div className="col-span-full p-8 text-center text-[var(--color-text-tertiary)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg">
-                No bookings yet
+                No bookings match the current search
               </div>
             )}
+            </div>
           </div>
         );
       } else {
         // List view
         return (
-          <div className="p-6">
+          <div className="h-full overflow-auto no-scrollbar p-6">
             <div className="border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden bg-[var(--color-bg-primary)] shadow-island-sm">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] text-xs uppercase font-bold tracking-wider">
@@ -1082,7 +1260,7 @@ const CalendarModule = ({ clientMode = false }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
-                  {events.map(evt => {
+                  {filteredEvents.map(evt => {
                     const cal = calendars.find(c => c.id === evt.calendar_id);
                     return (
                       <tr key={evt.id} className={`hover:bg-[var(--color-hover)]/20 ${evt.is_backend_artifact ? 'bg-emerald-500/[0.04]' : ''}`}>
@@ -1183,10 +1361,10 @@ const CalendarModule = ({ clientMode = false }) => {
                       </tr>
                     );
                   })}
-                  {events.length === 0 && (
+                  {filteredEvents.length === 0 && (
                     <tr>
                       <td colSpan="6" className="p-8 text-center text-[var(--color-text-tertiary)]">
-                        No bookings yet
+                        No bookings match the current search
                       </td>
                     </tr>
                   )}
@@ -1205,53 +1383,90 @@ const CalendarModule = ({ clientMode = false }) => {
         title="Calendar"
         titleIcon={CalendarIcon}
         showTitle={false}
+        showCompactTitle
+        subtitle={
+          activeTab === 'calendar'
+            ? 'Coordinate sources, booking types, and scheduled meetings from one workspace.'
+            : activeTab === 'bookers'
+              ? 'Manage meeting types without crowding the live calendar grid.'
+              : 'Browse and update scheduled bookings from one operational list.'
+        }
         statusBadge={{
           label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
           color: 'info'
         }}
         showActions={true}
-        actions={[]}
+        actions={
+          activeTab === 'calendar'
+            ? [
+              ...(!clientMode ? [{
+                label: 'Manage Sources',
+                icon: CalendarIcon,
+                onClick: openCalendarAdmin,
+                variant: 'secondary'
+              }] : []),
+              {
+                label: 'Create Event',
+                icon: Plus,
+                onClick: handleCreateEvent,
+                variant: 'primary',
+                color: 'primary'
+              }
+            ]
+            : activeTab === 'bookers'
+              ? [{
+                label: 'Create Meeting Type',
+                icon: Plus,
+                onClick: () => {
+                  setSelectedBooker(null);
+                  setShowBookerModal(true);
+                },
+                variant: 'primary',
+                color: 'primary'
+              }]
+              : [{
+                label: 'Create Event',
+                icon: Plus,
+                onClick: handleCreateEvent,
+                variant: 'primary',
+                color: 'primary'
+              }]
+        }
         className="border-b-0"
-        aiAssistSlot={(
-          <div className="flex items-center gap-2">
-            {(activeTab === 'bookers' || activeTab === 'bookings') && (
-              <div className="flex gap-1 bg-[var(--color-bg-primary)] rounded-[var(--radius-card)] p-1">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1 rounded text-xs ${viewMode === 'list' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
-                  title="List View"
-                >
-                  List
-                </button>
-                <button
-                  onClick={() => setViewMode('card')}
-                  className={`px-3 py-1 rounded-[var(--radius-card)] text-xs ${viewMode === 'card' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
-                  title="Card View"
-                >
-                  Card
-                </button>
-              </div>
-            )}
-            {!clientMode ? (
+        toolbarCenterSlot={
+          activeTab === 'bookers' || activeTab === 'bookings' ? (
+            <div className="relative w-full max-w-sm">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+              <input
+                type="text"
+                value={moduleSearch}
+                onChange={(event) => setModuleSearch(event.target.value)}
+                placeholder={activeTab === 'bookers' ? 'Search meeting types' : 'Search bookings'}
+                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              />
+            </div>
+          ) : null
+        }
+        toolbarRightSlot={
+          activeTab === 'bookers' || activeTab === 'bookings' ? (
+            <div className="flex gap-1 rounded-[var(--radius-card)] bg-[var(--color-bg-primary)] p-1">
               <button
-                onClick={openCalendarAdmin}
-                className="px-3 py-1.5 bg-[var(--color-bg-primary)] hover:bg-[var(--color-hover)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] text-xs font-medium flex items-center gap-1"
-                title="Manage Calendar Sources"
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 rounded text-xs ${viewMode === 'list' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+                title="List View"
               >
-                <svg className="w-4 h-4 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" />
-                </svg>
-                Manage Sources
+                List
               </button>
-            ) : null}
-            <button
-              onClick={handleCreateEvent}
-              className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-4 py-2 rounded text-sm font-medium md:hidden"
-            >
-              + Event
-            </button>
-          </div>
-        )}
+              <button
+                onClick={() => setViewMode('card')}
+                className={`px-3 py-1 rounded-[var(--radius-card)] text-xs ${viewMode === 'card' ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+                title="Card View"
+              >
+                Card
+              </button>
+            </div>
+          ) : null
+        }
       />
       <div className="bg-[var(--color-bg-tertiary)] border-b border-[var(--color-border)]">
         <div className="flex px-4 gap-6">
@@ -1267,157 +1482,8 @@ const CalendarModule = ({ clientMode = false }) => {
         </div>
       </div>
 
-      {calendarCanvasPrimary ? (
-        !clientMode ? (
-        <div className="calendar-panel-soft border-b border-[var(--color-border)] px-4 py-3 space-y-3">
-          <div className="calendar-panel rounded-[var(--radius-panel)] border border-[var(--color-border)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Active Source</div>
-                  <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource?.name || 'No source selected'}</div>
-                </div>
-                <select
-                  value={selectedCalendarSourceId || ''}
-                  onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
-                  className="min-w-[220px] rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
-                >
-                  {calendarSources.map((source) => (
-                    <option key={source.id} value={source.id}>{source.name}</option>
-                  ))}
-                </select>
-                {selectedCalendarSource ? (
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
-                    <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Events {selectedCalendarSource.event_counts?.total || 0}</span>
-                    <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.event_counts?.conflicts || 0}</span>
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync</button>
-                <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Import</button>
-                <button onClick={() => setShowCalendarOps((current) => !current)} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                  {showCalendarOps ? 'Hide Source Details' : 'Show Source Details'}
-                </button>
-              </div>
-            </div>
-          </div>
-          {selectedCalendarSource && showCalendarOps ? (
-            <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="text-[var(--color-text-primary)] font-medium">{selectedCalendarSource.name}</span>
-                <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
-                <span className="text-[var(--color-text-secondary)]">Events {selectedCalendarSource.event_counts?.total || 0}</span>
-                <span className="text-[var(--color-text-secondary)]">Synced {selectedCalendarSource.event_counts?.synced || 0}</span>
-                <span className="text-[var(--color-text-secondary)]">Imported {selectedCalendarSource.event_counts?.imported || 0}</span>
-                <span className="text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.event_counts?.conflicts || 0}</span>
-                <span className="text-[var(--color-text-secondary)]">Pending {selectedCalendarSource.event_counts?.pending || 0}</span>
-              </div>
-              <div className="mt-2 text-sm text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.detail || 'Calendar source ready.'}</div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)]">Authority {sourceRuleLabels[selectedCalendarSource.authority_mode] || selectedCalendarSource.authority_mode}</span>
-                <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)]">Import {sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</span>
-              </div>
-            </div>
-          ) : null}
-          {selectedCalendarSource && showCalendarOps ? (
-            <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[var(--color-text-primary)] font-semibold">Source Admin</div>
-                <div className="flex items-center gap-2">
-                  <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
-                  <button onClick={openCalendarAdmin} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
-                  <div className="mt-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSource.provider}</div>
-                </div>
-                <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Policy</div>
-                  <div className="mt-2 text-sm text-[var(--color-text-primary)]">{sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</div>
-                </div>
-              </div>
-              <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                Calendar credentials, OAuth connection, source creation, and authority settings now live in <span className="font-medium text-[var(--color-text-primary)]">Admin &gt; Integrations</span>. Calendar keeps operational sync and import controls only.
-              </div>
-            </div>
-          ) : null}
-          {showSourceComposer && showCalendarOps ? (
-            <div className="rounded-[var(--radius-panel)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 p-4 space-y-3">
-              <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <label className="space-y-1">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Source Name</div>
-                  <input value={sourceDraft.name} onChange={(e) => setSourceDraft((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-                </label>
-                <label className="space-y-1">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
-                  <select value={sourceDraft.provider} onChange={(e) => setSourceDraft((current) => ({ ...current, provider: e.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                    {calendarProviders.map((provider) => (
-                      <option key={provider.id} value={provider.id}>{provider.label}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <label className="space-y-1">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Authority Mode</div>
-                  <select value={sourceDraft.config?.authority_mode || 'local-first'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: e.target.value } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                    <option value="local-first">Local First</option>
-                    <option value="mirror">Mirror External</option>
-                    <option value="external-first">External First</option>
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Import Policy</div>
-                  <select value={sourceDraft.config?.import_policy || 'review'} onChange={(e) => setSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), import_policy: e.target.value } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                    <option value="review">Review Before Adopt</option>
-                    <option value="auto-merge">Auto Merge</option>
-                    <option value="hold">Hold Imported Only</option>
-                  </select>
-                </label>
-              </div>
-              {selectedCalendarProvider.fields?.length ? (
-                <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                  {selectedCalendarProvider.fields.map((field) => (
-                    <label key={field.key} className="space-y-1">
-                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                      <input
-                        value={sourceDraft.config?.[field.key] || ''}
-                        onChange={(e) => setSourceDraft((current) => ({
-                          ...current,
-                          config: {
-                            ...(current.config || {}),
-                            [field.key]: e.target.value
-                          }
-                        }))}
-                        className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
-                      />
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Local stub sources are immediately usable for local-first calendar export.</div>
-              )}
-              <div className="flex justify-end gap-2">
-                <button onClick={() => { setShowSourceComposer(false); setSourceDraft(createCalendarSourceDraft()); }} className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Cancel</button>
-                <button onClick={handleCreateCalendarSource} disabled={!sourceDraft.name.trim()} className="px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-[var(--color-text-on-primary)] text-sm font-medium">Create Source</button>
-              </div>
-            </div>
-          ) : null}
-          {calendarNotice ? (
-            <div className={`rounded-[var(--radius-panel)] border px-3 py-3 text-sm ${calendarNotice.tone === 'success' ? 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)]'}`}>
-              {calendarNotice.message}
-            </div>
-          ) : null}
-        </div>
-        ) : null
-      ) : null}
-
       {/* Content */}
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 min-h-0 overflow-hidden relative">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-[var(--color-text-secondary)]">Loading...</div>

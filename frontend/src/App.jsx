@@ -612,73 +612,75 @@ const App = () => {
         <OrchestrationProvider>
           <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], role: userRole, isOperator: () => operatorMode, isClient: () => clientMode, logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
           <DbContext.Provider value={{ db, setDb }}>
-            <div className="h-screen flex bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
-            {/* Sidebar */}
-            {!isFullscreen && (
-              <Sidebar
-                activeModule={effectiveActiveModule}
-                onSelectModule={(moduleId) => {
-                  if (clientMode && !CLIENT_ALLOWED_MODULES.has(moduleId)) {
-                    setActiveModule(DEFAULT_CLIENT_MODULE);
-                    return;
-                  }
-                  setActiveModule(moduleId);
-                  if (moduleId === 'flows') {
-                    handleFlowContextChange({ flowId: null, action: null, intent: null });
-                  }
-                  if (moduleId !== 'crm') {
-                    setCrmContactId(null);
-                  }
-                }}
-                onLogout={handleLogout}
-                isMobileOpen={isMobileOpen}
-                setIsMobileOpen={setIsMobileOpen}
-                menuStructure={renderedMenuStructure}
-                iconMap={ICON_MAP}
-                showHelp={!clientMode}
-              />
-            )}
+            <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
+              <div className="flex min-h-0 flex-1 overflow-hidden">
+                {/* Sidebar */}
+                {!isFullscreen && (
+                  <Sidebar
+                    activeModule={effectiveActiveModule}
+                    onSelectModule={(moduleId) => {
+                      if (clientMode && !CLIENT_ALLOWED_MODULES.has(moduleId)) {
+                        setActiveModule(DEFAULT_CLIENT_MODULE);
+                        return;
+                      }
+                      setActiveModule(moduleId);
+                      if (moduleId === 'flows') {
+                        handleFlowContextChange({ flowId: null, action: null, intent: null });
+                      }
+                      if (moduleId !== 'crm') {
+                        setCrmContactId(null);
+                      }
+                    }}
+                    onLogout={handleLogout}
+                    isMobileOpen={isMobileOpen}
+                    setIsMobileOpen={setIsMobileOpen}
+                    menuStructure={renderedMenuStructure}
+                    iconMap={ICON_MAP}
+                    showHelp={!clientMode}
+                  />
+                )}
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {!isFullscreen && (
-                <TopBar
-                  onLogout={handleLogout}
-                  onNavigate={setCurrentPage}
-                  onOpenSystemHealth={() => setActiveModule('system-health')}
-                  title={currentModuleMeta.label}
-                  subtitle={currentModuleMeta.subtitle}
-                  titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
-                  searchPlaceholder={currentModuleMeta.searchPlaceholder}
-                  showSearch={!clientMode && currentModuleMeta.type !== 'iframe' && effectiveActiveModule !== 'system-health'}
-                  onToggleMobileMenu={() => setIsMobileOpen(true)}
-                />
-              )}
+                {/* Main Content */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {!isFullscreen && (
+                    <TopBar
+                      onLogout={handleLogout}
+                      onNavigate={setCurrentPage}
+                      onOpenSystemHealth={() => setActiveModule('system-health')}
+                      title={currentModuleMeta.label}
+                      subtitle={currentModuleMeta.subtitle}
+                      titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
+                      searchPlaceholder={currentModuleMeta.searchPlaceholder}
+                      showSearch={!clientMode && currentModuleMeta.type !== 'iframe' && effectiveActiveModule !== 'system-health'}
+                      onToggleMobileMenu={() => setIsMobileOpen(true)}
+                    />
+                  )}
 
-              {/* Module Content */}
-              <div
-                className={`flex-1 bg-[var(--color-bg-primary)] ${
-                  effectiveActiveModule === 'flows'
-                    ? 'overflow-hidden p-0'
-                    : effectiveActiveModule === 'aio-agents'
-                    ? 'overflow-hidden p-4'
-                    : 'overflow-auto p-6'
-                }`}
-              >
-                <Suspense key={effectiveActiveModule} fallback={
-                  <div className="h-full flex items-center justify-center">
-                    <LoadingSpinner size="lg" message="Loading module..." />
+                  {/* Module Content */}
+                  <div
+                    className={`flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] ${
+                      effectiveActiveModule === 'flows'
+                        ? 'p-0'
+                        : effectiveActiveModule === 'aio-agents'
+                        ? 'p-4'
+                        : 'p-6'
+                    }`}
+                  >
+                    <Suspense key={effectiveActiveModule} fallback={
+                      <div className="h-full flex items-center justify-center">
+                        <LoadingSpinner size="lg" message="Loading module..." />
+                      </div>
+                    }>
+                      {renderModule()}
+                    </Suspense>
                   </div>
-                }>
-                  {renderModule()}
-                </Suspense>
+                </div>
+                <OperatorAssistDock
+                  activeModule={effectiveActiveModule}
+                  activeModuleLabel={currentModuleMeta.label}
+                />
               </div>
             </div>
-            <OperatorAssistDock
-              activeModule={effectiveActiveModule}
-              activeModuleLabel={currentModuleMeta.label}
-            />
-          </div>
         </DbContext.Provider>
         </AuthContext.Provider>
       </OrchestrationProvider>

@@ -390,6 +390,53 @@ export const utilityNodes = [
       writeback: true,
     },
   },
+  {
+    id: 'generate-video',
+    type: 'action',
+    label: 'Generate Video',
+    description: 'Create a render job through the media engine',
+    iconName: 'Image',
+    nodeColor: 'action',
+    actionType: 'generate_video',
+    config: {
+      actionType: 'generate_video',
+      templateId: '',
+      outputTarget: '',
+      provider: 'stub-render',
+    },
+  },
+  {
+    id: 'transcribe-media',
+    type: 'action',
+    label: 'Transcribe Media',
+    description: 'Create a transcript job for media or transcript input',
+    iconName: 'Headphones',
+    nodeColor: 'action',
+    actionType: 'transcribe_media',
+    config: {
+      actionType: 'transcribe_media',
+      sourceType: 'transcript_text',
+      sourceRef: '',
+      provider: 'elevenlabs_scribe',
+      diarization: true,
+      timestamps: true,
+    },
+  },
+  {
+    id: 'ingest-meeting-artifacts',
+    type: 'action',
+    label: 'Ingest Meeting',
+    description: 'Normalize meeting artifacts into the media engine',
+    iconName: 'UploadCloud',
+    nodeColor: 'action',
+    actionType: 'ingest_meeting_artifacts',
+    config: {
+      actionType: 'ingest_meeting_artifacts',
+      meetingProvider: 'zoom',
+      meetingRef: '',
+      attachTarget: '',
+    },
+  },
 ];
 
 /**

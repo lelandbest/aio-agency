@@ -381,6 +381,14 @@ export async function saveFlowApi(flowId, payload) {
   return response.data || null;
 }
 
+export async function triggerFlowManualApi(flowId, payload = {}) {
+  const response = await request(`/api/flows/${encodeURIComponent(flowId)}/trigger/manual`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
 export async function saveFlowDraftApi(payload) {
   const response = await request('/api/flow-drafts', {
     method: 'POST',

@@ -461,45 +461,53 @@ const SignalsModule = () => {
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-2xl border border-[var(--color-border)] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* Action Header */}
-      <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-4 bg-black/5">
-        <div className="flex items-center gap-3">
-          {quickActions.map(action => (
+      <ModuleHeader
+        title="Signals"
+        subtitle="Operator feed for bookings, comms, pipeline, and automation heuristics."
+        showTitle={false}
+        showCompactTitle
+        toolbarLeftSlot={(
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {quickActions.map(action => (
+              <button
+                key={action.id}
+                onClick={() => runSignalAction(action.action)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500 transition-all shadow-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                title={action.label}
+              >
+                <action.icon size={16} />
+              </button>
+            ))}
+          </div>
+        )}
+        toolbarRightSlot={(
+          <div className="flex items-center gap-3">
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Heuristic Feed</div>
             <button
-              key={action.id}
-              onClick={() => runSignalAction(action.action)}
-              className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 hover:border-[var(--color-primary)] text-slate-500 hover:text-[var(--color-primary)] flex items-center justify-center transition-all shadow-sm"
-              title={action.label}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500 transition-all hover:text-white"
+              title="Diagnostics"
             >
-              <action.icon size={16} />
+              <Settings size={16} />
             </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-2">Heuristic Feed</div>
-          <button
-            className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/10 text-slate-500 hover:text-white flex items-center justify-center transition-all"
-            title="Diagnostics"
-          >
-            <Settings size={16} />
-          </button>
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       <PulseBand stats={stats} />
       
       {!loading && <SignalSummaryStrip signals={signals} />}
 
-      <div className="flex-1 overflow-y-auto p-8 no-scrollbar bg-gradient-to-b from-transparent to-black/10">
+      <div className="flex-1 min-h-0 p-6 bg-gradient-to-b from-transparent to-black/10">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500">
             <RefreshCw className="animate-spin" size={24} />
             <p className="text-[10px] font-black uppercase tracking-[0.3em]">Syncing signal feeds...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 max-w-[1600px] mx-auto">
+          <div className="grid h-full min-h-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] max-w-[1600px] mx-auto">
             {/* Main Intelligence Grid */}
-            <div className="lg:col-span-8 space-y-10">
+            <div className="min-h-0 overflow-y-auto no-scrollbar pr-1">
+              <div className="space-y-10">
               <section className="space-y-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -525,10 +533,11 @@ const SignalsModule = () => {
                   )}
                 </div>
               </section>
+              </div>
             </div>
 
             {/* Intelligence Feed */}
-            <div className="lg:col-span-4 h-fit sticky top-0">
+            <div className="min-h-0 overflow-y-auto no-scrollbar pl-1">
               <SignalHistory signals={history} />
             </div>
           </div>

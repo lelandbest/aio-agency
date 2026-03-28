@@ -34,6 +34,7 @@ import {
 
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
+import { triggerFlowManualApi } from '../../services/backendApi';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
 import TemplateLibraryPanel from './components/TemplateLibraryPanel';
@@ -41,6 +42,7 @@ import FlowInfoPanel from './components/FlowInfoPanel';
 import VariableMappingModal from './components/VariableMappingModal';
 import AiGeneratorModal from './components/AiGeneratorModal';
 import NodeConfigDrawer from './components/NodeConfigDrawer';
+import RunDetailInspector from './components/RunDetailInspector';
 import CustomNode from './components/nodes/CustomNode';
 import FrameNode from './components/nodes/FrameNode';
 import NoteNode from './components/nodes/NoteNode';
@@ -139,6 +141,34 @@ const layoutNodesLeftToRight = (nodes, edges) => {
   return nextNodes;
 };
 
+const normalizeRunInspector = (result, meta = {}) => {
+  if (!result) return null;
+
+  const steps = Array.isArray(result.steps) ? result.steps : [];
+  const stepStartedAt = steps.map((step) => step?.startedAt).filter(Boolean);
+  const stepCompletedAt = steps.map((step) => step?.completedAt).filter(Boolean);
+
+  return {
+    runId: result.runId || meta.runId || null,
+    status: result.status || meta.status || 'unknown',
+    triggerType: meta.triggerType || result.triggerType || 'manual_trigger',
+    startedAt: stepStartedAt[0] || meta.startedAt || null,
+    finishedAt: stepCompletedAt[stepCompletedAt.length - 1] || meta.finishedAt || null,
+    error: result.error || meta.error || null,
+    steps: steps.map((step, index) => ({
+      id: step?.id || `step-${index + 1}`,
+      intent: step?.intent || 'action',
+      nodeLabel: step?.parameters?.node_label || step?.parameters?.nodeLabel || step?.label || step?.id || `Step ${index + 1}`,
+      status: step?.status || 'unknown',
+      startedAt: step?.startedAt || null,
+      completedAt: step?.completedAt || null,
+      error: step?.error || null,
+      data: step?.data || null,
+    })),
+    raw: result,
+  };
+};
+
 const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContextChange = null, onSelectForAgents = null, onExit }) => {
   const getCssVar = (name, fallback = '') => {
     if (typeof window === 'undefined') return fallback;
@@ -196,6 +226,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   // Terminal state
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState([]);
+  const [isRunningFlow, setIsRunningFlow] = useState(false);
+  const [latestRunDetail, setLatestRunDetail] = useState(null);
   
   // Terminal logging helper
   const logToTerminal = useCallback((message, type = 'info') => {
@@ -220,6 +252,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           create_task: { channel: 'task', objective: 'Create a follow-up task', required_fields: ['title', 'owner', 'due_in_hours'] },
           verify_email: { email: '{{contact.email}}', contactId: '{{contact.id}}', mode: 'quick', writeback: true },
           verify_email_bulk: { contactIds: ['{{contact.id}}'], emails: [], mode: 'power', writeback: true },
+          generate_video: { templateId: 'promo-clip-v1', outputTarget: 'crm.contact', provider: 'stub-render', script: 'Create a short follow-up recap video for {{contact.name}}.' },
+          transcribe_media: { sourceType: 'transcript_text', sourceRef: '{{previous.assetId}}', provider: 'elevenlabs_scribe', transcriptText: 'Speaker 1: Welcome to the meeting.', diarization: true, timestamps: true },
+          ingest_meeting_artifacts: { meetingProvider: 'zoom', meetingRef: '{{booking.meeting_id}}', attachTarget: 'crm.contact', transcriptText: 'Speaker 1: Meeting summary goes here.' },
         };
         return JSON.stringify(configByAction[actionType] || configByAction.send_email, null, 2);
       }
@@ -807,11 +842,37 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     return { sanitizedNodes, sanitizedEdges };
   }, [nodes, edges]);
 
+  const collectValidation = useCallback(() => {
+    const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
+    const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
+    return validateFlowSpec(spec);
+  }, [flow, getSanitizedGraph]);
+
+  const pushValidationToTerminal = useCallback((prefix, result) => {
+    if (!result) return;
+    result.blockers.forEach((message) => logToTerminal(`${prefix}: ${message}`, 'error'));
+    result.warnings.forEach((message) => logToTerminal(`${prefix}: ${message}`, 'warning'));
+    if (result.blockers.length || result.warnings.length) {
+      setTerminalOpen(true);
+    }
+  }, [logToTerminal]);
+
+  useEffect(() => {
+    if (!flow) return;
+    setValidationResult(collectValidation());
+  }, [flow, nodes, edges, collectValidation]);
+
 // Handle save flow
   const handleSaveFlow = useCallback(async () => {
     if (!flow) return;
 
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
+    const result = validateFlowSpec(buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges }));
+    setValidationResult(result);
+    if (result.blockers.length > 0) {
+      pushValidationToTerminal('Save blocked', result);
+      return;
+    }
 
     try {
       const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
@@ -836,10 +897,149 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
       }
       setIsDirty(false);
+      if (result.warnings.length > 0) {
+        pushValidationToTerminal('Saved with warnings', result);
+      } else {
+        logToTerminal(`Saved flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+      }
     } catch (error) {
       console.error('Failed to save flow:', error);
+      logToTerminal(`Save failed: ${error.message || 'Unknown error.'}`, 'error');
+      setTerminalOpen(true);
     }
-  }, [flow, nodes, edges, getSanitizedGraph, onFlowContextChange]);
+  }, [flow, nodes, edges, getSanitizedGraph, logToTerminal, onFlowContextChange, pushValidationToTerminal]);
+
+  const persistCurrentFlow = useCallback(async ({ silentSuccess = false } = {}) => {
+    if (!flow) return null;
+
+    const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
+    const result = validateFlowSpec(buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges }));
+    setValidationResult(result);
+    if (result.blockers.length > 0) {
+      pushValidationToTerminal('Run blocked', result);
+      return null;
+    }
+
+    const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
+    const updatedFlow = {
+      ...flow,
+      nodes: sanitizedNodes,
+      edges: sanitizedEdges,
+      spec,
+      status: flow.status,
+      updatedAt: new Date().toISOString(),
+      lastEditedBy: 'Current User',
+      metadata: {
+        ...flow.metadata,
+        nodeCount: sanitizedNodes.length,
+      },
+    };
+
+    const savedFlow = await flowRepository.saveFlow(updatedFlow);
+    const persistedFlow = savedFlow || updatedFlow;
+    setFlow(persistedFlow);
+    if (persistedFlow?.id) {
+      onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
+    }
+    setIsDirty(false);
+    if (!silentSuccess) {
+      if (result.warnings.length > 0) {
+        pushValidationToTerminal('Saved with warnings', result);
+      } else {
+        logToTerminal(`Saved flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+      }
+    }
+    return persistedFlow;
+  }, [flow, getSanitizedGraph, logToTerminal, onFlowContextChange, pushValidationToTerminal]);
+
+  const logFlowRunResult = useCallback((result) => {
+    if (!result) return;
+
+    const runId = result.runId || 'unknown-run';
+    const runStatus = result.status || 'unknown';
+    const validation = result.validation || { blockers: [], warnings: [] };
+    logToTerminal(`Run ${runId} finished with status ${runStatus}.`, runStatus === 'success' ? 'success' : 'info');
+    validation.warnings?.forEach((warning) => logToTerminal(`Run warning: ${warning}`, 'warning'));
+
+    (Array.isArray(result.steps) ? result.steps : []).forEach((step) => {
+      const intent = step?.intent || step?.id || 'step';
+      const stepStatus = step?.status || 'unknown';
+      logToTerminal(
+        `${intent}: ${stepStatus}`,
+        stepStatus === 'success' ? 'success' : stepStatus === 'failed' || stepStatus === 'error' ? 'error' : 'info'
+      );
+      if (step?.error) {
+        logToTerminal(`${intent} error: ${step.error}`, 'error');
+      }
+      const data = step?.data && typeof step.data === 'object' ? step.data : {};
+      const job = data.job && typeof data.job === 'object' ? data.job : null;
+      const transcriptJob = data.transcript_job && typeof data.transcript_job === 'object' ? data.transcript_job : null;
+      const artifact = data.artifact && typeof data.artifact === 'object' ? data.artifact : null;
+      const transcriptArtifact = data.transcript_artifact && typeof data.transcript_artifact === 'object' ? data.transcript_artifact : null;
+      const assets = Array.isArray(data.assets) ? data.assets : [];
+
+      if (job?.id) {
+        logToTerminal(`created ${job.kind || 'media job'} ${job.id} (${job.status || 'unknown'})`, 'info');
+      }
+      if (transcriptJob?.id) {
+        logToTerminal(`created transcript job ${transcriptJob.id} (${transcriptJob.status || 'unknown'})`, 'info');
+      }
+      if (artifact?.id) {
+        logToTerminal(`artifact created: ${artifact.id}`, 'info');
+      }
+      if (transcriptArtifact?.id) {
+        logToTerminal(`artifact created: ${transcriptArtifact.id}`, 'info');
+      }
+      assets.forEach((asset) => {
+        if (asset?.id) {
+          logToTerminal(`asset created: ${asset.id}`, 'info');
+        }
+      });
+    });
+  }, [logToTerminal]);
+
+  const handleRunFlow = useCallback(async () => {
+    if (!flow || isRunningFlow) return;
+    setTerminalOpen(true);
+    setIsRunningFlow(true);
+    const runStartedAt = new Date().toISOString();
+    try {
+      const persistedFlow = await persistCurrentFlow({ silentSuccess: true });
+      if (!persistedFlow?.id) {
+        return;
+      }
+      logToTerminal(`Starting manual run for ${persistedFlow.name || 'Untitled Flow'}...`, 'info');
+      const result = await triggerFlowManualApi(persistedFlow.id, {
+        command: `Manual run for flow ${persistedFlow.name || 'Untitled Flow'}`,
+        context: {
+          flow_id: persistedFlow.id,
+          flow_name: persistedFlow.name || 'Untitled Flow',
+        },
+      });
+      setLatestRunDetail(normalizeRunInspector(result, {
+        triggerType: 'manual_trigger',
+        startedAt: runStartedAt,
+        finishedAt: new Date().toISOString(),
+      }));
+      logFlowRunResult(result);
+    } catch (error) {
+      setLatestRunDetail(normalizeRunInspector({
+        runId: null,
+        status: 'failed',
+        error: error.message || 'Unknown error.',
+        steps: [],
+      }, {
+        triggerType: 'manual_trigger',
+        startedAt: runStartedAt,
+        finishedAt: new Date().toISOString(),
+        error: error.message || 'Unknown error.',
+      }));
+      logToTerminal(`Run failed: ${error.message || 'Unknown error.'}`, 'error');
+    } finally {
+      setIsRunningFlow(false);
+      setTerminalOpen(true);
+    }
+  }, [flow, isRunningFlow, logFlowRunResult, logToTerminal, persistCurrentFlow]);
 
   const handleSaveAsTemplate = useCallback(() => {
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
@@ -889,8 +1089,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
     const result = validateFlowSpec(spec);
     setValidationResult(result);
+    if (result.blockers.length > 0 || result.warnings.length > 0) {
+      pushValidationToTerminal('Activation check', result);
+    }
     setShowActivateModal(true);
-  }, [flow, nodes, edges, getSanitizedGraph]);
+  }, [flow, nodes, edges, getSanitizedGraph, pushValidationToTerminal]);
 
   const confirmActivate = useCallback(() => {
     if (!flow) return;
@@ -902,9 +1105,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       updatedAt: new Date().toISOString(),
       spec,
     };
-    flowRepository.saveFlow(updatedFlow).then((savedFlow) => setFlow(savedFlow || updatedFlow));
+    flowRepository.saveFlow(updatedFlow)
+      .then((savedFlow) => {
+        setFlow(savedFlow || updatedFlow);
+        setIsDirty(false);
+        logToTerminal(`Activated flow ${updatedFlow.name || 'Untitled Flow'}.`, 'success');
+      })
+      .catch((error) => {
+        logToTerminal(`Activation failed: ${error.message || 'Unknown error.'}`, 'error');
+        setTerminalOpen(true);
+      });
     setShowActivateModal(false);
-  }, [flow, nodes, edges, getSanitizedGraph]);
+  }, [flow, nodes, edges, getSanitizedGraph, logToTerminal]);
 
   const confirmDeactivate = useCallback(() => {
     if (!flow) return;
@@ -913,9 +1125,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       status: 'Draft',
       updatedAt: new Date().toISOString(),
     };
-    flowRepository.saveFlow(updatedFlow).then((savedFlow) => setFlow(savedFlow || updatedFlow));
+    flowRepository.saveFlow(updatedFlow)
+      .then((savedFlow) => {
+        setFlow(savedFlow || updatedFlow);
+        setIsDirty(false);
+        logToTerminal(`Deactivated flow ${updatedFlow.name || 'Untitled Flow'}.`, 'success');
+      })
+      .catch((error) => {
+        logToTerminal(`Deactivate failed: ${error.message || 'Unknown error.'}`, 'error');
+        setTerminalOpen(true);
+      });
     setShowDeactivateModal(false);
-  }, [flow]);
+  }, [flow, logToTerminal]);
 
   // Handle flow metadata update
   const handleFlowUpdate = useCallback(
@@ -1170,8 +1391,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       {/* Floating Toolbar */}
       <div className="pointer-events-none absolute left-1/2 bottom-4 -translate-x-1/2 z-40">
         <div className="pointer-events-auto flex items-center gap-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-full px-3 py-2 shadow-lg">
-          <button type="button" disabled className="flow-toolbar-btn flow-toolbar-btn--success opacity-60 cursor-not-allowed">
-            Run Disabled
+          <button
+            type="button"
+            onClick={handleRunFlow}
+            disabled={isRunningFlow}
+            className={`flow-toolbar-btn flow-toolbar-btn--success ${isRunningFlow ? 'opacity-60 cursor-wait' : ''}`}
+          >
+            {isRunningFlow ? 'Running...' : 'Run Flow'}
           </button>
           <button type="button" disabled className="flow-toolbar-btn opacity-60 cursor-not-allowed">
             Deploy Disabled
@@ -1405,6 +1631,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="get_booking">Get Booking</option>
                             <option value="verify_email">Verify Email</option>
                             <option value="verify_email_bulk">Verify Email Bulk</option>
+                            <option value="generate_video">Generate Video</option>
+                            <option value="transcribe_media">Transcribe Media</option>
+                            <option value="ingest_meeting_artifacts">Ingest Meeting Artifacts</option>
                           </select>
                         </div>
                         {nodeConfigDraft.actionType === 'verify_email' && (
@@ -1504,6 +1733,238 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                                   Write back on completion
                                 </label>
                               </div>
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'generate_video' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Template ID
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.templateId || ''}
+                                  onChange={(e) => updateField('templateId', e.target.value)}
+                                  placeholder="promo-clip-v1"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Output Target
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.outputTarget || ''}
+                                  onChange={(e) => updateField('outputTarget', e.target.value)}
+                                  placeholder="crm.contact"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Provider
+                                </label>
+                                <select
+                                  value={nodeConfigDraft.provider || 'stub-render'}
+                                  onChange={(e) => updateField('provider', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                >
+                                  <option value="stub-render">Stub Render</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Title
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.title || ''}
+                                  onChange={(e) => updateField('title', e.target.value)}
+                                  placeholder="Generated Video"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Script or Prompt
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.script || ''}
+                                onChange={(e) => updateField('script', e.target.value)}
+                                placeholder="Create a short recap video for {{contact.name}}..."
+                                className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'transcribe_media' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Source Type
+                                </label>
+                                <select
+                                  value={nodeConfigDraft.sourceType || ''}
+                                  onChange={(e) => updateField('sourceType', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                >
+                                  <option value="">Select source type...</option>
+                                  <option value="url">Media URL</option>
+                                  <option value="asset">Media Asset</option>
+                                  <option value="transcript_text">Transcript Text</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Source Ref
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.sourceRef || ''}
+                                  onChange={(e) => updateField('sourceRef', e.target.value)}
+                                  placeholder="{{previous.assetId}}"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Provider
+                                </label>
+                                <select
+                                  value={nodeConfigDraft.provider || 'elevenlabs_scribe'}
+                                  onChange={(e) => updateField('provider', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                >
+                                  <option value="elevenlabs_scribe">ElevenLabs Scribe</option>
+                                  <option value="aws_transcribe">AWS Transcribe</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Title
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.title || ''}
+                                  onChange={(e) => updateField('title', e.target.value)}
+                                  placeholder="Transcript Job"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Source URL
+                              </label>
+                              <input
+                                type="text"
+                                value={nodeConfigDraft.sourceUrl || ''}
+                                onChange={(e) => updateField('sourceUrl', e.target.value)}
+                                placeholder="https://example.com/media.mp3"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Transcript Text
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.transcriptText || ''}
+                                onChange={(e) => updateField('transcriptText', e.target.value)}
+                                placeholder="Speaker 1: Welcome to the meeting..."
+                                className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-4">
+                              <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(nodeConfigDraft.diarization)}
+                                  onChange={(e) => updateField('diarization', e.target.checked)}
+                                />
+                                Diarization
+                              </label>
+                              <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(nodeConfigDraft.timestamps)}
+                                  onChange={(e) => updateField('timestamps', e.target.checked)}
+                                />
+                                Timestamps
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'ingest_meeting_artifacts' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Meeting Provider
+                                </label>
+                                <select
+                                  value={nodeConfigDraft.meetingProvider || ''}
+                                  onChange={(e) => updateField('meetingProvider', e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                >
+                                  <option value="">Select provider...</option>
+                                  <option value="zoom">Zoom</option>
+                                  <option value="google_meet_drive">Google Meet / Drive</option>
+                                  <option value="jitsi">Jitsi (Stub)</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Meeting Ref
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.meetingRef || ''}
+                                  onChange={(e) => updateField('meetingRef', e.target.value)}
+                                  placeholder="{{booking.meeting_id}}"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Attach Target
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.attachTarget || ''}
+                                  onChange={(e) => updateField('attachTarget', e.target.value)}
+                                  placeholder="crm.contact"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Meeting Title
+                                </label>
+                                <input
+                                  type="text"
+                                  value={nodeConfigDraft.meetingTitle || ''}
+                                  onChange={(e) => updateField('meetingTitle', e.target.value)}
+                                  placeholder="Quarterly Review"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                Transcript Text
+                              </label>
+                              <textarea
+                                value={nodeConfigDraft.transcriptText || ''}
+                                onChange={(e) => updateField('transcriptText', e.target.value)}
+                                placeholder="Speaker 1: Meeting summary goes here..."
+                                className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                              />
                             </div>
                           </div>
                         )}
@@ -1829,8 +2290,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                     });
                     if (result.validation.blockers.length === 0) {
                       setNodes(result.nodes);
+                      setIsDirty(true);
                     } else {
                       console.error('Modal save blocked by validation:', result.validation.blockers);
+                      pushValidationToTerminal('Node config blocked', result.validation);
                     }
                   }
                   setShowNodeModal(false);
@@ -2292,6 +2755,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           </div>
         </div>
       )}
+
+      {latestRunDetail ? <RunDetailInspector run={latestRunDetail} /> : null}
 
       {/* Terminal Toast */}
       {terminalOpen && (

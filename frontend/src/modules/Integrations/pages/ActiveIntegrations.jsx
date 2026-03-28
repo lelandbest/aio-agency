@@ -228,6 +228,251 @@ const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'micro
 const SEEDED_MAILBOX_IDS = new Set(['mailbox-primary', 'mailbox-growth']);
 const EMAIL_VERIFIER_RESOURCE_ID = 'reoon-email-verifier';
 const isNeedsConfigStatus = (value) => String(value || '').trim().toLowerCase() === 'needs_config';
+const AUTH_FAILURE_PATTERN = /(invalid[_\s-]?grant|invalid[_\s-]?client|unauthori[sz]ed|auth(?:entication)?\s+failed|token(?:\s+refresh)?\s+failed|refresh[_\s-]?token|expired|revoked|oauth|reconnect|reauthori[sz]e)/i;
+const CANONICAL_STATUS_VALUES = new Set(['connected', 'needs_config', 'reconnect_required', 'unauthorized', 'disconnected']);
+const hasConfigValue = (value) => {
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  return value !== null && value !== undefined && value !== false;
+};
+
+const resolveCanonicalStatus = (resource = {}) => {
+  const normalized = String(resource.status_canonical || '').trim().toLowerCase();
+  return CANONICAL_STATUS_VALUES.has(normalized) ? normalized : '';
+};
+
+const buildCanonicalStateMeta = (machine, { connectedLabel, disconnectedLabel, needsConfigDetail, reconnectDetail, unauthorizedDetail, connectedDetail }) => {
+  if (machine === 'disconnected') {
+    return {
+      machine: 'disconnected',
+      label: 'Disconnected',
+      detail: disconnectedLabel,
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: false,
+      primaryActionLabel: 'Connect OAuth'
+    };
+  }
+
+  if (machine === 'reconnect_required') {
+    return {
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
+      detail: reconnectDetail,
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: true,
+      primaryActionLabel: 'Reconnect'
+    };
+  }
+
+  if (machine === 'unauthorized') {
+    return {
+      machine: 'unauthorized',
+      label: 'Unauthorized',
+      detail: unauthorizedDetail,
+      tone: 'error',
+      authActionsDisabled: true,
+      saveDisabled: true,
+      primaryActionLabel: 'Reconnect'
+    };
+  }
+
+  if (machine === 'needs_config') {
+    return {
+      machine: 'needs_config',
+      label: 'Needs Config',
+      detail: needsConfigDetail,
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: false,
+      primaryActionLabel: 'Connect OAuth'
+    };
+  }
+
+  return {
+    machine: 'connected',
+    label: connectedLabel,
+    detail: connectedDetail,
+    tone: 'success',
+    authActionsDisabled: false,
+    saveDisabled: false,
+    primaryActionLabel: 'Reconnect'
+  };
+};
+
+const getMailboxStateMeta = (mailbox = {}) => {
+  const config = mailbox.config || {};
+  const provider = mailbox.provider;
+  const rawStatus = String(mailbox.status || '').trim().toLowerCase();
+  const lastError = String(config.last_error || '').trim();
+  const connectedIdentity = config.connected_identity || config.email || mailbox.address || '';
+  const missingRefreshToken = isMailboxOauthProvider(provider) && !hasConfigValue(config.refresh_token);
+  const missingCredentials = isMailboxOauthProvider(provider)
+    ? ['client_id', 'client_secret'].filter((key) => !hasConfigValue(config[key]))
+    : [];
+  const missingIdentity = isMailboxOauthProvider(provider) && !hasConfigValue(connectedIdentity);
+  const hasAuthFailure = isMailboxOauthProvider(provider) && (rawStatus === 'error' || AUTH_FAILURE_PATTERN.test(lastError));
+  const canonicalMachine = resolveCanonicalStatus(mailbox);
+
+  if (canonicalMachine) {
+    return buildCanonicalStateMeta(canonicalMachine, {
+      connectedLabel: 'Connected',
+      disconnectedLabel: 'Mailbox is not connected to a live provider.',
+      needsConfigDetail: lastError || 'Required mailbox credentials are incomplete.',
+      reconnectDetail: lastError || 'OAuth refresh token is missing. Reconnect to restore mailbox access.',
+      unauthorizedDetail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
+      connectedDetail: lastError || connectedIdentity || mailbox.address || 'Mailbox is ready.'
+    });
+  }
+
+  if (rawStatus === 'disconnected') {
+    return {
+      machine: 'disconnected',
+      label: 'Disconnected',
+      detail: 'Mailbox is not connected to a live provider.',
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: false,
+      primaryActionLabel: 'Connect OAuth'
+    };
+  }
+
+  if (missingRefreshToken) {
+    return {
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
+      detail: lastError || 'OAuth refresh token is missing. Reconnect to restore mailbox access.',
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: true,
+      primaryActionLabel: 'Reconnect'
+    };
+  }
+
+  if (hasAuthFailure) {
+    return {
+      machine: 'unauthorized',
+      label: 'Unauthorized',
+      detail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
+      tone: 'error',
+      authActionsDisabled: true,
+      saveDisabled: true,
+      primaryActionLabel: 'Reconnect'
+    };
+  }
+
+  if (missingCredentials.length || missingIdentity || rawStatus === 'needs_config') {
+    return {
+      machine: 'needs_config',
+      label: 'Needs Config',
+      detail: lastError || 'Required mailbox credentials are incomplete.',
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: false,
+      primaryActionLabel: 'Connect OAuth'
+    };
+  }
+
+  return {
+    machine: 'connected',
+    label: 'Connected',
+    detail: lastError || connectedIdentity || mailbox.address || 'Mailbox is ready.',
+    tone: 'success',
+    authActionsDisabled: false,
+    saveDisabled: false,
+    primaryActionLabel: 'Reconnect'
+  };
+};
+
+const getCalendarSourceStateMeta = (source = {}) => {
+  const config = source.config || {};
+  const provider = source.provider;
+  const rawStatus = String(source.status || '').trim().toLowerCase();
+  const lastError = String(config.last_error || '').trim();
+  const connectedIdentity = config.connected_identity || config.email || '';
+  const connectedCalendar = config.connected_calendar || config.calendar_id || '';
+  const missingRefreshToken = isCalendarOauthProvider(provider) && !hasConfigValue(config.refresh_token);
+  const missingCredentials = provider === 'google-calendar-oauth'
+    ? ['client_id', 'client_secret'].filter((key) => !hasConfigValue(config[key]))
+    : provider === 'microsoft365-calendar'
+      ? ['tenant_id', 'client_id', 'client_secret', 'user_id'].filter((key) => !hasConfigValue(config[key]))
+      : [];
+  const missingIdentity = isCalendarOauthProvider(provider) && !hasConfigValue(connectedIdentity);
+  const missingCalendar = isCalendarOauthProvider(provider) && !hasConfigValue(connectedCalendar);
+  const hasAuthFailure = isCalendarOauthProvider(provider) && (rawStatus === 'error' || AUTH_FAILURE_PATTERN.test(lastError));
+  const canonicalMachine = resolveCanonicalStatus(source);
+
+  if (canonicalMachine) {
+    return buildCanonicalStateMeta(canonicalMachine, {
+      connectedLabel: 'Connected',
+      disconnectedLabel: 'Calendar source is not connected to a live provider.',
+      needsConfigDetail: lastError || 'Required calendar credentials or calendar selection are incomplete.',
+      reconnectDetail: lastError || 'OAuth refresh token is missing. Reconnect to restore calendar access.',
+      unauthorizedDetail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
+      connectedDetail: lastError || config.connected_calendar || config.connected_identity || 'Calendar source is ready.'
+    });
+  }
+
+  if (rawStatus === 'disconnected') {
+    return {
+      machine: 'disconnected',
+      label: 'Disconnected',
+      detail: 'Calendar source is not connected to a live provider.',
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: false,
+      primaryActionLabel: 'Connect OAuth'
+    };
+  }
+
+  if (missingRefreshToken) {
+    return {
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
+      detail: lastError || 'OAuth refresh token is missing. Reconnect to restore calendar access.',
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: true,
+      primaryActionLabel: 'Reconnect'
+    };
+  }
+
+  if (hasAuthFailure) {
+    return {
+      machine: 'unauthorized',
+      label: 'Unauthorized',
+      detail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
+      tone: 'error',
+      authActionsDisabled: true,
+      saveDisabled: true,
+      primaryActionLabel: 'Reconnect'
+    };
+  }
+
+  if (missingCredentials.length || missingIdentity || missingCalendar || rawStatus === 'needs_config') {
+    return {
+      machine: 'needs_config',
+      label: 'Needs Config',
+      detail: lastError || 'Required calendar credentials or calendar selection are incomplete.',
+      tone: 'warning',
+      authActionsDisabled: true,
+      saveDisabled: false,
+      primaryActionLabel: 'Connect OAuth'
+    };
+  }
+
+  return {
+    machine: 'connected',
+    label: 'Connected',
+    detail: lastError || config.connected_calendar || config.connected_identity || 'Calendar source is ready.',
+    tone: 'success',
+    authActionsDisabled: false,
+    saveDisabled: false,
+    primaryActionLabel: 'Reconnect'
+  };
+};
 
 const createEmailVerifierDraft = (config = {}) => ({
   api_key: '',
@@ -872,10 +1117,16 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       || null,
     [calendarSources, selectedCalendarSourceId]
   );
-  const selectedMailboxNeedsConfig = isMailboxOauthProvider(selectedMailbox?.provider || mailboxForm.provider)
-    && isNeedsConfigStatus(selectedMailbox?.status);
-  const selectedCalendarSourceNeedsConfig = isCalendarOauthProvider(selectedCalendarSource?.provider || calendarSourceForm.provider)
-    && isNeedsConfigStatus(selectedCalendarSource?.status);
+  const mailboxStateMetaById = useMemo(
+    () => Object.fromEntries(mailboxes.map((mailbox) => [mailbox.id, getMailboxStateMeta(mailbox)])),
+    [mailboxes]
+  );
+  const calendarSourceStateMetaById = useMemo(
+    () => Object.fromEntries(calendarSources.map((source) => [source.id, getCalendarSourceStateMeta(source)])),
+    [calendarSources]
+  );
+  const selectedMailboxStateMeta = selectedMailbox ? (mailboxStateMetaById[selectedMailbox.id] || getMailboxStateMeta(selectedMailbox)) : getMailboxStateMeta({ provider: mailboxForm.provider, config: mailboxForm.config, status: mailboxForm.status, address: mailboxForm.address });
+  const selectedCalendarSourceStateMeta = selectedCalendarSource ? (calendarSourceStateMetaById[selectedCalendarSource.id] || getCalendarSourceStateMeta(selectedCalendarSource)) : getCalendarSourceStateMeta({ provider: calendarSourceForm.provider, config: calendarSourceForm.config, status: selectedCalendarSource?.status });
   const automationNeedsConfig = isNeedsConfigStatus(selectedAutomationProviderConfig?.status);
   const emailVerifierNeedsConfig = emailVerifierConfig?.status === 'error';
   const automationConfigLocked = !!selectedAutomationProviderConfig && !automationConfigEditing;
@@ -884,6 +1135,41 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const calendarConfigLocked = !!selectedCalendarSource && !calendarConfigEditing;
   const aiProviderConfigLocked = !!selectedAiProviderConfig && !aiProviderConfigEditing;
   const paymentConfigLocked = !!selectedPaymentProviderConfig && !paymentConfigEditing;
+  const moduleAlerts = useMemo(() => {
+    const alerts = [];
+    if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
+      mailboxes.forEach((mailbox) => {
+        const meta = mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox);
+        if (meta.machine === 'reconnect_required' || meta.machine === 'unauthorized' || meta.machine === 'needs_config') {
+          alerts.push({
+            key: `mailbox-${mailbox.id}`,
+            tone: meta.tone,
+            message: `${mailbox.name}: ${meta.detail}`
+          });
+        }
+      });
+      if (emailVerifierConfig?.status === 'error') {
+        alerts.push({
+          key: 'email-verifier-error',
+          tone: 'error',
+          message: emailVerifierConfig.last_error || 'Email verification provider test failed.'
+        });
+      }
+    }
+    if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR) {
+      calendarSources.forEach((source) => {
+        const meta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
+        if (meta.machine === 'reconnect_required' || meta.machine === 'unauthorized' || meta.machine === 'needs_config') {
+          alerts.push({
+            key: `calendar-${source.id}`,
+            tone: meta.tone,
+            message: `${source.name}: ${meta.detail}`
+          });
+        }
+      });
+    }
+    return alerts.slice(0, 4);
+  }, [activeCategory, calendarSourceStateMetaById, calendarSources, emailVerifierConfig, mailboxStateMetaById, mailboxes]);
 
   const categoryCounts = useMemo(() => {
     const counts = {};
@@ -985,8 +1271,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleSaveMailbox = async () => {
     if (!selectedMailbox?.id) return;
-    if (selectedMailboxNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This mailbox needs reconnect or reset before it can be saved normally.' });
+    if (selectedMailboxStateMeta.saveDisabled) {
+      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     try {
@@ -1096,8 +1382,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleTestMailbox = async () => {
     if (!selectedMailbox?.id) return;
-    if (selectedMailboxNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This mailbox is incomplete. Reconnect or delete/reset it before testing.' });
+    if (selectedMailboxStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     setBusyAction('mailbox-test');
@@ -1116,8 +1402,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleSyncMailbox = async () => {
     if (!selectedMailbox?.id) return;
-    if (selectedMailboxNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This mailbox is incomplete. Reconnect or delete/reset it before syncing.' });
+    if (selectedMailboxStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     try {
@@ -1153,8 +1439,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleDisconnectMailbox = async () => {
     if (!selectedMailbox?.id) return;
-    if (selectedMailboxNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This mailbox is already incomplete. Use Reconnect or Delete / Reset instead.' });
+    if (selectedMailboxStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     if (!window.confirm(`Disconnect ${selectedMailbox.name}? OAuth/session state will be cleared and the mailbox will require reconnect before use.`)) return;
@@ -1170,8 +1456,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleSaveCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
-    if (selectedCalendarSourceNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This calendar source needs reconnect or reset before it can be saved normally.' });
+    if (selectedCalendarSourceStateMeta.saveDisabled) {
+      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     try {
@@ -1220,8 +1506,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleTestCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
-    if (selectedCalendarSourceNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This calendar source is incomplete. Reconnect or delete/reset it before testing.' });
+    if (selectedCalendarSourceStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     setBusyAction('calendar-test');
@@ -1241,8 +1527,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleSyncCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
-    if (selectedCalendarSourceNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This calendar source is incomplete. Reconnect or delete/reset it before syncing.' });
+    if (selectedCalendarSourceStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     try {
@@ -1256,8 +1542,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleImportCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
-    if (selectedCalendarSourceNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This calendar source is incomplete. Reconnect or delete/reset it before importing.' });
+    if (selectedCalendarSourceStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     try {
@@ -1295,8 +1581,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   const handleDisconnectCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
-    if (selectedCalendarSourceNeedsConfig) {
-      setNotice({ tone: 'warning', message: 'This calendar source is already incomplete. Use Reconnect or Delete / Reset instead.' });
+    if (selectedCalendarSourceStateMeta.authActionsDisabled) {
+      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     if (!window.confirm(`Disconnect ${selectedCalendarSource.name}? OAuth/feed sync state will be cleared and the source will require reconnect before use.`)) return;
@@ -1575,7 +1861,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const renderEmailAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
       {(() => {
         const emailVerifierStatusMeta = getEmailVerifierStatusMeta(emailVerifierConfig || {});
         const emailVerifierDetail = emailVerifierConfig?.status === 'error'
@@ -1587,7 +1873,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               : 'Used by CRM verification and flow nodes through the existing verifier runtime.'));
         return (
           <>
-      <div className="space-y-3">
+      <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pr-1">
         <div className="flex items-center justify-between gap-2">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
@@ -1622,28 +1908,31 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           </div>
         ) : null}
         <div className="space-y-3">
-          {mailboxes.map((mailbox) => (
+          {mailboxes.map((mailbox) => {
+            const mailboxStateMeta = mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox);
+            return (
               <ResourceCard
                 key={mailbox.id}
                 icon={Mail}
                 logoId={mailbox.provider}
                 title={mailbox.name}
                 subtitle={mailbox.provider}
-              status={mailbox.health?.label || mailbox.status || 'Unknown'}
-              detail={providerStateDetail(mailbox.config, mailbox.address || 'No address')}
-              selected={selectedEmailResourceId === mailbox.id}
-              onClick={() => {
-                setSelectedMailboxId(mailbox.id);
-                setSelectedEmailResourceId(mailbox.id);
-              }}
-              chips={[
-                `Now ${mailbox.queue_counts?.now || 0}`,
-                `Reply ${mailbox.queue_counts?.['needs-reply'] || 0}`,
-                mailbox.inbound_enabled ? 'Inbound On' : 'Inbound Off',
-                mailbox.config?.connected_identity ? 'Connected' : 'Needs Auth'
-              ]}
-            />
-          ))}
+                status={mailboxStateMeta.label}
+                detail={mailboxStateMeta.detail || providerStateDetail(mailbox.config, mailbox.address || 'No address')}
+                selected={selectedEmailResourceId === mailbox.id}
+                onClick={() => {
+                  setSelectedMailboxId(mailbox.id);
+                  setSelectedEmailResourceId(mailbox.id);
+                }}
+                chips={[
+                  `Now ${mailbox.queue_counts?.now || 0}`,
+                  `Reply ${mailbox.queue_counts?.['needs-reply'] || 0}`,
+                  mailbox.inbound_enabled ? 'Inbound On' : 'Inbound Off',
+                  mailboxStateMeta.machine === 'connected' ? 'Auth Ready' : mailboxStateMeta.label
+                ]}
+              />
+            );
+          })}
           <ResourceCard
             key={EMAIL_VERIFIER_RESOURCE_ID}
             icon={ShieldCheck}
@@ -1662,7 +1951,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           />
         </div>
       </div>
-      <div className="space-y-4">
+      <div className="min-h-0 space-y-4 overflow-y-auto no-scrollbar pl-1">
         {selectedEmailInfrastructureKind === 'email-verifier' ? (
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
@@ -1707,24 +1996,24 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setMailboxConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
-                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedMailboxNeedsConfig ? 'Reconnect' : 'Connect OAuth'}</button> : null}
-                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} disabled={selectedMailboxNeedsConfig} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Disconnect</button> : null}
-                <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxNeedsConfig} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
+                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
+                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Disconnect</button> : null}
+                <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
-                <button onClick={handleSyncMailbox} disabled={selectedMailboxNeedsConfig} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
-                <button onClick={handleSaveMailbox} disabled={selectedMailboxNeedsConfig || mailboxConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSyncMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
+                <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled || mailboxConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-save'} label="Saved" />
-                <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />{selectedMailboxNeedsConfig ? 'Delete / Reset' : 'Delete'}</button>
+                <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />{selectedMailboxStateMeta.authActionsDisabled ? 'Delete / Reset' : 'Delete'}</button>
               </div>
             </div>
             {mailboxForm.config?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{mailboxForm.config.last_error}</div> : null}
-            {selectedMailboxNeedsConfig ? <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">This connector is incomplete. Reconnect to rebuild OAuth state, or use Delete / Reset to remove the broken record and start clean. Test, sync, save, and disconnect are disabled until recovery.</div> : null}
+            {selectedMailboxStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedMailboxStateMeta.tone)}`}>{selectedMailboxStateMeta.detail} Test, sync, save, and disconnect are disabled until recovery.</div> : null}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               This page is for connection management. The actual mail reader is the thread workspace in <span className="font-medium text-[var(--color-text-primary)]">Comms</span>.
               {mailboxDeleteTarget ? ` Deleting this mailbox will reassign any linked threads to ${mailboxDeleteTarget.name}.` : ' The last remaining mailbox cannot be deleted.'}
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.health?.label || selectedMailbox.status || 'Unknown'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.last_synced_at ? new Date(selectedMailbox.last_synced_at).toLocaleString() : 'Never'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Inbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.inbound_enabled ? 'Enabled' : 'Disabled'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Outbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.outbound_enabled ? 'Enabled' : 'Disabled'}</div></div>
@@ -1732,7 +2021,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.connected_identity || mailboxForm.address || 'Not connected'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.last_tested_at ? new Date(mailboxForm.config.last_tested_at).toLocaleString() : 'Never'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.status || selectedMailbox.status || 'Unknown'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
             </div>
             <fieldset disabled={mailboxConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
@@ -1754,8 +2043,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const renderCalendarAdmin = () => (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
-      <div className="space-y-3">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
+      <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pr-1">
         <div className="flex items-center justify-between gap-2">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar Sources</div>
@@ -1780,52 +2069,55 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           </div>
         ) : null}
         <div className="space-y-3">
-          {calendarSources.map((source) => (
+          {calendarSources.map((source) => {
+            const calendarStateMeta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
+            return (
             <ResourceCard
               key={source.id}
               icon={CalendarDays}
               logoId={source.provider}
               title={source.name}
               subtitle={source.provider}
-              status={source.health?.label || source.status || 'Unknown'}
-              detail={providerStateDetail(source.config, source.health?.detail || 'Source ready.')}
+              status={calendarStateMeta.label}
+              detail={calendarStateMeta.detail || providerStateDetail(source.config, source.health?.detail || 'Source ready.')}
               selected={selectedCalendarSourceId === source.id}
               onClick={() => setSelectedCalendarSourceId(source.id)}
               chips={[
                 `Events ${source.event_counts?.total || 0}`,
                 `Synced ${source.event_counts?.synced || 0}`,
                 `Conflicts ${source.event_counts?.conflicts || 0}`,
-                source.config?.connected_calendar ? 'Connected' : 'Needs Auth'
+                calendarStateMeta.machine === 'connected' ? 'Auth Ready' : calendarStateMeta.label
               ]}
             />
-          ))}
+            );
+          })}
         </div>
       </div>
-      <div className="space-y-4">
+      <div className="min-h-0 space-y-4 overflow-y-auto no-scrollbar pl-1">
         {selectedCalendarSource ? (
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Calendar Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setCalendarConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
-                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSourceNeedsConfig ? 'Reconnect' : 'Connect OAuth'}</button> : null}
-                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} disabled={selectedCalendarSourceNeedsConfig} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Disconnect</button> : null}
-                <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceNeedsConfig} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
+                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
+                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Disconnect</button> : null}
+                <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
-                <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceNeedsConfig} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
-                <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceNeedsConfig} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
-                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceNeedsConfig || calendarConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
+                <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
+                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled || calendarConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-save'} label="Saved" />
-                <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />{selectedCalendarSourceNeedsConfig ? 'Delete / Reset' : 'Delete'}</button>
+                <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />{selectedCalendarSourceStateMeta.authActionsDisabled ? 'Delete / Reset' : 'Delete'}</button>
               </div>
             </div>
             {calendarSourceForm.config?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{calendarSourceForm.config.last_error}</div> : null}
-            {selectedCalendarSourceNeedsConfig ? <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">This connector is incomplete. Reconnect to rebuild OAuth state, or use Delete / Reset to remove the broken source and create a clean replacement. Test, sync, import, save, and disconnect are disabled until recovery.</div> : null}
+            {selectedCalendarSourceStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedCalendarSourceStateMeta.tone)}`}>{selectedCalendarSourceStateMeta.detail} Test, sync, import, save, and disconnect are disabled until recovery.</div> : null}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               {calendarSourceDeleteTarget ? `Deleting this source will move any linked events to ${calendarSourceDeleteTarget.name}.` : 'If this is the last source, linked events will simply be detached from it.'}
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status || 'Unknown'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.label}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Events</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.event_counts?.total || 0}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Synced</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.event_counts?.synced || 0}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Conflicts</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.event_counts?.conflicts || 0}</div></div>
@@ -2046,7 +2338,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   const totalConnected = automationProviderConfigs.length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION).length + mailboxes.length + calendarSources.length + aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length + paymentProviderConfigs.length;
-  const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length + mailboxes.filter((mailbox) => mailbox.status !== 'disconnected').length + calendarSources.filter((source) => source.status !== 'disconnected').length + aiProviderConfigs.filter((provider) => provider.enabled).length + paymentProviderConfigs.filter((provider) => provider.enabled).length;
+  const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length
+    + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length
+    + mailboxes.filter((mailbox) => (mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox)).machine === 'connected').length
+    + calendarSources.filter((source) => (calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source)).machine === 'connected').length
+    + aiProviderConfigs.filter((provider) => provider.enabled).length
+    + paymentProviderConfigs.filter((provider) => provider.enabled).length;
 
   const renderPaymentsAdmin = () => (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_3fr]">
@@ -2145,10 +2442,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg-primary)]">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
       <ModuleHeader
         title="Integrations"
+        subtitle="Admin control plane for mailbox accounts, calendar sources, and every other external system connected to AIO CRM."
         showTitle={false}
+        showCompactTitle
+        className="bg-transparent"
         actions={[
           {
             label: 'Add Integration',
@@ -2170,16 +2470,24 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         ]}
         showActions
       />
-      <div className="flex flex-1 flex-col gap-6 p-6">
-        <p className="m-0 text-sm text-[var(--color-text-secondary)]">Admin control plane for mailbox accounts, calendar sources, and every other external system connected to AIO CRM.</p>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Total Connections</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{totalConnected}</div></div>
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Active</div><div className="mt-2 text-2xl font-bold text-green-500">{activeConnected}</div></div>
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Categories</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{categories.length}</div></div>
+      <div className="px-6 pt-4">
+        <div className="space-y-3">
+          {moduleAlerts.map((alert) => (
+            <div key={alert.key} className={`rounded-lg border px-4 py-3 ${toneClass(alert.tone)}`}>
+              {alert.message}
+            </div>
+          ))}
+          {notice ? <div className={`rounded-lg border px-4 py-3 ${toneClass(notice.tone)}`}>{notice.message}</div> : null}
         </div>
-        {notice ? <div className={`rounded-lg border p-4 ${toneClass(notice.tone)}`}>{notice.message}</div> : null}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6 pt-4">
+        <div className="flex flex-nowrap gap-4 overflow-x-auto no-scrollbar">
+          <div className="min-w-[220px] flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Total Connections</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{totalConnected}</div></div>
+          <div className="min-w-[220px] flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Active</div><div className="mt-2 text-2xl font-bold text-green-500">{activeConnected}</div></div>
+          <div className="min-w-[220px] flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"><div className="text-xs font-medium text-[var(--color-text-secondary)]">Categories</div><div className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">{categories.length}</div></div>
+        </div>
         <IntegrationTabs categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} counts={categoryCounts} />
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
             ? renderAutomationAdmin()
             : activeCategory === INTEGRATION_CATEGORIES.EMAIL

@@ -166,8 +166,86 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
               <option value="update_booking">Update Booking</option>
               <option value="cancel_booking">Cancel Booking</option>
               <option value="get_booking">Get Booking</option>
+              <option value="generate_video">Generate Video</option>
+              <option value="transcribe_media">Transcribe Media</option>
+              <option value="ingest_meeting_artifacts">Ingest Meeting Artifacts</option>
             </select>
           </div>
+
+          {config.actionType === 'generate_video' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.templateId || ''}
+                onChange={(e) => handleInputChange('templateId', e.target.value)}
+                placeholder="Template ID"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.outputTarget || ''}
+                onChange={(e) => handleInputChange('outputTarget', e.target.value)}
+                placeholder="Output Target"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.script || ''}
+                onChange={(e) => handleInputChange('script', e.target.value)}
+                placeholder="Script or prompt"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'transcribe_media' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.sourceType || ''}
+                onChange={(e) => handleInputChange('sourceType', e.target.value)}
+                placeholder="Source Type"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.sourceRef || ''}
+                onChange={(e) => handleInputChange('sourceRef', e.target.value)}
+                placeholder="Source Ref"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.transcriptText || ''}
+                onChange={(e) => handleInputChange('transcriptText', e.target.value)}
+                placeholder="Transcript text"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'ingest_meeting_artifacts' && (
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                type="text"
+                value={config.meetingProvider || ''}
+                onChange={(e) => handleInputChange('meetingProvider', e.target.value)}
+                placeholder="Meeting Provider"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.meetingRef || ''}
+                onChange={(e) => handleInputChange('meetingRef', e.target.value)}
+                placeholder="Meeting Ref"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <textarea
+                value={config.transcriptText || ''}
+                onChange={(e) => handleInputChange('transcriptText', e.target.value)}
+                placeholder="Transcript text"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
