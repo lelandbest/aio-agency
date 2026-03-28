@@ -62,7 +62,7 @@ export const IntegrationCard = ({
             <button
               className="p-1.5 hover:bg-[var(--color-hover)] rounded transition-colors"
               onClick={() => onSettings(integration.id)}
-              title="Configure settings"
+              title="Edit"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: isEnabled ? colors.primary : 'var(--color-text-secondary)' }}>
                 <circle cx="12" cy="12" r="3"></circle>
@@ -93,7 +93,7 @@ export const IntegrationCard = ({
         {integration.config && (
           <div className="mb-3 text-xs text-[var(--color-text-secondary)] space-y-1">
             <div className="flex justify-between">
-              <span>Configured:</span>
+              <span>Saved:</span>
               <span className="text-[var(--color-text-primary)]">
                 {new Date(integration.configuredAt).toLocaleDateString()}
               </span>
@@ -107,13 +107,13 @@ export const IntegrationCard = ({
             className="flex-1 px-3 py-2 text-sm font-medium border border-[var(--color-border)] rounded hover:bg-[var(--color-hover)] transition-colors text-[var(--color-text-primary)]"
             onClick={() => onSettings(integration.id)}
           >
-            Configure
+            Edit
           </button>
           <button
             className="flex-1 px-3 py-2 text-sm font-medium border border-red-500 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
             onClick={() => onRemove(integration.id)}
           >
-            Remove
+            Delete
           </button>
         </div>
       </div>

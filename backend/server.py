@@ -1,9 +1,14 @@
+import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import os
 import re
 import sqlite3
 import sys
+import time
 from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -33,7 +38,7 @@ from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
 from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_config
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
-from orchestration import ExecutionEngine, emit_system_event
+from orchestration import ExecutionEngine, emit_system_event, run_resume_worker
 try:
     from backend.planner import create_booking_execution_plan
     from backend.agent_definitions import AGENT_DEFINITIONS
@@ -66,8 +71,10 @@ from oauth_connect import (
     build_microsoft_authorize_url,
     exchange_google_code,
     exchange_microsoft_code,
+    google_calendar_list,
     google_primary_calendar,
     google_profile,
+    microsoft_calendar_list,
     microsoft_primary_calendar,
     microsoft_profile,
 )
@@ -79,8 +86,8 @@ logger = logging.getLogger(__name__)
 
 provider = create_provider()
 auth_store = AuthStore(default_auth_db_path())
-oauth_states: dict[str, dict[str, str]] = {}
 GOOGLE_APP_AUTH_SCOPE = "openid email profile"
+OAUTH_STATE_TTL_SECONDS = 900
 
 AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
     "ALPHA": {
@@ -252,6 +259,21 @@ def utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def safe_int(value: Any, default: int | None = None) -> int | None:
+    try:
+        if value is None or value == "":
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def omega_local_data_paths() -> list[Path]:
     paths: dict[str, Path] = {}
     for candidate in [getattr(auth_store, "db_path", None), getattr(provider, "db_path", None)]:
@@ -269,7 +291,6 @@ def omega_local_data_paths() -> list[Path]:
 
 def reset_runtime_stores() -> None:
     global provider, auth_store
-    oauth_states.clear()
     auth_store = AuthStore(default_auth_db_path())
     provider = create_provider()
 
@@ -942,15 +963,90 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
     ).strip().lower()
     if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk"}:
         return action_type
-    if action_type in {"set_variable", "send_email", "http_request"}:
+    if action_type in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
         return action_type
-    if logic_type in {"if_then", "wait_for_verification", "verification_branch"}:
-        return logic_type
-    if template_id in {"set_variable", "send_email", "http_request"}:
+    if logic_type in {"if_then", "wait_for_verification", "verification_branch", "time_delay", "delay", "filter", "switch"}:
+        return "time_delay" if logic_type in {"time_delay", "delay"} else logic_type
+    if template_id in {"time_delay", "delay"}:
+        return "time_delay"
+    if template_id in {"filter", "switch"}:
+        return template_id
+    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
         return template_id
     if node_type == "webhook" and template_id == "webhook":
         return "webhook"
     return "agent_task"
+
+
+def normalize_flow_trigger_key(value: Any) -> str:
+    return str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def trigger_node_event_keys(node: dict[str, Any]) -> set[str]:
+    if str(node.get("type") or "").lower() != "trigger":
+        return set()
+    data = node.get("data") if isinstance(node.get("data"), dict) else {}
+    config = data.get("config") if isinstance(data.get("config"), dict) else {}
+    candidates = {
+        config.get("event"),
+        data.get("templateId"),
+        data.get("id"),
+        data.get("label"),
+        node.get("id"),
+    }
+    keys: set[str] = set()
+    for candidate in candidates:
+        normalized = normalize_flow_trigger_key(candidate)
+        if not normalized:
+            continue
+        keys.add(normalized)
+        if normalized.endswith("_trigger"):
+            keys.add(normalized[:-8])
+    return keys
+
+
+def resolve_flow_trigger_targets(flow: dict[str, Any], trigger_key: str) -> list[str]:
+    normalized_key = normalize_flow_trigger_key(trigger_key)
+    if not normalized_key:
+        return []
+    nodes, edges = extract_flow_graph(flow)
+    outgoing_by_node: dict[str, list[str]] = {}
+    for edge in edges:
+        source = str(edge.get("source") or "").strip()
+        target = str(edge.get("target") or "").strip()
+        if source and target:
+            outgoing_by_node.setdefault(source, []).append(target)
+    targets: list[str] = []
+    seen: set[str] = set()
+    for node in nodes:
+        node_id = str(node.get("id") or "").strip()
+        if not node_id or normalized_key not in trigger_node_event_keys(node):
+            continue
+        for target in outgoing_by_node.get(node_id, []):
+            if target and target not in seen:
+                seen.add(target)
+                targets.append(target)
+    return targets
+
+
+def reachable_flow_node_ids(edges: list[dict[str, Any]], start_node_ids: list[str]) -> set[str]:
+    outgoing_by_node: dict[str, list[str]] = {}
+    for edge in edges:
+        source = str(edge.get("source") or "").strip()
+        target = str(edge.get("target") or "").strip()
+        if source and target:
+            outgoing_by_node.setdefault(source, []).append(target)
+    reachable: set[str] = set()
+    stack = [node_id for node_id in start_node_ids if node_id]
+    while stack:
+        node_id = stack.pop()
+        if not node_id or node_id in reachable:
+            continue
+        reachable.add(node_id)
+        for target in outgoing_by_node.get(node_id, []):
+            if target not in reachable:
+                stack.append(target)
+    return reachable
 
 
 def booking_event_payload(event: dict[str, Any] | None) -> dict[str, Any]:
@@ -999,6 +1095,7 @@ def build_flow_execution_steps(
     command_text: str,
     fallback_agent: str = "",
     runtime_context: dict[str, Any] | None = None,
+    start_node_ids: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     nodes, edges = extract_flow_graph(flow)
     ordered_nodes = order_flow_nodes(nodes, edges)
@@ -1021,9 +1118,11 @@ def build_flow_execution_steps(
         }
         outgoing_by_node.setdefault(source, []).append(projected_edge)
         incoming_by_node.setdefault(target, []).append(projected_edge)
+    allowed_node_ids = reachable_flow_node_ids(edges, start_node_ids or []) if start_node_ids else None
     executable_nodes = [
         node for node in ordered_nodes
         if str(node.get("type") or "").lower() not in {"trigger", "frame", "note"}
+        and (allowed_node_ids is None or str(node.get("id") or "").strip() in allowed_node_ids)
     ]
     raw_steps: list[dict[str, Any]] = []
     agent_chain: list[str] = []
@@ -1217,8 +1316,16 @@ async def lifespan(_: FastAPI):
     logger.info("AIO CRM Backend starting up")
     logger.info("Environment: %s", os.getenv("ENVIRONMENT", "development"))
     logger.info("Provider: %s", provider.health())
-    yield
-    logger.info("AIO CRM Backend shutting down")
+    resume_worker = asyncio.create_task(run_resume_worker(provider))
+    try:
+        yield
+    finally:
+        resume_worker.cancel()
+        try:
+            await resume_worker
+        except asyncio.CancelledError:
+            pass
+        logger.info("AIO CRM Backend shutting down")
 
 app = FastAPI(
     title="AIO CRM Backend",
@@ -1700,6 +1807,11 @@ class FlowDraftRequest(BaseModel):
     source: str | None = None
     metadata: dict[str, Any] | None = None
 
+
+class FlowManualTriggerRequest(BaseModel):
+    command: str | None = None
+    context: dict[str, Any] | None = None
+
 class MailSendRequest(BaseModel):
     mailbox_id: str
     body: str
@@ -1732,6 +1844,45 @@ class BroadcastMessageCreateRequest(BaseModel):
 
 def oauth_callback_url() -> str:
     return f"{backend_base_url().rstrip('/')}/api/oauth/callback"
+
+
+def oauth_state_secret() -> bytes:
+    seed = (
+        os.getenv("OAUTH_STATE_SECRET")
+        or os.getenv("SECRET_KEY")
+        or str(getattr(auth_store, "db_path", "") or "aio-crm-oauth-state")
+    )
+    return seed.encode("utf-8")
+
+
+def encode_oauth_state(payload: dict[str, Any]) -> str:
+    state_payload = {
+        **payload,
+        "iat": int(time.time()),
+    }
+    body_json = json.dumps(state_payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    body = base64.urlsafe_b64encode(body_json).decode("ascii").rstrip("=")
+    signature = hmac.new(oauth_state_secret(), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{body}.{signature}"
+
+
+def decode_oauth_state(state: str) -> dict[str, Any]:
+    try:
+        body, signature = str(state or "").split(".", 1)
+    except ValueError as error:
+        raise ValueError("OAuth state is missing or malformed.") from error
+    expected_signature = hmac.new(oauth_state_secret(), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected_signature):
+        raise ValueError("OAuth state signature is invalid.")
+    padded = body + "=" * (-len(body) % 4)
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+    except Exception as error:
+        raise ValueError("OAuth state payload is invalid.") from error
+    issued_at = safe_int(payload.get("iat"))
+    if not issued_at or (time.time() - issued_at) > OAUTH_STATE_TTL_SECONDS:
+        raise ValueError("OAuth state is expired.")
+    return payload
 
 
 def oauth_success_html(kind: str, resource_id: str, provider_name: str, extra_payload: dict[str, Any] | None = None) -> str:
@@ -1812,6 +1963,15 @@ def require_session(request: Request) -> dict[str, Any]:
     if not session:
         raise HTTPException(status_code=401, detail="Authentication required.")
     return session
+
+
+def get_current_user_id(request: Request) -> str:
+    session = require_session(request)
+    user = session.get("user") or {}
+    user_id = str(user.get("id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authenticated user id is required.")
+    return user_id
 
 
 WORKSPACE_VIEWER_ROLES = {"owner", "admin", "staff", "viewer"}
@@ -2361,8 +2521,7 @@ async def authorize_google_auth():
     if not google_client:
         raise HTTPException(status_code=400, detail="Google app sign-in is not configured yet.")
 
-    state = uuid4().hex
-    oauth_states[state] = {"kind": "auth", "provider": "google-auth"}
+    state = encode_oauth_state({"kind": "auth", "provider": "google-auth"})
     return RedirectResponse(
         build_google_authorize_url(google_client["client_id"], oauth_callback_url(), state, GOOGLE_APP_AUTH_SCOPE)
     )
@@ -3263,7 +3422,10 @@ async def deploy_tenant(request: Request, payload: TenantDeployRequest):
         raise HTTPException(status_code=400, detail=error.payload) from error
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3274,7 +3436,10 @@ async def get_tenant_deployment(tenant_id: str, request: Request):
         return {"data": auth_store.get_tenant_deployment(token, tenant_id)}
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3288,7 +3453,25 @@ async def rename_workspace(workspace_id: str, request: Request, payload: Workspa
         return auth_store.rename_workspace(token, workspace_id, payload.name, payload.settings)
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.delete("/api/workspaces/{workspace_id}")
+async def archive_workspace(workspace_id: str, request: Request):
+    require_session(request)
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.archive_workspace(token, workspace_id)}
+    except ValueError as error:
+        detail = str(error)
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered or "only workspace owners" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3299,7 +3482,10 @@ async def list_workspace_memberships(workspace_id: str, request: Request):
         return {"data": auth_store.list_workspace_memberships(token, workspace_id)}
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3322,7 +3508,10 @@ async def add_workspace_member(workspace_id: str, request: Request, payload: Wor
         return auth_store.add_workspace_member(token, workspace_id, payload.email, payload.role)
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3345,7 +3534,10 @@ async def create_workspace_user(workspace_id: str, request: Request, payload: Wo
         )
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3357,7 +3549,10 @@ async def update_workspace_member(workspace_id: str, membership_id: str, request
         return auth_store.update_workspace_member(token, workspace_id, membership_id, payload.role)
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3369,7 +3564,10 @@ async def remove_workspace_member(workspace_id: str, membership_id: str, request
         return auth_store.remove_workspace_member(token, workspace_id, membership_id)
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3452,7 +3650,10 @@ async def update_canonical_tenant_settings(request: Request, payload: CanonicalS
         return {"data": updated}
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3464,7 +3665,10 @@ async def update_canonical_user_settings(request: Request, payload: CanonicalSet
         return {"data": auth_store.update_user_settings(token, payload.settings)}
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
@@ -3490,15 +3694,19 @@ async def import_tenant_blueprint_api(request: Request, payload: TenantBlueprint
         raise HTTPException(status_code=400, detail=error.payload) from error
     except ValueError as error:
         detail = str(error)
-        status_code = 403 if "permission" in detail.lower() else 400
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 @app.get("/api/oauth/callback")
 async def oauth_callback(state: str, code: str | None = None, error: str | None = None, error_description: str | None = None):
-    pending = oauth_states.pop(state, None)
-    if not pending:
-        return HTMLResponse(oauth_error_html("OAuth session expired or is invalid."), status_code=400)
+    try:
+        pending = decode_oauth_state(state)
+    except Exception as exc:
+        return HTMLResponse(oauth_error_html(str(exc)), status_code=400)
 
     if error:
         description = error_description or error
@@ -3507,7 +3715,13 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
     if not code:
         return HTMLResponse(oauth_error_html("Missing authorization code from provider."), status_code=400)
 
+    tenant_token = None
     try:
+        tenant_id = clean_text(pending.get("tenant_id")) or None
+        if pending.get("kind") in {"mailbox", "calendar"} and not tenant_id:
+            raise ValueError("OAuth state is missing a bound tenant/workspace context.")
+        if tenant_id:
+            tenant_token = set_request_tenant_id(tenant_id)
         if pending["kind"] == "auth":
             google_client = resolve_google_auth_client()
             if pending["provider"] == "google-auth":
@@ -3551,6 +3765,7 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
                         "config": {
                             **config,
                             "refresh_token": token_data.get("refresh_token") or config.get("refresh_token"),
+                            "connected_identity": profile.get("email") or profile.get("emailAddress") or config.get("connected_identity") or mailbox.get("address"),
                             "email": profile.get("email") or profile.get("emailAddress") or config.get("email") or mailbox.get("address"),
                         }
                     },
@@ -3566,6 +3781,7 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
                         "config": {
                             **config,
                             "refresh_token": token_data.get("refresh_token") or config.get("refresh_token"),
+                            "connected_identity": identity,
                             "email": identity,
                             "user_id": profile.get("id") or config.get("user_id"),
                         }
@@ -3585,16 +3801,21 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
         if pending["provider"] == "google-calendar-oauth":
             token_data = exchange_google_code(config.get("client_id"), config.get("client_secret"), code, oauth_callback_url())
             access_token = token_data.get("access_token")
-            primary_calendar = google_primary_calendar(access_token) if access_token else None
+            available_calendars = google_calendar_list(access_token) if access_token else []
             profile = google_profile(access_token) if access_token else {}
+            configured_calendar_id = clean_text(config.get("calendar_id")) or None
+            selected_calendar = next((item for item in available_calendars if clean_text(item.get("id")) == configured_calendar_id), None)
             provider.update_calendar_source(
                 source["id"],
                 {
                     "config": {
                         **config,
                         "refresh_token": token_data.get("refresh_token") or config.get("refresh_token"),
-                        "calendar_id": config.get("calendar_id") or (primary_calendar.get("id") if primary_calendar else "primary"),
-                        "email": profile.get("emailAddress") or config.get("email"),
+                        "calendar_id": configured_calendar_id,
+                        "email": profile.get("email") or config.get("email"),
+                        "connected_identity": profile.get("email") or config.get("connected_identity") or config.get("email"),
+                        "connected_calendar": (selected_calendar or {}).get("label"),
+                        "available_calendars": available_calendars,
                     }
                 },
             )
@@ -3603,7 +3824,9 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
             access_token = token_data.get("access_token")
             profile = microsoft_profile(access_token) if access_token else {}
             user_id = profile.get("id") or config.get("user_id")
-            primary_calendar = microsoft_primary_calendar(access_token, user_id) if access_token and user_id else None
+            available_calendars = microsoft_calendar_list(access_token, user_id) if access_token and user_id else []
+            configured_calendar_id = clean_text(config.get("calendar_id")) or None
+            selected_calendar = next((item for item in available_calendars if clean_text(item.get("id")) == configured_calendar_id), None)
             provider.update_calendar_source(
                 source["id"],
                 {
@@ -3611,17 +3834,36 @@ async def oauth_callback(state: str, code: str | None = None, error: str | None 
                         **config,
                         "refresh_token": token_data.get("refresh_token") or config.get("refresh_token"),
                         "user_id": user_id,
-                        "calendar_id": config.get("calendar_id") or (primary_calendar.get("id") if primary_calendar else None),
+                        "calendar_id": configured_calendar_id,
+                        "connected_identity": profile.get("mail") or profile.get("userPrincipalName") or config.get("connected_identity"),
+                        "connected_calendar": (selected_calendar or {}).get("label"),
+                        "available_calendars": available_calendars,
                     }
                 },
             )
         else:
             raise ValueError("Unsupported calendar provider")
 
-        provider.test_calendar_source(source["id"])
-        return HTMLResponse(oauth_success_html("calendar", source["id"], pending["provider"]))
+        updated_source = next((item for item in provider.list_calendar_sources() if item["id"] == source["id"]), None) or source
+        if ((updated_source.get("config") or {}).get("calendar_id")):
+            provider.test_calendar_source(source["id"])
+        return HTMLResponse(
+            oauth_success_html(
+                "calendar",
+                source["id"],
+                pending["provider"],
+                extra_payload={
+                    "calendarSelectionRequired": not bool(((updated_source.get("config") or {}).get("calendar_id"))),
+                    "connectedIdentity": (updated_source.get("config") or {}).get("connected_identity"),
+                    "connectedCalendar": (updated_source.get("config") or {}).get("connected_calendar"),
+                },
+            )
+        )
     except Exception as exc:
         return HTMLResponse(oauth_error_html(str(exc)), status_code=400)
+    finally:
+        if tenant_token is not None:
+            reset_request_tenant(tenant_token)
 
 
 @app.get("/api/contacts")
@@ -3853,6 +4095,68 @@ async def save_flow(flow_id: str, request: Request, payload: FlowSaveRequest):
     return {"data": provider.save_flow({**payload.model_dump(), "id": flow_id})}
 
 
+@app.post("/api/flows/{flow_id}/trigger/manual")
+async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowManualTriggerRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manually trigger flows.")
+    flow = provider.get_flow(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+    trigger_targets = resolve_flow_trigger_targets(flow, "manual_trigger")
+    if not trigger_targets:
+        raise HTTPException(status_code=400, detail="Flow does not contain a manual trigger with a downstream path.")
+    tenant = session.get("tenant") or {}
+    user = session.get("user") or {}
+    provider_config = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
+    trigger_event = {
+        "type": "manual_trigger",
+        "payload": {
+            "flow_id": flow_id,
+            "flow_name": flow.get("name") or "Untitled Flow",
+            "user_id": user.get("id"),
+        },
+        "meta": {"source": "manual", "depth": 0},
+    }
+    runtime_context = {
+        **(payload.context or {}),
+        "trigger_event": trigger_event,
+        "manual_trigger": trigger_event["payload"],
+    }
+    command_text = (payload.command or "").strip() or f"Manual trigger for flow {flow.get('name') or 'Untitled Flow'}"
+    raw_steps, flow_agent_chain = build_flow_execution_steps(
+        flow,
+        command_text,
+        "ALPHA",
+        runtime_context=runtime_context,
+        start_node_ids=trigger_targets,
+    )
+    if not raw_steps:
+        raise HTTPException(status_code=400, detail="Manual trigger did not resolve any executable nodes.")
+    flow_context = {
+        "module": "flows",
+        "surface": "manual-trigger",
+        "field": "trigger",
+        "intent": "flow_trigger",
+        "trigger_event": trigger_event,
+        "flow_id": flow.get("id"),
+        "flow_name": flow.get("name") or "Untitled Flow",
+        "flow": {"id": flow.get("id"), "name": flow.get("name") or "Untitled Flow"},
+        "step_count": len(raw_steps),
+        "agent_chain": flow_agent_chain,
+        "_provider_config": provider_config,
+        "_requested_agent_locked": True,
+        **runtime_context,
+    }
+    result = ExecutionEngine(provider).run(
+        raw_steps=raw_steps,
+        mode="execute",
+        command=command_text,
+        context=flow_context,
+        actor=user,
+        tenant=tenant,
+    )
+    return {"data": result}
+
+
 @app.post("/api/flow-drafts")
 async def save_flow_draft(request: Request, payload: FlowDraftRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save flow drafts.")
@@ -3985,8 +4289,17 @@ async def authorize_calendar_source(source_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Calendar source not found")
 
     config = source.get("config") or {}
-    state = uuid4().hex
-    oauth_states[state] = {"kind": "calendar", "resource_id": source_id, "provider": source.get("provider") or ""}
+    tenant_id = clean_text(getattr(request.state, "tenant_id", None))
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Workspace context is required before starting calendar OAuth.")
+    state = encode_oauth_state(
+        {
+            "kind": "calendar",
+            "resource_id": source_id,
+            "provider": source.get("provider") or "",
+            "tenant_id": tenant_id,
+        }
+    )
     redirect_uri = oauth_callback_url()
 
     if source.get("provider") == "google-calendar-oauth":
@@ -4026,6 +4339,17 @@ async def update_calendar_source(source_id: str, request: Request, payload: Cale
         return provider.update_calendar_source(source_id, payload.model_dump(exclude_unset=True))
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/calendar/sources/{source_id}/available-calendars")
+async def list_calendar_source_calendars(source_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    try:
+        return {"data": provider.list_calendar_source_calendars(source_id)}
+    except ValueError as error:
+        detail = str(error)
+        status_code = 404 if "not found" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
 
 
 @app.delete("/api/calendar/sources/{source_id}")
@@ -4093,8 +4417,17 @@ async def authorize_mailbox(mailbox_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Mailbox not found")
 
     config = mailbox.get("config") or {}
-    state = uuid4().hex
-    oauth_states[state] = {"kind": "mailbox", "resource_id": mailbox_id, "provider": mailbox.get("provider") or ""}
+    tenant_id = clean_text(getattr(request.state, "tenant_id", None))
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Workspace context is required before starting mailbox OAuth.")
+    state = encode_oauth_state(
+        {
+            "kind": "mailbox",
+            "resource_id": mailbox_id,
+            "provider": mailbox.get("provider") or "",
+            "tenant_id": tenant_id,
+        }
+    )
     redirect_uri = oauth_callback_url()
 
     if mailbox.get("provider") == "gmail-oauth":

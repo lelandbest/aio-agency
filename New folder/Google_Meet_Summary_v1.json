@@ -1,0 +1,313 @@
+{
+  "name": "Google Meet Summary v1",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "https://drive.google.com/drive/u/0/folders/1RISydoIJomYmffx0UWBJrVgA4slTwe_i",
+          "mode": "url"
+        },
+        "event": "fileCreated",
+        "options": {
+          "fileType": "application/vnd.google-apps.document"
+        }
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        160
+      ],
+      "id": "48a04e0a-9269-4672-bb32-4a269701c30f",
+      "name": "Google Drive Trigger"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You need to take the transcript below and break it down. You need to get a summary for both parties, you need to break down the action items for Ross to do, and you need to organize the homework/action items for the other party in the call. \n\nContext: We are going to send an email to Ross with the tactical summary of how the call went, what went well, what could have gone better, and action items for the next steps to take. We are also going to take a summary out for the other person on the call, give them a summary that hits their pain points with Ross's solution as the way to go, as well as homework for them to get done (if any was talked about)\n\nYou will include the title of the call for context:\n{{ $('Google Drive Trigger').item.json.name }}\n\nTranscript from the call:\n{{ $('Google Drive Trigger').item.json.exportLinks['text/html'] }}\n\nYou will output this in a professional HTML format that is easy to get a tactical breakdown that will be sent via gmail.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -420,
+        160
+      ],
+      "id": "56549558-fcf8-4cc4-9ee9-746e242ac915",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o3-mini",
+          "mode": "list",
+          "cachedResultName": "o3-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -500,
+        380
+      ],
+      "id": "9b699c73-b0c1-4d71-819c-adbf018415e5",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "v0FzZjKlWWw3ibJt",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        -340,
+        380
+      ],
+      "id": "9e4031e8-5b13-4546-937a-8f7578cee7e9",
+      "name": "Auto-fixing Output Parser"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"Ross_Tactical_Summary\": \"Ross' Tactical Summary\",\n\t\"Well\": \"What went well\",\n\t\"Improve\": \"What can Ross Improve\",\n\t\"Action_Items_Ross\": \"Action items for Ross\",\n\t\"Other_Party_Summary\": \"Summary for the other party on the call\",\n\t\"Pain_Points\": \"Pain points identified for the other party\",\n\t\"Ross_Solution\": \"How Ross' solution addresses their pain points\",\n\t\"Action_Items_Other\": \"Action items for the other party\",\n\t\"Call_Title\": \"{{ $json.name }}\",\n\t\"Transcript_Link\": \"{{ $json.exportLinks['text/html'] }}\"\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        -200,
+        580
+      ],
+      "id": "ad7ba7e1-2182-4757-828b-031597075d43",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Google Drive Trigger').item.json.lastModifyingUser.emailAddress }}",
+        "subject": "=Tactical Summary of {{ $('Google Drive Trigger').item.json.name }}",
+        "message": "=Hey Ross,\n\nHere is your tactial summary and follow up items. Below that is what we sent to the other party:\n\n{{ $json.output.Ross_Tactical_Summary }}\n\n{{ $json.output.Well }}\n\n{{ $json.output.Improve }}\n\n{{ $json.output.Action_Items_Ross }}\n\n\n\nOther Party Summary:\n\n\n{{ $json.output.Other_Party_Summary }}\n\n{{ $json.output.Pain_Points }}\n\n{{ $json.output.Ross_Solution }}\n\n{{ $json.output.Action_Items_Other }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4bc99a1b-edbd-4d8c-962d-b6af14896367",
+      "name": "Gmail",
+      "webhookId": "83576b40-c3fe-4651-a30e-bd588d06adab"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "ross@oba.solutions",
+          "mode": "list",
+          "cachedResultName": "ross@oba.solutions"
+        },
+        "limit": 75,
+        "timeMax": "={{ $now.plus({ month: 2 }) }}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -780,
+        160
+      ],
+      "id": "5b5abbeb-67c0-4ba0-8546-69b9cdb5696f",
+      "name": "Google Calendar1",
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "666e4dde-afb3-4263-88d7-7ab14386663b",
+              "leftValue": "={{ $('Google Drive Trigger').item.json.createdTime }}",
+              "rightValue": "={{ $json.end.dateTime }}",
+              "operator": {
+                "type": "dateTime",
+                "operation": "afterOrEquals"
+              }
+            },
+            {
+              "id": "17135660-7c08-42d6-87b8-ade9b8bb9817",
+              "leftValue": "={{ $('Google Drive Trigger').item.json.name }}",
+              "rightValue": "={{ $json.attendees[0].displayName }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -600,
+        160
+      ],
+      "id": "52cdea62-4660-420a-a9ac-3382646c17ad",
+      "name": "Filter",
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sendTo": "=ross@oba.solutions",
+        "subject": "=Maverick AI Solutions: Summary of call with Ross",
+        "message": "=Hey {{ $('Google Calendar1').item.json.attendees[0].displayName }},\n\nHere is your summary and homework (If there is any)\n\n\n{{ $json.output.Other_Party_Summary }}\n\n{{ $json.output.Pain_Points }}\n\n{{ $json.output.Ross_Solution }}\n\n{{ $json.output.Action_Items_Other }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        220
+      ],
+      "id": "99dfc7a0-b6b5-4a98-9c8f-1d57f56874aa",
+      "name": "Gmail1",
+      "webhookId": "83576b40-c3fe-4651-a30e-bd588d06adab",
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar1": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "37c01fa9-83e0-4b6f-9d56-84ec8a9d3bf1",
+  "meta": {
+    "instanceId": "583588333b5aeb023acb4bc788f033ec6335a9944cf9a7b779ec6f5460c2a5ff"
+  },
+  "id": "8GFS2ttut5hREuSS",
+  "tags": [
+    {
+      "name": "S2T",
+      "id": "i1JNBX9QnHMysV3H",
+      "createdAt": "2025-03-07T21:02:13.261Z",
+      "updatedAt": "2025-03-07T21:02:13.261Z"
+    }
+  ]
+}

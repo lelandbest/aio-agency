@@ -10,6 +10,7 @@ import {
   cancelOmegaApi,
   changePasswordApi,
   createWorkspaceApi,
+  deleteWorkspaceApi,
   deleteGlobalVariableApi,
   executeOmegaApi,
   getAuthSessionsApi,
@@ -2095,6 +2096,8 @@ const WorkspaceSettings = () => {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('staff');
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [archivingWorkspace, setArchivingWorkspace] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
@@ -2102,6 +2105,7 @@ const WorkspaceSettings = () => {
   useEffect(() => {
     setSelectedWorkspaceId(tenant?.id || '');
     setWorkspaceName(tenant?.name || '');
+    setShowArchiveConfirm(false);
   }, [tenant?.id, tenant?.name]);
 
   useEffect(() => {
@@ -2130,6 +2134,13 @@ const WorkspaceSettings = () => {
   const currentRole = (currentMembership?.role || selectedWorkspace?.role || tenant?.role || 'viewer').toLowerCase();
   const canManageWorkspace = ['owner', 'admin'].includes(currentRole);
   const canCreateWorkspace = ['owner', 'admin'].includes(currentRole);
+  const canArchiveWorkspace = currentRole === 'owner';
+  const alternateWorkspace = (tenants || []).find((workspace) => workspace.id !== selectedWorkspaceId) || null;
+  const archiveBlockedReason = !canArchiveWorkspace
+    ? 'Only workspace owners can archive a workspace.'
+    : !alternateWorkspace
+    ? 'You cannot archive your only remaining accessible workspace.'
+    : '';
   const availableRoleOptions = currentRole === 'owner'
     ? ['owner', 'admin', 'staff', 'viewer']
     : ['admin', 'staff', 'viewer'];
@@ -2171,6 +2182,28 @@ const WorkspaceSettings = () => {
       triggerSavedAction('create-workspace');
     } catch (createError) {
       setError(createError.message || 'Unable to create workspace.');
+    }
+  };
+
+  const handleArchiveWorkspace = async () => {
+    if (!selectedWorkspaceId || archiveBlockedReason) {
+      return;
+    }
+    setArchivingWorkspace(true);
+    setError('');
+    setStatusMessage('');
+    try {
+      const response = await deleteWorkspaceApi(selectedWorkspaceId);
+      const refreshed = await refreshSession?.();
+      const nextWorkspaceId = refreshed?.tenant?.id || response?.fallback_workspace_id || alternateWorkspace?.id || '';
+      setSelectedWorkspaceId(nextWorkspaceId);
+      setWorkspaceName(refreshed?.tenant?.name || '');
+      setShowArchiveConfirm(false);
+      setStatusMessage(`Workspace '${response?.workspace?.name || selectedWorkspace?.name || 'Workspace'}' archived.`);
+    } catch (archiveError) {
+      setError(archiveError.message || 'Unable to archive workspace.');
+    } finally {
+      setArchivingWorkspace(false);
     }
   };
 
@@ -2267,6 +2300,48 @@ const WorkspaceSettings = () => {
                 {savedAction === 'save-workspace-name' ? 'Saved' : 'Save Name'}
               </button>
             </div>
+
+            {canArchiveWorkspace && (
+              <div className="rounded-[var(--radius-card)] border border-red-500/25 bg-red-500/8 p-4 space-y-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-red-300">Danger Zone</div>
+                  <div className="mt-1 text-sm text-[var(--color-text-primary)]">Archive workspace '{selectedWorkspace?.name || 'Workspace'}'?</div>
+                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]">This removes the workspace from normal access and selection, but does not permanently delete its data.</div>
+                </div>
+                {showArchiveConfirm ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={handleArchiveWorkspace}
+                      disabled={Boolean(archiveBlockedReason) || archivingWorkspace}
+                      className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/40 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {archivingWorkspace ? 'Archiving...' : 'Confirm Archive'}
+                    </button>
+                    <button
+                      onClick={() => setShowArchiveConfirm(false)}
+                      disabled={archivingWorkspace}
+                      className="px-4 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowArchiveConfirm(true)}
+                    disabled={Boolean(archiveBlockedReason)}
+                    className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/35 bg-red-500/10 text-red-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Archive Workspace
+                  </button>
+                )}
+                {archiveBlockedReason && (
+                  <div className="text-xs text-[var(--color-text-secondary)]">{archiveBlockedReason}</div>
+                )}
+                {!archiveBlockedReason && alternateWorkspace && (
+                  <div className="text-xs text-[var(--color-text-secondary)]">After archive, the session will switch to '{alternateWorkspace.name}'.</div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">

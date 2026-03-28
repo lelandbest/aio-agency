@@ -105,6 +105,8 @@ class AuthStore:
                     name TEXT NOT NULL,
                     slug TEXT NOT NULL UNIQUE,
                     settings_json TEXT NOT NULL DEFAULT '{}',
+                    archived_at TEXT,
+                    archived_by_user_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -344,6 +346,8 @@ class AuthStore:
                 """
             )
             self._ensure_column(conn, "tenants", "settings_json", "TEXT NOT NULL DEFAULT '{}'")
+            self._ensure_column(conn, "tenants", "archived_at", "TEXT")
+            self._ensure_column(conn, "tenants", "archived_by_user_id", "TEXT")
             self._ensure_column(conn, "app_users", "username", "TEXT")
             self._ensure_column(conn, "app_users", "phone", "TEXT")
             self._ensure_column(conn, "app_users", "locale", "TEXT")
@@ -439,7 +443,15 @@ class AuthStore:
                 if membership:
                     continue
             default_membership = conn.execute(
-                "SELECT tenant_id FROM memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1",
+                """
+                SELECT m.tenant_id
+                FROM memberships m
+                JOIN tenants t ON t.id = m.tenant_id
+                WHERE m.user_id = ?
+                  AND t.archived_at IS NULL
+                ORDER BY m.created_at ASC
+                LIMIT 1
+                """,
                 (session["user_id"],),
             ).fetchone()
             if default_membership:
@@ -745,6 +757,7 @@ class AuthStore:
             FROM memberships m
             JOIN tenants t ON t.id = m.tenant_id
             WHERE m.user_id = ?
+              AND t.archived_at IS NULL
             ORDER BY t.created_at ASC, t.name ASC
             """,
             (user_id,),
@@ -763,6 +776,12 @@ class AuthStore:
             tenants[0]["selected"] = True
             current_tenant = tenants[0]
         return current_tenant, tenants
+
+    def _require_active_workspace_row(self, conn: sqlite3.Connection, tenant_id: str) -> sqlite3.Row:
+        row = conn.execute("SELECT * FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
+        if not row or row["archived_at"]:
+            raise ValueError("Workspace not found.")
+        return row
 
     def _membership_record(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
         return {
@@ -845,6 +864,7 @@ class AuthStore:
         return payload
 
     def _require_workspace_role(self, conn: sqlite3.Connection, user_id: str, tenant_id: str, allowed_roles: set[str]) -> sqlite3.Row:
+        self._require_active_workspace_row(conn, tenant_id)
         membership = conn.execute(
             "SELECT * FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
             (user_id, tenant_id),
@@ -1739,7 +1759,15 @@ class AuthStore:
         created_at = utcnow_iso()
         expires_at = (datetime.now(UTC) + timedelta(days=14)).isoformat()
         tenant_row = conn.execute(
-            "SELECT tenant_id FROM memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1",
+            """
+            SELECT m.tenant_id
+            FROM memberships m
+            JOIN tenants t ON t.id = m.tenant_id
+            WHERE m.user_id = ?
+              AND t.archived_at IS NULL
+            ORDER BY m.created_at ASC
+            LIMIT 1
+            """,
             (user_id,),
         ).fetchone()
         current_tenant_id = tenant_row["tenant_id"] if tenant_row else None
@@ -1890,8 +1918,15 @@ class AuthStore:
                 conn.commit()
                 return None
             conn.execute("UPDATE app_sessions SET last_seen_at = ? WHERE token = ?", (utcnow_iso(), token))
+            session = self._build_session(conn, record)
+            resolved_tenant_id = (session.get("tenant") or {}).get("id") if isinstance(session.get("tenant"), dict) else None
+            if resolved_tenant_id != record["current_tenant_id"]:
+                conn.execute(
+                    "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                    (resolved_tenant_id, utcnow_iso(), token),
+                )
             conn.commit()
-            return self._build_session(conn, record)
+            return session
 
     def switch_session_tenant(self, token: str | None, tenant_id: str) -> dict[str, Any]:
         if not token:
@@ -1909,12 +1944,7 @@ class AuthStore:
             ).fetchone()
             if not record:
                 raise ValueError("Session not found or expired.")
-            membership = conn.execute(
-                "SELECT id FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
-                (record["user_id"], tenant_id),
-            ).fetchone()
-            if not membership:
-                raise ValueError("User does not belong to that workspace.")
+            self._require_workspace_role(conn, record["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
             conn.execute(
                 "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
                 (tenant_id, utcnow_iso(), token),
@@ -1995,9 +2025,69 @@ class AuthStore:
             self.update_tenant_settings(token, tenant_id, settings)
         return {"workspace": self.get_workspace(tenant_id)}
 
+    def archive_workspace(self, token: str | None, tenant_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            active_memberships = conn.execute(
+                """
+                SELECT m.tenant_id
+                FROM memberships m
+                JOIN tenants t ON t.id = m.tenant_id
+                WHERE m.user_id = ?
+                  AND t.archived_at IS NULL
+                ORDER BY t.created_at ASC, t.name ASC
+                """,
+                (session["user_id"],),
+            ).fetchall()
+            if len(active_memberships) <= 1:
+                raise ValueError("You cannot archive your only remaining accessible workspace.")
+            fallback_row = next((row for row in active_memberships if row["tenant_id"] != tenant_id), None)
+            if not fallback_row:
+                raise ValueError("No alternate workspace is available for this session.")
+            workspace = self._require_active_workspace_row(conn, tenant_id)
+            now = utcnow_iso()
+            conn.execute(
+                "UPDATE tenants SET archived_at = ?, archived_by_user_id = ?, updated_at = ? WHERE id = ?",
+                (now, session["user_id"], now, tenant_id),
+            )
+            conn.execute(
+                "UPDATE app_sessions SET current_tenant_id = NULL, last_seen_at = ? WHERE current_tenant_id = ?",
+                (now, tenant_id),
+            )
+            conn.execute(
+                "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                (fallback_row["tenant_id"], now, token),
+            )
+            conn.commit()
+            refreshed = conn.execute(
+                """
+                SELECT s.id, s.user_id, s.token, s.provider, s.current_tenant_id, s.created_at, s.expires_at, u.*
+                FROM app_sessions s
+                JOIN app_users u ON u.id = s.user_id
+                WHERE s.token = ?
+                LIMIT 1
+                """,
+                (token,),
+            ).fetchone()
+            return {
+                "workspace": {
+                    "id": workspace["id"],
+                    "name": workspace["name"],
+                    "slug": workspace["slug"],
+                    "archived_at": now,
+                },
+                "fallback_workspace_id": fallback_row["tenant_id"],
+                "session": self._build_session(conn, refreshed),
+            }
+
     def get_workspace(self, tenant_id: str) -> dict[str, Any]:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
+            row = conn.execute("SELECT * FROM tenants WHERE id = ? AND archived_at IS NULL LIMIT 1", (tenant_id,)).fetchone()
         if not row:
             raise ValueError("Workspace not found.")
         tenant_settings = self.get_tenant_settings(tenant_id)
@@ -2389,7 +2479,15 @@ class AuthStore:
                 raise ValueError("Only owners can remove another owner.")
             conn.execute("DELETE FROM memberships WHERE id = ?", (membership_id,))
             next_membership = conn.execute(
-                "SELECT tenant_id FROM memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1",
+                """
+                SELECT m.tenant_id
+                FROM memberships m
+                JOIN tenants t ON t.id = m.tenant_id
+                WHERE m.user_id = ?
+                  AND t.archived_at IS NULL
+                ORDER BY m.created_at ASC
+                LIMIT 1
+                """,
                 (membership["user_id"],),
             ).fetchone()
             conn.execute(
@@ -2419,13 +2517,23 @@ class AuthStore:
                 FROM memberships m
                 JOIN tenants t ON t.id = m.tenant_id
                 WHERE m.user_id = ?
+                  AND t.archived_at IS NULL
                 ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END, t.created_at ASC, t.name ASC
                 """,
                 (user["id"],),
             ).fetchall()
             session_memberships = {
                 row["tenant_id"]
-                for row in conn.execute("SELECT tenant_id FROM memberships WHERE user_id = ?", (session["user_id"],)).fetchall()
+                for row in conn.execute(
+                    """
+                    SELECT m.tenant_id
+                    FROM memberships m
+                    JOIN tenants t ON t.id = m.tenant_id
+                    WHERE m.user_id = ?
+                      AND t.archived_at IS NULL
+                    """,
+                    (session["user_id"],),
+                ).fetchall()
             }
             return {
                 "user": self._public_user(user),

@@ -1,0 +1,460 @@
+{
+    "name": "Deepseek R1",
+    "flow": [
+        {
+            "id": 1,
+            "module": "slack:WatchMessages",
+            "version": 4,
+            "parameters": {
+                "__IMTCONN__": 4868817,
+                "inputMethod": "list",
+                "limit": 1,
+                "channel": "C088ATWJLDS"
+            },
+            "mapper": {},
+            "metadata": {
+                "designer": {
+                    "x": -338,
+                    "y": -1
+                },
+                "restore": {
+                    "parameters": {
+                        "__IMTCONN__": {
+                            "label": "My Slack (user) connection (makeautomations2024)",
+                            "data": {
+                                "scoped": "true",
+                                "connection": "slack2"
+                            }
+                        },
+                        "inputMethod": {
+                            "label": "Select from a list"
+                        },
+                        "channel": {
+                            "label": "jarvis-ai-agent"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "__IMTCONN__",
+                        "type": "account:slack2",
+                        "label": "Connection",
+                        "required": true
+                    },
+                    {
+                        "name": "inputMethod",
+                        "type": "select",
+                        "label": "Input Method",
+                        "required": true,
+                        "validate": {
+                            "enum": [
+                                "list",
+                                "search"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "type": "uinteger",
+                        "label": "Limit",
+                        "required": true
+                    },
+                    {
+                        "name": "channel",
+                        "type": "select",
+                        "label": "Public Channel",
+                        "required": true
+                    }
+                ]
+            }
+        },
+        {
+            "id": 2,
+            "module": "open-router:createAChatCompletion",
+            "version": 1,
+            "parameters": {
+                "__IMTCONN__": 4782583
+            },
+            "mapper": {
+                "messages": [
+                    {
+                        "content": "You are a helpfull assistant",
+                        "role": "system"
+                    },
+                    {
+                        "content": "this is the message: {{1.text}}",
+                        "role": "user"
+                    }
+                ],
+                "model": "deepseek/deepseek-r1-distill-llama-70b",
+                "fallback": false,
+                "json_mode": false,
+                "n": "1",
+                "temperature": "1",
+                "top_p": "1"
+            },
+            "metadata": {
+                "designer": {
+                    "x": -38,
+                    "y": -1
+                },
+                "restore": {
+                    "parameters": {
+                        "__IMTCONN__": {
+                            "label": "My OpenRouter connection",
+                            "data": {
+                                "scoped": "true",
+                                "connection": "open-router-4ur2vj"
+                            }
+                        }
+                    },
+                    "expect": {
+                        "messages": {
+                            "mode": "chose",
+                            "items": [
+                                {
+                                    "role": {
+                                        "mode": "chose",
+                                        "label": "System"
+                                    }
+                                },
+                                {
+                                    "role": {
+                                        "mode": "chose",
+                                        "label": "User"
+                                    }
+                                }
+                            ]
+                        },
+                        "model": {
+                            "mode": "chose",
+                            "label": "DeepSeek: DeepSeek R1 Distill Llama 70B"
+                        },
+                        "fallback": {
+                            "mode": "chose"
+                        },
+                        "json_mode": {
+                            "mode": "chose"
+                        },
+                        "stop": {
+                            "mode": "chose"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "__IMTCONN__",
+                        "type": "account:open-router-4ur2vj",
+                        "label": "Connection",
+                        "required": true
+                    }
+                ],
+                "expect": [
+                    {
+                        "name": "messages",
+                        "type": "array",
+                        "label": "Messages",
+                        "required": true,
+                        "spec": [
+                            {
+                                "name": "content",
+                                "type": "text",
+                                "label": "Content",
+                                "required": true
+                            },
+                            {
+                                "name": "role",
+                                "type": "select",
+                                "label": "Role",
+                                "options": [
+                                    {
+                                        "label": "User",
+                                        "value": "user"
+                                    },
+                                    {
+                                        "label": "Assistant",
+                                        "value": "assistant"
+                                    },
+                                    {
+                                        "label": "System",
+                                        "value": "system"
+                                    }
+                                ],
+                                "required": true
+                            }
+                        ]
+                    },
+                    {
+                        "name": "model",
+                        "type": "select",
+                        "label": "Model",
+                        "required": true
+                    },
+                    {
+                        "name": "fallback",
+                        "type": "boolean",
+                        "label": "Enable automatic Fallback?"
+                    },
+                    {
+                        "name": "json_mode",
+                        "type": "boolean",
+                        "label": "Enable JSON Mode?"
+                    },
+                    {
+                        "name": "max_tokens",
+                        "type": "integer",
+                        "label": "Max Tokens"
+                    },
+                    {
+                        "name": "n",
+                        "type": "integer",
+                        "label": "Number of Choices",
+                        "validate": {
+                            "min": 1
+                        }
+                    },
+                    {
+                        "name": "temperature",
+                        "type": "number",
+                        "label": "Temperature",
+                        "validate": {
+                            "max": 2,
+                            "min": 0
+                        }
+                    },
+                    {
+                        "name": "top_p",
+                        "type": "number",
+                        "label": "Top P",
+                        "validate": {
+                            "max": 1,
+                            "min": 0
+                        }
+                    },
+                    {
+                        "name": "frequency_penalty",
+                        "type": "number",
+                        "label": "Frequency Penalty",
+                        "validate": {
+                            "max": 2,
+                            "min": -2
+                        }
+                    },
+                    {
+                        "name": "presence_penalty",
+                        "type": "number",
+                        "label": "Presence Penalty",
+                        "validate": {
+                            "min": 1
+                        }
+                    },
+                    {
+                        "name": "seed",
+                        "type": "integer",
+                        "label": "Seed"
+                    },
+                    {
+                        "name": "stop",
+                        "type": "array",
+                        "label": "Stop Sequences",
+                        "spec": {
+                            "type": "text",
+                            "name": "value"
+                        }
+                    },
+                    {
+                        "name": "top_k",
+                        "type": "number",
+                        "label": "Top k"
+                    }
+                ]
+            }
+        },
+        {
+            "id": 3,
+            "module": "slack:CreateMessage",
+            "version": 4,
+            "parameters": {
+                "__IMTCONN__": 4805624
+            },
+            "mapper": {
+                "channelWType": "list",
+                "text": "{{2.choices[].message.content}}",
+                "parse": false,
+                "mrkdwn": true,
+                "channelType": "public",
+                "channel": "C088ATWJLDS"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 262,
+                    "y": -1
+                },
+                "restore": {
+                    "parameters": {
+                        "__IMTCONN__": {
+                            "label": "My Slack (bot) connection (make)",
+                            "data": {
+                                "scoped": "true",
+                                "connection": "slack3"
+                            }
+                        }
+                    },
+                    "expect": {
+                        "channelWType": {
+                            "label": "Select from the list"
+                        },
+                        "reply_broadcast": {
+                            "mode": "chose"
+                        },
+                        "link_names": {
+                            "mode": "chose"
+                        },
+                        "parse": {
+                            "mode": "chose"
+                        },
+                        "mrkdwn": {
+                            "mode": "chose"
+                        },
+                        "unfurl_links": {
+                            "mode": "chose"
+                        },
+                        "unfurl_media": {
+                            "mode": "chose"
+                        },
+                        "channelType": {
+                            "label": "Public channel"
+                        },
+                        "channel": {
+                            "mode": "chose",
+                            "label": "jarvis-ai-agent"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "__IMTCONN__",
+                        "type": "account:slack2,slack3",
+                        "label": "Connection",
+                        "required": true
+                    }
+                ],
+                "expect": [
+                    {
+                        "name": "channelWType",
+                        "type": "select",
+                        "label": "Enter a channel ID or name",
+                        "required": true,
+                        "validate": {
+                            "enum": [
+                                "manualy",
+                                "list"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "text",
+                        "type": "text",
+                        "label": "Text"
+                    },
+                    {
+                        "name": "blocks",
+                        "type": "text",
+                        "label": "Blocks"
+                    },
+                    {
+                        "name": "thread_ts",
+                        "type": "text",
+                        "label": "Thread message ID (time stamp)"
+                    },
+                    {
+                        "name": "reply_broadcast",
+                        "type": "boolean",
+                        "label": "Reply broadcast"
+                    },
+                    {
+                        "name": "link_names",
+                        "type": "boolean",
+                        "label": "Link names"
+                    },
+                    {
+                        "name": "parse",
+                        "type": "boolean",
+                        "label": "Parse message text"
+                    },
+                    {
+                        "name": "mrkdwn",
+                        "type": "boolean",
+                        "label": "Use markdown"
+                    },
+                    {
+                        "name": "unfurl_links",
+                        "type": "boolean",
+                        "label": "Unfurl primarily text-based content"
+                    },
+                    {
+                        "name": "unfurl_media",
+                        "type": "boolean",
+                        "label": "Unfurl media content"
+                    },
+                    {
+                        "name": "icon_emoji",
+                        "type": "text",
+                        "label": "Icon emoji"
+                    },
+                    {
+                        "name": "icon_url",
+                        "type": "url",
+                        "label": "Icon url"
+                    },
+                    {
+                        "name": "username",
+                        "type": "text",
+                        "label": "User name"
+                    },
+                    {
+                        "name": "channelType",
+                        "type": "select",
+                        "label": "Channel type",
+                        "required": true,
+                        "validate": {
+                            "enum": [
+                                "public",
+                                "private",
+                                "im",
+                                "mpim"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "type": "select",
+                        "label": "Public channel",
+                        "required": true
+                    }
+                ]
+            }
+        }
+    ],
+    "metadata": {
+        "instant": false,
+        "version": 1,
+        "scenario": {
+            "roundtrips": 1,
+            "maxErrors": 3,
+            "autoCommit": true,
+            "autoCommitTriggerLast": true,
+            "sequential": false,
+            "slots": null,
+            "confidential": false,
+            "dataloss": false,
+            "dlq": false,
+            "freshVariables": false
+        },
+        "designer": {
+            "orphans": []
+        },
+        "zone": "eu2.make.com",
+        "notes": []
+    }
+}

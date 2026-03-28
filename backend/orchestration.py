@@ -3,6 +3,7 @@ import logging
 import time
 import re
 import copy
+import asyncio
 from datetime import datetime, UTC, timedelta
 from typing import Any
 from urllib.parse import urlparse
@@ -12,6 +13,7 @@ from uuid import uuid4
 try:
     from backend.agent_runtime import AgentRegistry
     from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+    from backend.data_provider import reset_request_tenant, set_request_tenant_id
     from backend.email_verifier_service import (
         create_bulk_task as create_email_verifier_bulk_task,
         get_bulk_results as get_email_verifier_bulk_results,
@@ -20,6 +22,7 @@ try:
 except ModuleNotFoundError:
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
+    from data_provider import reset_request_tenant, set_request_tenant_id
     from email_verifier_service import (
         create_bulk_task as create_email_verifier_bulk_task,
         get_bulk_results as get_email_verifier_bulk_results,
@@ -37,8 +40,13 @@ DIRECT_EXECUTION_INTENTS = {
     "get_booking",
     "set_variable",
     "send_email",
+    "send_sms",
+    "store_data",
     "http_request",
     "if_then",
+    "filter",
+    "switch",
+    "time_delay",
     "verify_email",
     "verify_email_bulk",
     "wait_for_verification",
@@ -328,7 +336,8 @@ def emit_system_event(
         flow_status = str(flow.get("status") or "").strip().lower()
         if flow_status != "active":
             continue
-        if not match_flow_trigger_event(flow, event_type):
+        trigger_targets = server.resolve_flow_trigger_targets(flow, event_type)
+        if not trigger_targets:
             continue
         raw_steps, flow_agent_chain = server.build_flow_execution_steps(
             flow,
@@ -339,6 +348,7 @@ def emit_system_event(
                 "trigger_event": event,
                 "booking_event": payload,
             },
+            start_node_ids=trigger_targets,
         )
         if not raw_steps:
             continue
@@ -440,7 +450,7 @@ def check_step_gate(step: dict[str, Any], actor: dict[str, Any], tenant: dict[st
             "permissionTier": tier,
             "riskLevel": "low" if intent == "get_booking" else "medium",
         }
-    if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch"}:
+    if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "filter", "switch"}:
         return {
             "allowed": True,
             "requiresApproval": False,
@@ -579,8 +589,13 @@ class StepExecutor:
         self.service_registry = {
             "set_variable": {"service": "variableService", "handlerType": "direct", "executionType": "deterministic"},
             "send_email": {"service": "messagingService", "handlerType": "direct", "executionType": "deterministic"},
+            "send_sms": {"service": "messagingService", "handlerType": "direct", "executionType": "deterministic"},
+            "store_data": {"service": "storageService", "handlerType": "direct", "executionType": "deterministic"},
             "http_request": {"service": "httpService", "handlerType": "adapter", "executionType": "bridge"},
             "if_then": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "filter": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "switch": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "time_delay": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
             "create_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
             "update_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
             "cancel_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
@@ -599,8 +614,13 @@ class StepExecutor:
             "get_booking": self._get_booking,
             "set_variable": self._set_variable,
             "send_email": self._send_email,
+            "send_sms": self._send_sms,
+            "store_data": self._store_data,
             "http_request": self._http_request,
             "if_then": self._if_then,
+            "filter": self._filter,
+            "switch": self._switch,
+            "time_delay": self._time_delay,
             "add_contact": self._add_contact,
             "add_crm_note": self._add_crm_note,
             "query_vault": self._query_vault,
@@ -723,6 +743,21 @@ class StepExecutor:
             if not token or not TOKEN_PATH_RE.match(token):
                 errors.append(f"Malformed token '{token or match.group(1)}' in {field_name}.")
         return list(dict.fromkeys(errors))
+
+    def _nested_token_syntax_errors(self, value: Any, field_name: str) -> list[str]:
+        if isinstance(value, dict):
+            errors: list[str] = []
+            for key, child in value.items():
+                child_field = f"{field_name}.{key}"
+                errors.extend(self._nested_token_syntax_errors(child, child_field))
+            return list(dict.fromkeys(errors))
+        if isinstance(value, list):
+            errors: list[str] = []
+            for index, child in enumerate(value):
+                child_field = f"{field_name}[{index}]"
+                errors.extend(self._nested_token_syntax_errors(child, child_field))
+            return list(dict.fromkeys(errors))
+        return self._token_syntax_errors(value, field_name)
 
     def _safe_write_targets(self, write_targets: dict[str, Any], envelope: dict[str, Any], runtime: dict[str, Any]) -> str | None:
         store = self._runtime_store(runtime)
@@ -955,6 +990,30 @@ class StepExecutor:
             ),
         }
 
+    def _extract_switch_definition(self, step: dict[str, Any]) -> dict[str, Any]:
+        merged = self._merged_step_config(step)
+        condition = merged.get("condition")
+        parsed_condition = json_object(condition) if isinstance(condition, str) else (dict(condition) if isinstance(condition, dict) else {})
+        return {
+            "source": (
+                merged.get("source")
+                if "source" in merged
+                else merged.get("value")
+                if "value" in merged
+                else merged.get("switchValue")
+                if "switchValue" in merged
+                else merged.get("switch_value")
+                if "switch_value" in merged
+                else parsed_condition.get("source")
+                if "source" in parsed_condition
+                else parsed_condition.get("value")
+                if "value" in parsed_condition
+                else parsed_condition.get("switchValue")
+                if "switchValue" in parsed_condition
+                else parsed_condition.get("switch_value")
+            ),
+        }
+
     def _is_empty_logic_value(self, value: Any) -> bool:
         if value is None:
             return True
@@ -1009,6 +1068,106 @@ class StepExecutor:
         if operator == "is_not_empty":
             return not self._is_empty_logic_value(left), None
         return None, f"Unsupported if-then operator '{operator}'."
+
+    def _resolve_delay_config(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+        config = self._normalized_service_config(step)
+        syntax_errors: list[str] = []
+        for field_name in ["duration", "unit"]:
+            syntax_errors.extend(self._token_syntax_errors(config.get(field_name), f"time-delay {field_name}"))
+        if syntax_errors:
+            return {}, syntax_errors[0]
+        resolved, missing = self._resolve_required_inputs(
+            {
+                "duration": config.get("duration"),
+                "unit": config.get("unit"),
+            },
+            context,
+            runtime,
+            required={"duration", "unit"},
+        )
+        if missing:
+            return {}, f"Time-delay is missing required inputs: {', '.join(missing)}."
+        try:
+            duration = int(resolved.get("duration"))
+        except (TypeError, ValueError):
+            return {}, "Time-delay duration must be a positive integer."
+        if duration <= 0:
+            return {}, "Time-delay duration must be a positive integer."
+        unit = clean_text(resolved.get("unit")).lower()
+        if unit not in {"minutes", "hours", "days"}:
+            return {}, "Time-delay unit must be one of: minutes, hours, days."
+        return {"duration": duration, "unit": unit}, None
+
+    def _resolve_single_downstream_target(self, step: dict[str, Any]) -> tuple[str | None, str | None]:
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+        targets = []
+        for edge in outgoing_edges:
+            target = clean_text(edge.get("target"))
+            if target and target not in targets:
+                targets.append(target)
+        if not targets:
+            return None, "Time-delay requires exactly one downstream node."
+        if len(targets) != 1:
+            return None, "Time-delay routing is ambiguous. Use exactly one downstream edge."
+        return targets[0], None
+
+    def _apply_branch_selection(
+        self,
+        *,
+        runtime: dict[str, Any],
+        node_id: str,
+        outgoing_edges: list[dict[str, Any]],
+        selected_targets: list[str],
+        branch_status: str,
+    ) -> None:
+        selected_descendants = self._graph_descendants(runtime, selected_targets)
+        alternate_targets = [
+            clean_text(edge.get("target"))
+            for edge in outgoing_edges
+            if clean_text(edge.get("target")) and clean_text(edge.get("target")) not in selected_targets
+        ]
+        suppressed_nodes = self._graph_descendants(runtime, alternate_targets) - selected_descendants
+        runtime.setdefault("suppressed_nodes", set()).update(suppressed_nodes)
+        runtime.setdefault("branch_decisions", {})[node_id] = {
+            "status": branch_status,
+            "selected_targets": selected_targets,
+        }
+
+    def _resolve_switch_targets(self, outgoing_edges: list[dict[str, Any]], switch_value: Any) -> tuple[list[str], str | None, str | None]:
+        normalized_value = normalize_token(switch_value)
+        if not normalized_value:
+            return [], None, "Switch source value is empty and cannot be routed."
+        matched_targets: list[str] = []
+        default_targets: list[str] = []
+        unlabeled_targets: list[str] = []
+        for edge in outgoing_edges:
+            target = clean_text(edge.get("target"))
+            if not target:
+                continue
+            raw_filter = clean_text(edge.get("filters") or ((edge.get("data") or {}) if isinstance(edge.get("data"), dict) else {}).get("filters"))
+            raw_handle = clean_text(edge.get("sourceHandle"))
+            raw_label = clean_text(edge.get("label"))
+            candidate_text = " ".join(filter(None, [raw_filter, raw_handle, raw_label])).lower()
+            if not candidate_text:
+                unlabeled_targets.append(target)
+                continue
+            tokens = {normalize_token(item) for item in re.split(r"[^a-z0-9_]+", candidate_text) if normalize_token(item)}
+            if "default" in tokens:
+                default_targets.append(target)
+            if normalized_value in tokens or candidate_text == normalized_value:
+                matched_targets.append(target)
+        if unlabeled_targets:
+            return [], normalized_value, "Switch routing requires labeled outgoing edges or explicit edge filters."
+        if len(matched_targets) > 1:
+            return [], normalized_value, f"Switch routing is ambiguous for case '{normalized_value}'."
+        if matched_targets:
+            return matched_targets, normalized_value, None
+        if len(default_targets) > 1:
+            return [], normalized_value, "Switch routing defines multiple default branches."
+        if default_targets:
+            return default_targets, normalized_value, None
+        return [], normalized_value, f"Switch did not find a matching branch for '{normalized_value}'."
 
     def _branch_edge_targets(self, outgoing_edges: list[dict[str, Any]], branch_status: str) -> tuple[list[str], list[str]]:
         normalized_status = normalize_token(branch_status) or "unknown"
@@ -1281,6 +1440,345 @@ class StepExecutor:
             "metadata": {"service": "messagingService", "executionType": "deterministic"},
         }
 
+    def _is_valid_sms_recipient(self, value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        normalized = clean_text(value)
+        if not normalized:
+            return False
+        digits = re.sub(r"\D+", "", normalized)
+        if len(digits) < 7:
+            return False
+        return bool(re.fullmatch(r"[0-9+\-().\s]+", normalized))
+
+    def _resolve_sms_provider(self, config: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
+        provider = normalize_token(
+            config.get("provider")
+            or config.get("providerKey")
+            or config.get("provider_key")
+            or config.get("smsProvider")
+            or config.get("sms_provider")
+        ) or None
+        provider_metadata = {
+            "provider": provider,
+            "senderId": clean_text(
+                config.get("senderId")
+                or config.get("sender_id")
+                or config.get("from")
+                or config.get("fromNumber")
+                or config.get("from_number")
+            ) or None,
+        }
+        return provider, provider_metadata
+
+    def _send_sms_failure(
+        self,
+        step: dict[str, Any],
+        *,
+        machine_status: str,
+        message: str,
+        recipients: list[str] | None = None,
+        provider: str | None = None,
+        sender_id: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "failed",
+            "error": message,
+            "data": {
+                "status": machine_status,
+                "deliveryStatus": "failed",
+                "provider": provider,
+                "senderId": sender_id,
+                "providerMessageId": None,
+                "recipients": recipients or [],
+                "error": message,
+            },
+            "metadata": {"service": "messagingService", "executionType": "deterministic"},
+        }
+
+    def _send_sms(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._normalized_service_config(step)
+        contact = self._lookup_contact(config.get("contactId") or config.get("contact_id") or context.get("contact_id"))
+        raw_inputs = {
+            "to": config.get("to") or config.get("recipient") or config.get("recipients") or (contact or {}).get("phone"),
+            "message": config.get("message") or config.get("body") or config.get("content"),
+            "provider": config.get("provider") or config.get("providerKey") or config.get("provider_key") or config.get("smsProvider") or config.get("sms_provider"),
+            "senderId": config.get("senderId") or config.get("sender_id") or config.get("from") or config.get("fromNumber") or config.get("from_number"),
+            "contactId": config.get("contactId") or config.get("contact_id") or context.get("contact_id"),
+        }
+        syntax_errors: list[str] = []
+        for field_name in ["to", "message", "provider", "senderId"]:
+            syntax_errors.extend(self._token_syntax_errors(raw_inputs.get(field_name), field_name))
+        if syntax_errors:
+            return self._send_sms_failure(
+                step,
+                machine_status="validation_error",
+                message="; ".join(syntax_errors),
+            )
+        resolved, missing = self._resolve_required_inputs(raw_inputs, context, runtime, required={"to", "message"})
+        if missing:
+            return self._send_sms_failure(
+                step,
+                machine_status="invalid_input",
+                message=f"Missing required SMS inputs: {', '.join(missing)}",
+            )
+        recipients = parse_string_list(resolved.get("to"))
+        if not recipients:
+            value = resolved.get("to")
+            if isinstance(value, str) and clean_text(value):
+                recipients = [clean_text(value)]
+        if not recipients:
+            return self._send_sms_failure(
+                step,
+                machine_status="invalid_input",
+                message="Missing required SMS inputs: to",
+            )
+        invalid_recipients = [recipient for recipient in recipients if not self._is_valid_sms_recipient(recipient)]
+        if invalid_recipients:
+            return self._send_sms_failure(
+                step,
+                machine_status="invalid_input",
+                message=f"Invalid SMS recipient: {invalid_recipients[0]}",
+                recipients=recipients,
+            )
+        message_body = resolved.get("message")
+        if isinstance(message_body, (dict, list)) or not clean_text(message_body):
+            return self._send_sms_failure(
+                step,
+                machine_status="invalid_input",
+                message="Missing required SMS inputs: message",
+                recipients=recipients,
+            )
+        provider, provider_metadata = self._resolve_sms_provider(resolved)
+        if not provider:
+            return self._send_sms_failure(
+                step,
+                machine_status="not_configured",
+                message="SMS provider is not configured.",
+                recipients=recipients,
+                sender_id=provider_metadata.get("senderId"),
+            )
+        if provider not in {"twilio", "plivo", "aws_sms"}:
+            return self._send_sms_failure(
+                step,
+                machine_status="unsupported_provider",
+                message=f"SMS provider '{provider}' is not supported.",
+                recipients=recipients,
+                provider=provider,
+                sender_id=provider_metadata.get("senderId"),
+            )
+        return self._send_sms_failure(
+            step,
+            machine_status="not_implemented",
+            message=f"SMS provider '{provider}' is not implemented yet.",
+            recipients=recipients,
+            provider=provider,
+            sender_id=provider_metadata.get("senderId"),
+        )
+
+    def _store_data_failure(
+        self,
+        step: dict[str, Any],
+        *,
+        machine_status: str,
+        message: str,
+        target: str | None = None,
+        operation: str | None = None,
+        stored_data: Any = None,
+    ) -> dict[str, Any]:
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "failed",
+            "error": message,
+            "data": {
+                "status": machine_status,
+                "target": target,
+                "operation": operation,
+                "recordId": None,
+                "storedData": safe_clone(stored_data),
+                "error": message,
+            },
+            "metadata": {"service": "storageService", "executionType": "deterministic"},
+        }
+
+    def _store_data(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._normalized_service_config(step)
+        raw_target = (
+            config.get("target")
+            or config.get("targetTable")
+            or config.get("target_table")
+            or config.get("table")
+            or config.get("entity")
+        )
+        raw_operation = config.get("operation") or config.get("writeBehavior") or config.get("write_behavior")
+        raw_payload = (
+            config.get("payload")
+            if "payload" in config
+            else config.get("data")
+            if "data" in config
+            else config.get("fields")
+            if "fields" in config
+            else config.get("record")
+        )
+        raw_contact_id = config.get("contactId") or config.get("contact_id") or context.get("contact_id")
+
+        syntax_errors: list[str] = []
+        syntax_errors.extend(self._token_syntax_errors(raw_target, "target"))
+        syntax_errors.extend(self._token_syntax_errors(raw_operation, "operation"))
+        syntax_errors.extend(self._token_syntax_errors(raw_contact_id, "contactId"))
+        syntax_errors.extend(self._nested_token_syntax_errors(raw_payload, "payload"))
+        if syntax_errors:
+            return self._store_data_failure(
+                step,
+                machine_status="validation_error",
+                message="; ".join(syntax_errors),
+            )
+
+        resolved, missing = self._resolve_required_inputs(
+            {
+                "target": raw_target,
+                "operation": raw_operation,
+                "payload": raw_payload,
+                "contactId": raw_contact_id,
+            },
+            context,
+            runtime,
+            required={"target", "operation", "payload"},
+        )
+        if missing:
+            return self._store_data_failure(
+                step,
+                machine_status="invalid_input",
+                message=f"Missing required store-data inputs: {', '.join(missing)}",
+            )
+
+        target = normalize_token(resolved.get("target"))
+        operation = normalize_token(resolved.get("operation"))
+        payload = resolved.get("payload")
+        contact_id = clean_text(resolved.get("contactId")) or None
+
+        if not target:
+            return self._store_data_failure(step, machine_status="invalid_target", message="Store Data target is required.")
+        if not operation:
+            return self._store_data_failure(step, machine_status="invalid_operation", message="Store Data operation is required.", target=target)
+        if payload is None or (isinstance(payload, dict) and not payload) or (isinstance(payload, list) and not payload):
+            return self._store_data_failure(
+                step,
+                machine_status="invalid_input",
+                message="Store Data payload is required.",
+                target=target,
+                operation=operation,
+            )
+        if not isinstance(payload, dict):
+            return self._store_data_failure(
+                step,
+                machine_status="invalid_input",
+                message="Store Data payload must resolve to an object.",
+                target=target,
+                operation=operation,
+            )
+
+        if target == "brain_item":
+            if operation != "create":
+                return self._store_data_failure(
+                    step,
+                    machine_status="invalid_operation",
+                    message="brain_item only supports the create operation.",
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+            try:
+                stored = self.provider.create_brain_item(payload)
+            except Exception as exc:
+                return self._store_data_failure(
+                    step,
+                    machine_status="persistence_failed",
+                    message=str(exc),
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+        elif target == "contact_activity":
+            if operation != "create":
+                return self._store_data_failure(
+                    step,
+                    machine_status="invalid_operation",
+                    message="contact_activity only supports the create operation.",
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+            if not contact_id:
+                return self._store_data_failure(
+                    step,
+                    machine_status="invalid_input",
+                    message="contact_activity requires contactId.",
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+            try:
+                stored = self.provider.create_contact_activity(contact_id, payload)
+            except Exception as exc:
+                return self._store_data_failure(
+                    step,
+                    machine_status="persistence_failed",
+                    message=str(exc),
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+        elif target == "flow_draft":
+            if operation not in {"create", "upsert"}:
+                return self._store_data_failure(
+                    step,
+                    machine_status="invalid_operation",
+                    message="flow_draft only supports create or upsert.",
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+            try:
+                stored = self.provider.save_flow_draft(payload)
+            except Exception as exc:
+                return self._store_data_failure(
+                    step,
+                    machine_status="persistence_failed",
+                    message=str(exc),
+                    target=target,
+                    operation=operation,
+                    stored_data=payload,
+                )
+        else:
+            return self._store_data_failure(
+                step,
+                machine_status="unsupported_target",
+                message=f"Unsupported store-data target '{target}'.",
+                target=target,
+                operation=operation,
+                stored_data=payload,
+            )
+
+        record_id = clean_text((stored or {}).get("id")) if isinstance(stored, dict) else ""
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {
+                "status": "stored",
+                "target": target,
+                "operation": operation,
+                "recordId": record_id or None,
+                "storedData": safe_clone(stored),
+                "error": None,
+            },
+            "metadata": {"service": "storageService", "executionType": "deterministic"},
+        }
+
     def _validate_http_url(self, value: Any) -> str | None:
         if not isinstance(value, str):
             return "HTTP URL must be a string."
@@ -1463,7 +1961,7 @@ class StepExecutor:
 
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
-                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "set_variable", "send_email", "http_request"}:
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request"}:
                     return finalize(handler(step, context, runtime))
                 return finalize(handler(step, context))
             except Exception as exc:
@@ -1765,29 +2263,37 @@ class StepExecutor:
         res = getattr(self.provider, "apply_thread_ai_result")(thread_id, mode="note", suggestion=params.get("note") or params.get("content", ""))
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": res}
 
+    def _verification_runtime_status(self, data_status: Any, error: Any = None) -> str:
+        normalized = normalize_token(data_status) or ""
+        if error:
+            return "failed"
+        if normalized in {"failed", "error", "timeout", "not_configured", "invalid_input"}:
+            return "failed"
+        return "success"
+
     def _verify_email(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         config = self._email_verifier_config()
         email, contact_id = self._resolve_single_verification_target(step, context, runtime)
         if not email:
             data = {
                 "email": "",
-                "status": "unknown",
+                "status": "invalid_input",
                 "score": None,
                 "isSafe": False,
                 "contactId": contact_id,
                 "error": "No email was available for verification.",
             }
-            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         if not config.get("enabled") or not config.get("api_key"):
             data = {
                 "email": email,
-                "status": "unknown",
+                "status": "not_configured",
                 "score": None,
                 "isSafe": False,
                 "contactId": contact_id,
                 "error": "Email verification is not configured for this tenant.",
             }
-            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         writeback = parse_bool(self._merged_step_config(step).get("writeback"), True)
         try:
             result = verify_single_email_address(config["api_key"], email, "quick")
@@ -1803,6 +2309,7 @@ class StepExecutor:
                 "contact": updated_contact,
                 "raw": result.get("raw"),
             }
+            step_status = self._verification_runtime_status(data.get("status"), data.get("error"))
         except Exception as exc:
             data = {
                 "email": email,
@@ -1812,7 +2319,8 @@ class StepExecutor:
                 "contactId": contact_id,
                 "error": str(exc),
             }
-        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            step_status = "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": step_status, "data": data, "error": data.get("error")}
 
     def _verify_email_bulk(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         config = self._email_verifier_config()
@@ -1830,18 +2338,18 @@ class StepExecutor:
             data = {
                 "taskId": None,
                 "submittedCount": 0,
-                "status": "failed",
+                "status": "invalid_input",
                 "error": "No verifiable emails were available for bulk verification.",
             }
-            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         if not config.get("enabled") or not config.get("api_key"):
             data = {
                 "taskId": None,
                 "submittedCount": 0,
-                "status": "failed",
+                "status": "not_configured",
                 "error": "Email verification is not configured for this tenant.",
             }
-            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         unique_emails = sorted({clean_text(item.get("email")).lower() for item in targets if clean_text(item.get("email"))})
         try:
             remote_task = create_email_verifier_bulk_task(config["api_key"], unique_emails, "power", task_name=f"flow-{clean_text(context.get('flow_id')) or 'runtime'}")
@@ -1859,6 +2367,7 @@ class StepExecutor:
                 "submittedCount": remote_task["submittedCount"],
                 "status": clean_text(task.get("status")) or "queued",
             }
+            step_status = self._verification_runtime_status(data.get("status"), data.get("error"))
         except Exception as exc:
             data = {
                 "taskId": None,
@@ -1866,7 +2375,8 @@ class StepExecutor:
                 "status": "failed",
                 "error": str(exc),
             }
-        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            step_status = "failed"
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": step_status, "data": data, "error": data.get("error")}
 
     def _wait_for_verification(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         config = self._email_verifier_config()
@@ -1883,25 +2393,25 @@ class StepExecutor:
         if not task_id:
             data = {
                 "taskId": None,
-                "status": "failed",
+                "status": "invalid_input",
                 "valid": 0,
                 "risky": 0,
                 "invalid": 0,
                 "unknown": 0,
                 "error": "No email verification task id was available.",
             }
-            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         if not config.get("enabled") or not config.get("api_key"):
             data = {
                 "taskId": task_id,
-                "status": "failed",
+                "status": "not_configured",
                 "valid": 0,
                 "risky": 0,
                 "invalid": 0,
                 "unknown": 0,
                 "error": "Email verification is not configured for this tenant.",
             }
-            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         deadline = time.time() + timeout_seconds
         last_result = {
             "taskId": task_id,
@@ -1945,7 +2455,147 @@ class StepExecutor:
             "unknown": safe_int(last_result.get("unknown")),
             "error": last_result.get("error") or last_result.get("lastError"),
         }
-        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
+        step_status = self._verification_runtime_status(data.get("status"), data.get("error"))
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": step_status, "data": data, "error": data.get("error")}
+
+    def _filter(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        condition = self._extract_if_then_condition(step)
+        operator = clean_text(condition.get("operator")).lower()
+        left_operand = condition.get("left")
+        right_operand = condition.get("right")
+        unary_operators = {"is_empty", "is_not_empty"}
+        binary_operators = {
+            "equals",
+            "not_equals",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal",
+            "contains",
+            "not_contains",
+        }
+        supported_operators = unary_operators | binary_operators
+        empty_data = {"result": None, "selectedTargets": [], "operator": operator or None, "left": None, "right": None, "passed": None}
+        if not operator:
+            return self._service_error(step, "Filter is missing an operator.", data=empty_data)
+        if operator not in supported_operators:
+            return self._service_error(step, f"Unsupported filter operator '{operator}'.", data=empty_data)
+        if left_operand is None:
+            return self._service_error(step, "Filter is missing the left operand.", data=empty_data)
+        if operator in binary_operators and right_operand is None:
+            return self._service_error(step, "Filter is missing the right operand.", data=empty_data)
+        syntax_errors = self._token_syntax_errors(left_operand, "filter left operand")
+        if operator in binary_operators:
+            syntax_errors.extend(self._token_syntax_errors(right_operand, "filter right operand"))
+        if syntax_errors:
+            return self._service_error(step, syntax_errors[0], data=empty_data)
+
+        left_value, left_missing = self._resolve_value(left_operand, context, runtime)
+        if left_missing:
+            if operator in unary_operators:
+                left_value = None
+            else:
+                return self._service_error(step, f"Filter left operand could not resolve: {', '.join(left_missing)}.", data=empty_data)
+        right_value = None
+        if operator in binary_operators:
+            right_value, right_missing = self._resolve_value(right_operand, context, runtime)
+            if right_missing:
+                return self._service_error(
+                    step,
+                    f"Filter right operand could not resolve: {', '.join(right_missing)}.",
+                    data={"result": None, "selectedTargets": [], "operator": operator, "left": safe_clone(left_value), "right": None, "passed": None},
+                )
+        result, evaluation_error = self._evaluate_if_then_condition(operator, left_value, right_value)
+        if evaluation_error:
+            return self._service_error(
+                step,
+                evaluation_error,
+                data={"result": None, "selectedTargets": [], "operator": operator, "left": safe_clone(left_value), "right": safe_clone(right_value), "passed": None},
+            )
+
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        node_id = clean_text(params.get("node_id") or step.get("id"))
+        outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+        branch_status = "true" if result else "false"
+        matched_targets, default_targets = self._branch_edge_targets(outgoing_edges, branch_status)
+        if result:
+            if matched_targets:
+                selected_targets = matched_targets
+            elif len(default_targets) <= 1:
+                selected_targets = default_targets
+            else:
+                return self._service_error(
+                    step,
+                    "Filter routing is ambiguous. Use one default edge or label explicit true/false edges.",
+                    data={"result": bool(result), "selectedTargets": [], "operator": operator, "left": safe_clone(left_value), "right": safe_clone(right_value), "passed": True},
+                )
+        else:
+            selected_targets = matched_targets
+        if outgoing_edges:
+            self._apply_branch_selection(runtime=runtime, node_id=node_id, outgoing_edges=outgoing_edges, selected_targets=selected_targets, branch_status=branch_status)
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {
+                "result": bool(result),
+                "passed": bool(result),
+                "operator": operator,
+                "left": safe_clone(left_value),
+                "right": safe_clone(right_value),
+                "selectedTargets": selected_targets,
+            },
+            "metadata": {
+                "service": self.service_registry.get("filter"),
+            },
+        }
+
+    def _switch(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        definition = self._extract_switch_definition(step)
+        source_operand = definition.get("source")
+        empty_data = {"switchValue": None, "selectedTargets": [], "matchedCase": None}
+        if source_operand is None:
+            return self._service_error(step, "Switch is missing a source value.", data=empty_data)
+        syntax_errors = self._token_syntax_errors(source_operand, "switch source")
+        if syntax_errors:
+            return self._service_error(step, syntax_errors[0], data=empty_data)
+        switch_value, missing = self._resolve_value(source_operand, context, runtime)
+        if missing:
+            return self._service_error(
+                step,
+                f"Switch source could not resolve: {', '.join(missing)}.",
+                data=empty_data,
+            )
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        node_id = clean_text(params.get("node_id") or step.get("id"))
+        outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+        if not outgoing_edges:
+            return self._service_error(
+                step,
+                "Switch requires labeled outgoing edges.",
+                data={"switchValue": safe_clone(switch_value), "selectedTargets": [], "matchedCase": None},
+            )
+        selected_targets, matched_case, route_error = self._resolve_switch_targets(outgoing_edges, switch_value)
+        if route_error:
+            return self._service_error(
+                step,
+                route_error,
+                data={"switchValue": safe_clone(switch_value), "selectedTargets": [], "matchedCase": matched_case},
+            )
+        self._apply_branch_selection(runtime=runtime, node_id=node_id, outgoing_edges=outgoing_edges, selected_targets=selected_targets, branch_status=matched_case or "matched")
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {
+                "switchValue": safe_clone(switch_value),
+                "matchedCase": matched_case,
+                "selectedTargets": selected_targets,
+            },
+            "metadata": {
+                "service": self.service_registry.get("switch"),
+            },
+        }
 
     def _if_then(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         condition = self._extract_if_then_condition(step)
@@ -2063,6 +2713,58 @@ class StepExecutor:
             },
         }
 
+    def _time_delay(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        resolved_delay, delay_error = self._resolve_delay_config(step, context, runtime)
+        if delay_error:
+            return self._service_error(
+                step,
+                delay_error,
+                data={"pauseReason": None, "resumeAt": None, "duration": None, "unit": None, "nextNodeId": None},
+            )
+        next_node_id, route_error = self._resolve_single_downstream_target(step)
+        if route_error:
+            return self._service_error(
+                step,
+                route_error,
+                data={
+                    "pauseReason": None,
+                    "resumeAt": None,
+                    "duration": resolved_delay["duration"],
+                    "unit": resolved_delay["unit"],
+                    "nextNodeId": None,
+                },
+            )
+        delta = {
+            "minutes": timedelta(minutes=resolved_delay["duration"]),
+            "hours": timedelta(hours=resolved_delay["duration"]),
+            "days": timedelta(days=resolved_delay["duration"]),
+        }[resolved_delay["unit"]]
+        resume_at = (datetime.now(UTC) + delta).isoformat()
+        runtime["pause_state"] = {
+            "pause_reason": "delay",
+            "resume_at": resume_at,
+            "next_node_id": next_node_id,
+            "current_node_id": clean_text((step.get("parameters") or {}).get("node_id") or step.get("id")),
+            "last_error": None,
+        }
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "paused",
+            "message": "Execution paused until resume time.",
+            "error": None,
+            "data": {
+                "pauseReason": "delay",
+                "resumeAt": resume_at,
+                "duration": resolved_delay["duration"],
+                "unit": resolved_delay["unit"],
+                "nextNodeId": next_node_id,
+            },
+            "metadata": {
+                "service": self.service_registry.get("time_delay"),
+            },
+        }
+
     def _verification_branch(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         merged = self._merged_step_config(step)
         source = normalize_token(merged.get("source") or "previous") or "previous"
@@ -2113,6 +2815,17 @@ class ExecutionEngine:
         self.provider = provider
         self.executor = StepExecutor(provider)
 
+    def _serialize_runtime_context(self, context: dict[str, Any], runtime: dict[str, Any], tenant: dict[str, Any]) -> dict[str, Any]:
+        next_context = json.loads(json.dumps(context or {}, default=str))
+        next_context["tenant"] = json.loads(json.dumps(tenant or {}, default=str))
+        next_context["run_vars"] = safe_clone(runtime.get("run_vars") or {})
+        next_context["_runtime_previous"] = safe_clone(runtime.get("previous"))
+        next_context["_runtime_node_results"] = safe_clone(runtime.get("node_results") or {})
+        next_context["_runtime_branch_decisions"] = safe_clone(runtime.get("branch_decisions") or {})
+        next_context["_runtime_suppressed_nodes"] = sorted(runtime.get("suppressed_nodes") or [])
+        next_context["_runtime_graph_adjacency"] = safe_clone(runtime.get("graph_adjacency") or {})
+        return next_context
+
     def run(self, raw_steps: list[dict[str, Any]], mode: str, command: str, context: dict[str, Any], actor: dict[str, Any], tenant: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
         import server
         from backend.adaptive_routing import AdaptiveRouting
@@ -2122,14 +2835,21 @@ class ExecutionEngine:
         router = AdaptiveRouting(self.provider)
         recovery_engine = RecoveryEngine(self.executor)
         trace = []
+        resume_node_id = ""
         if mode == "resume" and run_id:
             run_state = getattr(self.provider, "get_ai_run")(run_id)
             if not run_state:
                 raise ValueError(f"Run {run_id} not found to resume.")
-            steps = json.loads(run_state.get("steps_json", "[]"))
-            artifacts = json.loads(run_state.get("artifacts_json", "[]"))
-            routing = json.loads(run_state.get("routing_json", "{}"))
-            trace = json.loads(run_state.get("trace_json", "[]"))
+            steps = run_state.get("steps") if isinstance(run_state.get("steps"), list) else json.loads(run_state.get("steps_json", "[]"))
+            artifacts = run_state.get("artifacts") if isinstance(run_state.get("artifacts"), list) else json.loads(run_state.get("artifacts_json", "[]"))
+            routing = run_state.get("routing") if isinstance(run_state.get("routing"), dict) else json.loads(run_state.get("routing_json", "{}"))
+            trace = run_state.get("trace") if isinstance(run_state.get("trace"), list) else json.loads(run_state.get("trace_json", "[]"))
+            stored_context = run_state.get("context") if isinstance(run_state.get("context"), dict) else json.loads(run_state.get("context_json", "{}"))
+            stored_actor = run_state.get("actor") if isinstance(run_state.get("actor"), dict) else json.loads(run_state.get("actor_json", "{}"))
+            context = {**stored_context, **(context or {})}
+            actor = stored_actor or actor
+            tenant = context.get("tenant") if isinstance(context.get("tenant"), dict) else tenant
+            resume_node_id = clean_text(run_state.get("next_node_id"))
         else:
             if mode == "plan" or (not raw_steps and command):
                 from backend.planner import create_execution_plan
@@ -2224,30 +2944,37 @@ class ExecutionEngine:
                 "plan": [s.get("intent") for s in steps],
                 "agentNotes": []
             },
-            "node_results": {},
-            "previous": None,
+            "node_results": safe_clone(context.get("_runtime_node_results") or {}),
+            "previous": safe_clone(context.get("_runtime_previous")),
             "run_vars": json.loads(json.dumps(context.get("run_vars") or {})) if isinstance(context.get("run_vars"), dict) else {},
-            "graph_adjacency": {},
-            "suppressed_nodes": set(),
-            "branch_decisions": {},
+            "graph_adjacency": safe_clone(context.get("_runtime_graph_adjacency") or {}),
+            "suppressed_nodes": set(context.get("_runtime_suppressed_nodes") or []),
+            "branch_decisions": safe_clone(context.get("_runtime_branch_decisions") or {}),
+            "pause_state": {},
         }
         for step in steps:
             params = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
             node_id = clean_text(params.get("node_id") or step.get("id"))
             outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
-            if node_id:
+            if node_id and node_id not in runtime["graph_adjacency"]:
                 runtime["graph_adjacency"][node_id] = [
                     clean_text(edge.get("target"))
                     for edge in outgoing_edges
                     if clean_text(edge.get("target"))
                 ]
-        
+        resume_pending = bool(resume_node_id)
+        resume_found = not resume_pending
         for step in steps:
             # Skip natively completed steps
             if step.get("status") in ("success", "skipped"):
                 continue
             params = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
             node_id = clean_text(params.get("node_id") or step.get("id"))
+            if resume_pending:
+                if node_id != resume_node_id:
+                    continue
+                resume_pending = False
+                resume_found = True
             if node_id and node_id in runtime.get("suppressed_nodes", set()):
                 step["status"] = "skipped"
                 step["completedAt"] = datetime_now()
@@ -2258,12 +2985,20 @@ class ExecutionEngine:
             if step.get("requiresApproval") and step.get("status") != "approved":
                 step["status"] = "awaiting_approval"
                 run_state_status = "blocked"
+                runtime["pause_state"] = {
+                    "pause_reason": "approval",
+                    "resume_at": None,
+                    "next_node_id": node_id,
+                    "current_node_id": node_id,
+                    "last_error": None,
+                }
                 self._audit_log(final_run_id, step, "blocked", "awaiting_approval")
                 break
                 
             step["status"] = "executing"
             started_at = time.time()
             step["startedAt"] = datetime_now()
+            runtime["current_node_id"] = node_id
             
             self._audit_log(final_run_id, step, "execution_started", "pending")
             res = self.executor.execute(step, context, runtime)
@@ -2291,7 +3026,8 @@ class ExecutionEngine:
             trace.append(trace_entry)
             
             # Phase 16: Self-Healing Loop
-            if res["status"] == "error":
+            failure = None
+            if res["status"] in {"error", "failed"}:
                 failure = classify_failure(step, res.get("error", "unknown"), runtime)
                 healing = recovery_engine.attempt_recovery(step, failure, runtime, context)
                 
@@ -2326,7 +3062,7 @@ class ExecutionEngine:
                 "agent_name": step["assignedAgent"],
                 "agent_id": step["agentId"],
                 "status": step["status"],
-                "error_category": failure["category"] if res["status"] == "error" else None,
+                "error_category": failure["category"] if step["status"] in {"error", "failed"} and failure else None,
                 "recovery_attempted": step.get("_recovery_attempts", 0) > 0,
                 "recovery_success": step.get("_recovery_success", False),
                 "duration_ms": duration_ms
@@ -2344,23 +3080,58 @@ class ExecutionEngine:
                 if step.get("intent") == "query_vault":
                     runtime["retrievedContext"] = res.get("data", {})
                 
-            if step["status"] == "error":
+            if step["status"] == "paused":
+                run_state_status = "paused"
+                self._audit_log(final_run_id, step, "execution_paused", (step.get("data") or {}).get("pauseReason") or "paused")
+                break
+
+            if step["status"] in {"error", "failed"}:
                 run_state_status = "failed"
                 self._audit_log(final_run_id, step, "execution_failed", step["error"])
                 break
-                
+
+        if resume_pending and resume_node_id and not resume_found:
+            run_state_status = "failed"
+            runtime["pause_state"] = {
+                "pause_reason": None,
+                "resume_at": None,
+                "next_node_id": resume_node_id,
+                "current_node_id": None,
+                "last_error": f"Resume node '{resume_node_id}' was not found in the persisted run.",
+            }
+
         if run_state_status == "executing":
             run_state_status = "completed"
 
         # Phase 16: Post-run reflection summary
         learning_summary = {
             "whatWorked": [s["intent"] for s in steps if s["status"] == "success"],
-            "whatFailed": [s["intent"] for s in steps if s["status"] == "error"],
+            "whatFailed": [s["intent"] for s in steps if s["status"] in {"error", "failed"}],
             "recoveryInsights": [t["details"] for t in trace if t["action"] == "recovery_attempt"]
         }
         context["_learningSummary"] = learning_summary
 
-        self._persist_run(final_run_id, command, mode, run_state_status, steps, artifacts, routing, trace, actor, tenant, context)
+        persisted_context = self._serialize_runtime_context(context, runtime, tenant)
+        pause_state = runtime.get("pause_state") if isinstance(runtime.get("pause_state"), dict) else {}
+        self._persist_run(
+            final_run_id,
+            command,
+            mode,
+            run_state_status,
+            steps,
+            artifacts,
+            routing,
+            trace,
+            actor,
+            tenant,
+            persisted_context,
+            pause_reason=pause_state.get("pause_reason"),
+            resume_at=pause_state.get("resume_at"),
+            next_node_id=pause_state.get("next_node_id"),
+            current_node_id=pause_state.get("current_node_id") or runtime.get("current_node_id"),
+            locked_until=None,
+            last_error=pause_state.get("last_error") or next((s.get("error") for s in reversed(steps) if s.get("error")), None),
+        )
 
         return {
             "runId": final_run_id,
@@ -2391,12 +3162,38 @@ class ExecutionEngine:
         if hasattr(self.provider, "save_ai_audit_log"):
             self.provider.save_ai_audit_log(payload)
             
-    def _persist_run(self, run_id: str, command: str, mode: str, status: str, steps: list, artifacts: list, routing: dict, trace: list, actor: dict, tenant: dict, context: dict) -> None:
+    def _persist_run(
+        self,
+        run_id: str,
+        command: str,
+        mode: str,
+        status: str,
+        steps: list,
+        artifacts: list,
+        routing: dict,
+        trace: list,
+        actor: dict,
+        tenant: dict,
+        context: dict,
+        *,
+        pause_reason: str | None = None,
+        resume_at: str | None = None,
+        next_node_id: str | None = None,
+        current_node_id: str | None = None,
+        locked_until: str | None = None,
+        last_error: str | None = None,
+    ) -> None:
         payload = {
             "id": run_id,
             "command": command,
             "mode": mode,
             "status": status,
+            "pause_reason": pause_reason,
+            "resume_at": resume_at,
+            "next_node_id": next_node_id,
+            "current_node_id": current_node_id,
+            "locked_until": locked_until,
+            "last_error": last_error,
             "steps_json": json.dumps(steps),
             "artifacts_json": json.dumps(artifacts),
             "pending_approvals_json": json.dumps([s for s in steps if s.get("status") == "awaiting_approval"]),
@@ -2413,3 +3210,83 @@ class ExecutionEngine:
                 self.provider.save_ai_run(payload)
         except Exception as exc:
             logger.error(f"Failed to persist run {run_id}: {exc}")
+
+
+def resume_due_ai_runs(provider: Any, limit: int = 10, lock_seconds: int = 60) -> list[dict[str, Any]]:
+    claimer = getattr(provider, "claim_due_ai_runs", None)
+    if not claimer:
+        return []
+    resumed: list[dict[str, Any]] = []
+    claimed_runs = claimer(pause_reason="delay", limit=limit, lock_seconds=lock_seconds)
+    for run_state in claimed_runs:
+        tenant_id = clean_text(run_state.get("tenant_id"))
+        token = set_request_tenant_id(tenant_id)
+        try:
+            next_node_id = clean_text(run_state.get("next_node_id"))
+            context = run_state.get("context") if isinstance(run_state.get("context"), dict) else {}
+            actor = run_state.get("actor") if isinstance(run_state.get("actor"), dict) else {}
+            tenant = context.get("tenant") if isinstance(context.get("tenant"), dict) else {"id": tenant_id}
+            if not next_node_id:
+                provider.update_ai_run(
+                    run_state["id"],
+                    {
+                        "status": "failed",
+                        "pause_reason": None,
+                        "resume_at": None,
+                        "next_node_id": None,
+                        "current_node_id": None,
+                        "locked_until": None,
+                        "last_error": "Paused run is missing next_node_id and cannot resume.",
+                    },
+                )
+                resumed.append({"runId": run_state["id"], "status": "failed"})
+                continue
+            provider.update_ai_run(
+                run_state["id"],
+                {
+                    "status": "executing",
+                    "pause_reason": None,
+                    "resume_at": None,
+                    "current_node_id": next_node_id,
+                    "last_error": None,
+                },
+            )
+            engine = ExecutionEngine(provider)
+            result = engine.run(
+                raw_steps=[],
+                mode="resume",
+                command=str(run_state.get("command") or ""),
+                context=context,
+                actor=actor,
+                tenant=tenant,
+                run_id=run_state["id"],
+            )
+            resumed.append({"runId": run_state["id"], "status": result.get("status")})
+        except Exception as exc:
+            provider.update_ai_run(
+                run_state["id"],
+                {
+                    "status": "failed",
+                    "pause_reason": None,
+                    "resume_at": None,
+                    "next_node_id": None,
+                    "current_node_id": None,
+                    "locked_until": None,
+                    "last_error": str(exc),
+                },
+            )
+            resumed.append({"runId": run_state["id"], "status": "failed", "error": str(exc)})
+        finally:
+            reset_request_tenant(token)
+    return resumed
+
+
+async def run_resume_worker(provider: Any, poll_interval_seconds: int = 5, batch_limit: int = 10, lock_seconds: int = 60) -> None:
+    while True:
+        try:
+            await asyncio.to_thread(resume_due_ai_runs, provider, batch_limit, lock_seconds)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("Resume worker iteration failed: %s", exc)
+        await asyncio.sleep(max(1, poll_interval_seconds))

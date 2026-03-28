@@ -92,6 +92,25 @@ def google_primary_calendar(access_token: str) -> dict | None:
     return next((item for item in items if item.get("primary")), items[0] if items else None)
 
 
+def google_calendar_list(access_token: str) -> list[dict]:
+    listing = http_json(
+        "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=100",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    items = listing.get("items") or []
+    return [
+        {
+            "id": item.get("id"),
+            "label": item.get("summary") or item.get("id") or "Calendar",
+            "primary": bool(item.get("primary")),
+            "selected": bool(item.get("selected")),
+            "access_role": item.get("accessRole"),
+        }
+        for item in items
+        if item.get("id")
+    ]
+
+
 def build_microsoft_authorize_url(client_id: str, tenant_id: str, redirect_uri: str, state: str, scope: str) -> str:
     tenant = tenant_id or "common"
     query = urlencode(
@@ -136,6 +155,25 @@ def microsoft_primary_calendar(access_token: str, user_id: str) -> dict | None:
     )
     items = listing.get("value") or []
     return next((item for item in items if item.get("isDefaultCalendar")), items[0] if items else None)
+
+
+def microsoft_calendar_list(access_token: str, user_id: str) -> list[dict]:
+    listing = http_json(
+        f"https://graph.microsoft.com/v1.0/users/{quote(user_id, safe='')}/calendars?$top=100&$select=id,name,isDefaultCalendar,canEdit,canShare",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    items = listing.get("value") or []
+    return [
+        {
+            "id": item.get("id"),
+            "label": item.get("name") or item.get("id") or "Calendar",
+            "primary": bool(item.get("isDefaultCalendar")),
+            "can_edit": bool(item.get("canEdit")),
+            "can_share": bool(item.get("canShare")),
+        }
+        for item in items
+        if item.get("id")
+    ]
 
 
 def backend_base_url() -> str:

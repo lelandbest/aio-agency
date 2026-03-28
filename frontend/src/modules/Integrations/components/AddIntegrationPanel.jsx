@@ -129,7 +129,7 @@ export const AddIntegrationPanel = ({
       setErrors({});
       onClose();
     } catch (error) {
-      setSubmitError(error?.message || 'Unable to add integration.');
+      setSubmitError(error?.message || 'Unable to attach integration.');
     } finally {
       setSaving(false);
     }
@@ -162,7 +162,7 @@ export const AddIntegrationPanel = ({
       <div className={`fixed top-0 right-0 w-[500px] h-full bg-[var(--color-bg-primary)] shadow-lg z-[1000] flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="px-5 py-5 border-b border-[var(--color-border)] flex justify-between items-center">
-          <h2 className="m-0 text-lg font-semibold text-[var(--color-text-primary)]">Add New Integration</h2>
+          <h2 className="m-0 text-lg font-semibold text-[var(--color-text-primary)]">Attach</h2>
           <button 
             className="bg-transparent border-none cursor-pointer p-1 flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] rounded transition-all"
             onClick={handleClose}
@@ -232,7 +232,7 @@ export const AddIntegrationPanel = ({
             </div>
           )}
 
-          {/* Step 3: Configuration Form */}
+          {/* Step 3: Config Form */}
           {selectedProvider && provider && (
             <div className="flex flex-col">
               {/* Provider Info */}
@@ -389,7 +389,7 @@ export const AddIntegrationPanel = ({
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? 'Adding...' : 'Add Integration'}
+              {saving ? 'Attaching...' : 'Attach'}
             </button>
           )}
         </div>

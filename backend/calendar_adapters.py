@@ -155,6 +155,9 @@ class BaseCalendarAdapter(ABC):
         payload.setdefault("status", "needs_config")
         return payload
 
+    def list_available_calendars(self, source: dict) -> list[dict[str, Any]]:
+        return []
+
 
 class LocalStubCalendarAdapter(BaseCalendarAdapter):
     provider_name = "local-stub"
@@ -182,6 +185,16 @@ class LocalStubCalendarAdapter(BaseCalendarAdapter):
 
     def import_events(self, source: dict) -> dict:
         return {"status": "ok", "message": "Local stub source has no external feed to import.", "imported_count": 0, "events": []}
+
+    def list_available_calendars(self, source: dict) -> list[dict[str, Any]]:
+        config = source.get("config") or {}
+        return [
+            {
+                "id": config.get("calendar_id") or source.get("id") or "local-stub",
+                "label": source.get("name") or "Local calendar",
+                "primary": True,
+            }
+        ]
 
 
 class ExternalCalendarAdapter(BaseCalendarAdapter):
@@ -234,7 +247,7 @@ class ExternalCalendarAdapter(BaseCalendarAdapter):
             "meeting_url": "",
             "source_payload": {
                 "provider": self.provider_name,
-                "calendar_id": (source.get("config") or {}).get("calendar_id") or "primary",
+                "calendar_id": (source.get("config") or {}).get("calendar_id"),
                 "event_kind": "imported_stub",
             },
         }
@@ -282,7 +295,10 @@ class GoogleCalendarAdapter(ExternalCalendarAdapter):
         return token
 
     def _calendar_url(self, source: dict[str, Any], suffix: str = "") -> str:
-        calendar_id = quote(str(self._config(source).get("calendar_id") or "primary"), safe="")
+        calendar_id_value = str(self._config(source).get("calendar_id") or "").strip()
+        if not calendar_id_value:
+            raise ValueError("Google Calendar source requires an explicit calendar_id.")
+        calendar_id = quote(calendar_id_value, safe="")
         return f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}{suffix}"
 
     def test_connection(self, source: dict) -> dict:
@@ -396,6 +412,40 @@ class GoogleCalendarAdapter(ExternalCalendarAdapter):
             "config_updates": {"sync_token": listing.get("nextSyncToken")} if listing.get("nextSyncToken") else {},
         }
 
+    def list_available_calendars(self, source: dict) -> list[dict[str, Any]]:
+        config = self._config(source)
+        missing = [key for key in ["client_id", "client_secret", "refresh_token"] if not config.get(key)]
+        if missing:
+            raise ValueError(f"Missing configuration: {', '.join(missing)}")
+        response = http_form(
+            "https://oauth2.googleapis.com/token",
+            {
+                "client_id": config.get("client_id"),
+                "client_secret": config.get("client_secret"),
+                "refresh_token": config.get("refresh_token"),
+                "grant_type": "refresh_token",
+            },
+        )
+        token = response.get("access_token")
+        if not token:
+            raise ValueError("Google token exchange did not return an access token.")
+        listing = http_json(
+            "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=100",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        items = listing.get("items") or []
+        return [
+            {
+                "id": item.get("id"),
+                "label": item.get("summary") or item.get("id") or "Calendar",
+                "primary": bool(item.get("primary")),
+                "selected": bool(item.get("selected")),
+                "access_role": item.get("accessRole"),
+            }
+            for item in items
+            if item.get("id")
+        ]
+
 
 class Microsoft365CalendarAdapter(ExternalCalendarAdapter):
     provider_name = "microsoft365-calendar"
@@ -407,7 +457,7 @@ class Microsoft365CalendarAdapter(ExternalCalendarAdapter):
         {"key": "user_id", "label": "User ID"},
         {"key": "calendar_id", "label": "Calendar ID"},
     ]
-    required_keys = ["tenant_id", "client_id", "client_secret", "user_id", "calendar_id"]
+    required_keys = ["tenant_id", "client_id", "client_secret", "refresh_token", "user_id", "calendar_id"]
 
     @staticmethod
     def _config(source: dict[str, Any]) -> dict[str, Any]:
@@ -545,6 +595,41 @@ class Microsoft365CalendarAdapter(ExternalCalendarAdapter):
             "events": events,
         }
 
+    def list_available_calendars(self, source: dict) -> list[dict[str, Any]]:
+        config = self._config(source)
+        missing = [key for key in ["tenant_id", "client_id", "client_secret", "refresh_token", "user_id"] if not config.get(key)]
+        if missing:
+            raise ValueError(f"Missing configuration: {', '.join(missing)}")
+        response = http_form(
+            f"https://login.microsoftonline.com/{config.get('tenant_id')}/oauth2/v2.0/token",
+            {
+                "client_id": config.get("client_id"),
+                "client_secret": config.get("client_secret"),
+                "refresh_token": config.get("refresh_token"),
+                "grant_type": "refresh_token",
+                "scope": "https://graph.microsoft.com/.default offline_access",
+            },
+        )
+        access_token = response.get("access_token")
+        if not access_token:
+            raise ValueError("Microsoft token exchange did not return an access token.")
+        listing = http_json(
+            f"https://graph.microsoft.com/v1.0/users/{quote(str(config.get('user_id')), safe='')}/calendars?$top=100&$select=id,name,isDefaultCalendar,canEdit,canShare",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        items = listing.get("value") or []
+        return [
+            {
+                "id": item.get("id"),
+                "label": item.get("name") or item.get("id") or "Calendar",
+                "primary": bool(item.get("isDefaultCalendar")),
+                "can_edit": bool(item.get("canEdit")),
+                "can_share": bool(item.get("canShare")),
+            }
+            for item in items
+            if item.get("id")
+        ]
+
 
 class IcsCalendarAdapter(BaseCalendarAdapter):
     provider_name = "ics-url"
@@ -665,6 +750,19 @@ class IcsCalendarAdapter(BaseCalendarAdapter):
             "imported_count": len(events),
             "events": events,
         }
+
+    def list_available_calendars(self, source: dict) -> list[dict[str, Any]]:
+        config = self._config(source)
+        feed_url = str(config.get("feed_url") or "").strip()
+        if not feed_url:
+            raise ValueError("ICS Feed URL is required.")
+        return [
+            {
+                "id": feed_url,
+                "label": source.get("name") or "ICS Feed",
+                "primary": True,
+            }
+        ]
 
 
 ADAPTERS = {

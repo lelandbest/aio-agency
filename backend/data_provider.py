@@ -176,11 +176,34 @@ def source_config_value(source: dict[str, Any], key: str, default: Any) -> Any:
     return config.get(key, default)
 
 
+def sync_selected_calendar_metadata(config: dict[str, Any] | None) -> dict[str, Any]:
+    next_config = dict(config or {})
+    selected_calendar_id = str(next_config.get("calendar_id") or "").strip()
+    if not selected_calendar_id:
+        next_config.pop("connected_calendar", None)
+        return next_config
+    available_calendars = next_config.get("available_calendars")
+    if isinstance(available_calendars, list):
+        selected = next(
+            (
+                item
+                for item in available_calendars
+                if str((item or {}).get("id") or "").strip() == selected_calendar_id
+            ),
+            None,
+        )
+        if selected:
+            next_config["connected_calendar"] = selected.get("label") or selected_calendar_id
+        else:
+            next_config.pop("connected_calendar", None)
+    return next_config
+
+
 def disconnected_provider_config(provider: str | None, config: dict[str, Any] | None = None) -> dict[str, Any]:
     next_config = dict(config or {})
-    for key in ["refresh_token", "access_token", "last_error", "connected_identity", "connected_calendar"]:
+    for key in ["refresh_token", "access_token", "last_error", "connected_identity", "connected_calendar", "available_calendars"]:
         next_config.pop(key, None)
-    if provider == "microsoft365-calendar":
+    if provider in {"microsoft365-calendar", "google-calendar-oauth"}:
         next_config.pop("user_id", None)
         next_config.pop("calendar_id", None)
     return next_config
@@ -507,6 +530,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def test_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendar_source_calendars(self, source_id: str) -> list[dict[str, Any]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -850,6 +877,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def list_ai_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def claim_due_ai_runs(self, pause_reason: str = "delay", limit: int = 10, lock_seconds: int = 60) -> list[dict[str, Any]]:
         raise NotImplementedError
 
 
@@ -2092,7 +2123,7 @@ class MockProvider(BaseProvider):
             if key in updates and updates[key] is not None:
                 source[key] = updates[key]
         if "config" in updates and isinstance(updates["config"], dict):
-            source["config"] = updates["config"]
+            source["config"] = sync_selected_calendar_metadata(updates["config"])
         if "status" not in updates:
             adapter = get_calendar_adapter(source.get("provider"))
             validation = adapter.validate_source(source)
@@ -2154,6 +2185,21 @@ class MockProvider(BaseProvider):
         result = adapter.test_connection(source)
         source["status"] = "connected" if result["status"] == "ok" else "needs_config"
         return {"source": self._summarize_calendar_sources([source], self.calendar_events)[0], "result": result}
+
+    def list_calendar_source_calendars(self, source_id: str) -> list[dict[str, Any]]:
+        source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        calendars = adapter.list_available_calendars(source)
+        selected_calendar_id = source_config_value(source, "calendar_id", None)
+        return [
+            {
+                **item,
+                "selected": str(item.get("id") or "") == str(selected_calendar_id or ""),
+            }
+            for item in calendars
+        ]
 
     def sync_calendar_source(self, source_id: str) -> dict[str, Any]:
         source = next((item for item in self.calendar_sources if item["id"] == source_id), None)
@@ -2941,6 +2987,9 @@ class MockProvider(BaseProvider):
     def list_ai_runs(self, limit: int = 50) -> list[dict[str, Any]]:
         raise NotImplementedError("Not implemented for mock")
 
+    def claim_due_ai_runs(self, pause_reason: str = "delay", limit: int = 10, lock_seconds: int = 60) -> list[dict[str, Any]]:
+        raise NotImplementedError("Not implemented for mock")
+
 
 class SQLiteProvider(BaseProvider):
     provider_name = "sqlite"
@@ -3511,6 +3560,12 @@ class SQLiteProvider(BaseProvider):
                     command TEXT NOT NULL,
                     mode TEXT NOT NULL,
                     status TEXT NOT NULL,
+                    pause_reason TEXT,
+                    resume_at TEXT,
+                    next_node_id TEXT,
+                    current_node_id TEXT,
+                    locked_until TEXT,
+                    last_error TEXT,
                     steps_json TEXT NOT NULL,
                     artifacts_json TEXT NOT NULL,
                     pending_approvals_json TEXT NOT NULL,
@@ -3647,6 +3702,12 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "calendar_sources", "created_at", "TEXT")
             self._ensure_column(conn, "calendar_sources", "updated_at", "TEXT")
             self._ensure_column(conn, "ai_engine_runs", "tenant_id", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "pause_reason", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "resume_at", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "next_node_id", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "current_node_id", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "locked_until", "TEXT")
+            self._ensure_column(conn, "ai_engine_runs", "last_error", "TEXT")
             self._ensure_column(conn, "ai_engine_runs", "trace_json", "TEXT DEFAULT '[]'")
             self._ensure_column(conn, "ai_audit_logs", "tenant_id", "TEXT")
             conn.execute(
@@ -6480,6 +6541,7 @@ class SQLiteProvider(BaseProvider):
                     **json_loads(source.get("config_json"), {}),
                     **updates["config"],
                 }
+                merged_config = sync_selected_calendar_metadata(merged_config)
                 payload["config_json"] = json.dumps(merged_config)
             if "status" not in updates:
                 adapter = get_calendar_adapter(payload.get("provider", source.get("provider")))
@@ -6598,6 +6660,21 @@ class SQLiteProvider(BaseProvider):
             },
         )
         return {"source": updated, "result": result}
+
+    def list_calendar_source_calendars(self, source_id: str) -> list[dict[str, Any]]:
+        source = next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
+        if not source:
+            raise ValueError("Calendar source not found")
+        adapter = get_calendar_adapter(source.get("provider"))
+        calendars = adapter.list_available_calendars(source)
+        selected_calendar_id = source_config_value(source, "calendar_id", None)
+        return [
+            {
+                **item,
+                "selected": str(item.get("id") or "") == str(selected_calendar_id or ""),
+            }
+            for item in calendars
+        ]
 
     def sync_calendar_source(self, source_id: str) -> dict[str, Any]:
         source = next((item for item in self.list_calendar_sources() if item["id"] == source_id), None)
@@ -7841,10 +7918,10 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO ai_engine_runs (
-                    id, tenant_id, command, mode, status, steps_json, 
+                    id, tenant_id, command, mode, status, pause_reason, resume_at, next_node_id, current_node_id, locked_until, last_error, steps_json, 
                     artifacts_json, pending_approvals_json, routing_json, trace_json, 
                     actor_json, context_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload["id"],
@@ -7852,6 +7929,12 @@ class SQLiteProvider(BaseProvider):
                     payload["command"],
                     payload["mode"],
                     payload["status"],
+                    payload.get("pause_reason"),
+                    payload.get("resume_at"),
+                    payload.get("next_node_id"),
+                    payload.get("current_node_id"),
+                    payload.get("locked_until"),
+                    payload.get("last_error"),
                     payload.get("steps_json", "[]"),
                     payload.get("artifacts_json", "[]"),
                     payload.get("pending_approvals_json", "[]"),
@@ -7913,6 +7996,45 @@ class SQLiteProvider(BaseProvider):
             (max(1, min(limit, 200)),),
         )
         return [self._deserialize_ai_engine_run_row(row) for row in rows if row]
+
+    def claim_due_ai_runs(self, pause_reason: str = "delay", limit: int = 10, lock_seconds: int = 60) -> list[dict[str, Any]]:
+        now = utcnow()
+        locked_until = (datetime.now(UTC) + timedelta(seconds=max(5, lock_seconds))).isoformat()
+        claimed: list[dict[str, Any]] = []
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM ai_engine_runs
+                WHERE status = 'paused'
+                  AND pause_reason = ?
+                  AND resume_at IS NOT NULL
+                  AND resume_at <= ?
+                  AND (locked_until IS NULL OR locked_until = '' OR locked_until <= ?)
+                ORDER BY resume_at ASC
+                LIMIT ?
+                """,
+                (pause_reason, now, now, max(1, min(limit, 200))),
+            ).fetchall()
+            for row in rows:
+                updated = conn.execute(
+                    """
+                    UPDATE ai_engine_runs
+                    SET locked_until = ?, updated_at = ?
+                    WHERE id = ?
+                      AND status = 'paused'
+                      AND pause_reason = ?
+                      AND (locked_until IS NULL OR locked_until = '' OR locked_until <= ?)
+                    """,
+                    (locked_until, now, row["id"], pause_reason, now),
+                )
+                if updated.rowcount:
+                    refreshed = conn.execute("SELECT * FROM ai_engine_runs WHERE id = ?", (row["id"],)).fetchone()
+                    parsed = self._deserialize_ai_engine_run_row(refreshed)
+                    if parsed:
+                        claimed.append(parsed)
+            conn.commit()
+        return claimed
 
 
 

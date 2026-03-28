@@ -343,6 +343,13 @@ export async function updateWorkspaceApi(workspaceId, payload) {
   });
 }
 
+export async function deleteWorkspaceApi(workspaceId) {
+  const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}`, {
+    method: 'DELETE'
+  });
+  return response.data || null;
+}
+
 export async function getWorkspaceMembershipsApi(workspaceId) {
   const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/memberships`);
   return response.data || [];
@@ -765,6 +772,11 @@ export async function updateCalendarSourceApi(sourceId, payload) {
     method: 'PATCH',
     body: JSON.stringify(payload)
   });
+}
+
+export async function listCalendarSourceCalendarsApi(sourceId) {
+  const response = await request(`/api/calendar/sources/${encodeURIComponent(sourceId)}/available-calendars`);
+  return response.data || [];
 }
 
 export async function deleteCalendarSourceApi(sourceId, fallbackSourceId) {
