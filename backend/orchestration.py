@@ -2,8 +2,12 @@ import json
 import logging
 import time
 import re
+import copy
 from datetime import datetime, UTC, timedelta
 from typing import Any
+from urllib.parse import urlparse
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from uuid import uuid4
 try:
     from backend.agent_runtime import AgentRegistry
@@ -31,6 +35,10 @@ DIRECT_EXECUTION_INTENTS = {
     "update_booking",
     "cancel_booking",
     "get_booking",
+    "set_variable",
+    "send_email",
+    "http_request",
+    "if_then",
     "verify_email",
     "verify_email_bulk",
     "wait_for_verification",
@@ -96,6 +104,142 @@ def parse_string_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [clean_text(item) for item in re.split(r"[\n,]+", value) if clean_text(item)]
     return []
+
+
+TEMPLATE_TOKEN_RE = re.compile(r"{{\s*([^{}]+?)\s*}}")
+TOKEN_PATH_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*$")
+
+
+def json_value(value: Any, default: Any = None) -> Any:
+    if isinstance(value, (dict, list)):
+        return json.loads(json.dumps(value))
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return default
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return default if default is not None else value
+    return default if default is not None else value
+
+
+def deep_merge_dict(target: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(target or {})
+    for key, value in (updates or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge_dict(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def dotted_get(source: Any, path: str) -> Any:
+    current = source
+    for segment in [part for part in str(path or "").split(".") if part]:
+        if isinstance(current, dict):
+            current = current.get(segment)
+            continue
+        if isinstance(current, list) and segment.isdigit():
+            index = int(segment)
+            current = current[index] if 0 <= index < len(current) else None
+            continue
+        return None
+    return current
+
+
+def dotted_set(target: dict[str, Any], path: str, value: Any) -> None:
+    segments = [part for part in str(path or "").split(".") if part]
+    if not segments:
+        return
+    current = target
+    for segment in segments[:-1]:
+        next_value = current.get(segment)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[segment] = next_value
+        current = next_value
+    current[segments[-1]] = value
+
+
+def safe_clone(value: Any) -> Any:
+    return copy.deepcopy(value)
+
+
+def is_numeric_segment(value: str) -> bool:
+    return str(value or "").isdigit()
+
+
+ALLOWED_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+SAFE_RETRY_HTTP_METHODS = {"GET", "HEAD"}
+
+
+def safe_assign_path(target: dict[str, Any], path: str, value: Any) -> tuple[bool, str | None]:
+    segments = [part for part in str(path or "").split(".") if part]
+    if not segments:
+        return False, "Variable path is required."
+    current: Any = target
+    for index, segment in enumerate(segments[:-1]):
+        next_segment = segments[index + 1]
+        if isinstance(current, dict):
+            existing = current.get(segment)
+            if existing is None:
+                if is_numeric_segment(next_segment):
+                    return False, f"Cannot create array path implicitly at '{'.'.join(segments[: index + 1])}'."
+                current[segment] = {}
+                existing = current[segment]
+            elif not isinstance(existing, (dict, list)):
+                return False, f"Path collision at '{'.'.join(segments[: index + 1])}': scalar cannot become nested."
+            elif isinstance(existing, list) and not is_numeric_segment(next_segment):
+                return False, f"Array path '{'.'.join(segments[: index + 1])}' requires numeric index access."
+            elif isinstance(existing, dict) and is_numeric_segment(next_segment):
+                return False, f"Cannot index object path '{'.'.join(segments[: index + 1])}' as an array."
+            current = existing
+            continue
+        if isinstance(current, list):
+            if not is_numeric_segment(segment):
+                return False, f"Array path '{'.'.join(segments[:index])}' requires numeric index access."
+            list_index = int(segment)
+            if list_index < 0 or list_index >= len(current):
+                return False, f"Array index out of range at '{'.'.join(segments[: index + 1])}'."
+            existing = current[list_index]
+            if existing is None:
+                if is_numeric_segment(next_segment):
+                    return False, f"Cannot create nested array path implicitly at '{'.'.join(segments[: index + 1])}'."
+                current[list_index] = {}
+                existing = current[list_index]
+            elif not isinstance(existing, (dict, list)):
+                return False, f"Path collision at '{'.'.join(segments[: index + 1])}': scalar cannot become nested."
+            elif isinstance(existing, list) and not is_numeric_segment(next_segment):
+                return False, f"Array path '{'.'.join(segments[: index + 1])}' requires numeric index access."
+            elif isinstance(existing, dict) and is_numeric_segment(next_segment):
+                return False, f"Cannot index object path '{'.'.join(segments[: index + 1])}' as an array."
+            current = existing
+            continue
+        return False, f"Unsupported path traversal at '{'.'.join(segments[: index + 1])}'."
+
+    leaf = segments[-1]
+    cloned_value = safe_clone(value)
+    if isinstance(current, dict):
+        existing = current.get(leaf)
+        if existing is not None:
+            if isinstance(existing, (dict, list)) != isinstance(cloned_value, (dict, list)):
+                return False, f"Path collision at '{path}': cannot replace scalar with object or object with scalar."
+        current[leaf] = cloned_value
+        return True, None
+    if isinstance(current, list):
+        if not is_numeric_segment(leaf):
+            return False, f"Array path '{'.'.join(segments[:-1])}' requires numeric index access."
+        list_index = int(leaf)
+        if list_index < 0 or list_index >= len(current):
+            return False, f"Array index out of range at '{path}'."
+        existing = current[list_index]
+        if existing is not None:
+            if isinstance(existing, (dict, list)) != isinstance(cloned_value, (dict, list)):
+                return False, f"Path collision at '{path}': cannot replace scalar with object or object with scalar."
+        current[list_index] = cloned_value
+        return True, None
+    return False, f"Unsupported leaf write at '{path}'."
 
 
 def runtime_tenant_settings(context: dict[str, Any]) -> dict[str, Any]:
@@ -432,6 +576,20 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
 class StepExecutor:
     def __init__(self, provider: Any) -> None:
         self.provider = provider
+        self.service_registry = {
+            "set_variable": {"service": "variableService", "handlerType": "direct", "executionType": "deterministic"},
+            "send_email": {"service": "messagingService", "handlerType": "direct", "executionType": "deterministic"},
+            "http_request": {"service": "httpService", "handlerType": "adapter", "executionType": "bridge"},
+            "if_then": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "create_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
+            "update_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
+            "cancel_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
+            "get_booking": {"service": "bookingService", "handlerType": "direct", "executionType": "deterministic"},
+            "verify_email": {"service": "verificationService", "handlerType": "direct", "executionType": "deterministic"},
+            "verify_email_bulk": {"service": "verificationService", "handlerType": "direct", "executionType": "deterministic"},
+            "wait_for_verification": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+            "verification_branch": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
+        }
         self.executors = {
             "draft_email": self._draft_email,
             "schedule_calendar": self._schedule_calendar,
@@ -439,6 +597,10 @@ class StepExecutor:
             "update_booking": self._update_booking,
             "cancel_booking": self._cancel_booking,
             "get_booking": self._get_booking,
+            "set_variable": self._set_variable,
+            "send_email": self._send_email,
+            "http_request": self._http_request,
+            "if_then": self._if_then,
             "add_contact": self._add_contact,
             "add_crm_note": self._add_crm_note,
             "query_vault": self._query_vault,
@@ -453,6 +615,252 @@ class StepExecutor:
         node_config = json_object(params.get("node_config"))
         config = json_object(params.get("configuration"))
         return {**node_config, **config}
+
+    def _normalized_service_config(self, step: dict[str, Any]) -> dict[str, Any]:
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        node_config = json_object(params.get("node_config"))
+        configuration = json_value(node_config.get("configuration"), {})
+        if not isinstance(configuration, dict):
+            configuration = {}
+        merged = {**configuration, **node_config}
+        intent = clean_text(step.get("intent"))
+        execution_defaults = self.service_registry.get(intent, {})
+        inputs = json_value(merged.get("inputs"), {})
+        outputs = json_value(merged.get("outputs"), {})
+        execution = json_value(merged.get("execution"), {})
+        error_handling = json_value(merged.get("errorHandling") or merged.get("error_handling"), {})
+        variable_io = json_value(merged.get("variableIO") or merged.get("variable_io"), {})
+        if not isinstance(inputs, dict):
+            inputs = {}
+        if not isinstance(outputs, dict):
+            outputs = {}
+        if not isinstance(execution, dict):
+            execution = {}
+        if not isinstance(error_handling, dict):
+            error_handling = {}
+        if not isinstance(variable_io, dict):
+            variable_io = {}
+        execution = {
+            "executionType": execution_defaults.get("executionType") or execution.get("executionType") or "agent_resolved",
+            "serviceName": execution_defaults.get("service") or execution.get("serviceName") or "",
+            "handlerType": execution_defaults.get("handlerType") or execution.get("handlerType") or "",
+            "timeout": execution.get("timeout") or merged.get("timeout"),
+            "retryPolicy": execution.get("retryPolicy") or {
+                "count": safe_int(merged.get("retryCount") or merged.get("retry_count"), 0),
+            },
+            **execution,
+        }
+        return {
+            **merged,
+            "inputs": inputs,
+            "outputs": outputs,
+            "execution": execution,
+            "errorHandling": {
+                "onError": error_handling.get("onError") or merged.get("onError") or "fail_step",
+                **error_handling,
+            },
+            "variableIO": variable_io,
+        }
+
+    def _runtime_store(self, runtime: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "nodes": runtime.setdefault("node_results", {}),
+            "previous": runtime.get("previous"),
+            "run_vars": runtime.setdefault("run_vars", {}),
+        }
+
+    def _trigger_payload(self, context: dict[str, Any]) -> dict[str, Any]:
+        trigger = context.get("trigger_event") if isinstance(context.get("trigger_event"), dict) else {}
+        payload = trigger.get("payload") if isinstance(trigger.get("payload"), dict) else {}
+        return payload
+
+    def _global_variables(self, context: dict[str, Any]) -> dict[str, Any]:
+        settings = runtime_tenant_settings(context)
+        variables = settings.get("tenant", {}).get("globalVariables") if isinstance(settings.get("tenant"), dict) else {}
+        return variables if isinstance(variables, dict) else {}
+
+    def _resolve_reference(self, reference: str, context: dict[str, Any], runtime: dict[str, Any]) -> tuple[Any, bool]:
+        token = clean_text(reference)
+        store = self._runtime_store(runtime)
+        sources = [
+            ("nodes", store["nodes"]),
+            ("previous", store["previous"] if isinstance(store["previous"], dict) else {}),
+            ("run.vars", store["run_vars"]),
+            ("form", context.get("form") if isinstance(context.get("form"), dict) else self._trigger_payload(context)),
+            ("trigger", context.get("trigger_event") if isinstance(context.get("trigger_event"), dict) else {}),
+            ("globals", self._global_variables(context)),
+            ("contact", context.get("contact") if isinstance(context.get("contact"), dict) else {}),
+            ("booking", context.get("booking_event") if isinstance(context.get("booking_event"), dict) else {}),
+        ]
+        for prefix, source in sources:
+            if token == prefix:
+                return source, True
+            if token.startswith(f"{prefix}."):
+                value = dotted_get(source, token[len(prefix) + 1:])
+                if value is not None:
+                    return value, True
+        for prefix, source in sources:
+            value = dotted_get(source, token)
+            if value is not None:
+                return value, True
+        return None, False
+
+    def _token_syntax_errors(self, value: Any, field_name: str) -> list[str]:
+        if not isinstance(value, str):
+            return []
+        raw = value
+        if "{{" not in raw and "}}" not in raw:
+            return []
+        errors: list[str] = []
+        if raw.count("{{") != raw.count("}}"):
+            errors.append(f"Malformed token syntax in {field_name}.")
+            return errors
+        stripped = TEMPLATE_TOKEN_RE.sub("", raw)
+        if "{{" in stripped or "}}" in stripped:
+            errors.append(f"Malformed token syntax in {field_name}.")
+        for match in TEMPLATE_TOKEN_RE.finditer(raw):
+            token = clean_text(match.group(1))
+            if not token or not TOKEN_PATH_RE.match(token):
+                errors.append(f"Malformed token '{token or match.group(1)}' in {field_name}.")
+        return list(dict.fromkeys(errors))
+
+    def _safe_write_targets(self, write_targets: dict[str, Any], envelope: dict[str, Any], runtime: dict[str, Any]) -> str | None:
+        store = self._runtime_store(runtime)
+        next_run_vars = safe_clone(store["run_vars"])
+        for target_path, source_path in write_targets.items():
+            normalized_target = clean_text(target_path)
+            if normalized_target.startswith("run.vars."):
+                normalized_target = normalized_target[len("run.vars."):]
+            value = envelope["data"] if source_path in {None, "", "data", "$"} else dotted_get(envelope, str(source_path))
+            if not normalized_target:
+                continue
+            success, error = safe_assign_path(next_run_vars, normalized_target, safe_clone(value))
+            if not success:
+                return error or f"Unable to write target '{normalized_target}'."
+        runtime["run_vars"] = next_run_vars
+        return None
+
+    def _resolve_value(self, value: Any, context: dict[str, Any], runtime: dict[str, Any]) -> tuple[Any, list[str]]:
+        if isinstance(value, dict):
+            resolved: dict[str, Any] = {}
+            missing: list[str] = []
+            for key, child in value.items():
+                child_value, child_missing = self._resolve_value(child, context, runtime)
+                resolved[key] = child_value
+                missing.extend(child_missing)
+            return resolved, missing
+        if isinstance(value, list):
+            resolved_list: list[Any] = []
+            missing: list[str] = []
+            for child in value:
+                child_value, child_missing = self._resolve_value(child, context, runtime)
+                resolved_list.append(child_value)
+                missing.extend(child_missing)
+            return resolved_list, missing
+        if not isinstance(value, str):
+            return value, []
+        matches = list(TEMPLATE_TOKEN_RE.finditer(value))
+        if not matches:
+            return value, []
+        if len(matches) == 1 and matches[0].span() == (0, len(value)):
+            token = matches[0].group(1)
+            resolved, found = self._resolve_reference(token, context, runtime)
+            if found:
+                resolved = safe_clone(resolved)
+            return resolved, ([] if found else [clean_text(token)])
+        missing: list[str] = []
+        rendered = value
+        for match in matches:
+            token = match.group(1)
+            resolved, found = self._resolve_reference(token, context, runtime)
+            if not found:
+                missing.append(clean_text(token))
+                replacement = ""
+            else:
+                replacement = "" if resolved is None else str(resolved)
+            rendered = rendered.replace(match.group(0), replacement)
+        return rendered, missing
+
+    def _resolve_required_inputs(
+        self,
+        mapping: dict[str, Any],
+        context: dict[str, Any],
+        runtime: dict[str, Any],
+        *,
+        required: set[str] | None = None,
+    ) -> tuple[dict[str, Any], list[str]]:
+        resolved: dict[str, Any] = {}
+        missing: list[str] = []
+        for key, value in mapping.items():
+            resolved_value, unresolved = self._resolve_value(value, context, runtime)
+            resolved[key] = resolved_value
+            if unresolved and (required is None or key in required):
+                missing.extend(unresolved)
+            if required and key in required and (resolved_value is None or resolved_value == "" or resolved_value == []):
+                missing.append(key)
+        return resolved, list(dict.fromkeys(item for item in missing if item))
+
+    def _write_runtime_result(self, step: dict[str, Any], result: dict[str, Any], runtime: dict[str, Any]) -> None:
+        store = self._runtime_store(runtime)
+        node_id = clean_text((step.get("parameters") or {}).get("node_id") or step.get("id"))
+        envelope = {
+            "status": result.get("status"),
+            "data": safe_clone(result.get("data")),
+            "error": result.get("error"),
+            "metadata": safe_clone(result.get("metadata")),
+            "intent": step.get("intent"),
+        }
+        if not isinstance(envelope["metadata"], dict):
+            envelope["metadata"] = {}
+        if node_id:
+            store["nodes"][node_id] = safe_clone(envelope)
+        runtime["previous"] = safe_clone(result.get("data")) if isinstance(result.get("data"), dict) else {"value": safe_clone(result.get("data"))}
+        config = self._normalized_service_config(step)
+        variable_io = config.get("variableIO") if isinstance(config.get("variableIO"), dict) else {}
+        outputs = config.get("outputs") if isinstance(config.get("outputs"), dict) else {}
+        write_targets = variable_io.get("writeTo") or outputs.get("writeTo")
+        if isinstance(write_targets, dict):
+            write_error = self._safe_write_targets(write_targets, envelope, runtime)
+            if write_error:
+                envelope["metadata"]["writeTargetError"] = write_error
+                if envelope["status"] == "success":
+                    envelope["status"] = "partial"
+                if node_id:
+                    store["nodes"][node_id] = safe_clone(envelope)
+
+    def _service_error(self, step: dict[str, Any], message: str, *, data: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "error",
+            "error": message,
+            "data": safe_clone(data) if isinstance(data, dict) else {},
+            "metadata": {"service": self.service_registry.get(clean_text(step.get("intent")), {})},
+        }
+
+    def _select_mailbox(self, mailbox_id: str | None = None) -> dict[str, Any]:
+        mailboxes = self.provider.list_mailboxes() if getattr(self.provider, "list_mailboxes", None) else []
+        if mailbox_id:
+            mailbox = next((item for item in mailboxes if item.get("id") == mailbox_id), None)
+            if not mailbox:
+                raise ValueError("Mailbox not found")
+            return mailbox
+        preferred = next(
+            (
+                item for item in mailboxes
+                if item.get("outbound_enabled")
+                and item.get("provider") == "local-stub"
+            ),
+            None,
+        )
+        if preferred:
+            return preferred
+        preferred = next((item for item in mailboxes if item.get("outbound_enabled") and item.get("status") == "connected"), None)
+        if preferred:
+            return preferred
+        if mailboxes:
+            return mailboxes[0]
+        raise ValueError("No mailbox is configured for outbound email.")
 
     def _previous_step_result(self, runtime: dict[str, Any], *, intents: set[str] | None = None) -> dict[str, Any] | None:
         steps = runtime.get("steps") if isinstance(runtime.get("steps"), list) else []
@@ -505,6 +913,102 @@ class StepExecutor:
             if targets:
                 email = clean_text(targets[0].get("email")).lower()
         return email, contact_id
+
+    def _extract_if_then_condition(self, step: dict[str, Any]) -> dict[str, Any]:
+        merged = self._merged_step_config(step)
+        condition = merged.get("condition")
+        parsed_condition = json_object(condition) if isinstance(condition, str) else (dict(condition) if isinstance(condition, dict) else {})
+        return {
+            "operator": clean_text(
+                merged.get("operator")
+                or merged.get("comparison")
+                or merged.get("comparator")
+                or parsed_condition.get("operator")
+                or parsed_condition.get("comparison")
+                or parsed_condition.get("comparator")
+            ).lower(),
+            "left": (
+                merged.get("left")
+                if "left" in merged
+                else merged.get("leftOperand")
+                if "leftOperand" in merged
+                else merged.get("left_operand")
+                if "left_operand" in merged
+                else parsed_condition.get("left")
+                if "left" in parsed_condition
+                else parsed_condition.get("leftOperand")
+                if "leftOperand" in parsed_condition
+                else parsed_condition.get("left_operand")
+            ),
+            "right": (
+                merged.get("right")
+                if "right" in merged
+                else merged.get("rightOperand")
+                if "rightOperand" in merged
+                else merged.get("right_operand")
+                if "right_operand" in merged
+                else parsed_condition.get("right")
+                if "right" in parsed_condition
+                else parsed_condition.get("rightOperand")
+                if "rightOperand" in parsed_condition
+                else parsed_condition.get("right_operand")
+            ),
+        }
+
+    def _is_empty_logic_value(self, value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return clean_text(value) == ""
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) == 0
+        return False
+
+    def _coerce_numeric_logic_value(self, value: Any) -> tuple[float | None, bool]:
+        if isinstance(value, bool) or value is None:
+            return None, False
+        if isinstance(value, (int, float)):
+            return float(value), True
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return None, False
+            try:
+                return float(raw), True
+            except ValueError:
+                return None, False
+        return None, False
+
+    def _evaluate_if_then_condition(self, operator: str, left: Any, right: Any) -> tuple[bool | None, str | None]:
+        if operator == "equals":
+            return left == right, None
+        if operator == "not_equals":
+            return left != right, None
+        if operator in {"greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal"}:
+            left_number, left_ok = self._coerce_numeric_logic_value(left)
+            right_number, right_ok = self._coerce_numeric_logic_value(right)
+            if not left_ok or not right_ok:
+                return None, "Numeric comparison requires both operands to be numbers."
+            if operator == "greater_than":
+                return left_number > right_number, None
+            if operator == "greater_than_or_equal":
+                return left_number >= right_number, None
+            if operator == "less_than":
+                return left_number < right_number, None
+            return left_number <= right_number, None
+        if operator in {"contains", "not_contains"}:
+            if isinstance(left, str):
+                contains = str(right) in left
+            elif isinstance(left, (list, tuple, set)):
+                contains = right in left
+            else:
+                return None, "Contains operators require a string or list-like left operand."
+            return (contains, None) if operator == "contains" else (not contains, None)
+        if operator == "is_empty":
+            return self._is_empty_logic_value(left), None
+        if operator == "is_not_empty":
+            return not self._is_empty_logic_value(left), None
+        return None, f"Unsupported if-then operator '{operator}'."
 
     def _branch_edge_targets(self, outgoing_edges: list[dict[str, Any]], branch_status: str) -> tuple[list[str], list[str]]:
         normalized_status = normalize_token(branch_status) or "unknown"
@@ -594,24 +1098,383 @@ class StepExecutor:
         res = tool.run(params, context)
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": res}
 
+    def _set_variable(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._normalized_service_config(step)
+        assignments = config.get("values")
+        if not isinstance(assignments, dict):
+            assignments = json_value(config.get("configuration"), {})
+        if not isinstance(assignments, dict) or not assignments:
+            return self._service_error(step, "Set Variable requires a JSON object of assignments.", data={"written": False, "keys": []})
+        resolved_assignments, missing = self._resolve_required_inputs(assignments, context, runtime, required=set(assignments.keys()))
+        if missing:
+            return self._service_error(step, f"Missing required variable inputs: {', '.join(missing)}", data={"written": False, "keys": []})
+        store = self._runtime_store(runtime)
+        next_run_vars = safe_clone(store["run_vars"])
+        written_keys: list[str] = []
+        for key, value in resolved_assignments.items():
+            normalized_key = clean_text(key)
+            if not normalized_key:
+                continue
+            if normalized_key.startswith("run.vars."):
+                normalized_key = normalized_key[len("run.vars."):]
+            success, error = safe_assign_path(next_run_vars, normalized_key, value)
+            if not success:
+                return self._service_error(step, error or f"Unable to write variable path '{normalized_key}'.", data={"written": False, "keys": [], "runVars": safe_clone(store["run_vars"])})
+            written_keys.append(normalized_key)
+        runtime["run_vars"] = next_run_vars
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {
+                "written": True,
+                "keys": written_keys,
+                "runVars": safe_clone(next_run_vars),
+            },
+            "metadata": {"service": "variableService", "executionType": "deterministic"},
+        }
+
+    def _send_email(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._normalized_service_config(step)
+        raw_inputs = {
+            "to": config.get("to") or config.get("recipient") or config.get("recipients"),
+            "subject": config.get("subject"),
+            "body": config.get("body"),
+            "mailboxId": config.get("mailboxId") or config.get("mailbox_id"),
+            "threadId": config.get("threadId") or config.get("thread_id") or context.get("thread_id"),
+            "senderName": config.get("senderName") or config.get("sender_name") or "AIO Flow",
+            "senderEmail": config.get("senderEmail") or config.get("sender_email"),
+            "contactId": config.get("contactId") or config.get("contact_id") or context.get("contact_id"),
+            "companyId": config.get("companyId") or config.get("company_id") or context.get("company_id"),
+        }
+        syntax_errors: list[str] = []
+        for field_name in ["to", "subject", "body", "mailboxId", "senderName", "senderEmail"]:
+            syntax_errors.extend(self._token_syntax_errors(raw_inputs.get(field_name), field_name))
+        if syntax_errors:
+            return self._service_error(
+                step,
+                "; ".join(syntax_errors),
+                data={
+                    "deliveryStatus": "error",
+                    "deliveryMode": "validation_failed",
+                    "providerMessageId": None,
+                    "internalMessageId": None,
+                    "recipients": [],
+                },
+            )
+        inputs = {
+            **raw_inputs,
+        }
+        resolved, missing = self._resolve_required_inputs(inputs, context, runtime, required={"to", "subject", "body"})
+        if missing:
+            return self._service_error(
+                step,
+                f"Missing required email inputs: {', '.join(missing)}",
+                data={
+                    "deliveryStatus": "error",
+                    "deliveryMode": "validation_failed",
+                    "providerMessageId": None,
+                    "internalMessageId": None,
+                    "recipients": [],
+                },
+            )
+        recipients = parse_string_list(resolved.get("to"))
+        if not recipients:
+            value = resolved.get("to")
+            if isinstance(value, str) and clean_text(value):
+                recipients = [clean_text(value)]
+        if not recipients:
+            return self._service_error(
+                step,
+                "Missing required email inputs: to",
+                data={
+                    "deliveryStatus": "error",
+                    "deliveryMode": "validation_failed",
+                    "providerMessageId": None,
+                    "internalMessageId": None,
+                    "recipients": [],
+                },
+            )
+        subject = resolved.get("subject")
+        body = resolved.get("body")
+        if isinstance(subject, (dict, list)) or not clean_text(subject):
+            return self._service_error(
+                step,
+                "Missing required email inputs: subject",
+                data={
+                    "deliveryStatus": "error",
+                    "deliveryMode": "validation_failed",
+                    "providerMessageId": None,
+                    "internalMessageId": None,
+                    "recipients": recipients,
+                },
+            )
+        if isinstance(body, (dict, list)) or not clean_text(body):
+            return self._service_error(
+                step,
+                "Missing required email inputs: body",
+                data={
+                    "deliveryStatus": "error",
+                    "deliveryMode": "validation_failed",
+                    "providerMessageId": None,
+                    "internalMessageId": None,
+                    "recipients": recipients,
+                },
+            )
+        mailbox_id = None
+        try:
+            mailbox = self._select_mailbox(clean_text(resolved.get("mailboxId")) or None)
+            mailbox_id = mailbox.get("id")
+            thread_id = clean_text(resolved.get("threadId")) or None
+            if not thread_id:
+                created_thread = self.provider.create_thread(
+                    subject=clean_text(subject) or "Flow Email",
+                    channel_type="email",
+                    contact_id=clean_text(resolved.get("contactId")) or None,
+                    company_id=clean_text(resolved.get("companyId")) or None,
+                    body="",
+                    mailbox_id=mailbox.get("id"),
+                )
+                thread_id = created_thread.get("id")
+            sent = self.provider.send_thread_via_mailbox(
+                thread_id=thread_id,
+                body=clean_text(body),
+                mailbox_id=mailbox.get("id"),
+                sender_name=clean_text(resolved.get("senderName")) or "AIO Flow",
+                sender_email=clean_text(resolved.get("senderEmail")) or mailbox.get("address") or "mission@aiocrm.local",
+                recipients=recipients,
+            )
+        except Exception as exc:
+            delivery_mode = "provider_error"
+            if isinstance(mailbox_id, str):
+                selected_mailboxes = self.provider.list_mailboxes() if getattr(self.provider, "list_mailboxes", None) else []
+                selected_mailbox = next((item for item in selected_mailboxes if item.get("id") == mailbox_id), None)
+                if selected_mailbox and selected_mailbox.get("provider") == "local-stub":
+                    delivery_mode = "local_stub_error"
+            return self._service_error(
+                step,
+                str(exc),
+                data={
+                    "deliveryStatus": "error",
+                    "deliveryMode": delivery_mode,
+                    "providerMessageId": None,
+                    "internalMessageId": None,
+                    "mailboxId": mailbox_id,
+                    "recipients": recipients,
+                },
+            )
+        latest_message = sent.get("latestMessage") if isinstance(sent.get("latestMessage"), dict) else {}
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {
+                "deliveryStatus": sent.get("deliveryStatus") or latest_message.get("deliveryStatus") or "sent",
+                "deliveryMode": sent.get("deliveryMode") or ("local_stub" if mailbox.get("provider") == "local-stub" else "provider"),
+                "providerMessageId": sent.get("providerMessageId"),
+                "internalMessageId": sent.get("internalMessageId") or latest_message.get("id"),
+                "simulatedMessageId": sent.get("simulatedMessageId"),
+                "threadId": sent.get("id") or thread_id,
+                "mailboxId": mailbox.get("id"),
+                "recipients": recipients,
+            },
+            "metadata": {"service": "messagingService", "executionType": "deterministic"},
+        }
+
+    def _validate_http_url(self, value: Any) -> str | None:
+        if not isinstance(value, str):
+            return "HTTP URL must be a string."
+        normalized = clean_text(value)
+        if not normalized:
+            return "Missing required HTTP inputs: url"
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return "Invalid HTTP URL."
+        return None
+
+    def _http_request(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        config = self._normalized_service_config(step)
+        syntax_errors: list[str] = []
+        for field_name in ["url", "headers", "body"]:
+            syntax_errors.extend(self._token_syntax_errors(config.get(field_name), field_name))
+        if syntax_errors:
+            return {
+                "stepId": step.get("id"),
+                "intent": step.get("intent"),
+                "status": "error",
+                "error": "; ".join(syntax_errors),
+                "data": {"statusCode": None, "responseBody": None},
+                "metadata": {
+                    "service": self.service_registry.get("http_request"),
+                    "attempts": 0,
+                    "finalAttempt": 0,
+                    "retried": False,
+                    "failureReason": "validation_error",
+                },
+            }
+        retry_policy = config.get("execution", {}).get("retryPolicy") if isinstance(config.get("execution"), dict) else {}
+        if not isinstance(retry_policy, dict):
+            retry_policy = {}
+        required_inputs = {
+            "method": config.get("method") or "GET",
+            "url": config.get("url"),
+            "headers": json_value(config.get("headers"), {}) if not isinstance(config.get("headers"), dict) else config.get("headers"),
+            "body": json_value(config.get("body"), None) if not isinstance(config.get("body"), (dict, list)) else config.get("body"),
+        }
+        resolved, missing = self._resolve_required_inputs(required_inputs, context, runtime, required={"method", "url"})
+        if missing:
+            return {
+                "stepId": step.get("id"),
+                "intent": step.get("intent"),
+                "status": "error",
+                "error": f"Missing required HTTP inputs: {', '.join(missing)}",
+                "data": {"statusCode": None, "responseBody": None},
+                "metadata": {
+                    "service": self.service_registry.get("http_request"),
+                    "attempts": 0,
+                    "finalAttempt": 0,
+                    "retried": False,
+                    "failureReason": "validation_error",
+                },
+            }
+        method = clean_text(resolved.get("method")).upper() or "GET"
+        url = clean_text(resolved.get("url"))
+        if method not in ALLOWED_HTTP_METHODS:
+            return {
+                "stepId": step.get("id"),
+                "intent": step.get("intent"),
+                "status": "error",
+                "error": f"Invalid HTTP method: {method}",
+                "data": {"statusCode": None, "responseBody": None},
+                "metadata": {
+                    "service": self.service_registry.get("http_request"),
+                    "attempts": 0,
+                    "finalAttempt": 0,
+                    "retried": False,
+                    "failureReason": "validation_error",
+                },
+            }
+        url_error = self._validate_http_url(url)
+        if url_error:
+            return {
+                "stepId": step.get("id"),
+                "intent": step.get("intent"),
+                "status": "error",
+                "error": url_error,
+                "data": {"statusCode": None, "responseBody": None},
+                "metadata": {
+                    "service": self.service_registry.get("http_request"),
+                    "attempts": 0,
+                    "finalAttempt": 0,
+                    "retried": False,
+                    "failureReason": "validation_error",
+                },
+            }
+        headers = resolved.get("headers") if isinstance(resolved.get("headers"), dict) else {}
+        body = resolved.get("body")
+        timeout_ms = safe_int((config.get("execution") or {}).get("timeout"), config.get("timeout") or 30000)
+        timeout_seconds = max(1, timeout_ms / 1000)
+        retry_override = parse_bool(retry_policy.get("allowUnsafeRetry"), False)
+        requested_retry_count = max(0, safe_int(retry_policy.get("count"), safe_int(config.get("retryCount") or config.get("retry_count"), 0)))
+        retry_count = requested_retry_count if method in SAFE_RETRY_HTTP_METHODS or retry_override else 0
+        payload: bytes | None = None
+        if body is not None and method not in {"GET", "HEAD"}:
+            if isinstance(body, (dict, list)):
+                payload = json.dumps(body).encode("utf-8")
+                headers = {"Content-Type": "application/json", **headers}
+            else:
+                payload = str(body).encode("utf-8")
+        last_error: str | None = None
+        last_status_code: int | None = None
+        last_response_body: Any = None
+        failure_reason = "request_error"
+        for attempt in range(retry_count + 1):
+            request = urlrequest.Request(url, data=payload, method=method, headers=headers)
+            try:
+                with urlrequest.urlopen(request, timeout=timeout_seconds) as response:
+                    charset = response.headers.get_content_charset() or "utf-8"
+                    raw_body = response.read().decode(charset, errors="replace")
+                    content_type = response.headers.get("Content-Type", "")
+                    response_body: Any = raw_body
+                    if "json" in content_type.lower():
+                        try:
+                            response_body = json.loads(raw_body) if raw_body else {}
+                        except json.JSONDecodeError:
+                            response_body = raw_body
+                    return {
+                        "stepId": step.get("id"),
+                        "intent": step.get("intent"),
+                        "status": "success",
+                        "data": {
+                            "statusCode": getattr(response, "status", 200),
+                            "responseBody": response_body,
+                        },
+                        "metadata": {
+                            "service": "httpService",
+                            "executionType": "bridge",
+                            "attempts": attempt + 1,
+                            "finalAttempt": attempt + 1,
+                            "retried": attempt > 0,
+                            "failureReason": None,
+                        },
+                    }
+            except urlerror.HTTPError as exc:
+                charset = exc.headers.get_content_charset() if exc.headers else None
+                raw_error = exc.read().decode(charset or "utf-8", errors="replace") if hasattr(exc, "read") else str(exc)
+                content_type = exc.headers.get("Content-Type", "") if exc.headers else ""
+                response_body: Any = raw_error
+                if "json" in content_type.lower():
+                    try:
+                        response_body = json.loads(raw_error) if raw_error else {}
+                    except json.JSONDecodeError:
+                        response_body = raw_error
+                last_status_code = exc.code
+                last_response_body = response_body
+                last_error = f"HTTP {exc.code}: {raw_error}"
+                failure_reason = "http_error"
+            except (urlerror.URLError, TimeoutError, OSError) as exc:
+                last_error = str(exc)
+                failure_reason = "timeout" if "timed out" in str(exc).lower() else "transport_error"
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "error",
+            "error": last_error or "HTTP request failed.",
+            "data": {
+                "statusCode": last_status_code,
+                "responseBody": last_response_body,
+            },
+            "metadata": {
+                "service": self.service_registry.get("http_request"),
+                "attempts": retry_count + 1,
+                "finalAttempt": retry_count + 1,
+                "retried": retry_count > 0,
+                "failureReason": failure_reason,
+            },
+        }
+
     def execute(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         intent = step.get("intent")
         handler = self.executors.get(intent)
 
+        def finalize(result: dict[str, Any]) -> dict[str, Any]:
+            self._write_runtime_result(step, result, runtime)
+            return result
+
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
-                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch"}:
-                    return handler(step, context, runtime)
-                return handler(step, context)
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "set_variable", "send_email", "http_request"}:
+                    return finalize(handler(step, context, runtime))
+                return finalize(handler(step, context))
             except Exception as exc:
                 logger.error("Step execution failed: %s", exc)
-                return {
+                return finalize({
                     "stepId": step.get("id"),
                     "intent": intent,
                     "status": "error",
                     "error": str(exc),
-                    "data": None
-                }
+                    "data": {}
+                })
         
         # Step 1: Agent Runtime Execution
         assigned_agent = step.get("assignedAgent") or step.get("agentId")
@@ -620,40 +1483,40 @@ class StepExecutor:
         if agent:
             try:
                 # Phase 12 Agent Execution
-                return agent.execute(step, context, runtime)
+                return finalize(agent.execute(step, context, runtime))
             except NotImplementedError:
                 # Agent exists but hasn't natively implemented the specific capability yet, safe fallback.
                 pass
             except Exception as exc:
                 logger.error("Agent %s failed: %s", assigned_agent, exc)
-                return {
+                return finalize({
                     "stepId": step.get("id"),
                     "intent": intent,
                     "status": "error",
                     "error": str(exc),
-                    "data": None
-                }
+                    "data": {}
+                })
         
         # Fallback to StepExecutor local method
         if not handler:
-            return {
+            return finalize({
                 "stepId": step.get("id"),
                 "intent": intent,
                 "status": "error",
                 "error": f"Unsupported or unknown intent: {intent}",
-                "data": None
-            }
+                "data": {}
+            })
         try:
-            return handler(step, context)
+            return finalize(handler(step, context))
         except Exception as exc:
             logger.error("Step execution failed: %s", exc)
-            return {
+            return finalize({
                 "stepId": step.get("id"),
                 "intent": intent,
                 "status": "error",
                 "error": str(exc),
-                "data": None
-            }
+                "data": {}
+            })
 
     def _draft_email(self, step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         params = step.get("parameters", {})
@@ -1084,6 +1947,122 @@ class StepExecutor:
         }
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data}
 
+    def _if_then(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        condition = self._extract_if_then_condition(step)
+        operator = clean_text(condition.get("operator")).lower()
+        left_operand = condition.get("left")
+        right_operand = condition.get("right")
+        unary_operators = {"is_empty", "is_not_empty"}
+        binary_operators = {
+            "equals",
+            "not_equals",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal",
+            "contains",
+            "not_contains",
+        }
+        supported_operators = unary_operators | binary_operators
+        empty_data = {"result": None, "selectedTargets": [], "operator": operator or None, "left": None, "right": None}
+        if not operator:
+            return self._service_error(step, "If/Then condition is missing an operator.", data=empty_data)
+        if operator not in supported_operators:
+            return self._service_error(step, f"Unsupported if-then operator '{operator}'.", data=empty_data)
+        if left_operand is None:
+            return self._service_error(step, "If/Then condition is missing the left operand.", data=empty_data)
+        if operator in binary_operators and right_operand is None:
+            return self._service_error(step, "If/Then condition is missing the right operand.", data=empty_data)
+        syntax_errors = self._token_syntax_errors(left_operand, "if-then left operand")
+        if operator in binary_operators:
+            syntax_errors.extend(self._token_syntax_errors(right_operand, "if-then right operand"))
+        if syntax_errors:
+            return self._service_error(step, syntax_errors[0], data=empty_data)
+
+        left_value, left_missing = self._resolve_value(left_operand, context, runtime)
+        if left_missing:
+            if operator in unary_operators:
+                left_value = None
+            else:
+                return self._service_error(
+                    step,
+                    f"If/Then left operand could not resolve: {', '.join(left_missing)}.",
+                    data=empty_data,
+                )
+        right_value = None
+        if operator in binary_operators:
+            right_value, right_missing = self._resolve_value(right_operand, context, runtime)
+            if right_missing:
+                return self._service_error(
+                    step,
+                    f"If/Then right operand could not resolve: {', '.join(right_missing)}.",
+                    data={"result": None, "selectedTargets": [], "operator": operator, "left": safe_clone(left_value), "right": None},
+                )
+
+        result, evaluation_error = self._evaluate_if_then_condition(operator, left_value, right_value)
+        if evaluation_error:
+            return self._service_error(
+                step,
+                evaluation_error,
+                data={
+                    "result": None,
+                    "selectedTargets": [],
+                    "operator": operator,
+                    "left": safe_clone(left_value),
+                    "right": safe_clone(right_value),
+                },
+            )
+
+        params = step.get("parameters", {}) if isinstance(step.get("parameters"), dict) else {}
+        node_id = clean_text(params.get("node_id") or step.get("id"))
+        outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
+        branch_status = "true" if result else "false"
+        matched_targets, default_targets = self._branch_edge_targets(outgoing_edges, branch_status)
+        if matched_targets:
+            selected_targets = matched_targets
+        elif len(default_targets) <= 1:
+            selected_targets = default_targets
+        else:
+            return self._service_error(
+                step,
+                "If/Then branch routing is ambiguous. Label outgoing edges for true/false routing.",
+                data={
+                    "result": bool(result),
+                    "operator": operator,
+                    "left": safe_clone(left_value),
+                    "right": safe_clone(right_value),
+                    "selectedTargets": [],
+                },
+            )
+        if outgoing_edges:
+            selected_descendants = self._graph_descendants(runtime, selected_targets)
+            alternate_targets = [
+                clean_text(edge.get("target"))
+                for edge in outgoing_edges
+                if clean_text(edge.get("target")) and clean_text(edge.get("target")) not in selected_targets
+            ]
+            suppressed_nodes = self._graph_descendants(runtime, alternate_targets) - selected_descendants
+            runtime.setdefault("suppressed_nodes", set()).update(suppressed_nodes)
+            runtime.setdefault("branch_decisions", {})[node_id] = {
+                "status": branch_status,
+                "selected_targets": selected_targets,
+            }
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {
+                "result": bool(result),
+                "operator": operator,
+                "left": safe_clone(left_value),
+                "right": safe_clone(right_value),
+                "selectedTargets": selected_targets,
+            },
+            "metadata": {
+                "service": self.service_registry.get("if_then"),
+            },
+        }
+
     def _verification_branch(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         merged = self._merged_step_config(step)
         source = normalize_token(merged.get("source") or "previous") or "previous"
@@ -1245,6 +2224,9 @@ class ExecutionEngine:
                 "plan": [s.get("intent") for s in steps],
                 "agentNotes": []
             },
+            "node_results": {},
+            "previous": None,
+            "run_vars": json.loads(json.dumps(context.get("run_vars") or {})) if isinstance(context.get("run_vars"), dict) else {},
             "graph_adjacency": {},
             "suppressed_nodes": set(),
             "branch_decisions": {},

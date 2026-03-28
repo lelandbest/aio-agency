@@ -928,6 +928,8 @@ def parse_json_config(value: Any) -> dict[str, Any]:
 def infer_flow_step_intent(node: dict[str, Any]) -> str:
     data = node.get("data") if isinstance(node.get("data"), dict) else {}
     config = data.get("config") if isinstance(data.get("config"), dict) else {}
+    template_id = str(data.get("templateId") or node.get("templateId") or "").strip().lower().replace("-", "_")
+    node_type = str(node.get("type") or "").strip().lower()
     action_type = str(
         config.get("actionType")
         or data.get("actionType")
@@ -940,8 +942,14 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
     ).strip().lower()
     if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk"}:
         return action_type
-    if logic_type in {"wait_for_verification", "verification_branch"}:
+    if action_type in {"set_variable", "send_email", "http_request"}:
+        return action_type
+    if logic_type in {"if_then", "wait_for_verification", "verification_branch"}:
         return logic_type
+    if template_id in {"set_variable", "send_email", "http_request"}:
+        return template_id
+    if node_type == "webhook" and template_id == "webhook":
+        return "webhook"
     return "agent_task"
 
 

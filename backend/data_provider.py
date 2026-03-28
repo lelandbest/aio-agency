@@ -2458,7 +2458,24 @@ class MockProvider(BaseProvider):
             message_id=updated["latestMessage"]["id"] if updated.get("latestMessage") else None,
             source_provider=adapter.provider_name,
         )
-        return updated
+        internal_message_id = updated["latestMessage"]["id"] if updated.get("latestMessage") else None
+        if adapter.provider_name == "local-stub":
+            return {
+                **updated,
+                "deliveryStatus": "simulated",
+                "deliveryMode": "local_stub",
+                "providerMessageId": None,
+                "internalMessageId": internal_message_id,
+                "simulatedMessageId": delivery.get("provider_message_id"),
+            }
+        return {
+            **updated,
+            "deliveryStatus": delivery.get("delivery_status") or "sent",
+            "deliveryMode": "provider",
+            "providerMessageId": delivery.get("provider_message_id"),
+            "internalMessageId": internal_message_id,
+            "simulatedMessageId": None,
+        }
 
     def _hydrate_threads(self) -> list[dict[str, Any]]:
         contact_map = {contact["id"]: contact for contact in self.contacts}
@@ -7237,7 +7254,24 @@ class SQLiteProvider(BaseProvider):
             message_id=updated["latestMessage"]["id"] if updated.get("latestMessage") else None,
             source_provider=adapter.provider_name,
         )
-        return updated
+        internal_message_id = updated["latestMessage"]["id"] if updated.get("latestMessage") else None
+        if adapter.provider_name == "local-stub":
+            return {
+                **updated,
+                "deliveryStatus": "simulated",
+                "deliveryMode": "local_stub",
+                "providerMessageId": None,
+                "internalMessageId": internal_message_id,
+                "simulatedMessageId": delivery.get("provider_message_id"),
+            }
+        return {
+            **updated,
+            "deliveryStatus": delivery.get("delivery_status") or "sent",
+            "deliveryMode": "provider",
+            "providerMessageId": delivery.get("provider_message_id"),
+            "internalMessageId": internal_message_id,
+            "simulatedMessageId": None,
+        }
 
     def get_comms_snapshot(self) -> dict[str, Any]:
         threads = self._get_thread_context()
