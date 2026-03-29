@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import {
-    Menu, X, ChevronRight, ExternalLink, HelpCircle
+    Menu, X, ChevronRight, ExternalLink, HelpCircle, PenTool
 } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
@@ -245,14 +245,24 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                 {showHelp ? (
                     <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-3'}`}>
                         {!isCollapsed && <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase">Resources</span>}
-                        <button
-                            onClick={() => onSelectModule('aio-help')}
-                            className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
-                            title="Help Documentation"
-                        >
-                            <HelpCircle size={16} />
-                            {!isCollapsed && <span className="text-xs">Help Docs</span>}
-                        </button>
+                        <div className="flex flex-col gap-1 w-full">
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('aio:open-ticket'))}
+                                className={`p-1.5 text-[var(--color-text-secondary)] hover:text-emerald-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
+                                title="Submit Support Ticket"
+                            >
+                                <PenTool size={16} />
+                                {!isCollapsed && <span className="text-xs">Submit Ticket</span>}
+                            </button>
+                            <button
+                                onClick={() => onSelectModule('aio-help')}
+                                className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
+                                title="Help Documentation"
+                            >
+                                <HelpCircle size={16} />
+                                {!isCollapsed && <span className="text-xs">Help Docs</span>}
+                            </button>
+                        </div>
                     </div>
                 ) : null}
             </div>

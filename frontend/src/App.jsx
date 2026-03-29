@@ -12,6 +12,7 @@ import { clearStoredSessionToken, getStoredSessionToken } from './services/authS
 import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './services/backendApi';
 import { OrchestrationProvider } from './orchestration';
 import { BrandProvider } from './contexts/BrandContext';
+import TicketModal from './components/TicketModal';
 
 // Lazy load modules for code splitting
 const SignalsModule = lazy(() => import('./modules/Signals'));
@@ -233,6 +234,7 @@ const App = () => {
   const [commsThreadId, setCommsThreadId] = useState(initialNavigation.commsThreadId);
   const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
+  const [showTicketModal, setShowTicketModal] = useState(false);
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
   const activeTenantSettings = session?.tenant?.tenant_settings || session?.tenant?.settings || {};
   const preferredTenantTheme = activeTenantSettings?.branding?.theme || null;
@@ -439,7 +441,14 @@ const App = () => {
       }
     };
     window.addEventListener('aio:navigate', handleNavigate);
-    return () => window.removeEventListener('aio:navigate', handleNavigate);
+
+    const handleOpenTicket = () => setShowTicketModal(true);
+    window.addEventListener('aio:open-ticket', handleOpenTicket);
+
+    return () => {
+      window.removeEventListener('aio:navigate', handleNavigate);
+      window.removeEventListener('aio:open-ticket', handleOpenTicket);
+    };
   }, [clientMode]);
 
   const handleLogin = (session) => {
@@ -740,6 +749,7 @@ const App = () => {
         </DbContext.Provider>
         </AuthContext.Provider>
       </OrchestrationProvider>
+        <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
       </BrandProvider>
     </ThemeProvider>
   );

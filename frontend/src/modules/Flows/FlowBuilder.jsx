@@ -164,7 +164,10 @@ const normalizeRunInspector = (result, meta = {}) => {
       startedAt: step?.startedAt || null,
       completedAt: step?.completedAt || null,
       error: step?.error || null,
+      output: step?.output || null,
+      parameters: step?.parameters || null,
       data: step?.data || null,
+      raw: step || null,
     })),
     raw: result,
   };
@@ -276,10 +279,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [terminalLogs, setTerminalLogs] = useState([]);
   const [isRunningFlow, setIsRunningFlow] = useState(false);
   const [latestRunDetail, setLatestRunDetail] = useState(null);
+  const [compareRunDetail, setCompareRunDetail] = useState(null);
   const [flowRunHistory, setFlowRunHistory] = useState([]);
   const [flowRunHistoryLoading, setFlowRunHistoryLoading] = useState(false);
   const [flowRunHistoryError, setFlowRunHistoryError] = useState('');
   const [historyInspectingRunId, setHistoryInspectingRunId] = useState('');
+  const [historyComparingRunId, setHistoryComparingRunId] = useState('');
   const [historyRerunningRunId, setHistoryRerunningRunId] = useState('');
   
   // Terminal logging helper
@@ -1107,6 +1112,32 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [logToTerminal]);
 
+  const compareStoredRun = useCallback(async (historyRun) => {
+    if (!historyRun?.id) return;
+    if (compareRunDetail?.runId === historyRun.id) {
+      setCompareRunDetail(null);
+      return;
+    }
+    setHistoryComparingRunId(historyRun.id);
+    try {
+      const storedRun = await getAiRunApi(historyRun.id);
+      if (!storedRun) {
+        throw new Error('Stored run not found.');
+      }
+      setCompareRunDetail(normalizeRunInspector(storedRun, {
+        triggerType: deriveRunTriggerType(storedRun),
+        startedAt: storedRun.created_at || historyRun.created_at || null,
+        finishedAt: storedRun.updated_at || historyRun.updated_at || null,
+        error: deriveRunError(storedRun),
+      }));
+    } catch (error) {
+      logToTerminal(`Compare run failed: ${error.message || 'Unknown error.'}`, 'error');
+      setTerminalOpen(true);
+    } finally {
+      setHistoryComparingRunId('');
+    }
+  }, [compareRunDetail?.runId, logToTerminal]);
+
   const handleRunFlow = useCallback(async () => {
     if (!flow || isRunningFlow) return;
     setTerminalOpen(true);
@@ -1130,6 +1161,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         startedAt: runStartedAt,
         finishedAt: new Date().toISOString(),
       }));
+      setCompareRunDetail(null);
       logFlowRunResult(result);
       await loadFlowRunHistory(persistedFlow.id);
     } catch (error) {
@@ -1144,6 +1176,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         finishedAt: new Date().toISOString(),
         error: error.message || 'Unknown error.',
       }));
+      setCompareRunDetail(null);
       logToTerminal(`Run failed: ${error.message || 'Unknown error.'}`, 'error');
     } finally {
       setIsRunningFlow(false);
@@ -1173,6 +1206,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         startedAt: runStartedAt,
         finishedAt: new Date().toISOString(),
       }));
+      setCompareRunDetail(null);
       logFlowRunResult(result);
       await loadFlowRunHistory(persistedFlow.id);
     } catch (error) {
@@ -1187,6 +1221,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         finishedAt: new Date().toISOString(),
         error: error.message || 'Unknown error.',
       }));
+      setCompareRunDetail(null);
       logToTerminal(`Rerun failed: ${error.message || 'Unknown error.'}`, 'error');
     } finally {
       setHistoryRerunningRunId('');
@@ -3195,16 +3230,25 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               loading={flowRunHistoryLoading}
               error={flowRunHistoryError}
               activeRunId={latestRunDetail?.runId || ''}
+              compareRunId={compareRunDetail?.runId || ''}
               inspectingRunId={historyInspectingRunId}
+              comparingRunId={historyComparingRunId}
               rerunningRunId={historyRerunningRunId}
               onInspect={inspectStoredRun}
+              onCompare={compareStoredRun}
               onRerun={rerunStoredRun}
             />
           </div>
         </div>
       ) : null}
 
-      {latestRunDetail ? <RunDetailInspector run={latestRunDetail} /> : null}
+      {latestRunDetail ? (
+        <RunDetailInspector
+          run={latestRunDetail}
+          compareRun={compareRunDetail}
+          onClearCompare={() => setCompareRunDetail(null)}
+        />
+      ) : null}
 
       {/* Terminal Toast */}
       {terminalOpen && (

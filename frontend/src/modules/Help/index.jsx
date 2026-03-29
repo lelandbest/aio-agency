@@ -9,8 +9,6 @@ import ModuleHeader from '../../components/ModuleHeader';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { 
   getHelpArticlesApi,
-  getHelpBroadcastsApi, 
-  getHelpTicketsApi, 
   createHelpTicketApi,
   getOperatorAssistResponseApi
 } from '../../services/backendApi';
@@ -33,12 +31,10 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
   const [checkingAi, setCheckingAi] = useState(true);
   const [charlieResponse, setCharlieResponse] = useState(null);
   const [askingCharlie, setAskingCharlie] = useState(false);
-  const [broadcasts, setBroadcasts] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [showTicketForm, setShowTicketForm] = useState(false);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'row'
   const [recentArticles, setRecentArticles] = useState([]);
   const [recentActions, setRecentActions] = useState([]);
+
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'row'
 
   const checkAiStatus = async () => {
     try {
@@ -58,20 +54,14 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     setLoading(true);
     try {
       const results = await Promise.allSettled([
-        getHelpArticlesApi(),
-        getHelpBroadcastsApi(),
-        getHelpTicketsApi()
+        getHelpArticlesApi()
       ]);
       
       const itemsData = results[0].status === 'fulfilled' ? results[0].value : [];
-      const broadcastsData = results[1].status === 'fulfilled' ? results[1].value : [];
-      const ticketsData = results[2].status === 'fulfilled' ? results[2].value : [];
       
       // Tag-driven: /api/help/articles returns only items tagged META:DOC:HELP
       const helpArticles = itemsData || [];
       setArticles(helpArticles);
-      setBroadcasts(broadcastsData);
-      setTickets(ticketsData);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -191,24 +181,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     setRecentActions(getRecentActions());
   };
 
-  const handleTicketSubmit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const payload = {
-      subject: formData.get('subject'),
-      content: formData.get('content'),
-      priority: formData.get('priority'),
-      category: formData.get('category')
-    };
 
-    try {
-      await createHelpTicketApi(payload);
-      setShowTicketForm(false);
-      fetchData(); // Refresh tickets
-    } catch (err) {
-      console.error('Failed to submit ticket:', err);
-    }
-  };
 
 
   if (selectedArticle) {
@@ -497,19 +470,12 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
           )}
           <div className="flex items-center justify-center gap-4">
             <button
-              onClick={() => setShowTicketForm(true)}
+              onClick={() => window.dispatchEvent(new CustomEvent('aio:open-ticket'))}
               className="group flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-[var(--color-primary)]/10 hover:border-[var(--color-primary)]/30 transition-all text-left"
             >
               <Plus size={16} className="text-[var(--color-primary)] group-hover:scale-110 transition-transform" />
               <div>
                 <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">Submit Ticket</div>
-              </div>
-            </button>
-
-            <button className="group flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-sky-400/10 hover:border-sky-400/30 transition-all text-left">
-              <MessageSquare size={16} className="text-sky-400 group-hover:scale-110 transition-transform" />
-              <div>
-                <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">My Tickets</div>
               </div>
             </button>
           </div>
@@ -667,87 +633,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
         </div>
       </div>
 
-      {/* Ticket Modal */}
-      {showTicketForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="overlay-scrim absolute inset-0" onClick={() => setShowTicketForm(false)} />
-          <div className="modal-surface relative flex w-full max-w-xl max-h-[90vh] flex-col overflow-hidden rounded-[var(--radius-modal)]">
-            <div className="p-8 border-b border-[var(--color-border)] bg-[var(--color-bg-primary)]/40">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-black text-[var(--color-text-primary)] uppercase tracking-tighter">Submit a Ticket</h2>
-                  <p className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-[0.2em] mt-1">Direct Support Protocol</p>
-                </div>
-                <button onClick={() => setShowTicketForm(false)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors">
-                  <X size={24} />
-                </button>
-              </div>
-            </div>
 
-            <form onSubmit={handleTicketSubmit} className="p-8 space-y-6 overflow-auto no-scrollbar">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Subject</label>
-                <input
-                  name="subject"
-                  required
-                  className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium"
-                  placeholder="What can we help you with?"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Category</label>
-                  <select
-                    name="category"
-                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium appearance-none"
-                  >
-                    <option value="general">General Support</option>
-                    <option value="technical">Technical Issue</option>
-                    <option value="billing">Billing/Account</option>
-                    <option value="feature">Feature Request</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Priority</label>
-                  <select
-                    name="priority"
-                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium appearance-none"
-                  >
-                    <option value="low">Low</option>
-                    <option value="normal" selected>Normal</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest ml-1">Description</label>
-                <textarea
-                  name="content"
-                  required
-                  rows={4}
-                  className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] px-5 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--color-bg-primary)] outline-none transition-all font-medium resize-none"
-                  placeholder="Please provide as much detail as possible..."
-                />
-              </div>
-
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  className="w-full py-5 rounded-2xl bg-gradient-to-r from-[var(--color-primary)] to-sky-600 text-white font-black uppercase tracking-widest shadow-xl shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                >
-                  Send Request
-                </button>
-                <p className="text-[9px] font-bold text-[var(--color-text-tertiary)] text-center mt-6 uppercase tracking-widest leading-relaxed">
-                  Charlie will analyze this request instantly and provide <br/> immediate triage recommendations.
-                </p>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -107,6 +107,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
             "Squad Performance Dashboard",
             "Integration Protocol Generator",
             "Strategic Directive Builder",
+            "query_vault",
         ],
     },
     "BRAVO": {
@@ -118,7 +119,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-2",
         "subordinates": [],
-        "tools": ["Strategic Plan Generator", "SWOT Analysis Builder", "Growth Strategy Framework"],
+        "tools": ["Strategic Plan Generator", "SWOT Analysis Builder", "Growth Strategy Framework", "query_vault"],
     },
     "CHARLIE": {
         "registry_key": "CHARLIE",
@@ -129,7 +130,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
-        "tools": ["Support Script Generator", "FAQ Builder", "Customer Response Templates", "Support Ticket Optimizer"],
+        "tools": ["Support Script Generator", "FAQ Builder", "Customer Response Templates", "Support Ticket Optimizer", "query_vault"],
     },
     "DELTA": {
         "registry_key": "DELTA",
@@ -140,7 +141,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-2",
         "subordinates": [],
-        "tools": ["Project Timeline Generator", "Resource Allocation Matrix", "Task Priority Framework"],
+        "tools": ["Project Timeline Generator", "Resource Allocation Matrix", "Task Priority Framework", "query_vault"],
     },
     "ECHO": {
         "registry_key": "ECHO",
@@ -151,7 +152,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
-        "tools": ["Email Template Generator", "Newsletter Builder", "Communication Plan Creator", "Social Campaign Builder"],
+        "tools": ["Email Template Generator", "Newsletter Builder", "Communication Plan Creator", "Social Campaign Builder", "query_vault"],
     },
     "FORGE": {
         "registry_key": "FORGE",
@@ -162,7 +163,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-2",
         "subordinates": [],
-        "tools": ["Article Generator", "Landing Page Copy Generator", "Brand Story Creator"],
+        "tools": ["Article Generator", "Landing Page Copy Generator", "Brand Story Creator", "query_vault"],
     },
     "GHOST": {
         "registry_key": "GHOST",
@@ -173,7 +174,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
-        "tools": ["System Architecture Planner", "Automation Playbook Builder", "API Integration Design", "Security Hardening Checklist"],
+        "tools": ["System Architecture Planner", "Automation Playbook Builder", "API Integration Design", "Security Hardening Checklist", "query_vault"],
     },
     "ARCHER": {
         "registry_key": "ARCHER",
@@ -184,7 +185,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
-        "tools": ["KPI Dashboard Generator", "Financial Report Builder", "ROI Calculator"],
+        "tools": ["KPI Dashboard Generator", "Financial Report Builder", "ROI Calculator", "query_vault"],
     },
     "ATLAS": {
         "registry_key": "ATLAS",
@@ -195,7 +196,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
-        "tools": ["Deployment Coordination Plan", "Systems Map Builder", "Resource Movement Tracker", "Runbook Routing Matrix"],
+        "tools": ["Deployment Coordination Plan", "Systems Map Builder", "Resource Movement Tracker", "Runbook Routing Matrix", "query_vault"],
     },
     "RANGER": {
         "registry_key": "RANGER",
@@ -206,7 +207,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-2",
         "subordinates": [],
-        "tools": ["SEO Blog Writer", "SEO Auditor", "Keyword Research Generator"],
+        "tools": ["SEO Blog Writer", "SEO Auditor", "Keyword Research Generator", "query_vault"],
     },
     "SCOUT": {
         "registry_key": "SCOUT",
@@ -217,7 +218,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-2",
         "subordinates": [],
-        "tools": ["Job Description Generator", "Interview Question Builder", "Candidate Assessment Template"],
+        "tools": ["Job Description Generator", "Interview Question Builder", "Candidate Assessment Template", "query_vault"],
     },
     "STRIKER": {
         "registry_key": "STRIKER",
@@ -228,7 +229,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-1",
         "subordinates": [],
-        "tools": ["Cold Email Generator", "Discovery Call Script Writer", "Proposal Builder", "Negotiation Advisor"],
+        "tools": ["Cold Email Generator", "Discovery Call Script Writer", "Proposal Builder", "Negotiation Advisor", "query_vault"],
     },
     "VECTOR": {
         "registry_key": "VECTOR",
@@ -239,7 +240,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "visibility": "visible",
         "capability_tier": "tier-2",
         "subordinates": [],
-        "tools": ["Image Generation", "Design Brief Builder", "Brand Style Guide Generator"],
+        "tools": ["Image Generation", "Design Brief Builder", "Brand Style Guide Generator", "query_vault"],
     },
     "OMEGA": {
         "registry_key": "OMEGA",
@@ -608,7 +609,7 @@ def search_brain_mcp_memory(query: str, limit: int = 6) -> list[dict[str, Any]]:
     return results[: max(1, limit)]
 
 
-def collect_brain_memory_results(query: str, limit: int = 6, include_runtime: bool = False) -> list[dict[str, Any]]:
+def collect_brain_memory_results(query: str, limit: int = 5, include_runtime: bool = False) -> list[dict[str, Any]]:
     stored_results = provider.search_brain_memory(query, limit=max(1, limit))
     runtime_results = search_brain_mcp_memory(query, limit=max(1, limit)) if include_runtime else []
     merged: list[dict[str, Any]] = []
@@ -622,6 +623,25 @@ def collect_brain_memory_results(query: str, limit: int = 6, include_runtime: bo
         if len(merged) >= max(1, limit):
             break
     return merged
+
+
+def inject_brain_context(query: str, context: dict[str, Any], tenant: dict[str, Any]) -> dict[str, Any]:
+    """Injects vault context into the provided context dictionary."""
+    if not query:
+        return context
+
+    # Limit query_vault results to 5 chunks and safe token cap
+    brain_results = collect_brain_memory_results(query, limit=5, include_runtime=True)
+    if brain_results:
+        context["brain_memory"] = brain_results
+        context["brain_memory_summary"] = "\n".join(
+            [
+                f"{entry.get('title')}: {str(entry.get('excerpt') or '')[:300]}..."
+                for entry in brain_results
+            ]
+        )
+        context["brain_memory_query"] = query
+    return context
 
 
 def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
@@ -2345,7 +2365,9 @@ async def get_brain_overview(request: Request):
     sources = provider.list_brain_sources()
     items = provider.list_brain_items(limit=100)
     if not items:
-        items = provider.list_brain_items(limit=100, tenant_id="tenant-primary")
+        request_tenant_id = get_request_tenant_id()
+        if request_tenant_id:
+            items = provider.list_brain_items(limit=100, tenant_id=request_tenant_id)
     all_ingests = provider.list_brain_ingests(limit=50)
     ingests = all_ingests[:12]
     categories: dict[str, int] = {}
@@ -2557,24 +2579,66 @@ async def list_help_tickets(request: Request):
 @app.post("/api/help/tickets")
 async def create_help_ticket(request: Request, payload: HelpTicketCreateRequest):
     user_id = get_current_user_id(request)
+    tenant_id = get_request_tenant_id(request)
     ticket_data = {**payload.dict(), "user_id": user_id}
     ticket = provider.create_help_ticket(ticket_data)
     
-    # Charlie Servicing (v1 Handoff)
+    # 1. Brain Logging
     try:
-        # We try to get the active AI config
+        provider.create_brain_item({
+            "title": f"Support Ticket: {payload.subject}",
+            "content": f"Category: {payload.category}\nPriority: {payload.priority}\n\n{payload.content}",
+            "category": "support_audit",
+            "source": "helpdesk",
+            "active": True
+        })
+    except Exception as e:
+        logger.error(f"Brain logging failed for ticket {ticket['id']}: {e}")
+
+    # 2. Agent Auto-Routing
+    category = (payload.category or "general").lower()
+    routing_map = {
+        "technical": "GHOST",
+        "billing": "BRAVO",
+        "feature": "FORGE",
+        "general": "CHARLIE"
+    }
+    assigned_agent = routing_map.get(category, "DELTA")
+    
+    # 3. Signal Creation
+    try:
+        emit_system_event(
+            provider,
+            {
+                "type": "ticket_submitted",
+                "payload": {
+                    "ticket_id": ticket["id"],
+                    "subject": payload.subject,
+                    "agent": assigned_agent,
+                    "priority": payload.priority
+                }
+            },
+            tenant={"id": tenant_id}
+        )
+    except Exception as e:
+        logger.error(f"Signal emission failed for ticket {ticket.get('id')}: {e}")
+
+    # Charlie Servicing (v1 Handoff) - Now with specific agent context if needed
+    try:
         configs = provider.list_ai_providers()
         active_config = next((c for c in configs if c.get("is_active")), None)
         
         servicing = ai_assist_service.service_help_ticket(ticket, provider_config=active_config)
         provider.update_help_ticket(ticket["id"], {
             "ai_note": servicing.get("ai_note"),
-            "ai_draft": servicing.get("ai_draft")
+            "ai_draft": servicing.get("ai_draft"),
+            "assigned_agent": assigned_agent
         })
         # Update the local ticket object for the response
         ticket.update(servicing)
+        ticket["assigned_agent"] = assigned_agent
     except Exception as e:
-        logger.error(f"Charlie failed to service ticket {ticket['id']}: {e}")
+        logger.error(f"AI servicing failed for ticket {ticket.get('id')}: {e}")
 
     return {"data": ticket}
 
@@ -2841,19 +2905,10 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
         "feature": route.get("feature"),
         "task": route.get("task"),
     }
-    brain_results: list[dict[str, Any]] = []
     brain_query = build_brain_assist_query(payload.current_value, resolved_context, tenant)
     if brain_query:
-        brain_results = collect_brain_memory_results(brain_query, limit=5, include_runtime=True)
-        if brain_results:
-            resolved_context["brain_memory"] = brain_results
-            resolved_context["brain_memory_summary"] = "\n".join(
-                [
-                    f"{entry.get('title')}: {entry.get('excerpt')}"
-                    for entry in brain_results
-                ]
-            )
-            resolved_context["brain_memory_query"] = brain_query
+        resolved_context = inject_brain_context(brain_query, resolved_context, tenant)
+        brain_results = resolved_context.get("brain_memory") or []
     result = ai_assist_service.assist(
         module=resolved_module,
         surface=resolved_surface,
@@ -3168,15 +3223,9 @@ async def ai_command(request: Request, payload: AICommandRequest):
         resolved_context["step_count"] = len(flow_raw_steps)
         resolved_context["agent_chain"] = flow_agent_chain
     brain_query = build_brain_assist_query(command_text, resolved_context, tenant)
-    brain_results: list[dict[str, Any]] = []
     if brain_query:
-        brain_results = collect_brain_memory_results(brain_query, limit=5, include_runtime=True)
-        if brain_results:
-            resolved_context["brain_memory"] = brain_results
-            resolved_context["brain_memory_summary"] = "\n".join(
-                [f"{entry.get('title')}: {entry.get('excerpt')}" for entry in brain_results]
-            )
-            resolved_context["brain_memory_query"] = brain_query
+        resolved_context = inject_brain_context(brain_query, resolved_context, tenant)
+        brain_results = resolved_context.get("brain_memory") or []
     raw_steps = flow_raw_steps or [
         *(
             [
@@ -5643,3 +5692,4 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port, log_level="info")
+
