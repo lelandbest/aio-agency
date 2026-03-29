@@ -1378,14 +1378,18 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   return (
-    <div className="calendar-surface h-full flex flex-col relative rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)] shadow-island">
+    <div className="calendar-surface h-full flex flex-col relative rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)] shadow-island bg-[var(--color-bg-secondary)]">
       <ModuleHeader
         showTitle={false}
-        statusBadge={{
-          label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
-          color: 'info'
-        }}
         showActions={true}
+        leftActions={[
+          ...visibleTabs.map(tab => ({
+            label: tab.charAt(0).toUpperCase() + tab.slice(1),
+            icon: null,
+            onClick: () => setActiveTab(tab),
+            variant: activeTab === tab ? 'primary' : 'secondary'
+          }))
+        ]}
         actions={[
           ...(!clientMode ? [{
             label: 'Manage Sources',
@@ -1401,24 +1405,6 @@ const CalendarModule = ({ clientMode = false }) => {
             color: 'primary'
           }
         ]}
-        className="border-b-0"
-        toolbarLeftSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] transition ${
-                  activeTab === tab
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-on-primary)]'
-                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        }
         toolbarCenterSlot={
           activeTab === 'bookers' || activeTab === 'bookings' ? (
             <div className="relative w-full max-w-sm">
@@ -1455,8 +1441,8 @@ const CalendarModule = ({ clientMode = false }) => {
         }
       />
 
-      {/* Content */}
-      <div className="flex-1 min-h-0 overflow-hidden relative">
+      <div className="flex-1 min-h-0 p-2">
+        <div className="h-full flex-1 min-h-0 overflow-hidden relative">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-[var(--color-text-secondary)]">Loading...</div>
@@ -1464,6 +1450,7 @@ const CalendarModule = ({ clientMode = false }) => {
         ) : (
           renderContent()
         )}
+        </div>
       </div>
 
       {/* Event Modal */}

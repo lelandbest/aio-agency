@@ -336,6 +336,14 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def delete_contact(self, contact_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def bulk_delete_contacts(self, contact_ids: list[str]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_companies(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
@@ -444,6 +452,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def bulk_delete_forms(self, form_ids: list[str]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_cms_tables(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
@@ -485,6 +497,14 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def delete_flow_draft(self, draft_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_flow(self, flow_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def bulk_delete_flows(self, flow_ids: list[str]) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod
@@ -1411,6 +1431,21 @@ class MockProvider(BaseProvider):
         contact["updated_at"] = utcnow()
         return contact
 
+    def delete_contact(self, contact_id: str) -> None:
+        contact = next((item for item in self.contacts if item["id"] == contact_id), None)
+        if not contact:
+            raise ValueError("Contact not found")
+        contact["deleted_at"] = utcnow()
+
+    def bulk_delete_contacts(self, contact_ids: list[str]) -> dict[str, Any]:
+        deleted = 0
+        for contact_id in contact_ids:
+            contact = next((item for item in self.contacts if item["id"] == contact_id), None)
+            if contact:
+                contact["deleted_at"] = utcnow()
+                deleted += 1
+        return {"deleted": deleted, "requested": len(contact_ids)}
+
     def list_companies(self) -> list[dict[str, Any]]:
         return self.companies
 
@@ -1766,6 +1801,14 @@ class MockProvider(BaseProvider):
     def delete_form(self, form_id: str) -> None:
         self.forms = [form for form in self.forms if form["id"] != form_id]
 
+    def bulk_delete_forms(self, form_ids: list[str]) -> dict[str, Any]:
+        deleted = 0
+        for form_id in form_ids:
+            before = len(self.forms)
+            self.forms = [form for form in self.forms if form["id"] != form_id]
+            deleted += before - len(self.forms)
+        return {"deleted": deleted, "requested": len(form_ids)}
+
     def list_cms_tables(self) -> list[dict[str, Any]]:
         return [
             {
@@ -1989,6 +2032,17 @@ class MockProvider(BaseProvider):
 
     def delete_flow_draft(self, draft_id: str) -> None:
         self.flow_drafts.pop(draft_id, None)
+
+    def delete_flow(self, flow_id: str) -> None:
+        self.flows = [f for f in self.flows if f.get("id") != flow_id]
+
+    def bulk_delete_flows(self, flow_ids: list[str]) -> dict[str, Any]:
+        deleted = 0
+        for flow_id in flow_ids:
+            before = len(self.flows)
+            self.flows = [f for f in self.flows if f.get("id") != flow_id]
+            deleted += before - len(self.flows)
+        return {"deleted": deleted, "requested": len(flow_ids)}
 
     def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
         submissions = self.form_submissions
@@ -4879,6 +4933,24 @@ class SQLiteProvider(BaseProvider):
             refreshed = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
         return self._contact_from_row(dict(refreshed))
 
+    def delete_contact(self, contact_id: str) -> None:
+        with self._connect() as conn:
+            existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenant_id = ?", (contact_id, self._tenant_id())).fetchone()
+            if not existing:
+                raise ValueError("Contact not found")
+            conn.execute("UPDATE contacts SET deleted_at = ? WHERE id = ? AND tenant_id = ?", (utcnow(), contact_id, self._tenant_id()))
+            conn.commit()
+
+    def bulk_delete_contacts(self, contact_ids: list[str]) -> dict[str, Any]:
+        deleted = 0
+        now = utcnow()
+        with self._connect() as conn:
+            for contact_id in contact_ids:
+                result = conn.execute("UPDATE contacts SET deleted_at = ? WHERE id = ? AND tenant_id = ?", (now, contact_id, self._tenant_id()))
+                deleted += result.rowcount
+            conn.commit()
+        return {"deleted": deleted, "requested": len(contact_ids)}
+
     def list_companies(self) -> list[dict[str, Any]]:
         return self._tenant_rows("SELECT * FROM companies WHERE tenant_id = ? ORDER BY name ASC")
 
@@ -5970,6 +6042,15 @@ class SQLiteProvider(BaseProvider):
             conn.execute("DELETE FROM forms WHERE id = ? AND tenant_id = ?", (form_id, self._tenant_id()))
             conn.commit()
 
+    def bulk_delete_forms(self, form_ids: list[str]) -> dict[str, Any]:
+        deleted = 0
+        with self._connect() as conn:
+            for form_id in form_ids:
+                result = conn.execute("DELETE FROM forms WHERE id = ? AND tenant_id = ?", (form_id, self._tenant_id()))
+                deleted += result.rowcount
+            conn.commit()
+        return {"deleted": deleted, "requested": len(form_ids)}
+
     def list_cms_tables(self) -> list[dict[str, Any]]:
         forms = self.list_forms()
         submission_counts: dict[str, int] = {}
@@ -6399,6 +6480,20 @@ class SQLiteProvider(BaseProvider):
         with self._connect() as conn:
             conn.execute("DELETE FROM flow_drafts WHERE id = ? AND tenant_id = ?", (draft_id, self._tenant_id()))
             conn.commit()
+
+    def delete_flow(self, flow_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM flows WHERE id = ? AND tenant_id = ?", (flow_id, self._tenant_id()))
+            conn.commit()
+
+    def bulk_delete_flows(self, flow_ids: list[str]) -> dict[str, Any]:
+        deleted = 0
+        with self._connect() as conn:
+            for flow_id in flow_ids:
+                result = conn.execute("DELETE FROM flows WHERE id = ? AND tenant_id = ?", (flow_id, self._tenant_id()))
+                deleted += result.rowcount
+            conn.commit()
+        return {"deleted": deleted, "requested": len(flow_ids)}
 
     def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM form_submissions WHERE tenant_id = ?"

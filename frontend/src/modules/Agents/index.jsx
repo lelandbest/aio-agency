@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
 import { getAiAgentsApi, getAiRunApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
@@ -459,7 +459,35 @@ const AIOAgentsModule = () => {
   const [activeRun, setActiveRun] = useState(null);
   const [aiRuns, setAiRuns] = useState([]);
   const [aiRunsError, setAiRunsError] = useState('');
+  const [pollingRunId, setPollingRunId] = useState(null);
+  const runPollIntervalRef = useRef(null);
   const chatFeedRef = useRef(null);
+
+  const stopRunPolling = useCallback(() => {
+    if (runPollIntervalRef.current) {
+      clearInterval(runPollIntervalRef.current);
+      runPollIntervalRef.current = null;
+    }
+    setPollingRunId(null);
+  }, []);
+
+  const startRunPolling = useCallback((runId) => {
+    stopRunPolling();
+    setPollingRunId(runId);
+    runPollIntervalRef.current = setInterval(async () => {
+      try {
+        const run = hydrateActiveRun(await getAiRunApi(runId));
+        setActiveRun(run);
+        const status = (run?.status || '').toLowerCase();
+        if (['completed', 'failed', 'success'].includes(status)) {
+          stopRunPolling();
+        }
+      } catch {
+        stopRunPolling();
+      }
+    }, 1500);
+  }, [stopRunPolling]);
+
   const localFileInputRef = useRef(null);
   const [copiedToken, setCopiedToken] = useState('');
   const [localAttachments, setLocalAttachments] = useState([]);
@@ -482,6 +510,14 @@ const AIOAgentsModule = () => {
     getAiRunsApi(12)
       .then((data) => setAiRuns(Array.isArray(data) ? data : []))
       .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (runPollIntervalRef.current) {
+        clearInterval(runPollIntervalRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -681,6 +717,10 @@ const AIOAgentsModule = () => {
                 : msg
             )
           );
+          const status = (run?.status || '').toLowerCase();
+          if (!['completed', 'failed', 'success'].includes(status)) {
+            startRunPolling(runId);
+          }
         } catch (error) {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -846,8 +886,7 @@ const AIOAgentsModule = () => {
      <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
       <ModuleHeader
         showTitle={false}
-        statusBadge={{ label: 'Systems Online', color: 'success' }}
-        actions={[
+        leftActions={[
           {
             label: 'Command Post',
             icon: Target,
@@ -859,7 +898,10 @@ const AIOAgentsModule = () => {
             icon: Terminal,
             onClick: () => setView('command'),
             variant: view === 'command' ? 'primary' : 'secondary'
-          }
+          },
+          <div className="inline-flex px-3 py-1 rounded-[var(--radius-pill)] text-xs font-medium whitespace-nowrap border shadow-premium bg-green-500/20 text-green-400 border-green-500/30">
+            Operational Status
+          </div>
         ]}
         showActions={true}
       />
@@ -948,28 +990,46 @@ const AIOAgentsModule = () => {
                 (activeRun.status || '').toLowerCase() === 'failed' ? 'FAILED' : 'RESULT',
               ].filter((label, index, array) => label && array.indexOf(label) === index)
             : [];
-          const executionNodes = commandPath.map((label, index) => {
-            const isLast = index === commandPath.length - 1;
-            const statusValue = (activeRun?.status || '').toLowerCase();
-            const state = !activeRun
-              ? 'idle'
-              : isLast
-                ? statusValue === 'failed'
-                  ? 'failed'
-                  : ['completed', 'success'].includes(statusValue)
-                    ? 'completed'
-                    : 'pending'
-                : statusValue === 'failed' && index >= commandPath.length - 2
-                  ? 'failed'
-                  : ['running', 'queued', 'pending', 'active', 'in_progress'].includes(statusValue) && index === Math.max(commandPath.length - 2, 1)
-                    ? 'active'
-                    : 'completed';
-            return {
+          const executionNodes = (() => {
+            if (!activeRun || commandPath.length === 0) return [];
+            const status = (activeRun.status || '').toLowerCase();
+            const hasFailed = status === 'failed';
+            const isCompleted = ['completed', 'success'].includes(status);
+            const isInProgress = ['executing', 'running', 'blocked', 'paused', 'queued', 'pending', 'active', 'in_progress'].includes(status);
+
+            const charlieIdx = commandPath.findIndex(l => l === (activeRun.intake_agent || 'CHARLIE'));
+            const alphaIdx = commandPath.findIndex(l => l === (activeRun.dispatcher_agent || 'ALPHA'));
+            const targetIdx = commandPath.findIndex(l => l === (activeRun.executing_agent || activeRun.requested_agent || 'TARGET AGENT'));
+            const flowIdx = commandPath.findIndex(l => l?.startsWith('FLOW '));
+            const resultIdx = commandPath.length - 1;
+
+            const getNodeState = (idx) => {
+              if (hasFailed) {
+                return idx >= resultIdx - 1 ? 'failed' : 'completed';
+              }
+              if (isCompleted) {
+                return idx === resultIdx - 1 ? 'completed' : idx < resultIdx - 1 ? 'completed' : 'completed';
+              }
+              if (!isInProgress) return 'idle';
+              
+              const maxActiveIdx = Math.max(
+                charlieIdx >= 0 ? charlieIdx : -1,
+                alphaIdx >= 0 ? alphaIdx : -1,
+                targetIdx >= 0 ? targetIdx : -1
+              );
+              
+              if (idx === maxActiveIdx) return 'active';
+              if (idx < maxActiveIdx) return 'completed';
+              if (idx === resultIdx) return 'pending';
+              return 'pending';
+            };
+
+            return commandPath.map((label, index) => ({
               id: `${label}-${index}`,
               label,
-              state,
-            };
-          });
+              state: getNodeState(index),
+            }));
+          })();
 
           return (
             <div className="flex-1 min-h-0 flex gap-2 p-1.5 overflow-hidden relative">
@@ -981,6 +1041,13 @@ const AIOAgentsModule = () => {
                 }
                 .route-flow {
                   animation: route-flow linear infinite;
+                }
+                @keyframes node-pulse {
+                  0%, 100% { box-shadow: 0 0 18px rgba(59, 130, 246, 0.25); }
+                  50% { box-shadow: 0 0 32px rgba(59, 130, 246, 0.45); }
+                }
+                .node-active {
+                  animation: node-pulse 1.5s ease-in-out infinite;
                 }
               `}</style>
               {/* LEFT - Command Islands */}
@@ -1303,9 +1370,10 @@ const AIOAgentsModule = () => {
                                   : node.state === 'completed'
                                     ? 'border-emerald-500/40 bg-emerald-950/25 text-emerald-200 shadow-[0_0_16px_rgba(16,185,129,0.18)]'
                                     : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/60 text-[var(--color-text-secondary)]';
+                            const activeClass = node.state === 'active' ? 'node-active' : '';
                             return (
                               <React.Fragment key={node.id}>
-                                <div className={`min-w-[120px] px-4 py-4 rounded-[var(--radius-card)] border text-center ${tone}`}>
+                                <div className={`min-w-[120px] px-4 py-4 rounded-[var(--radius-card)] border text-center ${tone} ${activeClass}`}>
                                   <div className="text-[8px] uppercase tracking-[0.28em] font-black">{node.label}</div>
                                   <div className="mt-2 text-[9px] font-mono uppercase tracking-widest">{node.state}</div>
                                 </div>

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Download, ShoppingCart } from 'lucide-react';
+import { Filter, Download, ShoppingCart, Brain, Crosshair } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import AIAssistButton from '../../components/AIAssistButton';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getOrdersApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { openAIAssist } = useAIAssist();
 
   const runOrdersAssist = async () => {
     try {
@@ -56,65 +57,78 @@ const OrdersModule = () => {
   };
 
   return (
-    <div className="h-full flex flex-col relative bg-[var(--color-bg-secondary)] rounded-xl overflow-hidden border border-[var(--color-border)]">
+    <div className="h-full flex flex-col relative bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)]">
       <ModuleHeader
         showTitle={false}
-        toolbarLeftSlot={(
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            {[
-              { key: 'orders', label: 'Orders', enabled: true },
-              { key: 'invoices', label: 'Invoices Disabled', enabled: false },
-              { key: 'products', label: 'Products Disabled', enabled: false },
-              { key: 'coupons', label: 'Coupons Disabled', enabled: false },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => tab.enabled && setActiveTab(tab.key)}
-                disabled={!tab.enabled}
-                className={[
-                  'shrink-0 rounded-[var(--radius-pill)] border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition',
-                  activeTab === tab.key
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
-                    : tab.enabled
-                    ? 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/40 hover:text-[var(--color-text-primary)]'
-                    : 'border-[var(--color-border)]/80 bg-[var(--color-bg-primary)]/55 text-[var(--color-text-secondary)] cursor-not-allowed opacity-100'
-                ].join(' ')}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-        statusBadge={{
-          label: activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
-          color: 'info'
-        }}
-        actions={[
+        leftActions={[
           {
-            label: 'Filter Disabled',
-            icon: Filter,
-            onClick: () => {},
-            variant: 'secondary',
-            className: '!text-[var(--color-text-secondary)] opacity-100'
+            label: 'Orders',
+            icon: ShoppingCart,
+            onClick: () => setActiveTab('orders'),
+            variant: activeTab === 'orders' ? 'primary' : 'secondary'
           },
           {
-            label: 'Export Disabled',
-            icon: Download,
+            label: 'Invoices',
+            icon: null,
             onClick: () => {},
             variant: 'secondary',
-            className: '!text-[var(--color-text-secondary)] opacity-100'
+            disabled: true,
+            title: 'Disabled until backed by live data'
+          },
+          {
+            label: 'Products',
+            icon: null,
+            onClick: () => {},
+            variant: 'secondary',
+            disabled: true,
+            title: 'Disabled until backed by live data'
+          },
+          {
+            label: 'Coupons',
+            icon: null,
+            onClick: () => {},
+            variant: 'secondary',
+            disabled: true,
+            title: 'Disabled until backed by live data'
+          }
+        ]}
+        actions={[
+          {
+            label: 'Filter',
+            icon: Filter,
+            onClick: () => {},
+            variant: 'secondary'
+          },
+          {
+            label: 'Export',
+            icon: Download,
+            onClick: () => {},
+            variant: 'secondary'
           }
         ]}
         showActions={true}
         aiAssistSlot={(
-          <AIAssistButton
-            onAssist={runOrdersAssist}
-            tooltip="Analyze Orders"
-            iconType="crosshair"
-          />
+          <button
+            onClick={openAIAssist}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
+            title="Brain"
+          >
+            <Brain size={16} />
+          </button>
         )}
+        executeSlot={(
+          <button
+            disabled={true}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
+            title="Execute"
+          >
+            <Crosshair size={16} />
+          </button>
+        )}
+        hasSelection={false}
       />
-      <div className="flex-1 overflow-auto p-4 relative">
+      <div className="flex-1 min-h-0 p-2">
+        <div className="h-full flex-1 overflow-auto p-4 relative">
         {loading ? (
           <div className="text-center text-gray-500 mt-10">Loading Orders...</div>
         ) : activeTab !== 'orders' ? (
@@ -157,6 +171,7 @@ const OrdersModule = () => {
             </table>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
@@ -23,6 +24,17 @@ def clean_text(value: Any) -> str:
 
 def clone_json(value: Any) -> Any:
     return json.loads(json.dumps(value))
+
+
+def generate_content_hash(content: Any) -> str:
+    normalized = json.dumps(content, sort_keys=True, default=str)
+    return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+
+
+MEDIA_STAGES = ("temporary", "intermediate", "generated", "processing", "final")
+MEDIA_SOURCES = ("transcription", "render", "script", "audio_render", "publish", "meeting_ingest", "manual", "import")
+
+MediaValidationError = type("MediaValidationError", (ValueError,), {})
 
 
 def normalize_attachment_links(payload: dict[str, Any] | None, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -83,23 +95,50 @@ def build_media_asset(
     asset_type: str,
     media_type: str,
     title: str,
+    source: str,
+    stage: str = "final",
+    linked_id: str | None = None,
     source_url: str | None = None,
     metadata: dict[str, Any] | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    content_hash: str | None = None,
+    validate: bool = True,
 ) -> dict[str, Any]:
-    return {
-        "id": unique_id("media-asset"),
+    if validate:
+        if not clean_text(source):
+            raise MediaValidationError("Media asset requires 'source' field.")
+        if not clean_text(asset_type):
+            raise MediaValidationError("Media asset requires 'asset_type' field.")
+        if not clean_text(media_type):
+            raise MediaValidationError("Media asset requires 'media_type' field.")
+        if stage not in MEDIA_STAGES:
+            raise MediaValidationError(f"Invalid stage '{stage}'. Must be one of: {', '.join(MEDIA_STAGES)}")
+
+    asset_id = unique_id("media-asset")
+    now = utcnow_iso()
+
+    asset = {
+        "id": asset_id,
         "tenant_id": tenant_id,
         "provider": provider,
         "asset_type": asset_type,
         "media_type": media_type,
         "title": title or "Media Asset",
+        "source": source,
+        "stage": stage,
+        "linked_id": linked_id,
         "source_url": source_url,
         "metadata": clone_json(metadata or {}),
         "attachments": clone_json(attachments or []),
-        "created_at": utcnow_iso(),
-        "updated_at": utcnow_iso(),
+        "content_hash": content_hash,
+        "created_at": now,
+        "updated_at": now,
     }
+
+    if not content_hash and source_url:
+        asset["content_hash"] = generate_content_hash({"url": source_url, "type": asset_type})
+
+    return asset
 
 
 def build_render_job(
@@ -394,7 +433,7 @@ class MediaStateStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
-    def upsert(self, collection: str, record: dict[str, Any]) -> dict[str, Any]:
+    def upsert(self, collection: str, record: dict[str, Any], deduplicate: bool = False) -> dict[str, Any]:
         with self._lock:
             state = self._read_state()
             rows = state.setdefault(collection, [])
@@ -406,9 +445,26 @@ class MediaStateStore:
                     rows[index] = payload
                     self._write_state(state)
                     return payload
+            if deduplicate and collection == "assets":
+                content_hash = payload.get("content_hash")
+                if content_hash:
+                    for existing in rows:
+                        if clean_text(existing.get("content_hash")) == content_hash:
+                            return existing
             rows.append(payload)
             self._write_state(state)
             return payload
+
+    def upsert_asset(self, asset: dict[str, Any], deduplicate: bool = True) -> dict[str, Any]:
+        return self.upsert("assets", asset, deduplicate=deduplicate)
+
+    def find_duplicate(self, content_hash: str) -> dict[str, Any] | None:
+        with self._lock:
+            state = self._read_state()
+            for asset in state.get("assets") or []:
+                if clean_text(asset.get("content_hash")) == content_hash:
+                    return clone_json(asset)
+        return None
 
     def list(self, collection: str) -> list[dict[str, Any]]:
         with self._lock:
@@ -418,6 +474,65 @@ class MediaStateStore:
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return self._read_state()
+
+    def cleanup_stale_assets(self, older_than_hours: int = 24) -> list[str]:
+        with self._lock:
+            state = self._read_state()
+            cutoff = datetime.now(UTC).timestamp() - (older_than_hours * 3600)
+            removed_ids: list[str] = []
+            assets = state.get("assets") or []
+            kept = []
+            for asset in assets:
+                stage = asset.get("stage")
+                created_str = asset.get("created_at")
+                if stage == "temporary":
+                    try:
+                        created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                        if created.timestamp() < cutoff:
+                            removed_ids.append(asset.get("id"))
+                            continue
+                    except (ValueError, AttributeError):
+                        removed_ids.append(asset.get("id"))
+                        continue
+                kept.append(asset)
+            if removed_ids:
+                state["assets"] = kept
+                self._write_state(state)
+            return removed_ids
+
+    def cleanup_by_linked_id(self, linked_id: str) -> int:
+        with self._lock:
+            state = self._read_state()
+            assets = state.get("assets") or []
+            kept = []
+            removed = 0
+            for asset in assets:
+                if clean_text(asset.get("linked_id")) == linked_id:
+                    removed += 1
+                    continue
+                kept.append(asset)
+            if removed:
+                state["assets"] = kept
+                self._write_state(state)
+            return removed
+
+    def get_assets_by_linked_id(self, linked_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            state = self._read_state()
+            return [
+                clone_json(a)
+                for a in state.get("assets") or []
+                if clean_text(a.get("linked_id")) == linked_id
+            ]
+
+    def get_assets_by_hash(self, content_hash: str) -> list[dict[str, Any]]:
+        with self._lock:
+            state = self._read_state()
+            return [
+                clone_json(a)
+                for a in state.get("assets") or []
+                if clean_text(a.get("content_hash")) == content_hash
+            ]
 
 
 class BaseRenderProvider(ABC):
@@ -776,6 +891,38 @@ class MediaEngine:
     def list_publish_artifacts(self) -> list[dict[str, Any]]:
         return self.store.list("publish_artifacts")
 
+    def get_assets_by_pipeline(self, pipeline_type: str, pipeline_id: str) -> list[dict[str, Any]]:
+        return self.store.get_assets_by_linked_id(f"{pipeline_type}-{pipeline_id}")
+
+    def get_assets_by_run(self, run_id: str) -> list[dict[str, Any]]:
+        return self.get_assets_by_pipeline("flow-run", run_id)
+
+    def get_assets_by_flow(self, flow_id: str) -> list[dict[str, Any]]:
+        return self.get_assets_by_pipeline("flow", flow_id)
+
+    def get_assets_by_agent(self, agent_id: str) -> list[dict[str, Any]]:
+        return self.get_assets_by_pipeline("agent", agent_id)
+
+    def group_assets_by_pipeline(self) -> dict[str, dict[str, list[dict[str, Any]]]]:
+        assets = self.list_assets()
+        groups: dict[str, dict[str, list[dict[str, Any]]]] = {
+            "by_source": {},
+            "by_stage": {},
+            "by_linked_id": {},
+        }
+        for asset in assets:
+            source = asset.get("source") or "unknown"
+            stage = asset.get("stage") or "unknown"
+            linked_id = asset.get("linked_id") or "unlinked"
+            groups["by_source"].setdefault(source, []).append(asset)
+            groups["by_stage"].setdefault(stage, []).append(asset)
+            groups["by_linked_id"].setdefault(linked_id, []).append(asset)
+        return groups
+
+    def run_cleanup(self, older_than_hours: int = 24) -> dict[str, Any]:
+        removed = self.store.cleanup_stale_assets(older_than_hours)
+        return {"removed_temporary_assets": len(removed), "asset_ids": removed}
+
     def generate_script(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
         provider_id = clean_text(payload.get("provider")) or StubScriptProvider.provider_id
         provider = self.script_providers.get(provider_id)
@@ -919,6 +1066,7 @@ class MediaEngine:
     ) -> dict[str, Any]:
         started = {**job, "status": "processing", "started_at": utcnow_iso()}
         self.store.upsert("audio_render_jobs", started)
+        linked_id = f"audio-render-{job['id']}"
         try:
             result = provider.renderAudio(started, payload)
             assets: list[dict[str, Any]] = []
@@ -929,11 +1077,14 @@ class MediaEngine:
                     asset_type=clean_text(asset_payload.get("asset_type")) or "audio_render",
                     media_type=clean_text(asset_payload.get("media_type")) or "audio",
                     title=clean_text(asset_payload.get("title")) or clean_text(started.get("title")) or "Audio Asset",
+                    source="audio_render",
+                    stage="final",
+                    linked_id=linked_id,
                     source_url=clean_text(asset_payload.get("source_url")) or None,
                     metadata=asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {},
                     attachments=attachments,
                 )
-                assets.append(self.store.upsert("assets", asset))
+                assets.append(self.store.upsert_asset(asset, deduplicate=True))
             completed = {
                 **started,
                 "status": "complete",

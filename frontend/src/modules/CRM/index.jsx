@@ -18,11 +18,11 @@ import {
   verifyEmailApi
 } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
-import AIAssistButton from '../../components/AIAssistButton';
 import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { 
-  Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
+  Brain, Crosshair, Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
   Trash2, X, Download, MessageCircle, Calendar, Zap,
   AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft,
   Edit, Clipboard, FileInput, User, Building2, KeyRound, Shield, ExternalLink
@@ -30,6 +30,7 @@ import {
 
 const CRMModule = ({ initialContactId = null }) => {
   const { tenant, tenants = [], switchTenant } = useAuth();
+  const { openAIAssist } = useAIAssist();
   const importInputRef = useRef(null);
   // State Management
   const [contacts, setContacts] = useState([]);
@@ -763,13 +764,13 @@ const CRMModule = ({ initialContactId = null }) => {
   };
 
   // Bulk actions
-  const handleBulkAction = async (action) => {
-    if (selectedContacts.size === 0) {
+  const handleBulkAction = async (action, targetIds = null) => {
+    const selectedIds = targetIds || Array.from(selectedContacts);
+    
+    if (selectedIds.length === 0) {
       alert('Please select contacts first');
       return;
     }
-
-    const selectedIds = Array.from(selectedContacts);
 
     switch (action) {
       case 'delete':
@@ -1168,16 +1169,11 @@ const CRMModule = ({ initialContactId = null }) => {
     }
 
     return (
-      <div className="flex-1 flex overflow-hidden bg-[var(--color-bg-secondary)]">
+      <div className="flex-1 flex overflow-hidden">
         {/* LEFT: Contact Table - 75% */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Section Label */}
-          <div className="px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Contact List</div>
-          </div>
-
           {/* Contact Table */}
-          <div className="flex-1 overflow-auto bg-[var(--color-bg-secondary)] p-4">
+          <div className="flex-1 overflow-hidden px-4 pb-4 pt-0">
             {loading ? (
               <div className={shellPanelClass + ' flex h-full items-center justify-center'}>
                 <div className="text-[var(--color-text-secondary)]">Loading contacts...</div>
@@ -1185,7 +1181,7 @@ const CRMModule = ({ initialContactId = null }) => {
             ) : (
               filteredAndSortedContacts.length > 0 ? (
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)]">
+                    <thead className="sticky top-0 bg-[var(--color-bg-primary)]/95 backdrop-blur border-b border-[var(--color-border)] z-10">
                       <tr>
                         <th className="px-4 py-3 text-left w-12">
                           <input 
@@ -1229,7 +1225,7 @@ const CRMModule = ({ initialContactId = null }) => {
                       {filteredAndSortedContacts.map(contact => (
                         <tr 
                           key={contact.id} 
-                          className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer"
+                          className="border-b border-[var(--color-border)]/80 transition hover:bg-[var(--color-hover)]/70 cursor-pointer group relative"
                         >
                           <td className="px-4 py-3" onClick={(e) => { e.stopPropagation(); toggleSelectContact(contact.id); }}>
                             <input 
@@ -1284,6 +1280,20 @@ const CRMModule = ({ initialContactId = null }) => {
                           <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
                             {new Date(contact.updated_at).toLocaleDateString()}
                           </td>
+                          {/* Row Delete Button */}
+                          <td className="w-10">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Delete ${contact.first_name} ${contact.last_name}?`)) {
+                                  handleBulkAction('delete', [contact.id]);
+                                }
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-tertiary)] hover:text-red-500 rounded hover:bg-[var(--color-hover)] transition"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1308,7 +1318,7 @@ const CRMModule = ({ initialContactId = null }) => {
         </div>
 
         {/* RIGHT: Filters - 25% */}
-        <div className="w-72 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col overflow-hidden">
+        <div className="w-72 border-l border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Section Label */}
           <div className="px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Refine Records - Filters</div>
@@ -2894,41 +2904,13 @@ const CRMModule = ({ initialContactId = null }) => {
         onChange={handleImportContacts}
         className="hidden"
       />
-      {!canUseEmailVerification ? (
-        <div className="border-b border-[var(--color-border)] px-4 py-3">
-          <div className="rounded-[var(--radius-card)] border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-amber-200">
-            Email verification is unavailable until Reoon is configured for this workspace.
-          </div>
-        </div>
-      ) : null}
-
-      {emailVerificationNotice?.message ? (
-        <div className="border-b border-[var(--color-border)] px-4 py-3">
-          <div className={`rounded-[var(--radius-card)] border px-3 py-2 text-sm ${emailVerificationNoticeClass}`}>
-            {emailVerificationNotice.message}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Header with Actions - Using ModuleHeader Component */}
+      {/* Header with Actions - 48px Island Toolbar */}
       <ModuleHeader
         showTitle={false}
-        actions={[
-          { label: 'Verify Selected', icon: Shield, onClick: () => startBulkEmailVerification('selected'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
-          { label: 'Verify Filtered', icon: Shield, onClick: () => startBulkEmailVerification('filtered'), variant: 'secondary', color: 'sky', disabled: !canUseEmailVerification || bulkVerificationSubmitting },
-          { label: 'Add Tag', icon: Tag, onClick: () => handleBulkAction('add_tag'), variant: 'secondary', color: 'emerald' },
-          { label: 'Remove Tag', icon: Tag, onClick: () => handleBulkAction('remove_tag'), variant: 'secondary', color: 'rose' },
-          { label: 'Add Flow', icon: Zap, onClick: () => handleBulkAction('add_flow'), variant: 'secondary', color: 'emerald' },
-          { label: 'Remove Flow', icon: Zap, onClick: () => handleBulkAction('remove_flow'), variant: 'secondary', color: 'rose' },
-          { label: 'Set Owner', icon: User, onClick: () => handleBulkAction('set_owner'), variant: 'secondary', color: 'violet' },
-          { label: 'Set Dept', icon: Building2, onClick: () => handleBulkAction('set_department'), variant: 'secondary', color: 'violet' },
-          { label: 'Send API', icon: Zap, onClick: () => handleBulkAction('send_api'), variant: 'secondary', color: 'sky' },
-          { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('send_email'), variant: 'secondary', color: 'sky' },
-          { label: 'Send SMS', icon: MessageCircle, onClick: () => handleBulkAction('send_sms'), variant: 'secondary', color: 'sky' },
-          { label: 'Delete', icon: Trash2, onClick: () => handleBulkAction('delete'), variant: 'secondary', color: 'red' },
-          { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary', color: 'slate' },
+        leftActions={[
+          { label: 'Create Contact', icon: Plus, onClick: () => setShowCreateModal(true), variant: 'primary', color: 'primary' },
           { label: 'Import', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', color: 'slate' },
-          { label: 'Create Contact', icon: Plus, onClick: () => setShowCreateModal(true), variant: 'primary', color: 'primary' }
+          { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary', color: 'slate' },
         ]}
         toolbarLeftSlot={
           selectedContact ? (
@@ -2957,31 +2939,123 @@ const CRMModule = ({ initialContactId = null }) => {
             </div>
           ) : null
         }
-        toolbarCenterSlot={!selectedContact ? (
-          <div className="relative w-full max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search contacts"
-              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-            />
+        actions={[
+          { label: 'JSON', icon: Zap, onClick: () => handleBulkAction('send_api'), variant: 'secondary', color: 'slate' },
+          { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('send_email'), variant: 'secondary', color: 'sky' },
+        ]}
+        toolbarRightSlot={
+          <div className="flex items-center gap-2">
+            {/* Verify Dropdown - Left side */}
+            <div className="relative group">
+              <button className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                <Shield size={12} /> Verify
+              </button>
+              <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50">
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[140px]">
+                  <button onClick={() => startBulkEmailVerification('selected')} disabled={!canUseEmailVerification || bulkVerificationSubmitting} className="w-full text-left px-3 py-2 text-xs text-sky-300 hover:bg-sky-500/20 rounded disabled:opacity-40">Verify Selected ({selectedContacts.size})</button>
+                  <button onClick={() => startBulkEmailVerification('filtered')} disabled={!canUseEmailVerification || bulkVerificationSubmitting} className="w-full text-left px-3 py-2 text-xs text-sky-300 hover:bg-sky-500/20 rounded disabled:opacity-40">Verify All Filtered</button>
+                </div>
+              </div>
+            </div>
+            {/* Tag Dropdown */}
+            <div className="relative group">
+              <button className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
+                <Tag size={12} /> Tag
+              </button>
+              <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[120px]">
+                  <button onClick={() => handleBulkAction('add_tag')} className="w-full text-left px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/20 rounded">+ Add Tag</button>
+                  <button onClick={() => handleBulkAction('remove_tag')} className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/20 rounded">- Remove Tag</button>
+                </div>
+              </div>
+            </div>
+            {/* Flow Dropdown */}
+            <div className="relative group">
+              <button className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
+                <Zap size={12} /> Flow
+              </button>
+              <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[120px]">
+                  <button onClick={() => handleBulkAction('add_flow')} className="w-full text-left px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/20 rounded">+ Add Flow</button>
+                  <button onClick={() => handleBulkAction('remove_flow')} className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/20 rounded">- Remove Flow</button>
+                </div>
+              </div>
+            </div>
+            {/* Owner Dropdown */}
+            <div className="relative group">
+              <button className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-violet-500/40 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25">
+                <User size={12} /> Owner
+              </button>
+              <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[120px]">
+                  <button onClick={() => handleBulkAction('set_owner')} className="w-full text-left px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20 rounded">Set Owner</button>
+                  <button onClick={() => handleBulkAction('set_department')} className="w-full text-left px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20 rounded">Set Dept</button>
+                </div>
+              </div>
+            </div>
+            {emailVerificationStatusBadge && (
+              <span className={`px-2 py-1 rounded-full border text-[10px] uppercase tracking-wider ${emailVerificationStatusBadge.color === 'success' ? 'border-green-500/40 bg-green-500/15 text-green-400' : emailVerificationStatusBadge.color === 'warning' ? 'border-yellow-500/40 bg-yellow-500/15 text-yellow-400' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
+                {emailVerificationStatusBadge.label}
+              </span>
+            )}
           </div>
-        ) : null}
-        statusBadge={emailVerificationStatusBadge}
+        }
         showActions={true}
         aiAssistSlot={(
-          <AIAssistButton
-            onAssist={runCrmAssist}
-            tooltip="AI Assist"
-            iconType="crosshair"
-          />
+          <>
+            {selectedContacts.size > 0 && (
+              <button onClick={() => handleBulkAction('delete')} className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm">
+                <Trash2 size={14} />
+                <span>DELETE SELECTED ({selectedContacts.size})</span>
+              </button>
+            )}
+            <button
+              onClick={openAIAssist}
+              className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
+              title="Brain"
+            >
+              <Brain size={16} />
+            </button>
+          </>
         )}
+        executeSlot={(
+          <button
+            onClick={() => {
+              const selectedId = Array.from(selectedContacts)[0];
+              if (selectedId) openContactThread(selectedId, 'email');
+            }}
+            disabled={selectedContacts.size === 0}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
+            title="Execute"
+          >
+            <Crosshair size={16} />
+          </button>
+        )}
+        hasSelection={selectedContacts.size > 0}
       />
 
-      {/* Content */}
-      {renderContactsTab()}
+      {/* Content Island */}
+      <div className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden">
+        {/* Alert Pills */}
+        {!canUseEmailVerification ? (
+          <div className="px-4 py-2">
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Email verification is unavailable until Reoon is configured for this workspace.
+            </div>
+          </div>
+        ) : null}
+
+        {emailVerificationNotice?.message ? (
+          <div className="px-4 py-2">
+            <div className={`rounded-lg border px-3 py-2 text-sm ${emailVerificationNoticeClass}`}>
+              {emailVerificationNotice.message}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Content */}
+        {renderContactsTab()}
+      </div>
 
       {/* Create Contact Modal */}
       {showCreateModal && <CreateContactModal />}

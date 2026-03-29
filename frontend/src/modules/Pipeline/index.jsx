@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Brain,
+  Crosshair,
   GitMerge,
   Plus,
   Calendar,
@@ -12,7 +14,7 @@ import {
   Building2
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import AIAssistButton from '../../components/AIAssistButton';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
 const STORAGE_KEY = 'aio_pipeline_layout_v2';
@@ -45,6 +47,7 @@ const innerPanelClass = 'rounded-[var(--radius-card)] border border-[var(--color
 const softActionClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] shadow-island-sm';
 
 const PipelineModule = () => {
+  const { openAIAssist } = useAIAssist();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draggedCard, setDraggedCard] = useState(null);
@@ -119,10 +122,10 @@ const PipelineModule = () => {
   }, [contacts]);
 
   const toolbarStats = [
-    { label: 'Open Deals', value: pipelineStats.open, valueClassName: 'text-[var(--color-text-primary)]' },
-    { label: 'Tracked Contacts', value: pipelineStats.total, valueClassName: 'text-[var(--color-text-primary)]' },
-    { label: 'High Signal', value: pipelineStats.highValue, valueClassName: 'text-emerald-300' },
-    { label: 'Needs Owner', value: pipelineStats.noOwner, valueClassName: 'text-amber-300' },
+    { label: 'Deals', value: pipelineStats.open, color: 'emerald' },
+    { label: 'Total', value: pipelineStats.total, color: 'slate' },
+    { label: 'Signal', value: pipelineStats.highValue, color: 'emerald' },
+    { label: 'Audit', value: pipelineStats.noOwner, color: 'amber' },
   ];
 
   const handleDragStart = (event, contactId, columnId) => {
@@ -324,9 +327,9 @@ const PipelineModule = () => {
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <ModuleHeader
+        title="Pipelines"
         showTitle={false}
-        showActions={true}
-        actions={[
+        leftActions={[
           {
             label: 'Add Stage',
             icon: Plus,
@@ -339,32 +342,43 @@ const PipelineModule = () => {
           },
         ]}
         aiAssistSlot={(
-          <AIAssistButton
-            onAssist={runPipelineAssist}
-            tooltip="Pipeline Assist"
-            iconType="crosshair"
-          />
+          <button
+            onClick={openAIAssist}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
+            title="Brain"
+          >
+            <Brain size={16} />
+          </button>
         )}
-        toolbarCenterSlot={(
-          <div className="flex min-w-0 max-w-full items-center gap-3 overflow-x-auto no-scrollbar">
+        executeSlot={(
+          <button
+            onClick={() => selectedCard && openCrmRecord(selectedCard.id)}
+            disabled={!selectedCard}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
+            title="Execute"
+          >
+            <Crosshair size={16} />
+          </button>
+        )}
+        hasSelection={!!selectedCard}
+        toolbarRightSlot={(
+          <div className="flex items-center gap-2">
             {toolbarStats.map((stat) => (
               <div
                 key={stat.label}
-                className={innerPanelClass + ' min-w-[160px] px-4 py-3'}
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm"
               >
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
-                  {stat.label}
-                </div>
-                <div className={`mt-2 text-2xl font-semibold ${stat.valueClassName}`}>
-                  {stat.value}
-                </div>
+                <div className={`w-1.5 h-1.5 rounded-full ${stat.color === 'emerald' ? 'bg-emerald-500' : stat.color === 'amber' ? 'bg-amber-500' : 'bg-[var(--color-text-tertiary)]'}`} />
+                <span>{stat.label.toUpperCase()}</span>
+                <span className="text-[var(--color-text-primary)]">{stat.value}</span>
               </div>
             ))}
           </div>
         )}
       />
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
+      <div className="flex-1 min-h-0 p-2">
+        <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
         {loading ? (
           <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
             Loading pipeline...
@@ -503,6 +517,7 @@ const PipelineModule = () => {
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 };

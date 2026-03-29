@@ -1,8 +1,158 @@
 
-> aio-agency-frontend@0.0.0 dev
-> vite --host 127.0.0.1 --port 3000
+  [32m[1mVITE[22m v7.3.1[39m  [2mready in [0m[1m246[22m[2m[0m ms[22m
 
-
-  [32m[1mVITE[22m v7.3.1[39m  [2mready in [0m[1m232[22m[2m[0m ms[22m
-
-  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m3000[22m/[39m
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5175[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.4.42:[1m5175[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.21.192.1:[1m5175[22m/[39m
+[2m2:49:38 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:50:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:50:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:50:41 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:50:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:50:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:51:09 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:53:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:55:22 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:56:36 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:58:13 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:59:22 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m2:59:41 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:00:17 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:09:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:09:22 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:10:17 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:12:12 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:18:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m3:22:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Agents/index.jsx, /src/index.css[22m
+[2m3:25:20 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Forms/index.jsx, /src/index.css[22m
+[2m3:26:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m3:26:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m3:27:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m7:52:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m7:53:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m7:54:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m7:54:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m7:55:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m7:56:59 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m7:57:59 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m8:00:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m8:01:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m8:01:32 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m8:02:09 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m8:02:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m8:02:49 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m8:03:06 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m8:05:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m8:06:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m8:10:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m8:12:17 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m8:19:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m8:20:11 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Calendar/index.jsx, /src/index.css[22m
+[2m8:28:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m8:29:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m8:31:30 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m8:32:01 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m8:32:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m8:32:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/ModuleHeader.jsx[22m Could not Fast Refresh (new export)
+[2m8:32:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Brain/index.jsx, /src/modules/Pipeline/index.jsx, /src/modules/Orders/index.jsx, /src/modules/Media/index.jsx, /src/modules/Forms/index.jsx, /src/modules/Flows/FlowsHome.jsx, /src/modules/CRM/index.jsx, /src/modules/Comms/index.jsx, /src/modules/Calendar/index.jsx, /src/modules/Signals/index.jsx, /src/modules/Agents/index.jsx, /src/modules/Integrations/pages/ActiveIntegrations.jsx[22m
+[2m8:33:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m8:33:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m8:36:18 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m8:36:45 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m8:36:46 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/ModuleHeader.jsx[22m Could not Fast Refresh (export removed)
+[2m8:36:46 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Brain/index.jsx, /src/modules/Pipeline/index.jsx, /src/modules/Orders/index.jsx, /src/modules/Media/index.jsx, /src/modules/Forms/index.jsx, /src/modules/Flows/FlowsHome.jsx, /src/modules/CRM/index.jsx, /src/modules/Comms/index.jsx, /src/modules/Calendar/index.jsx, /src/modules/Signals/index.jsx, /src/modules/Agents/index.jsx, /src/modules/Integrations/pages/ActiveIntegrations.jsx[22m
+[2m8:37:01 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m8:37:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m8:42:45 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m8:43:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m8:46:22 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Settings/index.jsx, /src/index.css[22m
+[2m8:48:54 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Signals/index.jsx, /src/index.css[22m
+[2m8:50:30 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Signals/index.jsx, /src/index.css[22m
+[2m8:50:53 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m8:51:21 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m8:52:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/CRM/index.jsx, /src/index.css[22m
+[2m8:53:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/CRM/index.jsx, /src/index.css[22m
+[2m8:55:05 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m8:55:22 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m8:57:49 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m8:58:00 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m8:58:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m9:00:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m9:01:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:02:46 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:09:33 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:09:56 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:10:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OperatorAssistDock.jsx, /src/index.css[22m
+[2m9:11:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OperatorAssistDock.jsx, /src/index.css[22m
+[2m9:11:21 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OperatorAssistDock.jsx, /src/index.css[22m
+[2m9:11:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OperatorAssistDock.jsx, /src/index.css[22m
+[2m9:11:54 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:12:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:13:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:14:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:15:01 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:15:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OperatorAssistDock.jsx, /src/index.css[22m
+[2m9:15:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:16:08 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:16:22 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:17:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:17:21 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:17:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:18:53 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m9:19:20 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m9:19:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Media/index.jsx, /src/index.css[22m
+[2m9:20:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/CRM/index.jsx, /src/index.css[22m
+[2m9:20:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/CRM/index.jsx, /src/index.css[22m
+[2m9:20:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/CRM/index.jsx, /src/index.css[22m
+[2m9:21:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m9:21:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m9:22:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Pipeline/index.jsx, /src/index.css[22m
+[2m9:22:27 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Signals/index.jsx, /src/index.css[22m
+[2m9:22:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Signals/index.jsx, /src/index.css[22m
+[2m9:23:05 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Signals/index.jsx, /src/index.css[22m
+[2m9:23:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:23:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:23:59 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:24:49 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m9:25:18 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:25:23 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:25:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:26:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:26:20 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m9:26:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Agents/index.jsx, /src/index.css[22m
+[2m9:27:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Agents/index.jsx, /src/index.css[22m
+[2m9:28:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/Modals/FormEntryModal.jsx, /src/modules/Brain/TabbedBrainFormModal.jsx, /src/modules/Forms/index.jsx, /src/components/CMS/CMSView.jsx, /src/pages/PublicForm.jsx, /src/index.css[22m
+[2m9:31:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:34:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:39:33 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Signals/index.jsx, /src/index.css[22m
+[2m9:42:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OperatorAssistDock.jsx, /src/index.css[22m
+[2m9:47:09 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:48:01 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Orders/index.jsx, /src/index.css[22m
+[2m9:50:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:51:11 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:53:01 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m9:56:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/StatusBar.jsx[22m
+[2m9:56:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/contexts/SignalContext.jsx[22m
+[2m9:56:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/contexts/SignalContext.jsx[22m Could not Fast Refresh ("useSignal" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m9:56:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/StatusBar.jsx[22m
+[2m9:56:28 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/contexts/SignalContext.jsx[22m
+[2m9:56:28 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/contexts/SignalContext.jsx[22m Could not Fast Refresh ("useSignal" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m9:56:28 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/StatusBar.jsx[22m
+[2m9:56:43 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/contexts/SignalContext.jsx[22m
+[2m9:56:44 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/contexts/SignalContext.jsx[22m Could not Fast Refresh ("useSignal" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m9:56:44 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/StatusBar.jsx[22m
+[2m10:00:13 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:00:37 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:00:53 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:01:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:01:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:01:44 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:02:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:02:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:02:36 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:03:21 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ModuleHeader.jsx[22m
+[2m10:05:09 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:06:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Agents/index.jsx, /src/index.css[22m
+[2m10:07:00 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Agents/index.jsx, /src/index.css[22m
+[2m10:09:36 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m
+[2m10:10:39 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/modules/Comms/index.jsx, /src/index.css[22m

@@ -65,38 +65,7 @@ const FlowBuilderHeader = ({
         </div>
 
         {/* Right: Actions */}
-        <div className="flex flex-wrap items-center justify-end gap-1">
-          {aiAssistSlot}
-          {onImport && (
-            <button
-              type="button"
-              onClick={onImport}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-all shadow-premium border border-[var(--color-border)] font-black uppercase tracking-widest text-[10px]"
-            >
-              <Upload className="w-3.5 h-3.5 text-sky-400" />
-              <span>Import</span>
-            </button>
-          )}
-          {onSave && (
-            <button
-              type="button"
-              onClick={onSave}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-all shadow-premium border border-emerald-400/30 font-black uppercase tracking-widest text-[10px]"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>Save</span>
-            </button>
-          )}
-          {onExport && (
-            <button
-              type="button"
-              onClick={onExport}
-              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">Export</span>
-            </button>
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           {onOpenHistory && (
             <button
               type="button"
@@ -117,11 +86,41 @@ const FlowBuilderHeader = ({
               }`}
             >
               {isDetailsOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRight className="w-3.5 h-3.5" />}
-              <span className="hidden lg:inline">{isDetailsOpen ? 'Hide' : 'Details'}</span>
+              <span className="hidden lg:inline font-bold uppercase tracking-widest text-[9px]">{isDetailsOpen ? 'Hide' : 'Details'}</span>
+            </button>
+          )}
+          {onImport && (
+            <button
+              type="button"
+              onClick={onImport}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-all shadow-premium border border-[var(--color-border)] font-black uppercase tracking-widest text-[10px]"
+            >
+              <Upload className="w-3.5 h-3.5 text-sky-400" />
+              <span>Import</span>
+            </button>
+          )}
+          {onExport && (
+            <button
+              type="button"
+              onClick={onExport}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-all shadow-premium border border-[var(--color-border)] font-black uppercase tracking-widest text-[10px]"
+            >
+              <Download className="w-3.5 h-3.5 text-sky-400" />
+              <span>Export</span>
+            </button>
+          )}
+          {onSave && (
+            <button
+              type="button"
+              onClick={onSave}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-all shadow-premium border border-emerald-400/30 font-black uppercase tracking-widest text-[10px]"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Save</span>
             </button>
           )}
           <span
-            className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ml-1 border ${
+            className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
               status === 'Active'
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                 : 'bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)] border-[var(--color-border)]'
@@ -129,6 +128,7 @@ const FlowBuilderHeader = ({
           >
             {status}
           </span>
+          {aiAssistSlot}
         </div>
       </div>
     </div>

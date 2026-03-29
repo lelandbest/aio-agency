@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import {
     Folder, FolderOpen, ChevronRight, Search, Plus,
-    MoreHorizontal, ChevronDown, Edit2, Trash2, FolderPlus
+    MoreHorizontal, ChevronDown, Edit2, Trash2, FolderPlus, Copy
 } from 'lucide-react';
 
 /**
@@ -17,9 +17,12 @@ const FolderTable = ({
     columns,
     onFolderToggle,
     onFolderCreate,
-    onFolderRename, // New Prop
+    onFolderRename,
+    onFolderDelete,
+    onFolderCopy,
     onItemSelect,
     selectedItems,
+    onSelectAll,
     onCreateItem,
     createItemLabel = "Create New",
     actions,
@@ -127,7 +130,12 @@ const FolderTable = ({
                     <thead className="rounded-lg mb-2">
                         <tr className="border-b border-[var(--color-border)]">
                             <th className="px-3 py-2 text-left w-12">
-                                <input type="checkbox" className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]" />
+                                <input 
+                                    type="checkbox" 
+                                    className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]" 
+                                    checked={items.length > 0 && selectedItems.length === items.length}
+                                    onChange={onSelectAll}
+                                />
                             </th>
                             {columns.map((col, idx) => (
                                 <th key={idx} className={`px-3 py-2 text-left text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider ${col.width || ''}`}>
@@ -140,9 +148,9 @@ const FolderTable = ({
                         {folders.map(folder => (
                             <React.Fragment key={`folder-${folder.id}`}>
                                 {/* Folder Row */}
-                                <tr className="hover:bg-[var(--color-hover)] cursor-pointer group">
+                                <tr className="hover:bg-[var(--color-bg-tertiary)]/50 cursor-pointer group border-b border-[var(--color-border)]/50">
                                     <td className="px-4 py-3">
-                                        <input type="checkbox" className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]" />
+                                        {/* Folder row selection disabled as per user request */}
                                     </td>
                                     <td className="px-4 py-3">
                                         <button onClick={() => onFolderToggle(folder.id)}>
@@ -176,10 +184,29 @@ const FolderTable = ({
                                             <div className="opacity-0 group-hover:opacity-100 flex gap-2 mr-4">
                                                 <button
                                                     onClick={(e) => startRename(e, folder)}
-                                                    className="p-1 hover:text-[var(--color-primary)] text-[var(--color-text-secondary)]"
+                                                    className="p-1 hover:text-[var(--color-primary)] text-[var(--color-text-secondary)] transition"
+                                                    title="Rename folder"
                                                 >
                                                     <Edit2 size={14} />
                                                 </button>
+                                                {onFolderCopy && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); onFolderCopy(folder); }}
+                                                        className="p-1 hover:text-[var(--color-primary)] text-[var(--color-text-secondary)] transition"
+                                                        title="Duplicate folder"
+                                                    >
+                                                        <Copy size={13} />
+                                                    </button>
+                                                )}
+                                                {onFolderDelete && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); onFolderDelete(folder.id); }}
+                                                        className="p-1 hover:text-red-500 text-[var(--color-text-secondary)] transition"
+                                                        title="Delete folder"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </td>
@@ -253,7 +280,10 @@ FolderTable.propTypes = {
     onFolderToggle: PropTypes.func.isRequired,
     onFolderCreate: PropTypes.func,
     onFolderRename: PropTypes.func,
+    onFolderDelete: PropTypes.func,
+    onFolderCopy: PropTypes.func,
     onItemSelect: PropTypes.func.isRequired,
+    onSelectAll: PropTypes.func,
     selectedItems: PropTypes.array.isRequired,
     onCreateItem: PropTypes.func,
     createItemLabel: PropTypes.string,

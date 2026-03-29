@@ -412,6 +412,20 @@ export async function deleteFlowDraftApi(draftId) {
   });
 }
 
+export async function deleteFlowApi(flowId) {
+  return request(`/api/flows/${encodeURIComponent(flowId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function bulkDeleteFlowsApi(ids = null) {
+  const payload = ids ? { ids } : { confirm: 'DELETE_ALL_FLOWS' };
+  return request('/api/flows', {
+    method: 'DELETE',
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function getMediaAssetsApi() {
   const response = await request('/api/media/assets');
   return response.data || [];
@@ -800,6 +814,20 @@ export async function updateContactApi(contactId, payload) {
   return response.data || null;
 }
 
+export async function deleteContactApi(contactId) {
+  return request(`/api/contacts/${encodeURIComponent(contactId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function bulkDeleteContactsApi(ids = null) {
+  const payload = ids ? { ids } : { confirm: 'DELETE_ALL_CONTACTS' };
+  return request('/api/contacts', {
+    method: 'DELETE',
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function getContactActivitiesApi(contactId) {
   const response = await request(`/api/contacts/${encodeURIComponent(contactId)}/activities`);
   return response.data || [];
@@ -1091,6 +1119,12 @@ export async function updateFormFolderApi(folderId, payload) {
   return response.data || null;
 }
 
+export async function deleteFormFolderApi(folderId) {
+  return request(`/api/form-folders/${encodeURIComponent(folderId)}`, {
+    method: 'DELETE'
+  });
+}
+
 export async function getFormsApi(summary = false) {
   const response = await request(`/api/forms?summary=${summary}`);
   return response.data || [];
@@ -1115,6 +1149,14 @@ export async function updateFormApi(formId, payload) {
 export async function deleteFormApi(formId) {
   return request(`/api/forms/${encodeURIComponent(formId)}`, {
     method: 'DELETE'
+  });
+}
+
+export async function bulkDeleteFormsApi(ids = null) {
+  const payload = ids ? { ids } : { confirm: 'DELETE_ALL_FORMS' };
+  return request('/api/forms', {
+    method: 'DELETE',
+    body: JSON.stringify(payload)
   });
 }
 

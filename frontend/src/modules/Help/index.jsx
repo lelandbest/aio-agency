@@ -10,7 +10,9 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { 
   getHelpArticlesApi,
   createHelpTicketApi,
-  getOperatorAssistResponseApi
+  getOperatorAssistResponseApi,
+  getHelpTicketsApi,
+  getHelpBroadcastsApi
 } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 import { helpTemplates } from './templates/helpTemplates';
@@ -34,7 +36,11 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
   const [recentArticles, setRecentArticles] = useState([]);
   const [recentActions, setRecentActions] = useState([]);
 
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'row'
+  const [viewMode, setViewMode] = useState('grid');
+  const [showTicketsView, setShowTicketsView] = useState(false);
+  const [tickets, setTickets] = useState([]);
+  const [broadcasts, setBroadcasts] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
 
   const checkAiStatus = async () => {
     try {
@@ -75,6 +81,27 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     setRecentArticles(getRecentArticles());
     setRecentActions(getRecentActions());
   }, []);
+
+  useEffect(() => {
+    if (showTicketsView) {
+      const fetchTicketsAndBroadcasts = async () => {
+        setTicketsLoading(true);
+        try {
+          const [ticketsData, broadcastsData] = await Promise.allSettled([
+            getHelpTicketsApi(),
+            getHelpBroadcastsApi()
+          ]);
+          if (ticketsData.status === 'fulfilled') setTickets(ticketsData.value || []);
+          if (broadcastsData.status === 'fulfilled') setBroadcasts(broadcastsData.value || []);
+        } catch (err) {
+          console.error('Failed to fetch tickets/broadcasts:', err);
+        } finally {
+          setTicketsLoading(false);
+        }
+      };
+      fetchTicketsAndBroadcasts();
+    }
+  }, [showTicketsView]);
 
   // Intent Engine: Search Articles, Actions, and Templates
   useEffect(() => {
@@ -181,7 +208,108 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
     setRecentActions(getRecentActions());
   };
 
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      open: { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30', label: 'Open' },
+      pending: { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', label: 'Pending' },
+      resolved: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', label: 'Resolved' },
+      closed: { bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', label: 'Closed' },
+      sent: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', label: 'Sent' },
+      failed: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Failed' },
+      scheduled: { bg: 'bg-sky-500/20', text: 'text-sky-400', border: 'border-sky-500/30', label: 'Scheduled' }
+    };
+    const config = statusConfig[status?.toLowerCase()] || statusConfig.open;
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${config.bg} ${config.text} border ${config.border}`}>
+        {config.label}
+      </span>
+    );
+  };
 
+  if (showTicketsView) {
+    return (
+      <div className="h-full flex flex-col animate-in fade-in duration-300">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">
+            <button onClick={() => setShowTicketsView(false)} className="hover:text-[var(--color-primary)] transition-colors">HOME</button>
+            <ChevronRight size={10} />
+            <span className="text-[var(--color-text-primary)]">My Tickets</span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto no-scrollbar">
+          {ticketsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {broadcasts.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 text-[11px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">
+                    <MessageSquare size={16} className="text-sky-400" />
+                    Broadcasts
+                    <span className="text-[var(--color-text-tertiary)]">({broadcasts.length})</span>
+                  </div>
+                  <div className="grid gap-4">
+                    {broadcasts.map(broadcast => (
+                      <div key={broadcast.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-sky-500/20 transition-all">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-bold text-[var(--color-text-primary)] truncate">{broadcast.title || 'Untitled Broadcast'}</h4>
+                            <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1 line-clamp-2">{broadcast.message || broadcast.content || 'No message'}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[8px] text-slate-500">
+                              {broadcast.recipients_count !== undefined && <span>{broadcast.recipients_count} recipients</span>}
+                              {broadcast.sent_at && <span>Sent: {new Date(broadcast.sent_at).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+                          {getStatusBadge(broadcast.status)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tickets.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 text-[11px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">
+                    <FileText size={16} className="text-[var(--color-primary)]" />
+                    Support Tickets
+                    <span className="text-[var(--color-text-tertiary)]">({tickets.length})</span>
+                  </div>
+                  <div className="grid gap-4">
+                    {tickets.map(ticket => (
+                      <div key={ticket.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[var(--color-primary)]/20 transition-all">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-bold text-[var(--color-text-primary)] truncate">{ticket.subject || 'Untitled Ticket'}</h4>
+                            <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1 line-clamp-2">{ticket.description || ticket.content || 'No description'}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[8px] text-slate-500">
+                              {ticket.priority && <span className="uppercase">{ticket.priority}</span>}
+                              {ticket.created_at && <span>Created: {new Date(ticket.created_at).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+                          {getStatusBadge(ticket.status)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                broadcasts.length === 0 && (
+                  <div className="text-center py-16 text-[var(--color-text-tertiary)]">
+                    <MessageSquare size={48} className="mx-auto mb-4 opacity-30" />
+                    <p className="text-xs font-bold uppercase tracking-widest">No tickets or broadcasts</p>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
 
   if (selectedArticle) {
@@ -432,7 +560,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                           : 'bg-[var(--color-primary)]/10 border-[var(--color-primary)]/20 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 shadow-none'
                         }`}
                       >
-                        {action.isDynamic ? <Wand2 size={10} className="animate-pulse" /> : <Zap size={10} />}
+                        {action.isDynamic ? <Zap size={10} className="animate-pulse" /> : <Zap size={10} />}
                         {action.title}
                       </button>
                     ))}
@@ -469,6 +597,15 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
             </div>
           )}
           <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={() => setShowTicketsView(true)}
+              className="group flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-sky-500/10 hover:border-sky-500/30 transition-all text-left"
+            >
+              <MessageSquare size={16} className="text-sky-400 group-hover:scale-110 transition-transform" />
+              <div>
+                <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">My Tickets</div>
+              </div>
+            </button>
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('aio:open-ticket'))}
               className="group flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-[var(--color-primary)]/10 hover:border-[var(--color-primary)]/30 transition-all text-left"

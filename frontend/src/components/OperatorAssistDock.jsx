@@ -5,12 +5,11 @@ import {
   Brain,
   Loader2,
   Mic,
-  PanelRightClose,
-  PanelRightOpen,
   Sparkles,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAIAssist } from '../contexts/AIAssistContext';
 import { getOperatorAssistResponseApi } from '../services/backendApi';
 
 const STARTER_PROMPTS = [
@@ -27,8 +26,8 @@ const SURFACE_TERTIARY_CLASS = 'surface-tertiary rounded-[var(--radius-card)]';
 
 const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
   const { isOperator } = useAuth();
+  const { isOpen: open, closeAIAssist: setOpen } = useAIAssist();
   const operatorMode = isOperator?.() ?? false;
-  const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,6 +43,10 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
   );
 
   if (!operatorMode) {
+    return null;
+  }
+
+  if (!open) {
     return null;
   }
 
@@ -269,26 +272,6 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
         </section>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={`pointer-events-auto inline-flex items-center gap-3 rounded-[var(--radius-pill)] border px-4 py-3 text-sm font-semibold transition ${FLOATING_PANEL_CLASS} ${
-          open
-            ? 'border-sky-500/24 bg-sky-500/12 text-[var(--color-text-primary)]'
-            : 'text-[var(--color-text-primary)] hover:bg-[var(--surface-floating-hover)]'
-        }`}
-        aria-expanded={open}
-        aria-label={open ? 'Collapse operator assist' : 'Open operator assist'}
-      >
-        <span className={`flex h-9 w-9 items-center justify-center rounded-[var(--radius-pill)] ${SURFACE_CARD_CLASS}`}>
-          {open ? <PanelRightClose size={16} /> : <Brain size={16} />}
-        </span>
-        <span className="hidden sm:inline">Assist</span>
-        <span className="hidden h-9 w-px bg-[var(--color-border)] lg:block" />
-        <span className={`hidden items-center justify-center px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)] lg:inline-flex ${SURFACE_CARD_CLASS}`}>
-          {open ? <PanelRightOpen size={12} /> : <Sparkles size={12} />}
-        </span>
-      </button>
     </div>
   );
 };
@@ -296,6 +279,8 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
 OperatorAssistDock.propTypes = {
   activeModule: PropTypes.string,
   activeModuleLabel: PropTypes.string,
+  isOpen: PropTypes.bool,
+  onOpenChange: PropTypes.func,
 };
 
 export default OperatorAssistDock;

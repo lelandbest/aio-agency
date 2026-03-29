@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, FolderOpen, Layers, Plus, Search, Tag, Workflow } from 'lucide-react';
+import { ArrowRight, FolderOpen, Layers, Plus, Search, Tag, Workflow, Trash2, Crosshair, FolderPlus } from 'lucide-react';
 import FolderTable from '../../components/FolderTable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
+import AIAssistButton from '../../components/AIAssistButton';
 import TemplateGallery from './components/TemplateGallery';
 import flowRepository from './utils/flowRepository';
+import { deleteFlowApi, bulkDeleteFlowsApi } from '../../services/backendApi';
+import { useSystemConfirm } from '../../hooks/useSystemConfirm';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
 const SAVED_FLOWS_FOLDER_ID = 'saved-flows';
 
@@ -49,6 +53,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   const [selectedFlowIds, setSelectedFlowIds] = useState([]);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [busyAction, setBusyAction] = useState('');
+  const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
   const [savedFlowsExpanded, setSavedFlowsExpanded] = useState(true);
   const [tableSearch, setTableSearch] = useState('');
 
@@ -137,6 +142,41 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       setBusyAction('');
     }
   }, [onCreateFlow]);
+
+  const handleCreateFolder = useCallback(async () => {
+    // Flows folder system pending backend normalization.
+    // Stubbed to support industrial UI parity requirement.
+    const name = prompt("Enter folder name:", "New Folder");
+    if (name) {
+      console.log('Flow folder creation requested:', name);
+    }
+  }, []);
+
+  const toggleSelectAllFlows = useCallback(() => {
+    setSelectedFlowIds((prev) => (prev.length === flows.length ? [] : flows.map((f) => f.id)));
+  }, [flows.length, flows]);
+
+  const bulkDeleteSelectedFlows = useCallback(async () => {
+    if (selectedFlowIds.length === 0) return;
+    const isConfirmed = await systemConfirm({
+      title: 'Delete Selected Flows',
+      message: `Permanently delete ${selectedFlowIds.length} automation flow(s)? This cannot be undone.`,
+      confirmText: `Delete ${selectedFlowIds.length} Flows`,
+      variant: 'danger'
+    });
+    if (isConfirmed) {
+      try {
+        setLoading(true);
+        await bulkDeleteFlowsApi(selectedFlowIds);
+        setSelectedFlowIds([]);
+        await loadFlows();
+      } catch (err) {
+        setError('Bulk delete failed: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [selectedFlowIds, loadFlows, systemConfirm]);
 
   const handleCreateFromTemplate = useCallback(
     async (template) => {
@@ -267,7 +307,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
     {
       header: '',
       key: 'actions',
-      width: '170px',
+      width: '200px',
       render: (flow) => (
         <div className="flex items-center justify-end gap-2">
           {selectionMode && onSelectFlow ? (
@@ -278,22 +318,38 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             >
               Select
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => startRename(flow)}
-            className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-          >
-            Rename
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenFlow?.(flow)}
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
-          >
-            Open
-            <ArrowRight size={14} />
-          </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm('Delete this flow? This cannot be undone.')) {
+                    deleteFlowApi(flow.id).then(() => loadFlows());
+                  }
+                }}
+                className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
+                title="Delete flow"
+              >
+                <Trash2 size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => startRename(flow)}
+                className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenFlow?.(flow)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+              >
+                Open
+                <ArrowRight size={14} />
+              </button>
+            </>
+          )}
         </div>
       ),
     },
@@ -323,7 +379,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       <ModuleHeader
         title="Flows"
         showTitle={false}
-        actions={[
+        leftActions={[
           {
             label: 'Create Flow',
             icon: Plus,
@@ -333,9 +389,9 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             disabled: Boolean(busyAction)
           },
           {
-            label: 'Browse Templates',
-            icon: Layers,
-            onClick: () => setShowTemplateGallery(true),
+            label: 'New Folder',
+            icon: FolderPlus,
+            onClick: handleCreateFolder,
             variant: 'secondary'
           }
         ]}
@@ -352,18 +408,33 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
           </div>
         )}
         toolbarRightSlot={(
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
+          <div className="flex items-center gap-2">
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-8">
               <FolderOpen size={14} className="text-[var(--color-text-tertiary)]" />
-              <span>Saved</span>
+              <span>SAVED</span>
               <span className="text-[var(--color-text-primary)]">{flows.length}</span>
             </div>
-            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-8">
               <Tag size={14} className="text-[var(--color-text-tertiary)]" />
-              <span>Template-based</span>
+              <span>TEMPLATES</span>
               <span className="text-[var(--color-text-primary)]">{totalTemplatesUsed}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowTemplateGallery(true)}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8"
+            >
+              <Layers size={14} />
+              <span className="uppercase text-[10px] font-bold tracking-widest">Browse Templates</span>
+            </button>
           </div>
+        )}
+        aiAssistSlot={(
+          <AIAssistButton
+            onAssist={() => {}} 
+            tooltip="Flows Intelligence"
+            iconType="crosshair"
+          />
         )}
       />
 
@@ -416,10 +487,24 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               current.includes(flowId) ? current.filter((item) => item !== flowId) : [...current, flowId]
             );
           }}
+          onSelectAll={toggleSelectAllFlows}
           selectedItems={selectedFlowIds}
           onCreateItem={handleCreateBlank}
           createItemLabel="Create Flow"
-          actions={tableActions}
+          actions={
+            <div className="flex items-center gap-2">
+              {selectedFlowIds.length > 0 && (
+                <button
+                  onClick={bulkDeleteSelectedFlows}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm"
+                >
+                  <Trash2 size={14} />
+                  <span>DELETE SELECTED ({selectedFlowIds.length})</span>
+                </button>
+              )}
+              {tableActions}
+            </div>
+          }
           folderProperty="flow_group"
           showHeader={false}
           searchQuery={tableSearch}
@@ -427,10 +512,24 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         />
       </div>
 
-      <TemplateGallery
-        isOpen={showTemplateGallery}
-        onClose={() => setShowTemplateGallery(false)}
-        onSelectTemplate={handleCreateFromTemplate}
+      {showTemplateGallery && (
+        <TemplateGallery
+          onClose={() => setShowTemplateGallery(false)}
+          onSelectTemplate={handleCreateFromTemplate}
+        />
+      )}
+      <SystemConfirmModal
+        isOpen={modalState.isOpen}
+        onClose={modalState.onClose}
+        onConfirm={() => modalState.onConfirm(modalState.promptValue)}
+        title={modalState.title}
+        message={modalState.message}
+        variant={modalState.variant}
+        confirmText={modalState.confirmText}
+        cancelText={modalState.cancelText}
+        showPrompt={modalState.showPrompt}
+        promptValue={modalState.promptValue}
+        onPromptChange={setPromptValue}
       />
     </div>
   );

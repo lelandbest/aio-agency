@@ -23,7 +23,7 @@ from uuid import uuid4
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -2799,10 +2799,15 @@ async def operator_assist(request: Request, payload: OperatorAssistRequest):
     token = extract_session_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
+    tenant = session.get("tenant") or {}
+    resolved_context = dict(payload.context or {})
+    brain_query = build_brain_assist_query(payload.message, resolved_context, tenant)
+    if brain_query:
+        resolved_context = inject_brain_context(brain_query, resolved_context, tenant)
     try:
         return generate_assist_response(
             message=payload.message,
-            context=payload.context or {},
+            context=resolved_context,
             token=token,
             session=session,
             auth_store=auth_store,
@@ -4077,6 +4082,43 @@ async def update_contact(contact_id: str, request: Request, background_tasks: Ba
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.delete("/api/contacts/{contact_id}")
+async def delete_contact(contact_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete contacts.")
+    try:
+        provider.delete_contact(contact_id)
+        print(f"[DELETE] Contact deleted: {contact_id}")
+        return {"success": True}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/contacts")
+async def bulk_delete_contacts(request: Request, payload: dict[str, Any] = Body(...)):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete contacts.")
+    ids = payload.get("ids", [])
+    confirm = payload.get("confirm", "")
+    
+    try:
+        if ids:
+            result = provider.bulk_delete_contacts(ids)
+            print(f"[BULK DELETE] contacts deleted: {result}")
+            return {"success": True, "data": result}
+        
+        if confirm == "DELETE_ALL_CONTACTS":
+            all_contacts = provider.list_contacts()
+            contact_ids = [c["id"] for c in all_contacts]
+            result = provider.bulk_delete_contacts(contact_ids)
+            print(f"[BULK DELETE] All contacts deleted: {result}")
+            return {"success": True, "data": result}
+            
+        raise HTTPException(status_code=400, detail="Either 'ids' list or 'confirm' string 'DELETE_ALL_CONTACTS' is required.")
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.get("/api/contacts/{contact_id}/activities")
 async def list_contact_activities(contact_id: str):
     return {"data": provider.list_contact_activities(contact_id)}
@@ -4343,6 +4385,9 @@ async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowMan
         "_requested_agent_locked": True,
         **runtime_context,
     }
+    brain_query = build_brain_assist_query(command_text, flow_context, tenant)
+    if brain_query:
+        flow_context = inject_brain_context(brain_query, flow_context, tenant)
     result = ExecutionEngine(provider).run(
         raw_steps=raw_steps,
         mode="execute",
@@ -4374,6 +4419,43 @@ async def delete_flow_draft(draft_id: str, request: Request):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage flow drafts.")
     provider.delete_flow_draft(draft_id)
     return {"success": True}
+
+
+@app.delete("/api/flows/{flow_id}")
+async def delete_flow(flow_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete flows.")
+    try:
+        provider.delete_flow(flow_id)
+        print(f"[DELETE] Flow deleted: {flow_id}")
+        return {"success": True}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/flows")
+async def bulk_delete_flows(request: Request, payload: dict[str, Any] = Body(...)):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete flows.")
+    ids = payload.get("ids", [])
+    confirm = payload.get("confirm", "")
+    
+    try:
+        if ids:
+            result = provider.bulk_delete_flows(ids)
+            print(f"[BULK DELETE] flows deleted: {result}")
+            return {"success": True, "data": result}
+            
+        if confirm == "DELETE_ALL_FLOWS":
+            all_flows = provider.list_flows()
+            flow_ids = [f["id"] for f in all_flows]
+            result = provider.bulk_delete_flows(flow_ids)
+            print(f"[BULK DELETE] All flows deleted: {result}")
+            return {"success": True, "data": result}
+            
+        raise HTTPException(status_code=400, detail="Either 'ids' list or 'confirm' string 'DELETE_ALL_FLOWS' is required.")
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/media/assets")
@@ -4995,6 +5077,15 @@ async def update_form_folder(folder_id: str, request: Request, payload: dict[str
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.delete("/api/form-folders/{folder_id}")
+async def delete_form_folder(folder_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    try:
+        return {"data": provider.delete_form_folder(folder_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.get("/api/forms")
 async def list_forms(summary: bool = False):
     if summary:
@@ -5026,6 +5117,32 @@ async def delete_form(form_id: str, request: Request):
     try:
         provider.delete_form(form_id)
         return {"success": True}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/forms")
+async def bulk_delete_forms(request: Request, payload: dict[str, Any] = Body(...)):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete forms.")
+    ids = payload.get("ids", [])
+    confirm = payload.get("confirm", "")
+    
+    try:
+        if ids:
+            result = provider.bulk_delete_forms(ids)
+            print(f"[BULK DELETE] forms deleted: {result}")
+            return {"success": True, "data": result}
+            
+        if confirm == "DELETE_ALL_FORMS":
+            all_forms = provider.list_forms()
+            form_ids = [f["id"] for f in all_forms]
+            result = provider.bulk_delete_forms(form_ids)
+            print(f"[BULK DELETE] All forms deleted: {result}")
+            return {"success": True, "data": result}
+            
+        raise HTTPException(status_code=400, detail="Either 'ids' list or 'confirm' string 'DELETE_ALL_FORMS' is required.")
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

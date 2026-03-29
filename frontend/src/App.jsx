@@ -5,7 +5,7 @@ import DbContext from './contexts/DbContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
-import OperatorAssistDock from './components/OperatorAssistDock';
+
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import { clearStoredSessionToken, getStoredSessionToken } from './services/authStorage';
@@ -13,6 +13,10 @@ import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './servi
 import { OrchestrationProvider } from './orchestration';
 import { BrandProvider } from './contexts/BrandContext';
 import TicketModal from './components/TicketModal';
+import OperatorAssistDock from './components/OperatorAssistDock';
+import { AIAssistProvider } from './contexts/AIAssistContext';
+import { SignalProvider } from './contexts/SignalContext';
+import StatusBar from './components/StatusBar';
 
 // Lazy load modules for code splitting
 const SignalsModule = lazy(() => import('./modules/Signals'));
@@ -82,7 +86,7 @@ const readNavigationStateFromUrl = () => {
 };
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
-  MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
+  MessageSquare, PenTool, GitMerge, GitBranch, FileText, ShoppingCart, Globe,
   Phone, Settings, Video, Crosshair, EyeOff, Activity, Zap, Rocket, GraduationCap
 } from 'lucide-react';
 
@@ -99,6 +103,7 @@ const ICON_MAP = {
   MessageSquare,
   PenTool,
   GitMerge,
+  GitBranch,
   FileText,
   ShoppingCart,
   Globe,
@@ -235,6 +240,23 @@ const App = () => {
   const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
   const [showTicketModal, setShowTicketModal] = useState(false);
+
+  const moduleLabels = {
+    'aio-brain': 'Brain',
+    'crm': 'CRM',
+    'pipeline': 'Pipeline',
+    'orders': 'Orders',
+    'media': 'Media',
+    'comms': 'Communications',
+    'calendar': 'Calendar',
+    'forms': 'Forms',
+    'flows': 'Flows',
+    'signals': 'Signals',
+    'settings': 'Settings',
+    'chat': 'Chat',
+    'agents': 'Agents',
+  };
+  const activeModuleLabel = moduleLabels[activeModule] || activeModule;
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
   const activeTenantSettings = session?.tenant?.tenant_settings || session?.tenant?.settings || {};
   const preferredTenantTheme = activeTenantSettings?.branding?.theme || null;
@@ -371,9 +393,24 @@ const App = () => {
     const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`;
     const currentUrl = `${url.pathname}${url.search}${url.hash}`;
     if (nextUrl !== currentUrl) {
-      window.history.replaceState({}, '', nextUrl);
+      window.history.pushState({}, '', nextUrl);
     }
   }, [currentPage, effectiveActiveModule, flowId, flowAction, flowIntent, commsThreadId, crmContactId, integrationCategory]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const state = readNavigationStateFromUrl();
+      setActiveModule(state.activeModule);
+      setFlowId(state.flowId);
+      setFlowAction(state.flowAction);
+      setFlowIntent(state.flowIntent);
+      setCommsThreadId(state.commsThreadId);
+      setIntegrationCategory(state.integrationCategory);
+      setCrmContactId(state.crmContactId);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -673,7 +710,9 @@ const App = () => {
 
   return (
     <ThemeProvider preferredTheme={preferredTenantTheme}>
+      <SignalProvider>
       <BrandProvider initialConfig={activeTenantSettings?.branding || {}}>
+        <AIAssistProvider>
         <OrchestrationProvider>
           <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], role: userRole, isOperator: () => operatorMode, isClient: () => clientMode, logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
           <DbContext.Provider value={{ db, setDb }}>
@@ -724,9 +763,7 @@ const App = () => {
                   {/* Module Content */}
                   <div
                     className={`flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] ${
-                      effectiveActiveModule === 'flows'
-                        ? 'p-0'
-                        : effectiveActiveModule === 'aio-agents'
+                      effectiveActiveModule === 'aio-agents'
                         ? 'p-4'
                         : 'p-6'
                     }`}
@@ -740,17 +777,20 @@ const App = () => {
                     </Suspense>
                   </div>
                 </div>
-                <OperatorAssistDock
-                  activeModule={effectiveActiveModule}
-                  activeModuleLabel={currentModuleMeta.label}
-                />
               </div>
             </div>
         </DbContext.Provider>
+        <OperatorAssistDock 
+          activeModule={activeModule} 
+          activeModuleLabel={activeModuleLabel} 
+        />
         </AuthContext.Provider>
-      </OrchestrationProvider>
+        </OrchestrationProvider>
+        </AIAssistProvider>
         <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
       </BrandProvider>
+      <StatusBar />
+      </SignalProvider>
     </ThemeProvider>
   );
 };

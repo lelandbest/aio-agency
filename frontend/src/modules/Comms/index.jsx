@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  Brain,
   Bot,
   Building2,
   CalendarDays,
   ChevronDown,
+  Crosshair,
   Ellipsis,
   FileText,
   Mail,
@@ -17,13 +19,13 @@ import {
   Send,
   Settings2,
   Smartphone,
-  Sparkles,
+  Target,
   User,
   Workflow
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import AIAssistButton from '../../components/AIAssistButton';
 import EmptyState from '../../components/EmptyState';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import {
   advanceThreadStageApi,
   assignThreadApi,
@@ -117,10 +119,10 @@ const RIGHT_PANEL_MIN = 320;
 const RIGHT_PANEL_MAX = 560;
 const COMPACT_THREE_COL_LEFT_MAX = 308;
 const COMPACT_THREE_COL_RIGHT_MAX = 336;
-const COMMS_TOOLBAR_SECONDARY = '!h-7 !rounded-full !border !border-[var(--color-border)] !bg-[var(--color-bg-secondary)] !px-3 !text-[var(--color-text-secondary)] !text-xs hover:!border-[var(--color-primary)]/50 hover:!bg-[var(--color-hover)] hover:!text-[var(--color-text-primary)] disabled:!opacity-40';
-const COMMS_TOOLBAR_REPORT = '!h-7 !rounded-full !border border-cyan-500/50 !bg-cyan-500/10 !px-3 !text-cyan-200 !text-xs hover:!bg-cyan-500/20 disabled:!opacity-40';
-const COMMS_TOOLBAR_GHOST = '!h-7 !rounded-full !border !border-transparent !bg-transparent !px-3 !text-[var(--color-text-tertiary)] !text-xs hover:!text-[var(--color-text-primary)] hover:!bg-[var(--color-hover)]';
-const COMMS_TOOLBAR_PRIMARY = 'btn-primary-skeuo !h-7 !px-3 !text-xs !rounded-full';
+const COMMS_TOOLBAR_SECONDARY = '!h-12 !rounded-full !border !border-[var(--color-border)] !bg-[var(--color-bg-secondary)] !px-4 !text-[var(--color-text-secondary)] !text-sm hover:!border-[var(--color-primary)]/50 hover:!bg-[var(--color-hover)] hover:!text-[var(--color-text-primary)] disabled:!opacity-40';
+const COMMS_TOOLBAR_REPORT = '!h-12 !rounded-full !border border-cyan-500/50 !bg-cyan-500/10 !px-4 !text-cyan-200 !text-sm hover:!bg-cyan-500/20 disabled:!opacity-40';
+const COMMS_TOOLBAR_GHOST = '!h-12 !rounded-full !border !border-transparent !bg-transparent !px-4 !text-[var(--color-text-tertiary)] !text-sm hover:!text-[var(--color-text-primary)] hover:!bg-[var(--color-hover)]';
+const COMMS_TOOLBAR_PRIMARY = 'btn-primary-skeuo !h-12 !px-4 !text-sm !rounded-full';
 const COMMS_PANEL = 'island-panel rounded-[var(--radius-outer)]';
 const COMMS_SUBPANEL = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-sm';
 const COMMS_READING_WIDTH = 'max-w-[72rem]';
@@ -486,6 +488,7 @@ const buildThreadReport = (thread, kind = 'executive') => {
 };
 
 const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigate, clientMode = false }) => {
+  const { openAIAssist } = useAIAssist();
   const [queueId, setQueueId] = useState('now');
   const [threadViewMode, setThreadViewMode] = useState('latest-contact-channel');
   const [channel, setChannel] = useState(initialChannel);
@@ -1115,12 +1118,25 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     scrollbarWidth: 'none',
     msOverflowStyle: 'none'
   };
-  const fullHeaderActions = clientMode
-    ? [
-        { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary', className: COMMS_TOOLBAR_PRIMARY }
-      ]
+  const threadCountPill = (
+    <button className={`inline-flex px-3 py-1 rounded-[var(--radius-pill)] text-xs font-medium whitespace-nowrap border shadow-premium ${
+      selectedMailbox?.health?.state === 'attention' 
+        ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30' 
+        : 'bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30'
+    }`}>
+      {visibleThreads.length} threads
+    </button>
+  );
+  const primaryHeaderActions = [
+    { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary', className: COMMS_TOOLBAR_PRIMARY },
+    threadCountPill,
+    { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'ghost', className: COMMS_TOOLBAR_GHOST },
+    { label: 'Canned Responses', icon: MessageSquare, onClick: () => onNavigate?.('canned-responses'), variant: 'ghost', className: COMMS_TOOLBAR_GHOST }
+  ];
+  const secondaryHeaderActions = clientMode
+    ? []
     : [
-        { label: 'Simulate Receive', icon: Sparkles, onClick: () => runAction('Simulating', async () => {
+        { label: 'Simulate Receive', icon: Target, onClick: () => runAction('Simulating', async () => {
           const seedThread = visibleThreads[0] || snapshot.allThreads?.[0];
           const targetChannel = channel === 'all' ? 'email' : channel;
           if (seedThread && targetChannel === 'email' && (seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id)) {
@@ -1152,10 +1168,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         { label: 'Run Workflow', icon: Bot, onClick: handleWorkflowNote, disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_SECONDARY },
         { label: 'Operator Report', icon: FileText, onClick: () => handleCreateReport('operator'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_REPORT, groupStart: true },
         { label: 'Executive Report', icon: FileText, onClick: () => handleCreateReport('executive'), disabled: !selectedThread?.id, variant: 'secondary', className: COMMS_TOOLBAR_REPORT },
-        { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'ghost', className: COMMS_TOOLBAR_GHOST, groupStart: true },
-        { label: 'Canned Responses', icon: MessageSquare, onClick: () => onNavigate?.('canned-responses'), variant: 'ghost', className: COMMS_TOOLBAR_GHOST },
-        { label: 'New Thread', icon: Plus, onClick: handleCreateThread, variant: 'primary', className: COMMS_TOOLBAR_PRIMARY }
       ];
+  const fullHeaderActions = [...primaryHeaderActions, ...secondaryHeaderActions];
   const compactPrimaryHeaderActions = clientMode
     ? fullHeaderActions
     : [
@@ -1191,12 +1205,30 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
         <ModuleHeader
           showTitle={false}
-          actions={headerActions}
-          statusBadge={{ label: `${visibleThreads.length} visible threads`, color: selectedMailbox?.health?.state === 'attention' ? 'warning' : 'info' }}
-          aiAssistSlot={clientMode ? null : <AIAssistButton onAssist={() => handleAiAction('summarize')} tooltip="Refresh AI brief" iconType="crosshair" />}
+          leftActions={primaryHeaderActions}
+          actions={secondaryHeaderActions}
+          aiAssistSlot={clientMode ? null : (
+            <button
+              onClick={openAIAssist}
+              className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
+              title="Brain"
+            >
+              <Brain size={16} />
+            </button>
+          )}
+          executeSlot={clientMode ? null : (
+            <button
+              onClick={() => selectedThread && handleAiAction('commit')}
+              disabled={!selectedThread}
+              className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
+              title="Execute"
+            >
+              <Crosshair size={16} />
+            </button>
+          )}
+          hasSelection={!!selectedThread}
         />
-
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 p-1">
           <div ref={layoutRef} className="h-full min-h-0 grid grid-cols-1" style={workspaceLayoutStyle}>
           <aside style={hiddenScrollbarStyle} className={`comms-scroll-hidden min-w-0 border-b border-[var(--color-border)] ${COMMS_COLUMN_BG} flex flex-col min-h-0 overflow-y-auto ${isThreeColumnComms ? 'col-start-1 row-start-1 border-b-0 border-r' : isDesktopComms ? 'col-start-1 row-start-1 row-span-2 border-b-0 border-r' : ''}`}>
             <div className={`${isCompactComms ? 'p-3' : 'p-4'} border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
@@ -1283,6 +1315,36 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
               <>
                 <div className={`${isCompactComms ? 'p-3' : 'p-4'} border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
                   <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><AlertTriangle size={16} /> Mail Events</div>
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {selectedMailboxEventSummary.failures} failures / {selectedMailboxEventSummary.received} inbound
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {mailboxEvents.length > 0 ? mailboxEvents.slice(0, 6).map((event) => {
+                      const meta = describeMailEvent(event);
+                      return (
+                        <div key={event.id} className={`rounded-xl border px-3 py-3 ${mailEventTone[meta.tone] || mailEventTone.info}`}>
+                          <div className="flex items-center justify-between gap-3 text-xs opacity-80">
+                            <span>{meta.title}</span>
+                            <span>{formatRelative(event.created_at)}</span>
+                          </div>
+                          <div className="mt-1 text-sm font-medium">{meta.detail}</div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] opacity-80">
+                            <span>Provider {event.source_provider}</span>
+                            {event.payload?.mailbox_address ? <span>Mailbox {event.payload.mailbox_address}</span> : null}
+                            {event.payload?.recipient_count ? <span>Recipients {event.payload.recipient_count}</span> : null}
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">No recent mail events for this mailbox.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className={`${isCompactComms ? 'p-3' : 'p-4'} border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailbox Admin</div>
                     <div className="flex items-center gap-2">
                       <button onClick={handleTestMailbox} disabled={!selectedMailbox?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
@@ -1334,36 +1396,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                       {mailboxTestResult.message}
                     </div>
                   ) : null}
-                </div>
-
-                <div className={`${isCompactComms ? 'p-3' : 'p-4'} border-b border-[var(--color-border)] space-y-3 ${COMMS_SECTION_BG}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><AlertTriangle size={16} /> Mail Events</div>
-                    <span className="text-xs text-[var(--color-text-secondary)]">
-                      {selectedMailboxEventSummary.failures} failures / {selectedMailboxEventSummary.received} inbound
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {mailboxEvents.length > 0 ? mailboxEvents.slice(0, 6).map((event) => {
-                      const meta = describeMailEvent(event);
-                      return (
-                        <div key={event.id} className={`rounded-xl border px-3 py-3 ${mailEventTone[meta.tone] || mailEventTone.info}`}>
-                          <div className="flex items-center justify-between gap-3 text-xs opacity-80">
-                            <span>{meta.title}</span>
-                            <span>{formatRelative(event.created_at)}</span>
-                          </div>
-                          <div className="mt-1 text-sm font-medium">{meta.detail}</div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] opacity-80">
-                            <span>Provider {event.source_provider}</span>
-                            {event.payload?.mailbox_address ? <span>Mailbox {event.payload.mailbox_address}</span> : null}
-                            {event.payload?.recipient_count ? <span>Recipients {event.payload.recipient_count}</span> : null}
-                          </div>
-                        </div>
-                      );
-                    }) : (
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">No recent mail events for this mailbox.</div>
-                    )}
-                  </div>
                 </div>
               </>
             ) : null}
@@ -1608,38 +1640,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
           {!clientMode ? <aside className={`min-w-0 flex flex-col min-h-0 overflow-hidden ${COMMS_COLUMN_BG} ${isThreeColumnComms ? 'col-start-5 row-start-1 border-t-0' : isDesktopComms ? 'col-[1/4] row-start-2 border-t' : 'border-t'} border-[var(--color-border)]`}>
             {selectedThread ? (
               <div style={hiddenScrollbarStyle} className={`comms-scroll-hidden flex-1 min-w-0 overflow-x-hidden overflow-y-auto ${isCompactComms ? 'p-4 space-y-4' : 'p-5 space-y-5'}`}>
-                <section className={`min-w-0 ${COMMS_PANEL} ${isCompactComms ? 'p-[0.875rem]' : 'p-4'} ${isCompactComms ? 'max-h-[24rem] overflow-hidden' : ''}`}>
-                  <div style={isCompactComms ? hiddenScrollbarStyle : undefined} className={`${isCompactComms ? 'comms-scroll-hidden h-full overflow-y-auto pr-1' : 'space-y-3'}`}>
-                    <div className={isCompactComms ? 'space-y-[0.625rem]' : 'space-y-3'}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> AI Brief</div>
-                        <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.ai_priority} priority</span>
-                      </div>
-                      <div className={`${COMMS_SUBPANEL} ${isCompactComms ? 'p-[0.6875rem]' : 'p-3'}`}>
-                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">What Matters</div>
-                        <div className={`${isCompactComms ? 'line-clamp-none' : 'line-clamp-4'} text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]`}>{briefSummary}</div>
-                      </div>
-                      <div className={`${COMMS_SUBPANEL} ${isCompactComms ? 'p-[0.6875rem]' : 'p-3'}`}>
-                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">Recommended Next Step</div>
-                        <div className="text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefNextStep}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {threadFlags.slice(0, 3).map((flag) => (
-                          <span key={flag} className="max-w-full truncate px-2 py-1 rounded-full text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)]">{flag}</span>
-                        ))}
-                      </div>
-                      {(selectedThread.brief?.reasoning_cues || []).length ? (
-                        <div className="space-y-2">
-                          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Cues</div>
-                          {(selectedThread.brief?.reasoning_cues || []).slice(0, 3).map((cue) => (
-                            <div key={cue} className={`${COMMS_SUBPANEL} ${isCompactComms ? 'px-[0.6875rem] py-2' : 'px-3 py-2'} text-sm text-[var(--color-text-secondary)]`}>{cue}</div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </section>
-
                 <section className={`${COMMS_PANEL} p-4 space-y-3`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> Agent Activity</div>
@@ -1675,6 +1675,38 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         No explicit agent activity logged yet.
                       </div>
                     )}
+                  </div>
+                </section>
+
+                <section className={`min-w-0 ${COMMS_PANEL} ${isCompactComms ? 'p-[0.875rem]' : 'p-4'} ${isCompactComms ? 'max-h-[24rem] overflow-hidden' : ''}`}>
+                  <div style={isCompactComms ? hiddenScrollbarStyle : undefined} className={`${isCompactComms ? 'comms-scroll-hidden h-full overflow-y-auto pr-1' : 'space-y-3'}`}>
+                    <div className={isCompactComms ? 'space-y-[0.625rem]' : 'space-y-3'}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> AI Brief</div>
+                        <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.ai_priority} priority</span>
+                      </div>
+                      <div className={`${COMMS_SUBPANEL} ${isCompactComms ? 'p-[0.6875rem]' : 'p-3'}`}>
+                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">What Matters</div>
+                        <div className={`${isCompactComms ? 'line-clamp-none' : 'line-clamp-4'} text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]`}>{briefSummary}</div>
+                      </div>
+                      <div className={`${COMMS_SUBPANEL} ${isCompactComms ? 'p-[0.6875rem]' : 'p-3'}`}>
+                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">Recommended Next Step</div>
+                        <div className="text-sm text-[var(--color-text-primary)] break-words [overflow-wrap:anywhere]">{briefNextStep}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {threadFlags.slice(0, 3).map((flag) => (
+                          <span key={flag} className="max-w-full truncate px-2 py-1 rounded-full text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)]">{flag}</span>
+                        ))}
+                      </div>
+                      {(selectedThread.brief?.reasoning_cues || []).length ? (
+                        <div className="space-y-2">
+                          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Cues</div>
+                          {(selectedThread.brief?.reasoning_cues || []).slice(0, 3).map((cue) => (
+                            <div key={cue} className={`${COMMS_SUBPANEL} ${isCompactComms ? 'px-[0.6875rem] py-2' : 'px-3 py-2'} text-sm text-[var(--color-text-secondary)]`}>{cue}</div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </section>
 
@@ -1935,7 +1967,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                   title="Context Awaiting"
                   description="Select a relationship dossier from the inbox to inspect the full AI brief, tracks, and CRM linkage."
                   actions={[
-                    { label: 'How Comms Works', type: 'navigate', payload: { route: '/help' }, icon: 'Sparkles' }
+                    { label: 'How Comms Works', type: 'navigate', payload: { route: '/help' }, icon: 'Target' }
                   ]}
                 />
               </div>

@@ -37,22 +37,10 @@ const FlowRunHistoryPanel = ({
   onInspect,
   onCompare,
   onRerun,
-}) => (
-  <div className="w-[24rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[var(--color-border)]/70 bg-[var(--color-bg-secondary)]/95 shadow-2xl backdrop-blur-xl">
-    <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/80 px-4 py-2.5">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-violet-300" />
-          <span className="truncate text-xs font-semibold uppercase tracking-wide text-[var(--color-text-primary)]">Flow Runs</span>
-        </div>
-        <div className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
-          Stored execution history for this flow
-        </div>
-      </div>
-      {loading ? <Loader2 className="h-4 w-4 animate-spin text-[var(--color-text-tertiary)]" /> : null}
-    </div>
-
-    <div className="max-h-[20rem] overflow-y-auto p-3 crm-scroll-hidden">
+  isSidebar = false,
+}) => {
+  const content = (
+    <div className={`p-3 crm-scroll-hidden ${isSidebar ? '' : 'max-h-[20rem] overflow-y-auto'}`}>
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">
           {error}
@@ -149,7 +137,29 @@ const FlowRunHistoryPanel = ({
         })}
       </div>
     </div>
-  </div>
-);
+  );
+
+  if (isSidebar) {
+    return content;
+  }
+
+  return (
+    <div className="w-[24rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[var(--color-border)]/70 bg-[var(--color-bg-secondary)]/95 shadow-2xl backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/80 px-4 py-2.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-violet-300" />
+            <span className="truncate text-xs font-semibold uppercase tracking-wide text-[var(--color-text-primary)]">Flow Runs</span>
+          </div>
+          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">
+            Stored execution history for this flow
+          </div>
+        </div>
+        {loading ? <Loader2 className="h-4 w-4 animate-spin text-[var(--color-text-tertiary)]" /> : null}
+      </div>
+      {content}
+    </div>
+  );
+};
 
 export default FlowRunHistoryPanel;

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, Users, MessageSquare, AlertTriangle,
-  Activity, Brain, Target, Send,
-  RefreshCw, AlertCircle,
-  ChevronRight, Play, Clock, Settings
+  Activity, Brain, Crosshair, Send,
+  RefreshCw, AlertCircle, Target,
+  ChevronRight, Play, Clock, Plus
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 
@@ -408,6 +409,7 @@ const PulseBand = ({ stats, compact = false }) => {
  * MAIN MODULE
  */
 const SignalsModule = () => {
+  const { openAIAssist } = useAIAssist();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ contacts: 0, pipeline: 0, comms: 0, aiRuns: 0 });
   const [signals, setSignals] = useState([]);
@@ -456,44 +458,48 @@ const SignalsModule = () => {
   const quickActions = [
     { id: 'new-contact', label: 'New Contact', icon: Users, action: { type: 'open_module', payload: { module: 'crm' } } },
     { id: 'send-msg', label: 'Send Message', icon: Send, action: { type: 'open_module', payload: { module: 'chat' } } },
-    { id: 'new-deal', label: 'New Deal', icon: Target, action: { type: 'open_module', payload: { module: 'pipelines' } } },
+    { id: 'new-deal', label: 'New Deal', icon: Crosshair, action: { type: 'open_module', payload: { module: 'pipelines' } } },
   ];
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-2xl border border-[var(--color-border)] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
       <ModuleHeader
         showTitle={false}
+        leftActions={quickActions.map(action => ({
+          label: action.label,
+          icon: action.icon,
+          onClick: () => runSignalAction(action.action),
+          variant: 'secondary'
+        }))}
         toolbarLeftSlot={(
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            {quickActions.map(action => (
-              <button
-                key={action.id}
-                onClick={() => runSignalAction(action.action)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500 transition-all shadow-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-                title={action.label}
-              >
-                <action.icon size={16} />
-              </button>
-            ))}
+          <div className="ml-2">
+            <PulseBand stats={stats} compact />
           </div>
         )}
         toolbarCenterSlot={(
-          <div className="flex min-w-0 max-w-full items-center gap-3 overflow-x-auto no-scrollbar">
-            <PulseBand stats={stats} compact />
+          <div className="flex min-w-0 items-center overflow-x-auto no-scrollbar">
             {!loading ? <SignalSummaryStrip signals={signals} compact /> : null}
           </div>
         )}
-        toolbarRightSlot={(
-          <div className="flex items-center gap-3">
-            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Heuristic Feed</div>
-            <button
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500 transition-all hover:text-white"
-              title="Diagnostics"
-            >
-              <Settings size={16} />
-            </button>
-          </div>
+        aiAssistSlot={(
+          <button
+            onClick={openAIAssist}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
+            title="Brain"
+          >
+            <Brain size={16} />
+          </button>
         )}
+        executeSlot={(
+          <button
+            disabled={true}
+            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
+            title="Execute"
+          >
+            <Crosshair size={16} />
+          </button>
+        )}
+        hasSelection={false}
       />
 
       <div className="flex-1 min-h-0 p-6 bg-gradient-to-b from-transparent to-black/10">

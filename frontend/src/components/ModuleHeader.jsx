@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Brain, Crosshair } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 
 const StatusBadge = ({ statusBadge }) => {
@@ -27,17 +27,17 @@ const StatusBadge = ({ statusBadge }) => {
 };
 
 const Breadcrumbs = ({ breadcrumbs }) => {
-  if (!breadcrumbs.length) return null;
+  if (!breadcrumbs || !breadcrumbs.length) return null;
 
   return (
-    <div className="flex items-center gap-1 text-sm text-[var(--color-text-secondary)] flex-wrap">
+    <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] flex-wrap">
       {breadcrumbs.map((crumb, idx) => (
         <React.Fragment key={idx}>
-          <ChevronRight size={14} className="flex-shrink-0" />
+          <ChevronRight size={12} className="flex-shrink-0" />
           <button
             onClick={crumb.onClick}
-            className={`hover:text-[var(--color-text-primary)] transition truncate ${
-              idx === breadcrumbs.length - 1 ? 'text-[var(--color-text-primary)] font-medium' : ''
+            className={`hover:text-[var(--color-text-primary)] transition truncate uppercase tracking-widest ${
+              idx === breadcrumbs.length - 1 ? 'text-[var(--color-text-primary)] font-bold' : ''
             }`}
           >
             {normalizeDisplayText(crumb.label)}
@@ -59,13 +59,15 @@ const colorClasses = {
 };
 
 const Actions = ({ actions }) => {
-  if (!actions.length) return null;
+  if (!actions || !actions.length) return null;
 
   return (
     <div className="flex max-w-full items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap">
       {actions.map((action, idx) => {
+        if (React.isValidElement(action)) {
+          return <React.Fragment key={idx}>{action}</React.Fragment>;
+        }
         const ActionIcon = action.icon;
-        const colorClass = colorClasses[action.color] || colorClasses.slate;
         const isSkeuo = action.variant === 'primary' || action.color === 'primary';
 
         return (
@@ -79,7 +81,7 @@ const Actions = ({ actions }) => {
               className={`
                 ${isSkeuo ? 'btn-primary-skeuo' : 'btn-secondary'}
                 shrink-0 whitespace-nowrap
-                text-[10px] sm:text-xs py-1.5 px-3
+                text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2
                 ${!isSkeuo && action.color && action.color !== 'slate' ? colorClasses[action.color] : ''}
                 disabled:opacity-40 disabled:cursor-not-allowed
                 ${action.className || ''}
@@ -102,6 +104,7 @@ const ModuleHeader = ({
   titleIcon: TitleIcon,
   breadcrumbs = [],
   actions = [],
+  leftActions = [],
   statusBadge = null,
   showTitle = true,
   showCompactTitle = false,
@@ -110,99 +113,44 @@ const ModuleHeader = ({
   toolbarCenterSlot = null,
   toolbarRightSlot = null,
   aiAssistSlot = null,
-  className = ''
+  executeSlot = null,
+  hasSelection = false,
+  className = '',
 }) => {
-  const hasToolbar = (showActions && actions.length > 0) || breadcrumbs.length > 0 || statusBadge || toolbarLeftSlot || toolbarCenterSlot || toolbarRightSlot || aiAssistSlot;
-
-  if (!showTitle && !hasToolbar && !subtitle) {
-    return null;
-  }
-
-  const containerClass = `border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/80 backdrop-blur-md ${className}`;
-  const paddingClass = "px-6 py-4 sm:py-5";
-
-  if (!showTitle) {
-    return (
-      <div className={containerClass}>
-        <div className={`${paddingClass} flex items-center justify-between gap-4`}>
-          <div className="flex min-w-0 flex-1 items-center gap-4 flex-wrap">
-            {showCompactTitle ? (
-              <div className="min-w-0 mr-2">
-                <div className="text-lg font-black text-[var(--color-text-primary)] truncate uppercase tracking-tight">
-                  {normalizeDisplayText(title)}
-                </div>
-                {subtitle ? (
-                  <div className="mt-0.5 text-[10px] text-[var(--color-text-secondary)] truncate uppercase tracking-[0.1em] font-bold">
-                    {subtitle}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {toolbarLeftSlot}
-            <Breadcrumbs breadcrumbs={breadcrumbs} />
-            {showActions && <Actions actions={actions} />}
-          </div>
-          {toolbarCenterSlot ? (
-            <div className="hidden min-w-0 flex-1 justify-center xl:flex">
-              {toolbarCenterSlot}
-            </div>
-          ) : null}
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            {toolbarRightSlot}
-            <StatusBadge statusBadge={statusBadge} />
-            {aiAssistSlot}
-          </div>
-        </div>
-        {subtitle && !showCompactTitle ? (
-          <div className="px-6 pb-4 text-xs text-[var(--color-text-secondary)] uppercase tracking-widest font-bold opacity-70">
-            {subtitle}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
+  // Industrial Island Standard: 48px height, rounded corners, floating background
   return (
-    <div className={`${containerClass} flex flex-col`}>
-      {hasToolbar && (
-        <div className="px-6 py-3 flex items-center justify-between gap-4 border-b border-[var(--color-border)]/50 shadow-premium">
-          <div className="flex min-w-0 flex-1 items-center gap-4 flex-wrap">
-            {toolbarLeftSlot}
-            <Breadcrumbs breadcrumbs={breadcrumbs} />
-            {showActions && <Actions actions={actions} />}
-          </div>
-          {toolbarCenterSlot ? (
-            <div className="hidden min-w-0 flex-1 justify-center xl:flex">
-              {toolbarCenterSlot}
-            </div>
-          ) : null}
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            {toolbarRightSlot}
-            <StatusBadge statusBadge={statusBadge} />
-            {aiAssistSlot}
-          </div>
-        </div>
+    <div className={`h-12 shrink-0 flex items-center justify-between gap-4 px-5 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-hidden rounded-xl shadow-island-sm transition-all duration-300 ${className}`}>
+      <div className="flex items-center gap-4 min-w-0 flex-1 h-full font-bold">
+        {toolbarLeftSlot}
+        {leftActions.length > 0 && <Actions actions={leftActions} />}
+        {TitleIcon && <TitleIcon size={16} className="text-[var(--color-primary)] flex-shrink-0" />}
+        {(title && showTitle) && (
+          <h1 className="text-[10px] font-black text-[var(--color-text-primary)] truncate uppercase tracking-[0.24em] leading-none">
+            {normalizeDisplayText(title)}
+          </h1>
+        )}
+        <Breadcrumbs breadcrumbs={breadcrumbs} />
+      </div>
+
+      {toolbarCenterSlot && (
+        <div className="hidden lg:flex flex-1 justify-center items-center h-full min-w-0">{toolbarCenterSlot}</div>
       )}
 
-      <div className={`${paddingClass} flex items-center justify-between gap-4`}>
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          {TitleIcon && <TitleIcon size={24} className="text-[var(--color-primary)] flex-shrink-0 mt-0.5" />}
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black text-[var(--color-text-primary)] truncate uppercase tracking-tight leading-tight">
-              {normalizeDisplayText(title)}
-            </h1>
-            {subtitle ? (
-              <div className="mt-1 text-[10px] sm:text-xs text-[var(--color-text-secondary)] truncate uppercase tracking-[0.12em] font-bold opacity-80">
-                {subtitle}
-              </div>
-            ) : null}
-          </div>
-          <Breadcrumbs breadcrumbs={breadcrumbs} />
+      <div className="flex items-center gap-3 flex-shrink-0 h-full">
+        <div className="flex items-center gap-2">
+          {toolbarRightSlot}
+          {showActions && <Actions actions={actions} />}
         </div>
-        {!hasToolbar ? <StatusBadge statusBadge={statusBadge} /> : null}
+        {aiAssistSlot}
+        {executeSlot && (
+          <div className={hasSelection ? '' : 'opacity-40 pointer-events-none'}>
+            {executeSlot}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
+export { Brain, Crosshair };
 export default ModuleHeader;

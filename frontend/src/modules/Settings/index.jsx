@@ -27,32 +27,7 @@ import {
   updateWorkspaceMemberApi,
   upsertGlobalVariableApi
 } from '../../services/backendApi';
-
-const useTransientSaveFeedback = (duration = 1400) => {
-  const [savedKey, setSavedKey] = useState('');
-  const timeoutRef = useRef(null);
-
-  useEffect(() => () => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-    }
-  }, []);
-
-  const triggerSaved = (key) => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-    }
-    setSavedKey(key);
-    timeoutRef.current = window.setTimeout(() => {
-      setSavedKey('');
-      timeoutRef.current = null;
-    }, duration);
-  };
-
-  return [savedKey, triggerSaved];
-};
-
-const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
+import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
 
 const loadCanonicalTenantSettings = async () => {
   const bundle = await getCanonicalSettingsApi();
@@ -191,10 +166,6 @@ const GlobalVarsManager = () => {
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Key size={20} className="text-[var(--color-primary)]" /> Global Variables</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Manage {'{{userVariables}}'} and system keys.</p>
-      </div>
       <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-[var(--color-bg-primary)]">
         <div className="bg-[var(--color-bg-secondary)] p-4 rounded-lg border border-[var(--color-border)] space-y-4">
           <div className="grid grid-cols-12 gap-4">
@@ -220,7 +191,7 @@ const GlobalVarsManager = () => {
 };
 
 // ============ WHITE LABEL SETTINGS ============
-const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
+const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
   const [activeTab, setActiveTab] = useState('branding');
   const [expandedCategory, setExpandedCategory] = useState('Main');
   const [menuItems, setMenuItems] = useState([]);
@@ -317,6 +288,13 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   const handleSaveWhiteLabel = async () => {
     await persistWhiteLabel(brandingData, menuItems);
   };
+
+  useEffect(() => {
+    if (handlersRef) {
+      handlersRef.reset = handleResetWhiteLabel;
+      handlersRef.save = handleSaveWhiteLabel;
+    }
+  });
 
   // Custom Menu Items State
   const [customMenuItems, setCustomMenuItems] = useState([
@@ -516,24 +494,6 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
 
   return (
     <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded flex items-center justify-center">
-              <Globe size={16} className="text-[var(--color-text-primary)]" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--color-text-primary)]">White Label</h2>
-              <p className="text-xs text-[var(--color-text-secondary)]">Customize your branding and menu system</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleResetWhiteLabel} className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] border border-[var(--color-border)] px-3 py-1.5 rounded-[var(--radius-card)] transition">Reset</button>
-            <button onClick={handleSaveWhiteLabel} className="text-xs btn-primary-skeuo px-3 py-1.5 rounded-[var(--radius-card)] transition font-medium">Save</button>
-          </div>
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
         <div className="flex overflow-x-auto">
@@ -1291,9 +1251,8 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate }) => {
   );
 };
 
-const SystemEmailsSettings = () => {
+const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
   const [templates, setTemplates] = useState([]);
-  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
@@ -1537,10 +1496,6 @@ const PersonalSettings = () => {
 
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><User size={20} className="text-[var(--color-primary)]" /> Personal Profile</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Manage your account information, locale defaults, and signature.</p>
-      </div>
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
         {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
@@ -1624,10 +1579,6 @@ const BillingSettings = () => {
 
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><CreditCard size={20} className="text-yellow-500" /> Billing Settings</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Manage your subscription and payment methods.</p>
-      </div>
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {/* Current Plan Card */}
         <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
@@ -1755,10 +1706,6 @@ const SecuritySettings = () => {
 
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Shield size={20} className="text-red-500" /> Security Settings</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Manage your account security and access permissions.</p>
-      </div>
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
         {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
@@ -2299,48 +2246,6 @@ const WorkspaceSettings = () => {
                 {savedAction === 'save-workspace-name' ? 'Saved' : 'Save Name'}
               </button>
             </div>
-
-            {canArchiveWorkspace && (
-              <div className="rounded-[var(--radius-card)] border border-red-500/25 bg-red-500/8 p-4 space-y-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-red-300">Danger Zone</div>
-                  <div className="mt-1 text-sm text-[var(--color-text-primary)]">Archive workspace '{selectedWorkspace?.name || 'Workspace'}'?</div>
-                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]">This removes the workspace from normal access and selection, but does not permanently delete its data.</div>
-                </div>
-                {showArchiveConfirm ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      onClick={handleArchiveWorkspace}
-                      disabled={Boolean(archiveBlockedReason) || archivingWorkspace}
-                      className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/40 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {archivingWorkspace ? 'Archiving...' : 'Confirm Archive'}
-                    </button>
-                    <button
-                      onClick={() => setShowArchiveConfirm(false)}
-                      disabled={archivingWorkspace}
-                      className="px-4 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-sm"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowArchiveConfirm(true)}
-                    disabled={Boolean(archiveBlockedReason)}
-                    className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/35 bg-red-500/10 text-red-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Archive Workspace
-                  </button>
-                )}
-                {archiveBlockedReason && (
-                  <div className="text-xs text-[var(--color-text-secondary)]">{archiveBlockedReason}</div>
-                )}
-                {!archiveBlockedReason && alternateWorkspace && (
-                  <div className="text-xs text-[var(--color-text-secondary)]">After archive, the session will switch to '{alternateWorkspace.name}'.</div>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
@@ -2452,6 +2357,49 @@ const WorkspaceSettings = () => {
             <div className="px-4 py-6 text-sm text-[var(--color-text-secondary)]">No members found for this workspace yet.</div>
           )}
         </div>
+
+        {canArchiveWorkspace && (
+          <div className="rounded-[var(--radius-panel)] border border-red-500/25 bg-red-500/8 p-6 space-y-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-red-300">Danger Zone</div>
+              <div className="mt-1 text-sm text-[var(--color-text-primary)]">Archive workspace '{selectedWorkspace?.name || 'Workspace'}'?</div>
+              <div className="mt-1 text-xs text-[var(--color-text-secondary)]">This removes the workspace from normal access and selection, but does not permanently delete its data.</div>
+            </div>
+            {showArchiveConfirm ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleArchiveWorkspace}
+                  disabled={Boolean(archiveBlockedReason) || archivingWorkspace}
+                  className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/40 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {archivingWorkspace ? 'Archiving...' : 'Confirm Archive'}
+                </button>
+                <button
+                  onClick={() => setShowArchiveConfirm(false)}
+                  disabled={archivingWorkspace}
+                  className="px-4 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowArchiveConfirm(true)}
+                disabled={Boolean(archiveBlockedReason)}
+                className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/35 bg-red-500/10 text-red-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Archive Workspace
+              </button>
+            )}
+            {archiveBlockedReason && (
+              <div className="text-xs text-[var(--color-text-secondary)]">{archiveBlockedReason}</div>
+            )}
+            {!archiveBlockedReason && alternateWorkspace && (
+              <div className="text-xs text-[var(--color-text-secondary)]">After archive, the session will switch to '{alternateWorkspace.name}'.</div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -2462,30 +2410,36 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const { tenant, user } = useAuth();
   const [activeTab, setActiveTab] = useState(activeSettingsTab || 'personal');
   const isOwner = ((tenant?.role || user?.role || 'viewer').toLowerCase() === 'owner');
+  const wlHandlers = useRef({ reset: null, save: null });
 
   useEffect(() => {
     if (activeSettingsTab) setActiveTab(activeSettingsTab);
   }, [activeSettingsTab]);
 
-  const tabs = [
-    { id: 'personal', label: 'Personal', icon: User },
+  const mainTabs = [
     { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'personal', label: 'Personal', icon: User },
     { id: 'security', label: 'Security', icon: Shield },
-    { id: 'workspace', label: 'Workspace', icon: Layers },
-    { id: 'whitelabel', label: 'White Label', icon: Globe },
     { id: 'variables', label: 'Variables', icon: Key },
-    ...(isOwner ? [{ id: 'omega', label: 'Omega', icon: Lock }] : [])
+    { id: 'whitelabel', label: 'White Label', icon: Globe },
+    { id: 'workspace', label: 'Workspace', icon: Layers },
   ];
+  const tabs = isOwner ? [...mainTabs, { id: 'omega', label: 'Omega', icon: Lock }] : mainTabs;
 
   const tabMeta = {
-    personal: { eyebrow: 'Account', description: 'Identity, contact defaults, and operator-level preferences.', status: 'Live' },
-    billing: { eyebrow: 'Commerce', description: 'Billing and package surfaces stay visible for the later tenancy/commercial pass.', status: 'Staged' },
-    security: { eyebrow: 'Access', description: 'Password, session, and security posture for the active app user.', status: 'Mixed' },
-    workspace: { eyebrow: 'Workspace', description: 'Switch, rename, and manage members for the active workspace.', status: 'Live' },
-    whitelabel: { eyebrow: 'Branding', description: 'Brand, menu, and presentation controls that shape the app shell.', status: 'Mixed' },
-    variables: { eyebrow: 'Automation', description: 'Global variables and tokens available to builders and workflows.', status: 'Legacy' },
+    personal: { description: 'Identity, contact defaults, and operator-level preferences.', status: 'Live' },
+    billing: { description: 'Subscription, payment methods, and billing history.', status: 'Staged' },
+    security: { description: 'Password, sessions, and security posture.' },
+    workspace: { description: 'Switch, rename, and manage members.', status: 'Live' },
+    whitelabel: { description: 'Brand, menu, and presentation controls.' },
+    variables: { description: 'Global variables and tokens for builders and workflows.', status: 'Legacy' },
     omega: { eyebrow: 'Governance', description: 'Owner-only emergency protocol for app-local purge control.', status: 'Restricted' }
   };
+
+  const activeTabData = tabs.find(tab => tab.id === activeTab);
+  const ActiveIcon = activeTabData?.icon;
+  const activeMeta = tabMeta[activeTab] || {};
+  const isWhiteLabel = activeTab === 'whitelabel';
 
   const renderContent = () => {
     switch (activeTab) {
@@ -2493,7 +2447,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
       case 'billing': return <BillingSettings />;
       case 'security': return <SecuritySettings />;
       case 'workspace': return <WorkspaceSettings />;
-      case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} />;
+      case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} handlersRef={wlHandlers.current} />;
       case 'variables': return <GlobalVarsManager />;
       case 'omega': return <OmegaSettings />;
       default: return <PersonalSettings />;
@@ -2502,35 +2456,64 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-primary)]">
-      <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-6 py-5 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{tabMeta[activeTab]?.eyebrow || 'Settings'}</div>
-            <div className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{tabs.find((tab) => tab.id === activeTab)?.label || 'Settings'}</div>
-            <div className="mt-2 max-w-2xl text-sm text-[var(--color-text-secondary)]">{tabMeta[activeTab]?.description}</div>
-          </div>
-          <div className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">{tabMeta[activeTab]?.status || 'Live'}</div>
+      {/* 48px Island Header */}
+      <div className="h-12 flex items-center justify-between gap-3 px-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-t-[var(--radius-outer)] shadow-island-sm">
+        {/* Left: Icon + Title - fixed width, truncate */}
+        <div className="flex items-center gap-2 w-48 min-w-0 flex-shrink-0">
+          {ActiveIcon && <ActiveIcon size={16} className="text-[var(--color-primary)] flex-shrink-0" />}
+          <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{activeTabData?.label || 'Settings'}</span>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
+
+        {/* Center: Tab Pills - always centered */}
+        <div className="flex-1 flex justify-center items-center gap-1 overflow-x-auto no-scrollbar">
+          {mainTabs.map(tab => {
+            const TabIcon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2.5 flex items-center gap-2 text-sm font-medium rounded-[var(--radius-panel)] border transition whitespace-nowrap ${activeTab === tab.id
-                  ? 'text-[var(--color-text-primary)] border-[var(--color-primary)] bg-[var(--color-primary)]/10'
-                  : 'text-[var(--color-text-secondary)] border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
-                  }`}
+                className={`px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-medium rounded-lg border transition whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'text-[var(--color-text-primary)] border-[var(--color-primary)] bg-[var(--color-primary)]/10'
+                    : 'text-[var(--color-text-secondary)] border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
+                }`}
               >
-                <Icon size={16} />
+                <TabIcon size={12} />
                 {tab.label}
               </button>
             );
           })}
+          {isOwner && (
+            <>
+              <div className="w-px h-6 bg-[var(--color-border)] mx-1" />
+              <button
+                onClick={() => setActiveTab('omega')}
+                className={`px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-medium rounded-lg border transition whitespace-nowrap ${
+                  activeTab === 'omega'
+                    ? 'text-red-300 border-red-500/40 bg-red-500/10'
+                    : 'text-red-300/60 border-red-500/20 bg-red-500/5 hover:text-red-300 hover:border-red-500/40'
+                }`}
+              >
+                <Lock size={12} />
+                Omega
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isWhiteLabel && (
+            <>
+              <button onClick={() => wlHandlers.current.reset?.()} className="text-[10px] py-1.5 px-3 h-8 flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30 transition whitespace-nowrap">Reset</button>
+              <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1.5 px-3 h-8 flex items-center justify-center rounded-lg border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
+            </>
+          )}
+          {activeMeta.status && <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)]">{activeMeta.status}</span>}
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+
+      <div className="flex-1 min-h-0 overflow-hidden p-4">
         {renderContent()}
       </div>
     </div>

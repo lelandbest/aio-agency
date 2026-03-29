@@ -1122,11 +1122,17 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     setCalendarConfigEditing(false);
   }, [selectedCalendarSourceId]);
 
+  useEffect(() => {
+    if (emailVerifierConfig && !emailVerifierConfigEditing) {
+      setEmailVerifierForm(createEmailVerifierDraft(emailVerifierConfig));
+    }
+  }, [emailVerifierConfig, emailVerifierConfigEditing]);
+
   const refreshOllamaModels = async (preferredBaseUrl) => {
     setOllamaModelsLoading(true);
     try {
       const models = await getOllamaModelsApi({
-        base_url: preferredBaseUrl || aiProviderForm.base_url || selectedAiProviderCatalog.default_base_url,
+        base_url: preferredBaseUrl || aiProviderForm.base_url || (aiProviderCatalog.find(p => p.id === 'ollama') || {}).default_base_url,
         api_key: aiProviderForm.api_key || '',
         username: aiProviderForm.config?.username || '',
         password: aiProviderForm.config?.password || ''
@@ -1146,40 +1152,37 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (selectedAiProviderKey !== 'ollama') {
       setOllamaModels([]);
       setOllamaModelsLoading(false);
-      return;
+      return () => {};
     }
 
-      let cancelled = false;
-      const loadModels = async () => {
-        setOllamaModelsLoading(true);
-        try {
-          const models = await getOllamaModelsApi({
-            base_url: aiProviderForm.base_url || selectedAiProviderCatalog.default_base_url,
-            api_key: aiProviderForm.api_key || '',
-            username: aiProviderForm.config?.username || '',
-            password: aiProviderForm.config?.password || ''
-          });
-          if (cancelled) return;
-          setOllamaModels(models);
-          if ((!aiProviderForm.model || !models.includes(aiProviderForm.model)) && models.length) {
-            setAiProviderForm((current) => ({ ...current, model: current.model && models.includes(current.model) ? current.model : models[0] }));
-          }
-        } catch {
-          if (!cancelled) {
-            setOllamaModels([]);
-          }
-        } finally {
-          if (!cancelled) {
-            setOllamaModelsLoading(false);
-          }
+    let cancelled = false;
+    const loadModels = async () => {
+      setOllamaModelsLoading(true);
+      try {
+        const models = await getOllamaModelsApi({
+          base_url: aiProviderForm.base_url || (aiProviderCatalog.find(p => p.id === 'ollama') || {}).default_base_url,
+          api_key: aiProviderForm.api_key || '',
+          username: aiProviderForm.config?.username || '',
+          password: aiProviderForm.config?.password || ''
+        });
+        if (cancelled) return;
+        setOllamaModels(models);
+        if ((!aiProviderForm.model || !models.includes(aiProviderForm.model)) && models.length) {
+          setAiProviderForm((current) => ({ ...current, model: current.model && models.includes(current.model) ? current.model : models[0] }));
         }
-      };
+      } catch {
+        if (!cancelled) setOllamaModels([]);
+      } finally {
+        if (!cancelled) setOllamaModelsLoading(false);
+      }
+    };
 
     loadModels();
     return () => {
       cancelled = true;
     };
-  }, [selectedAiProviderKey, aiProviderForm.base_url, aiProviderForm.api_key, aiProviderForm.config?.username, aiProviderForm.config?.password, selectedAiProviderCatalog.default_base_url]);
+  }, [selectedAiProviderKey, aiProviderForm.base_url, aiProviderForm.api_key, aiProviderForm.config?.username, aiProviderForm.config?.password, aiProviderCatalog]);
+
 
   const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === mailboxForm.provider) || DEFAULT_MAILBOX_PROVIDERS[0];
   const selectedCalendarProvider = calendarProviders.find((provider) => provider.id === calendarSourceForm.provider) || scopedCalendarProviders[0] || DEFAULT_CALENDAR_PROVIDERS[0];

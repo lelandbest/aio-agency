@@ -4,6 +4,7 @@ import {
   createFormApi,
   createFormFolderApi,
   deleteFormApi,
+  bulkDeleteFormsApi,
   getCmsTablesApi,
   getFormFoldersApi,
   getFormsApi,
@@ -23,8 +24,11 @@ import {
   Code, Columns, Layers, Table, GripVertical, Trash2, ExternalLink, Save,
   Bot, Settings, Bold, Italic, Underline, AlignCenter, AlignRight, GitMerge,
   Database, Download, Search, Filter, Edit2, Folder, FolderOpen, ChevronRight,
-  Eye
+  Eye, Crosshair
 } from 'lucide-react';
+import { useSystemConfirm } from '../../hooks/useSystemConfirm';
+import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import CMSView from '../../components/CMS/CMSView';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ShareFormModal from '../../components/Modals/ShareFormModal';
@@ -115,6 +119,9 @@ const FormBuilderModule = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareForm, setShareForm] = useState(null);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
+  const [saveAction, triggerSaveAction] = useTransientSaveFeedback(2000);
+  const [isSaving, setIsSaving] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
 
   // Sidebar Category State
@@ -430,12 +437,59 @@ const FormBuilderModule = () => {
 
   const handleRenameFolder = async (folderId, newName) => {
     try {
-      const folder = await updateFormFolderApi(folderId, { name: newName });
-      if (folder) {
-        setFolders(prev => prev.map((item) => (item.id === folderId ? folder : item)));
-      }
+      await updateFormFolderApi(folderId, { name: newName });
+      await fetchFolders();
     } catch (error) {
-      console.error('Error renaming folder:', error);
+      alert('Failed to rename folder: ' + error.message);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId) => {
+    const isConfirmed = await systemConfirm({
+      title: 'Delete Folder',
+      message: 'Delete this folder? This will NOT delete forms inside it; they will become Uncategorized.',
+      confirmText: 'Delete Folder',
+      variant: 'danger'
+    });
+    if (isConfirmed) {
+      try {
+        await deleteFormFolderApi(folderId);
+        await fetchFolders();
+        await fetchForms();
+      } catch (error) {
+        alert('Failed to delete folder: ' + error.message);
+      }
+    }
+  };
+
+  const handleCopyFolder = async (folder) => {
+    try {
+      await createFormFolderApi({ name: `${folder.name} (Copy)` });
+      await fetchFolders();
+    } catch (error) {
+      alert('Failed to copy folder: ' + error.message);
+    }
+  };
+
+  const bulkDeleteSelectedForms = async () => {
+    if (selectedForms.length === 0) return;
+    const isConfirmed = await systemConfirm({
+      title: 'Delete Selected Forms',
+      message: `Are you sure you want to delete ${selectedForms.length} selected forms? This action is irreversible.`,
+      confirmText: `Delete ${selectedForms.length} Forms`,
+      variant: 'danger'
+    });
+    if (isConfirmed) {
+      try {
+        setLoading(true);
+        await bulkDeleteFormsApi(selectedForms);
+        setSelectedForms([]);
+        await fetchForms();
+      } catch (error) {
+        alert('Failed to delete forms: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -467,8 +521,23 @@ const FormBuilderModule = () => {
     );
   };
 
+  const toggleSelectAllForms = () => {
+    if (selectedForms.length === forms.length) {
+      setSelectedForms([]);
+    } else {
+      setSelectedForms(forms.map(f => f.id));
+    }
+  };
+
+
   const deleteForm = async (formId) => {
-    if (confirm('Are you sure you want to delete this form?')) {
+    const isConfirmed = await systemConfirm({
+      title: 'Delete Form',
+      message: 'Are you sure you want to delete this form? All data associated with it will be removed.',
+      confirmText: 'Delete Form',
+      variant: 'danger'
+    });
+    if (isConfirmed) {
       try {
         await deleteFormApi(formId);
         fetchForms();
@@ -547,6 +616,7 @@ const FormBuilderModule = () => {
   const handleSaveForm = async () => {
     if (!currentForm) return;
     try {
+      setIsSaving(true);
       const savedForm = await updateFormApi(currentForm.id, {
         schema: currentForm.schema.map((field) => ({
           ...field,
@@ -562,10 +632,14 @@ const FormBuilderModule = () => {
       if (savedForm) {
         setCurrentForm(savedForm);
       }
+      triggerSaveAction('form-saved');
       fetchForms();
       fetchCmsTables();
     } catch (error) {
       console.error('Error saving form:', error);
+      alert('Failed to save form: ' + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -696,6 +770,13 @@ const FormBuilderModule = () => {
               <FileText size={16} />
             </button>
             <button
+              onClick={() => deleteForm(form.id)}
+              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)]"
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+            <button
               onClick={() => {
                 setCurrentForm(form);
                 setView('editor');
@@ -704,13 +785,6 @@ const FormBuilderModule = () => {
               title="Open"
             >
               <ArrowRight size={16} />
-            </button>
-            <button
-              onClick={() => deleteForm(form.id)}
-              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)]"
-              title="Delete"
-            >
-              <Trash2 size={16} />
             </button>
             <button
               onClick={() => handleOpenPublicLink(form)}
@@ -730,7 +804,7 @@ const FormBuilderModule = () => {
           <ModuleHeader
             title="Forms"
             showTitle={false}
-            actions={[
+            leftActions={[
               {
                 label: 'Create Form',
                 icon: Plus,
@@ -739,9 +813,9 @@ const FormBuilderModule = () => {
                 color: 'primary'
               },
               {
-                label: 'Browse Templates',
-                icon: Layers,
-                onClick: () => setShowTemplateGallery(true),
+                label: 'New Folder',
+                icon: Folder,
+                onClick: handleCreateFolder,
                 variant: 'secondary'
               }
             ]}
@@ -758,24 +832,31 @@ const FormBuilderModule = () => {
               </div>
             )}
             toolbarRightSlot={(
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-2 font-bold">
                 <button
                   type="button"
                   onClick={() => setView('cms')}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8"
                 >
                   <Database size={14} />
-                  CMS Data
+                  <span className="uppercase text-[10px] font-bold tracking-widest">CMS Data</span>
                 </button>
                 <button
                   type="button"
-                  onClick={handleCreateFolder}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                  onClick={() => setShowTemplateGallery(true)}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8"
                 >
-                  <Folder size={14} />
-                  New Folder
+                  <Layers size={14} />
+                  <span className="uppercase text-[10px] font-bold tracking-widest">Browse Gallery</span>
                 </button>
               </div>
+            )}
+            aiAssistSlot={(
+              <AIAssistButton
+                onAssist={() => {}} 
+                tooltip="Forms Intelligence"
+                iconType="crosshair"
+              />
             )}
           />
 
@@ -821,8 +902,22 @@ const FormBuilderModule = () => {
               columns={tableColumns}
               onFolderToggle={toggleFolder}
               onFolderRename={handleRenameFolder}
-              onItemSelect={() => { }}
+              onFolderDelete={handleDeleteFolder}
+              onFolderCopy={handleCopyFolder}
+              onItemSelect={toggleFormSelection}
+              onSelectAll={toggleSelectAllForms}
               selectedItems={selectedForms}
+              actions={
+                selectedForms.length > 0 && (
+                  <button
+                    onClick={bulkDeleteSelectedForms}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm"
+                  >
+                    <Trash2 size={14} />
+                    <span>DELETE SELECTED ({selectedForms.length})</span>
+                  </button>
+                )
+              }
               showHeader={false}
               searchQuery={tableSearch}
               onSearchQueryChange={setTableSearch}
@@ -834,6 +929,27 @@ const FormBuilderModule = () => {
           onClose={() => setShowTemplateGallery(false)}
           onSelectTemplate={createFormFromTemplate}
         />
+        <SystemConfirmModal
+          isOpen={modalState.isOpen}
+          onClose={modalState.onClose}
+          onConfirm={() => modalState.onConfirm(modalState.promptValue)}
+          title={modalState.title}
+          message={modalState.message}
+          variant={modalState.variant}
+          confirmText={modalState.confirmText}
+          cancelText={modalState.cancelText}
+          showPrompt={modalState.showPrompt}
+          promptValue={modalState.promptValue}
+          onPromptChange={setPromptValue}
+        />
+        {saveAction === 'form-saved' && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-bottom-5 duration-300">
+            <div className="bg-[var(--color-bg-primary)]/90 backdrop-blur-md border border-green-500/30 text-green-400 px-6 py-2.5 rounded-full shadow-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest ring-1 ring-green-500/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span>System Synchronized</span>
+            </div>
+          </div>
+        )}
         {
           showFormEntry && entryForm && (
             <FormEntryModal
@@ -935,11 +1051,12 @@ const FormBuilderModule = () => {
               <ExternalLink size={16} />
             </button>
             <button
-              onClick={handleSaveForm}
-              className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2"
-            >
-              <Save size={14} /> Save
-            </button>
+               onClick={handleSaveForm}
+               disabled={isSaving}
+               className={`bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-5 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-[var(--color-primary)]/20 active:scale-95 disabled:opacity-50 ${saveAction === 'form-saved' ? 'bg-green-600' : ''}`}
+             >
+               <Save size={14} /> {isSaving ? 'Saving...' : saveAction === 'form-saved' ? 'Saved!' : 'Save Form'}
+             </button>
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto p-8 relative">

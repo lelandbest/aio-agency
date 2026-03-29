@@ -147,7 +147,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "flows", label: "Flows", icon: "Workflow", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "forms", label: "Forms", icon: "FileText", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "orders", label: "Orders", icon: "ShoppingCart", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "pipelines", label: "Pipelines", icon: "GitMerge", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "pipelines", label: "Pipelines", icon: "GitBranch", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-help", label: "AIO Help Desk", icon: "GraduationCap", type: "internal", visible: false, iconColor: "#9ca3af" }
     ]
   },
