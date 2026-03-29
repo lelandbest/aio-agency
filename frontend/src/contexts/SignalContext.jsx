@@ -58,8 +58,20 @@ export function SignalProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    const handleSignal = (event) => {
+      const { type, message } = event.detail || {};
+      if (type && message) {
+        addSignal({ type, message });
+      }
+    };
+    window.addEventListener('aio:signal', handleSignal);
+    
     window.__signalContext = { addSignal, removeSignal, clearAll };
-    return () => { delete window.__signalContext; };
+    
+    return () => {
+      window.removeEventListener('aio:signal', handleSignal);
+      delete window.__signalContext;
+    };
   }, [addSignal, removeSignal, clearAll]);
 
   return (

@@ -64,7 +64,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       const collection = await flowRepository.getAllFlows();
       const nextFlows = Object.values(collection || {}).map((flow) => ({
         ...flow,
-        flow_group: SAVED_FLOWS_FOLDER_ID,
+        flowGroup: SAVED_FLOWS_FOLDER_ID,
       }));
       setFlows(nextFlows);
     } catch (loadError) {

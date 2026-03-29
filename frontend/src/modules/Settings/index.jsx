@@ -44,8 +44,8 @@ const mapCanonicalGlobalVariables = (tenantSettings = {}) => {
     category: details?.category || 'custom',
     editableByClient: Boolean(details?.editableByClient),
     description: details?.description || '',
-    is_secret: Boolean(details?.isSecret),
-    is_system: Boolean(details?.isSystem),
+    isSecret: Boolean(details?.isSecret),
+    isSystem: Boolean(details?.isSystem),
   }));
 };
 
@@ -59,19 +59,19 @@ const mapCanonicalSystemEmailTemplates = (tenantSettings = {}, search = '') => {
   return filtered
     .map((template) => ({
       id: template.id,
-      template_key: template.templateKey,
-      email_type: template.emailType,
+      templateKey: template.templateKey,
+      emailType: template.emailType,
       subject: template.subject || '',
-      send_to: template.sendTo || '',
+      sendTo: template.sendTo || '',
       enabled: Boolean(template.enabled),
-      body_html: template.bodyHtml,
-      body_text: template.bodyText,
-      edited_by_name: template.editedByName || template.edited_by_name,
-      edited_at: template.editedAt || template.edited_at,
+      bodyHtml: template.bodyHtml,
+      bodyText: template.bodyText,
+      editedByName: template.editedByName || template.edited_by_name,
+      editedAt: template.editedAt || template.edited_at,
       config: template.config || {},
-      updated_at: template.updatedAt || template.updated_at,
+      updatedAt: template.updatedAt || template.updatedAt,
     }))
-    .sort((left, right) => String(left.email_type || '').localeCompare(String(right.email_type || '')));
+    .sort((left, right) => String(left.emailType || '').localeCompare(String(right.emailType || '')));
 };
 
 const formatOmegaCountdown = (executeAt, nowTick) => {
@@ -136,8 +136,8 @@ const GlobalVarsManager = () => {
         key: finalKey,
         value: newValue,
         description: newDesc,
-        is_secret: isSecret,
-        is_system: isSystem || isValidSystemKey
+        isSecret: isSecret,
+        isSystem: isSystem || isValidSystemKey
       });
       setNewKey('');
       setNewValue('');
@@ -183,7 +183,7 @@ const GlobalVarsManager = () => {
         </div>
         <div className="space-y-2">
           <div className="grid grid-cols-12 px-4 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider"><div className="col-span-3">Key</div><div className="col-span-4">Value</div><div className="col-span-4">Description</div><div className="col-span-1 text-right">Action</div></div>
-          <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]">{vars.map(v => (<div key={v.id} className="grid grid-cols-12 px-4 py-3 items-center text-sm"><div className="col-span-3 font-mono text-[var(--color-primary)]/70">{v.key}</div><div className="col-span-4 text-[var(--color-text-primary)] truncate font-mono">{v.is_secret ? '••••••••' : v.value}</div><div className="col-span-4 text-[var(--color-text-secondary)] text-xs">{v.description || '-'}</div><div className="col-span-1 text-right"><button onClick={() => deleteVar(v.id)} className="text-[var(--color-text-secondary)] hover:text-red-500"><Trash2 size={14} /></button></div></div>))}</div>
+          <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]">{vars.map(v => (<div key={v.id} className="grid grid-cols-12 px-4 py-3 items-center text-sm"><div className="col-span-3 font-mono text-[var(--color-primary)]/70">{v.key}</div><div className="col-span-4 text-[var(--color-text-primary)] truncate font-mono">{v.isSecret ? '••••••••' : v.value}</div><div className="col-span-4 text-[var(--color-text-secondary)] text-xs">{v.description || '-'}</div><div className="col-span-1 text-right"><button onClick={() => deleteVar(v.id)} className="text-[var(--color-text-secondary)] hover:text-red-500"><Trash2 size={14} /></button></div></div>))}</div>
         </div>
       </div>
     </div>
@@ -198,11 +198,11 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
   const [menuDraftDirty, setMenuDraftDirty] = useState(false);
   const { tenant, refreshSession } = useAuth();
   const { setBrandConfig } = useBrand();
-  const tenantSettings = tenant?.tenant_settings || tenant?.settings || {};
+  const tenantSettings = tenant?.tenantSettings || tenant?.settings || {};
   const persistedMenuStructure = Array.isArray(tenantSettings?.navigation?.menuStructure)
     ? tenantSettings.navigation.menuStructure
-    : Array.isArray(tenantSettings?.menu_structure)
-    ? tenantSettings.menu_structure
+    : Array.isArray(tenantSettings?.menuStructure)
+    ? tenantSettings.menuStructure
     : null;
   const draftMenuStructure = Array.isArray(persistedMenuStructure)
     ? persistedMenuStructure
@@ -262,7 +262,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
     let refreshedTenantSettings = null;
     try {
       const refreshed = await refreshSession?.();
-      refreshedTenantSettings = refreshed?.tenant?.tenant_settings || null;
+      refreshedTenantSettings = refreshed?.tenant?.tenantSettings || null;
     } catch (error) {
       console.warn('Failed to refresh session after white-label save; using canonical save response.', error);
     }
@@ -1257,7 +1257,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [editing, setEditing] = useState(null);
-  const [draft, setDraft] = useState({ subject: '', send_to: '', enabled: true, body_text: '' });
+  const [draft, setDraft] = useState({ subject: '', sendTo: '', enabled: true, bodyText: '' });
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
 
   const loadTemplates = async (nextSearch = search) => {
@@ -1290,7 +1290,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
     try {
       const updated = await updateSystemEmailTemplateApi(template.id, { enabled: !template.enabled });
       await loadTemplates(search);
-      setStatus(`${updated.email_type} updated.`);
+      setStatus(`${updated.emailType} updated.`);
     } catch (toggleError) {
       setError(toggleError.message || 'Unable to update template state.');
     }
@@ -1300,9 +1300,9 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
     setEditing(template);
     setDraft({
       subject: template.subject || '',
-      send_to: template.send_to || '',
+      sendTo: template.send_to || '',
       enabled: !!template.enabled,
-      body_text: template.body_text || ''
+      bodyText: template.body_text || ''
     });
   };
 
@@ -1316,7 +1316,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
       const updated = await updateSystemEmailTemplateApi(editing.id, draft);
       await loadTemplates(search);
       setEditing(null);
-      setStatus(`${updated.email_type} saved.`);
+      setStatus(`${updated.emailType} saved.`);
       triggerSavedAction('save-template');
     } catch (saveError) {
       setError(saveError.message || 'Unable to save system email template.');
@@ -1356,7 +1356,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
               )}
               {!loading && templates.map(template => (
                 <tr key={template.id} className="bg-[var(--color-bg-secondary)]">
-                  <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium">{template.email_type}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium">{template.emailType}</td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)] max-w-[260px] truncate">{template.subject}</td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.send_to}</td>
                   <td className="px-5 py-4">
@@ -1365,7 +1365,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
                     </button>
                   </td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.edited_by_name || 'AIO Flow\u2122'}</td>
-                  <td className="px-5 py-4 text-[var(--color-text-secondary)]">{template.edited_at || template.updated_at}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-secondary)]">{template.edited_at || template.updatedAt}</td>
                   <td className="px-5 py-4">
                     <button onClick={() => openEditor(template)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)] text-[var(--color-text-primary)]">
                       <Edit2 size={14} /> Edit
@@ -1390,7 +1390,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
               <div className="flex items-center gap-3">
                 <Inbox size={18} className="text-[var(--color-primary)]" />
                 <div>
-                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{editing.email_type}</h3>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{editing.emailType}</h3>
                   <p className="text-xs text-[var(--color-text-secondary)]">Edit recipient target, subject, and default message copy.</p>
                 </div>
               </div>
@@ -1402,7 +1402,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Send To</label>
-                <input value={draft.send_to} onChange={(event) => setDraft(current => ({ ...current, send_to: event.target.value }))} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <input value={draft.send_to} onChange={(event) => setDraft(current => ({ ...current, sendTo: event.target.value }))} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
                 <div>
@@ -1415,7 +1415,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Default Message Copy</label>
-                <textarea value={draft.body_text} onChange={(event) => setDraft(current => ({ ...current, body_text: event.target.value }))} className="w-full min-h-[220px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <textarea value={draft.body_text} onChange={(event) => setDraft(current => ({ ...current, bodyText: event.target.value }))} className="w-full min-h-[220px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
             </div>
             <div className="p-6 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-end gap-3">

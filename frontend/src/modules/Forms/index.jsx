@@ -86,8 +86,8 @@ const buildTemplateField = (field, index) => ({
   pattern: '',
   customValidation: '',
   errorMessage: '',
-  map_to_contact: field.map_to_contact || null,
-  is_identifier: Boolean(field.is_identifier),
+  mapToContact: field.mapToContact || null,
+  isIdentifier: Boolean(field.isIdentifier),
 });
 
 /**
@@ -345,23 +345,23 @@ const FormBuilderModule = () => {
   const createNewForm = async () => {
     const newForm = {
       name: "New Untitled Form",
-      folder_id: folders[0]?.id || null,
+      folderId: folders[0]?.id || null,
       status: "Draft",
-      is_active: false,
-      responses_count: 0,
-      last_active: "Just now",
-      last_modified_by: "AIO Flow™",
-      last_modified_at: new Date().toISOString(),
+      isActive: false,
+      responsesCount: 0,
+      lastActive: "Just now",
+      lastModifiedBy: "AIO Flow™",
+      lastModifiedAt: new Date().toISOString(),
       creator: "AIO Flow™",
       triggers: null,
       automation: null,
       settings: {
-        create_contact: true,
-        update_contact: true,
-        webhook_url: '',
-        notification_email: '',
-        redirect_url: '',
-        thank_you_message: 'Thanks, we received your submission.'
+        createContact: true,
+        updateContact: true,
+        webhookUrl: '',
+        notificationEmail: '',
+        redirectUrl: '',
+        thankYouMessage: 'Thanks, we received your submission.'
       },
       slug: `form_${Date.now()}`,
       schema: []
@@ -382,25 +382,25 @@ const FormBuilderModule = () => {
     const timestamp = Date.now();
     const newForm = {
       name: template?.name || "New Untitled Form",
-      folder_id: folders[0]?.id || null,
+      folderId: folders[0]?.id || null,
       status: "Draft",
-      is_active: false,
-      responses_count: 0,
-      last_active: "Just now",
-      last_modified_by: "AIO Flow™",
-      last_modified_at: new Date().toISOString(),
+      isActive: false,
+      responsesCount: 0,
+      lastActive: "Just now",
+      lastModifiedBy: "AIO Flow™",
+      lastModifiedAt: new Date().toISOString(),
       creator: "AIO Flow™",
       triggers: null,
       automation: null,
       settings: {
-        create_contact: true,
-        update_contact: true,
-        webhook_url: '',
-        notification_email: '',
-        redirect_url: '',
-        thank_you_message: 'Thanks, we received your submission.',
-        template_source_id: template?.id || null,
-        template_source_name: template?.name || null,
+        createContact: true,
+        updateContact: true,
+        webhookUrl: '',
+        notificationEmail: '',
+        redirectUrl: '',
+        thankYouMessage: 'Thanks, we received your submission.',
+        templateSourceId: template?.id || null,
+        templateSourceName: template?.name || null,
       },
       slug: `form_${timestamp}`,
       schema: (template?.fields || []).map((field, index) => buildTemplateField(field, index)),
@@ -422,8 +422,8 @@ const FormBuilderModule = () => {
       try {
         const data = await createFormFolderApi({
           name,
-          user_id: '1',
-          created_at: new Date().toISOString(),
+          userId: '1',
+          createdAt: new Date().toISOString(),
           expanded: true
         });
         if (data) {
@@ -574,8 +574,8 @@ const FormBuilderModule = () => {
       pattern: '',
       customValidation: '',
       errorMessage: '',
-      map_to_contact: tool.type === 'email' ? 'email' : tool.type === 'tel' ? 'phone' : null,
-      is_identifier: tool.type === 'email'
+      mapToContact: tool.type === 'email' ? 'email' : tool.type === 'tel' ? 'phone' : null,
+      isIdentifier: tool.type === 'email'
     };
 
     const updatedForm = {
@@ -623,11 +623,11 @@ const FormBuilderModule = () => {
           name: field.name || createFieldName(field.label, field.type)
         })),
         name: currentForm.name,
-        folder_id: currentForm.folder_id,
+        folderId: currentForm.folderId,
         slug: currentForm.slug || `form_${Date.now()}`,
         settings: currentForm.settings,
         status: currentForm.status,
-        is_active: currentForm.is_active
+        isActive: currentForm.isActive
       });
       if (savedForm) {
         setCurrentForm(savedForm);
@@ -670,8 +670,8 @@ const FormBuilderModule = () => {
   if (view === 'list') {
     const recentForms = [...forms]
       .sort((left, right) => {
-        const leftTime = Date.parse(left?.last_modified_at || left?.updated_at || left?.created_at || '');
-        const rightTime = Date.parse(right?.last_modified_at || right?.updated_at || right?.created_at || '');
+        const leftTime = Date.parse(left?.lastModifiedAt || left?.updatedAt || left?.createdAt || '');
+        const rightTime = Date.parse(right?.lastModifiedAt || right?.updatedAt || right?.createdAt || '');
         return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
       })
       .slice(0, 6);
@@ -708,7 +708,7 @@ const FormBuilderModule = () => {
         key: "automation",
         width: "100px",
         render: (form) => {
-          const flowCount = form.flow_ids?.length || 0;
+          const flowCount = form.flowIds?.length || 0;
           return (
             <span className="text-xs text-[var(--color-text-secondary)]">
               {flowCount} {flowCount === 1 ? 'flow' : 'flows'}
@@ -723,19 +723,19 @@ const FormBuilderModule = () => {
         render: (form) => (
           <button
             onClick={async () => {
-              const newStatus = form.is_active ? 'Draft' : 'Live';
-              await updateFormApi(form.id, { status: newStatus, is_active: !form.is_active });
+              const newStatus = form.isActive ? 'Draft' : 'Live';
+              await updateFormApi(form.id, { status: newStatus, isActive: !form.isActive });
               fetchForms();
             }}
             className={`w-12 h-6 rounded-full relative transition-colors ${
-              form.is_active
+              form.isActive
                 ? 'bg-green-500'
                 : 'bg-gray-600'
             }`}
           >
             <span
               className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                form.is_active ? 'left-7' : 'left-1'
+                form.isActive ? 'left-7' : 'left-1'
               }`}
             />
           </button>
@@ -747,9 +747,9 @@ const FormBuilderModule = () => {
         width: "160px",
         render: (form) => (
           <div className="text-xs text-[var(--color-text-secondary)]">
-            <div>By {form.last_modified_by || '-'}</div>
+            <div>By {form.lastModifiedBy || '-'}</div>
             <div className="text-[var(--color-text-tertiary)]">
-              {form.last_modified_at ? new Date(form.last_modified_at).toLocaleDateString('en-US', {
+              {form.lastModifiedAt ? new Date(form.lastModifiedAt).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
               }) : '-'}
             </div>

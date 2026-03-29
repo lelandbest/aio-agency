@@ -28,8 +28,8 @@ const mapDataToSignals = (rawData) => {
 
   // 1. Pipeline Signals (Stalled Deals)
   const stalledDeals = contacts.filter(c => {
-    if (!c.pipeline_stage || ['Closed Won', 'Closed Lost'].includes(c.pipeline_stage)) return false;
-    const lastUpdate = new Date(c.updated_at || c.created_at).getTime();
+    if (!c.pipelineStage || ['Closed Won', 'Closed Lost'].includes(c.pipelineStage)) return false;
+    const lastUpdate = new Date(c.updatedAt || c.createdAt).getTime();
     return (now - lastUpdate) > (48 * 60 * 60 * 1000); // 48h limit
   });
 
@@ -113,7 +113,7 @@ const mapDataToSignals = (rawData) => {
 
   const activeBookings = bookings.filter((booking) => !['cancelled'].includes(String(booking.status || '').toLowerCase()));
   const upcoming24h = activeBookings.filter((booking) => {
-    const start = new Date(booking.start_time).getTime();
+    const start = new Date(booking.startTime).getTime();
     return start >= now && start <= now + (24 * 60 * 60 * 1000);
   });
   if (upcoming24h.length > 0) {
@@ -136,11 +136,11 @@ const mapDataToSignals = (rawData) => {
   }
 
   const upcoming7d = activeBookings.filter((booking) => {
-    const start = new Date(booking.start_time).getTime();
+    const start = new Date(booking.startTime).getTime();
     return start >= now && start <= now + (7 * 24 * 60 * 60 * 1000);
   });
   const missedBookings = activeBookings.filter((booking) => {
-    const end = new Date(booking.end_time || booking.start_time).getTime();
+    const end = new Date(booking.endTime || booking.startTime).getTime();
     return end < now && !['completed'].includes(String(booking.status || '').toLowerCase());
   });
   if (missedBookings.length > 0) {
@@ -437,7 +437,7 @@ const SignalsModule = () => {
 
         setStats({
           contacts: rawData.contacts.length,
-          pipeline: rawData.contacts.filter(c => c.pipeline_stage && !['Closed Won', 'Closed Lost'].includes(c.pipeline_stage)).length,
+          pipeline: rawData.contacts.filter(c => c.pipelineStage && !['Closed Won', 'Closed Lost'].includes(c.pipelineStage)).length,
           comms: rawData.threads.length,
           aiRuns: rawData.aiRuns.length,
         });

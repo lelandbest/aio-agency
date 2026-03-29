@@ -104,278 +104,278 @@ class AuthStore:
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     slug TEXT NOT NULL UNIQUE,
-                    settings_json TEXT NOT NULL DEFAULT '{}',
-                    archived_at TEXT,
-                    archived_by_user_id TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    settingsJson TEXT NOT NULL DEFAULT '{}',
+                    archivedAt TEXT,
+                    archivedByUserId TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS app_users (
                     id TEXT PRIMARY KEY,
                     email TEXT NOT NULL UNIQUE,
                     username TEXT,
-                    display_name TEXT,
-                    password_hash TEXT,
-                    password_salt TEXT,
-                    auth_provider TEXT NOT NULL,
+                    displayName TEXT,
+                    passwordHash TEXT,
+                    passwordSalt TEXT,
+                    authProvider TEXT NOT NULL,
                     role TEXT NOT NULL DEFAULT 'operator',
-                    avatar_url TEXT,
-                    last_login_at TEXT,
-                    user_settings_json TEXT NOT NULL DEFAULT '{}',
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    avatarUrl TEXT,
+                    lastLoginAt TEXT,
+                    userSettingsJson TEXT NOT NULL DEFAULT '{}',
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS app_settings (
                     id TEXT PRIMARY KEY,
-                    system_settings_json TEXT NOT NULL DEFAULT '{}',
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    systemSettingsJson TEXT NOT NULL DEFAULT '{}',
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS app_sessions (
                     id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
+                    userId TEXT NOT NULL,
                     token TEXT NOT NULL UNIQUE,
                     provider TEXT NOT NULL,
-                    current_tenant_id TEXT,
-                    created_at TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    last_seen_at TEXT NOT NULL
+                    currentTenantId TEXT,
+                    createdAt TEXT NOT NULL,
+                    expiresAt TEXT NOT NULL,
+                    lastSeenAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS memberships (
                     id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    tenant_id TEXT NOT NULL,
+                    userId TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
                     role TEXT NOT NULL DEFAULT 'member',
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(user_id, tenant_id)
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(userId, tenantId)
                 );
 
-                CREATE TABLE IF NOT EXISTS ai_runs (
+                CREATE TABLE IF NOT EXISTS aiEngineRuns (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT,
-                    user_id TEXT NOT NULL,
+                    tenantId TEXT,
+                    userId TEXT NOT NULL,
                     module TEXT NOT NULL,
                     surface TEXT NOT NULL,
                     field TEXT NOT NULL,
                     intent TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'completed',
-                    agent_role TEXT,
-                    intake_agent TEXT,
-                    dispatcher_agent TEXT,
-                    executing_agent TEXT,
-                    requested_agent TEXT,
-                    delegate_chain_json TEXT,
-                    permission_tier TEXT,
-                    thread_id TEXT,
-                    contact_id TEXT,
-                    company_id TEXT,
-                    command_text TEXT,
-                    provider_key TEXT,
-                    provider_label TEXT,
+                    agentRole TEXT,
+                    intakeAgent TEXT,
+                    dispatcherAgent TEXT,
+                    executingAgent TEXT,
+                    requestedAgent TEXT,
+                    delegateChainJson TEXT,
+                    permissionTier TEXT,
+                    threadId TEXT,
+                    contactId TEXT,
+                    companyId TEXT,
+                    commandText TEXT,
+                    providerKey TEXT,
+                    providerLabel TEXT,
                     model TEXT,
                     prompt TEXT NOT NULL,
                     result TEXT NOT NULL,
-                    artifacts_json TEXT,
-                    steps_json TEXT,
-                    metadata_json TEXT,
-                    created_at TEXT NOT NULL
+                    artifactsJson TEXT,
+                    stepsJson TEXT,
+                    metadataJson TEXT,
+                    createdAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS ai_provider_configs (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
-                    provider_key TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
+                    providerKey TEXT NOT NULL,
                     label TEXT NOT NULL,
-                    base_url TEXT,
+                    baseUrl TEXT,
                     model TEXT,
-                    api_key TEXT,
+                    apiKey TEXT,
                     enabled INTEGER NOT NULL DEFAULT 0,
-                    is_default INTEGER NOT NULL DEFAULT 0,
+                    isDefault INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL DEFAULT 'disconnected',
-                    config_json TEXT,
-                    last_tested_at TEXT,
-                    last_error TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(tenant_id, provider_key)
+                    configJson TEXT,
+                    lastTestedAt TEXT,
+                    lastError TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, providerKey)
                 );
 
                 CREATE TABLE IF NOT EXISTS ai_routing_configs (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL UNIQUE,
-                    config_json TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    tenantId TEXT NOT NULL UNIQUE,
+                    configJson TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
                 );
 
 
                 CREATE TABLE IF NOT EXISTS automation_provider_configs (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
-                    provider_key TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
+                    providerKey TEXT NOT NULL,
                     label TEXT NOT NULL,
-                    base_url TEXT,
-                    api_key TEXT,
+                    baseUrl TEXT,
+                    apiKey TEXT,
                     enabled INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL DEFAULT 'disconnected',
-                    config_json TEXT,
-                    last_tested_at TEXT,
-                    last_error TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(tenant_id, provider_key)
+                    configJson TEXT,
+                    lastTestedAt TEXT,
+                    lastError TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, providerKey)
                 );
 
                 CREATE TABLE IF NOT EXISTS payment_provider_configs (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
-                    provider_key TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
+                    providerKey TEXT NOT NULL,
                     label TEXT NOT NULL,
                     enabled INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL DEFAULT 'disconnected',
-                    config_json TEXT,
-                    last_tested_at TEXT,
-                    last_error TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(tenant_id, provider_key)
+                    configJson TEXT,
+                    lastTestedAt TEXT,
+                    lastError TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, providerKey)
                 );
 
                 CREATE TABLE IF NOT EXISTS omega_protocols (
-                    tenant_id TEXT PRIMARY KEY,
+                    tenantId TEXT PRIMARY KEY,
                     status TEXT NOT NULL DEFAULT 'idle',
-                    armed_by_user_id TEXT,
-                    armed_at TEXT,
-                    execute_at TEXT,
-                    arm_code_hash TEXT,
-                    cancel_code_hash TEXT,
-                    last_event TEXT,
-                    updated_at TEXT NOT NULL
+                    armedByUserId TEXT,
+                    armedAt TEXT,
+                    executeAt TEXT,
+                    armCodeHash TEXT,
+                    cancelCodeHash TEXT,
+                    lastEvent TEXT,
+                    updatedAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS omega_protocol_events (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
-                    user_id TEXT,
-                    event_type TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
+                    userId TEXT,
+                    eventType TEXT NOT NULL,
                     detail TEXT,
-                    created_at TEXT NOT NULL
+                    createdAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS global_variables (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
                     key TEXT NOT NULL,
                     value TEXT NOT NULL,
                     description TEXT,
-                    is_secret INTEGER NOT NULL DEFAULT 0,
-                    is_system INTEGER NOT NULL DEFAULT 0,
-                    config_json TEXT,
-                    created_by_user_id TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(tenant_id, key)
+                    isSecret INTEGER NOT NULL DEFAULT 0,
+                    isSystem INTEGER NOT NULL DEFAULT 0,
+                    configJson TEXT,
+                    createdByUserId TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, key)
                 );
 
                 CREATE TABLE IF NOT EXISTS system_email_templates (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
-                    template_key TEXT NOT NULL,
-                    email_type TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
+                    templateKey TEXT NOT NULL,
+                    emailType TEXT NOT NULL,
                     subject TEXT NOT NULL,
-                    send_to TEXT NOT NULL,
+                    sendTo TEXT NOT NULL,
                     enabled INTEGER NOT NULL DEFAULT 1,
-                    body_html TEXT,
-                    body_text TEXT,
-                    edited_by_user_id TEXT,
-                    edited_by_name TEXT,
-                    edited_at TEXT,
-                    config_json TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(tenant_id, template_key)
+                    bodyHtml TEXT,
+                    bodyText TEXT,
+                    editedByUserId TEXT,
+                    editedByName TEXT,
+                    editedAt TEXT,
+                    configJson TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, templateKey)
                 );
 
                 CREATE TABLE IF NOT EXISTS flows (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
                     name TEXT NOT NULL,
                     status TEXT NOT NULL,
-                    nodes_json TEXT NOT NULL,
-                    edges_json TEXT NOT NULL,
-                    spec_json TEXT,
-                    metadata_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    created_by TEXT,
-                    last_edited_by TEXT
+                    nodesJson TEXT NOT NULL,
+                    edgesJson TEXT NOT NULL,
+                    specJson TEXT,
+                    metadataJson TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    createdBy TEXT,
+                    lastEditedBy TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS tenant_deployments (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT,
-                    blueprint_id TEXT,
-                    blueprint_name TEXT,
-                    blueprint_version TEXT,
-                    blueprint_source TEXT,
+                    tenantId TEXT,
+                    blueprintId TEXT,
+                    blueprintName TEXT,
+                    blueprintVersion TEXT,
+                    blueprintSource TEXT,
                     status TEXT NOT NULL,
-                    validation_json TEXT,
-                    error_json TEXT,
-                    initiated_by_user_id TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    validationJson TEXT,
+                    errorJson TEXT,
+                    initiatedByUserId TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS notifications (
                     id TEXT PRIMARY KEY,
-                    tenant_id TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
                     type TEXT NOT NULL,
                     title TEXT NOT NULL,
                     message TEXT NOT NULL,
                     priority TEXT NOT NULL DEFAULT 'normal',
                     link TEXT,
-                    read INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    isRead INTEGER NOT NULL DEFAULT 0,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
                 );
                 """
             )
-            self._ensure_column(conn, "tenants", "settings_json", "TEXT NOT NULL DEFAULT '{}'")
-            self._ensure_column(conn, "tenants", "archived_at", "TEXT")
-            self._ensure_column(conn, "tenants", "archived_by_user_id", "TEXT")
+            self._ensure_column(conn, "tenants", "settingsJson", "TEXT NOT NULL DEFAULT '{}'")
+            self._ensure_column(conn, "tenants", "archivedAt", "TEXT")
+            self._ensure_column(conn, "tenants", "archivedByUserId", "TEXT")
             self._ensure_column(conn, "app_users", "username", "TEXT")
             self._ensure_column(conn, "app_users", "phone", "TEXT")
             self._ensure_column(conn, "app_users", "locale", "TEXT")
             self._ensure_column(conn, "app_users", "timezone", "TEXT")
-            self._ensure_column(conn, "app_users", "email_signature", "TEXT")
-            self._ensure_column(conn, "app_users", "user_settings_json", "TEXT NOT NULL DEFAULT '{}'")
-            self._ensure_column(conn, "app_sessions", "current_tenant_id", "TEXT")
-            self._ensure_column(conn, "app_sessions", "user_agent", "TEXT")
-            self._ensure_column(conn, "ai_runs", "status", "TEXT NOT NULL DEFAULT 'completed'")
-            self._ensure_column(conn, "ai_runs", "agent_role", "TEXT")
-            self._ensure_column(conn, "ai_runs", "intake_agent", "TEXT")
-            self._ensure_column(conn, "ai_runs", "dispatcher_agent", "TEXT")
-            self._ensure_column(conn, "ai_runs", "executing_agent", "TEXT")
-            self._ensure_column(conn, "ai_runs", "requested_agent", "TEXT")
-            self._ensure_column(conn, "ai_runs", "delegate_chain_json", "TEXT")
-            self._ensure_column(conn, "ai_runs", "permission_tier", "TEXT")
-            self._ensure_column(conn, "ai_runs", "thread_id", "TEXT")
-            self._ensure_column(conn, "ai_runs", "contact_id", "TEXT")
-            self._ensure_column(conn, "ai_runs", "company_id", "TEXT")
-            self._ensure_column(conn, "ai_runs", "command_text", "TEXT")
-            self._ensure_column(conn, "ai_runs", "provider_key", "TEXT")
-            self._ensure_column(conn, "ai_runs", "provider_label", "TEXT")
-            self._ensure_column(conn, "ai_runs", "model", "TEXT")
-            self._ensure_column(conn, "ai_runs", "artifacts_json", "TEXT")
-            self._ensure_column(conn, "ai_runs", "steps_json", "TEXT")
-            self._ensure_column(conn, "global_variables", "config_json", "TEXT")
-            conn.execute("UPDATE tenants SET settings_json = COALESCE(settings_json, '{}')")
-            conn.execute("UPDATE app_users SET user_settings_json = COALESCE(user_settings_json, '{}')")
+            self._ensure_column(conn, "app_users", "emailSignature", "TEXT")
+            self._ensure_column(conn, "app_users", "userSettingsJson", "TEXT NOT NULL DEFAULT '{}'")
+            self._ensure_column(conn, "app_sessions", "currentTenantId", "TEXT")
+            self._ensure_column(conn, "app_sessions", "userAgent", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "status", "TEXT NOT NULL DEFAULT 'completed'")
+            self._ensure_column(conn, "aiEngineRuns", "agentRole", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "intakeAgent", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "dispatcherAgent", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "executingAgent", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "requestedAgent", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "delegateChainJson", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "permissionTier", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "threadId", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "contactId", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "companyId", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "commandText", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "providerKey", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "providerLabel", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "model", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "artifactsJson", "TEXT")
+            self._ensure_column(conn, "aiEngineRuns", "stepsJson", "TEXT")
+            self._ensure_column(conn, "global_variables", "configJson", "TEXT")
+            conn.execute("UPDATE tenants SET settingsJson = COALESCE(settingsJson, '{}')")
+            conn.execute("UPDATE app_users SET userSettingsJson = COALESCE(userSettingsJson, '{}')")
             conn.execute(
                 """
                 UPDATE app_users
@@ -399,13 +399,13 @@ class AuthStore:
 
     def _backfill_default_workspace(self, conn: sqlite3.Connection) -> None:
         now = utcnow_iso()
-        tenant_row = conn.execute("SELECT * FROM tenants ORDER BY created_at ASC LIMIT 1").fetchone()
+        tenant_row = conn.execute("SELECT * FROM tenants ORDER BY createdAt ASC LIMIT 1").fetchone()
         if not tenant_row:
             tenant_id = "tenant-primary"
             tenant_name = "AIO CRM Workspace"
             persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
             conn.execute(
-                "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO tenants (id, name, slug, settingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
                 (tenant_id, tenant_name, slugify(tenant_name), json.dumps(persisted_settings), now, now),
             )
             tenant_row = conn.execute("SELECT * FROM tenants WHERE id = ?", (tenant_id,)).fetchone()
@@ -413,13 +413,13 @@ class AuthStore:
         users = conn.execute("SELECT id, role FROM app_users").fetchall()
         for user in users:
             existing_membership = conn.execute(
-                "SELECT id FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT id FROM memberships WHERE userId = ? AND tenantId = ? LIMIT 1",
                 (user["id"], tenant_row["id"]),
             ).fetchone()
             if not existing_membership:
                 conn.execute(
                     """
-                    INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                    INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -432,32 +432,32 @@ class AuthStore:
                     ),
                 )
 
-        sessions = conn.execute("SELECT id, user_id, current_tenant_id FROM app_sessions").fetchall()
+        sessions = conn.execute("SELECT id, userId, currentTenantId FROM app_sessions").fetchall()
         for session in sessions:
-            current_tenant_id = session["current_tenant_id"]
-            if current_tenant_id:
+            currentTenantId = session["currentTenantId"]
+            if currentTenantId:
                 membership = conn.execute(
-                    "SELECT id FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
-                    (session["user_id"], current_tenant_id),
+                    "SELECT id FROM memberships WHERE userId = ? AND tenantId = ? LIMIT 1",
+                    (session["userId"], currentTenantId),
                 ).fetchone()
                 if membership:
                     continue
             default_membership = conn.execute(
                 """
-                SELECT m.tenant_id
+                SELECT m.tenantId
                 FROM memberships m
-                JOIN tenants t ON t.id = m.tenant_id
-                WHERE m.user_id = ?
-                  AND t.archived_at IS NULL
-                ORDER BY m.created_at ASC
+                JOIN tenants t ON t.id = m.tenantId
+                WHERE m.userId = ?
+                  AND t.archivedAt IS NULL
+                ORDER BY m.createdAt ASC
                 LIMIT 1
                 """,
-                (session["user_id"],),
+                (session["userId"],),
             ).fetchone()
             if default_membership:
                 conn.execute(
-                    "UPDATE app_sessions SET current_tenant_id = ? WHERE id = ?",
-                    (default_membership["tenant_id"], session["id"]),
+                    "UPDATE app_sessions SET currentTenantId = ? WHERE id = ?",
+                    (default_membership["tenantId"], session["id"]),
                 )
 
     def _seed_system_settings(self, conn: sqlite3.Connection) -> None:
@@ -466,7 +466,7 @@ class AuthStore:
             return
         now = utcnow_iso()
         conn.execute(
-            "INSERT INTO app_settings (id, system_settings_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO app_settings (id, systemSettingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
             ("system-primary", json.dumps(DEFAULT_SYSTEM_SETTINGS), now, now),
         )
 
@@ -497,24 +497,24 @@ class AuthStore:
         now = utcnow_iso()
         for tenant in tenants:
             tenant_id = tenant["id"]
-            for template_key, email_type, subject, send_to in defaults:
+            for templateKey, email_type, subject, send_to in defaults:
                 existing = conn.execute(
-                    "SELECT id FROM system_email_templates WHERE tenant_id = ? AND template_key = ? LIMIT 1",
-                    (tenant_id, template_key),
+                    "SELECT id FROM system_email_templates WHERE tenantId = ? AND templateKey = ? LIMIT 1",
+                    (tenant_id, templateKey),
                 ).fetchone()
                 if existing:
                     continue
                 conn.execute(
                     """
                     INSERT INTO system_email_templates (
-                        id, tenant_id, template_key, email_type, subject, send_to, enabled,
-                        body_html, body_text, edited_by_name, edited_at, config_json, created_at, updated_at
+                        id, tenantId, templateKey, emailType, subject, sendTo, enabled,
+                        bodyHtml, bodyText, editedByName, editedAt, configJson, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         f"sysmail-{secrets.token_hex(8)}",
                         tenant_id,
-                        template_key,
+                        templateKey,
                         email_type,
                         subject,
                         send_to,
@@ -552,13 +552,13 @@ class AuthStore:
         return candidate
 
     def _backfill_usernames(self, conn: sqlite3.Connection) -> None:
-        rows = conn.execute("SELECT id, email, display_name, username FROM app_users ORDER BY created_at ASC").fetchall()
+        rows = conn.execute("SELECT id, email, displayName, username FROM app_users ORDER BY createdAt ASC").fetchall()
         for row in rows:
             if row["username"]:
                 continue
-            fallback_seed = row["display_name"] or row["email"].split("@")[0]
+            fallback_seed = row["displayName"] or row["email"].split("@")[0]
             username = self._resolve_unique_username(conn, row["email"].split("@")[0], fallback_seed)
-            conn.execute("UPDATE app_users SET username = ?, updated_at = ? WHERE id = ?", (username, utcnow_iso(), row["id"]))
+            conn.execute("UPDATE app_users SET username = ?, updatedAt = ? WHERE id = ?", (username, utcnow_iso(), row["id"]))
 
     @staticmethod
     def _omega_code_digest(value: str) -> str:
@@ -577,8 +577,8 @@ class AuthStore:
             return copy.deepcopy(default)
 
     def _system_settings_from_conn(self, conn: sqlite3.Connection) -> dict[str, Any]:
-        row = conn.execute("SELECT system_settings_json FROM app_settings WHERE id = 'system-primary' LIMIT 1").fetchone()
-        raw = self._json_loads(row["system_settings_json"] if row else None, DEFAULT_SYSTEM_SETTINGS)
+        row = conn.execute("SELECT systemSettingsJson FROM app_settings WHERE id = 'system-primary' LIMIT 1").fetchone()
+        raw = self._json_loads(row["systemSettingsJson"] if row else None, DEFAULT_SYSTEM_SETTINGS)
         settings = normalize_system_settings_payload(raw, include_defaults=True)
         valid, errors = validate_against_schema(
             "tenant-settings",
@@ -594,7 +594,7 @@ class AuthStore:
         return settings
 
     def _user_settings_from_record(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
-        raw = record["user_settings_json"] if "user_settings_json" in record.keys() else record.get("user_settings_json")
+        raw = record["userSettingsJson"] if "userSettingsJson" in record.keys() else record.get("userSettingsJson")
         payload = self._json_loads(raw, DEFAULT_USER_SETTINGS)
         normalized = normalize_user_settings_payload(payload, include_defaults=True)
         normalized["profile"] = {
@@ -608,7 +608,7 @@ class AuthStore:
         }
         normalized["comms"] = {
             **normalized.get("comms", {}),
-            "emailSignature": record["email_signature"] if "email_signature" in record.keys() else normalized.get("comms", {}).get("emailSignature", ""),
+            "emailSignature": record["emailSignature"] if "emailSignature" in record.keys() else normalized.get("comms", {}).get("emailSignature", ""),
         }
         return normalized
 
@@ -617,28 +617,27 @@ class AuthStore:
             """
             SELECT *
             FROM global_variables
-            WHERE tenant_id = ?
-            ORDER BY is_system DESC, key ASC
+            WHERE tenantId = ?
+            ORDER BY isSystem DESC, key ASC
             """,
             (tenant_id,),
         ).fetchall()
         records: list[dict[str, Any]] = []
         for row in rows:
-            config = self._json_loads(row["config_json"] if "config_json" in row.keys() else None, {})
+            config = self._json_loads(row["configJson"] if "configJson" in row.keys() else {})
             records.append(
                 {
                     "id": row["id"],
                     "key": row["key"],
                     "value": row["value"],
                     "label": config.get("label") or row["key"],
-                    "category": config.get("category") or ("system" if bool(row["is_system"]) else "custom"),
-                    "editableByClient": bool(config.get("editableByClient", not bool(row["is_system"]))),
-                    "description": row["description"],
-                    "is_secret": bool(row["is_secret"]),
-                    "is_system": bool(row["is_system"]),
+                    "category": config.get("category") or ("system" if bool(row["isSystem"]) else "custom"),
+                    "editableByClient": bool(config.get("editableByClient", not bool(row["isSystem"]))),
+                    "isSecret": bool(row["isSecret"]),
+                    "isSystem": bool(row["isSystem"]),
                     "config": config,
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
+                    "createdAt": row["createdAt"],
+                    "updatedAt": row["updatedAt"],
                 }
             )
         return records
@@ -653,8 +652,8 @@ class AuthStore:
                 "category": row["category"],
                 "editableByClient": row["editableByClient"],
                 "description": row["description"] or "",
-                "isSecret": row["is_secret"],
-                "isSystem": row["is_system"],
+                "isSecret": row["isSecret"],
+                "isSystem": row["isSystem"],
             }
         return variables
 
@@ -663,35 +662,35 @@ class AuthStore:
             """
             SELECT *
             FROM system_email_templates
-            WHERE tenant_id = ?
-            ORDER BY email_type ASC
+            WHERE tenantId = ?
+            ORDER BY emailType ASC
             """,
             (tenant_id,),
         ).fetchall()
         templates: dict[str, Any] = {}
         for row in rows:
-            config = self._json_loads(row["config_json"], {})
-            templates[row["template_key"]] = {
+            config = self._json_loads(row["configJson"], {})
+            templates[row["templateKey"]] = {
                 "id": row["id"],
-                "templateKey": row["template_key"],
-                "emailType": row["email_type"],
+                "templateKey": row["templateKey"],
+                "emailType": row["emailType"],
                 "subject": row["subject"],
-                "sendTo": row["send_to"],
+                "sendTo": row["sendTo"],
                 "enabled": bool(row["enabled"]),
-                "bodyHtml": row["body_html"],
-                "bodyText": row["body_text"],
+                "bodyHtml": row["bodyHtml"],
+                "bodyText": row["bodyText"],
                 "config": config,
-                "editedAt": row["edited_at"],
-                "updatedAt": row["updated_at"],
+                "editedAt": row["editedAt"],
+                "updatedAt": row["updatedAt"],
             }
         return templates
 
     def _tenant_settings_from_raw(self, conn: sqlite3.Connection, tenant_id: str, raw_settings: str | None = None) -> dict[str, Any]:
         if raw_settings is None:
-            row = conn.execute("SELECT settings_json FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
-            raw_settings = row["settings_json"] if row else None
+            row = conn.execute("SELECT settingsJson FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
+            raw_settings = row["settingsJson"] if row else None
         payload = self._json_loads(raw_settings, DEFAULT_TENANT_SETTINGS)
-        # Projected fields are not persisted in `tenants.settings_json`. Always assemble tenant
+        # Projected fields are not persisted in `tenants.settingsJson`. Always assemble tenant
         # settings through the canonical helper path so projections are applied consistently.
         settings = normalize_tenant_settings_payload(payload, include_defaults=True)
         settings["globalVariables"] = self._canonical_global_variables(conn, tenant_id)
@@ -713,7 +712,7 @@ class AuthStore:
 
     def default_tenant_id(self) -> str:
         with self._connect() as conn:
-            row = conn.execute("SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1").fetchone()
+            row = conn.execute("SELECT id FROM tenants ORDER BY createdAt ASC LIMIT 1").fetchone()
         return row["id"] if row else "tenant-primary"
 
     def _public_user(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
@@ -722,26 +721,26 @@ class AuthStore:
             "id": record["id"],
             "email": record["email"],
             "username": record["username"],
-            "name": record["display_name"] or record["email"],
+            "name": record["displayName"] or record["email"],
             "role": normalize_user_role(record["role"]),
-            "provider": record["auth_provider"],
-            "avatar_url": record["avatar_url"],
+            "provider": record["authProvider"],
+            "avatarUrl": record["avatarUrl"],
             "phone": record["phone"] if "phone" in record.keys() else None,
             "locale": record["locale"] if "locale" in record.keys() else None,
             "timezone": record["timezone"] if "timezone" in record.keys() else None,
-            "email_signature": record["email_signature"] if "email_signature" in record.keys() else None,
+            "emailSignature": record["emailSignature"] if "emailSignature" in record.keys() else None,
             "settings": settings,
         }
 
     def _public_tenant(self, conn: sqlite3.Connection, membership: sqlite3.Row | dict[str, Any], selected: bool = False) -> dict[str, Any]:
-        raw_settings = membership["settings_json"] if "settings_json" in membership.keys() else membership.get("settings_json")
-        tenant_settings = self._tenant_settings_from_raw(conn, membership["tenant_id"], raw_settings)
+        raw_settings = membership["settingsJson"] if "settingsJson" in membership.keys() else membership.get("settingsJson")
+        tenant_settings = self._tenant_settings_from_raw(conn, membership["tenantId"], raw_settings)
         return {
-            "id": membership["tenant_id"],
+            "id": membership["tenantId"],
             # Tenant row fields remain the identity authority for routing/lookups.
-            "name": membership["tenant_name"],
-            "slug": membership["tenant_slug"],
-            "role": membership["membership_role"],
+            "name": membership["tenantName"],
+            "slug": membership["tenantSlug"],
+            "role": membership["membershipRole"],
             # `settings` remains the compatibility projection consumed by the current frontend.
             # Operational metadata belongs in `tenant_settings.internal`, not in row identity fields.
             "settings": tenant_settings_to_legacy_view(tenant_settings),
@@ -750,25 +749,25 @@ class AuthStore:
             "selected": selected,
         }
 
-    def _tenant_memberships(self, conn: sqlite3.Connection, user_id: str, current_tenant_id: str | None) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    def _tenant_memberships(self, conn: sqlite3.Connection, user_id: str, currentTenantId: str | None) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
         rows = conn.execute(
             """
-            SELECT m.tenant_id, m.role AS membership_role, t.name AS tenant_name, t.slug AS tenant_slug, t.settings_json
+            SELECT m.tenantId, m.role AS membershipRole, t.name AS tenantName, t.slug AS tenantSlug, t.settingsJson
             FROM memberships m
-            JOIN tenants t ON t.id = m.tenant_id
-            WHERE m.user_id = ?
-              AND t.archived_at IS NULL
-            ORDER BY t.created_at ASC, t.name ASC
+            JOIN tenants t ON t.id = m.tenantId
+            WHERE m.userId = ?
+              AND t.archivedAt IS NULL
+            ORDER BY t.createdAt ASC, t.name ASC
             """,
             (user_id,),
         ).fetchall()
         if not rows:
             return None, []
-        resolved_tenant_id = current_tenant_id or rows[0]["tenant_id"]
+        resolved_tenant_id = currentTenantId or rows[0]["tenantId"]
         tenants: list[dict[str, Any]] = []
         current_tenant = None
         for row in rows:
-            tenant = self._public_tenant(conn, row, row["tenant_id"] == resolved_tenant_id)
+            tenant = self._public_tenant(conn, row, row["tenantId"] == resolved_tenant_id)
             tenants.append(tenant)
             if tenant["selected"]:
                 current_tenant = tenant
@@ -779,94 +778,94 @@ class AuthStore:
 
     def _require_active_workspace_row(self, conn: sqlite3.Connection, tenant_id: str) -> sqlite3.Row:
         row = conn.execute("SELECT * FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
-        if not row or row["archived_at"]:
+        if not row or row["archivedAt"]:
             raise ValueError("Workspace not found.")
         return row
 
     def _membership_record(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
         return {
             "id": record["id"],
-            "user_id": record["user_id"],
-            "tenant_id": record["tenant_id"],
+            "userId": record["userId"],
+            "tenantId": record["tenantId"],
             "role": record["role"],
-            "user_name": record["display_name"] or record["email"],
-            "user_email": record["email"],
-            "provider": record["auth_provider"],
-            "created_at": record["created_at"],
-            "updated_at": record["updated_at"],
+            "userName": record["displayName"] or record["email"],
+            "userEmail": record["email"],
+            "provider": record["authProvider"],
+            "createdAt": record["createdAt"],
+            "updatedAt": record["updatedAt"],
         }
 
     def _ai_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
-        config = json.loads(record["config_json"]) if record["config_json"] else {}
+        config = json.loads(record["configJson"]) if record["configJson"] else {}
         payload = {
             "id": record["id"],
-            "tenant_id": record["tenant_id"],
-            "provider_key": record["provider_key"],
+            "tenantId": record["tenantId"],
+            "providerKey": record["providerKey"],
             "label": record["label"],
-            "base_url": record["base_url"],
+            "baseUrl": record["baseUrl"],
             "model": record["model"],
             "enabled": bool(record["enabled"]),
-            "is_default": bool(record["is_default"]),
+            "isDefault": bool(record["isDefault"]),
             "status": record["status"],
-            "last_tested_at": record["last_tested_at"],
-            "last_error": record["last_error"],
+            "lastTestedAt": record["lastTestedAt"],
+            "lastError": record["lastError"],
             "config": config,
-            "system_guardrails": config.get("system_guardrails", ""),
-            "task_guardrails": config.get("task_guardrails", ""),
-            "api_key_present": bool(record["api_key"]),
-            "created_at": record["created_at"],
-            "updated_at": record["updated_at"],
+            "systemGuardrails": config.get("systemGuardrails", ""),
+            "taskGuardrails": config.get("taskGuardrails", ""),
+            "apiKeyPresent": bool(record["apiKey"]),
+            "createdAt": record["createdAt"],
+            "updatedAt": record["updatedAt"],
         }
         if include_secret:
-            payload["api_key"] = record["api_key"]
+            payload["apiKey"] = record["apiKey"]
         return payload
 
     def _automation_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
-        config = json.loads(record["config_json"]) if record["config_json"] else {}
+        config = json.loads(record["configJson"]) if record["configJson"] else {}
         payload = {
             "id": record["id"],
-            "tenant_id": record["tenant_id"],
-            "provider_key": record["provider_key"],
+            "tenantId": record["tenantId"],
+            "providerKey": record["providerKey"],
             "label": record["label"],
-            "base_url": record["base_url"],
+            "baseUrl": record["baseUrl"],
             "enabled": bool(record["enabled"]),
             "status": record["status"],
-            "last_tested_at": record["last_tested_at"],
-            "last_error": record["last_error"],
+            "lastTestedAt": record["lastTestedAt"],
+            "lastError": record["lastError"],
             "config": config,
-            "api_key_present": bool(record["api_key"]),
-            "created_at": record["created_at"],
-            "updated_at": record["updated_at"],
+            "apiKeyPresent": bool(record["apiKey"]),
+            "createdAt": record["createdAt"],
+            "updatedAt": record["updatedAt"],
         }
         if include_secret:
-            payload["api_key"] = record["api_key"]
+            payload["apiKey"] = record["apiKey"]
         return payload
 
     def _payment_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
-        config = json.loads(record["config_json"]) if record["config_json"] else {}
+        config = json.loads(record["configJson"]) if record["configJson"] else {}
         payload = {
             "id": record["id"],
-            "tenant_id": record["tenant_id"],
-            "provider_key": record["provider_key"],
+            "tenantId": record["tenantId"],
+            "providerKey": record["providerKey"],
             "label": record["label"],
             "enabled": bool(record["enabled"]),
             "status": record["status"],
-            "last_tested_at": record["last_tested_at"],
-            "last_error": record["last_error"],
+            "lastTestedAt": record["lastTestedAt"],
+            "lastError": record["lastError"],
             "config": config,
-            "api_key_present": bool(config.get("api_key") or config.get("secret_key")),
-            "created_at": record["created_at"],
-            "updated_at": record["updated_at"],
+            "apiKeyPresent": bool(config.get("apiKey") or config.get("secretKey")),
+            "createdAt": record["createdAt"],
+            "updatedAt": record["updatedAt"],
         }
         if include_secret:
-            payload["api_key"] = config.get("api_key")
-            payload["secret_key"] = config.get("secret_key")
+            payload["apiKey"] = config.get("apiKey")
+            payload["secretKey"] = config.get("secretKey")
         return payload
 
     def _require_workspace_role(self, conn: sqlite3.Connection, user_id: str, tenant_id: str, allowed_roles: set[str]) -> sqlite3.Row:
         self._require_active_workspace_row(conn, tenant_id)
         membership = conn.execute(
-            "SELECT * FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
+            "SELECT * FROM memberships WHERE userId = ? AND tenantId = ? LIMIT 1",
             (user_id, tenant_id),
         ).fetchone()
         if not membership:
@@ -876,13 +875,13 @@ class AuthStore:
         return membership
 
     def _build_session(self, conn: sqlite3.Connection, record: sqlite3.Row) -> dict[str, Any]:
-        current_tenant, tenants = self._tenant_memberships(conn, record["user_id"], record["current_tenant_id"])
+        current_tenant, tenants = self._tenant_memberships(conn, record["userId"], record["currentTenantId"])
         return {
             "id": record["id"],
             "token": record["token"],
             "provider": record["provider"],
-            "created_at": record["created_at"],
-            "expires_at": record["expires_at"],
+            "createdAt": record["createdAt"],
+            "expiresAt": record["expiresAt"],
             "user": self._public_user(record),
             "tenant": current_tenant,
             "tenants": tenants,
@@ -912,7 +911,7 @@ class AuthStore:
                 "editableByClient": bool(details.get("editableByClient", not details.get("isSystem"))),
             }
             existing = conn.execute(
-                "SELECT id FROM global_variables WHERE tenant_id = ? AND key = ? LIMIT 1",
+                "SELECT id FROM global_variables WHERE tenantId = ? AND key = ? LIMIT 1",
                 (tenant_id, key),
             ).fetchone()
             now = utcnow_iso()
@@ -928,7 +927,7 @@ class AuthStore:
                 conn.execute(
                     """
                     UPDATE global_variables
-                    SET value = ?, description = ?, is_secret = ?, is_system = ?, config_json = ?, updated_at = ?
+                    SET value = ?, description = ?, isSecret = ?, isSystem = ?, configJson = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (*params, existing["id"]),
@@ -936,7 +935,7 @@ class AuthStore:
                 continue
             conn.execute(
                 """
-                INSERT INTO global_variables (id, tenant_id, key, value, description, is_secret, is_system, config_json, created_by_user_id, created_at, updated_at)
+                INSERT INTO global_variables (id, tenantId, key, value, description, isSecret, isSystem, configJson, createdByUserId, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -948,21 +947,21 @@ class AuthStore:
                     1 if details.get("isSecret") else 0,
                     1 if details.get("isSystem") else 0,
                     json.dumps(config),
-                    user_id,
+                    userId,
                     now,
                     now,
                 ),
             )
 
     def _upsert_system_email_templates_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user: sqlite3.Row, templates: dict[str, Any]) -> None:
-        for template_key, details in templates.items():
+        for templateKey, details in templates.items():
             if not isinstance(details, dict):
                 continue
             existing = conn.execute(
-                "SELECT * FROM system_email_templates WHERE tenant_id = ? AND template_key = ? LIMIT 1",
-                (tenant_id, template_key),
+                "SELECT * FROM system_email_templates WHERE tenantId = ? AND templateKey = ? LIMIT 1",
+                (tenant_id, templateKey),
             ).fetchone()
-            email_type = (details.get("emailType") or template_key.replace("_", " ").title()).strip()
+            email_type = (details.get("emailType") or templateKey.replace("_", " ").title()).strip()
             subject = (details.get("subject") or (existing["subject"] if existing else email_type)).strip()
             send_to = (details.get("sendTo") or (existing["send_to"] if existing else "{{owner.email}}")).strip()
             enabled = 1 if details.get("enabled", True) else 0
@@ -973,7 +972,7 @@ class AuthStore:
                     """
                     UPDATE system_email_templates
                     SET email_type = ?, subject = ?, send_to = ?, enabled = ?, body_html = ?, body_text = ?,
-                        edited_by_user_id = ?, edited_by_name = ?, edited_at = ?, config_json = ?, updated_at = ?
+                        edited_by_userId = ?, edited_by_name = ?, edited_at = ?, config_json = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (
@@ -984,7 +983,7 @@ class AuthStore:
                         details.get("bodyHtml") if details.get("bodyHtml") is not None else existing["body_html"],
                         details.get("bodyText") if details.get("bodyText") is not None else existing["body_text"],
                         user["id"],
-                        user["display_name"] or user["email"],
+                        user["displayName"] or user["email"],
                         now,
                         json.dumps(config),
                         now,
@@ -995,14 +994,14 @@ class AuthStore:
             conn.execute(
                 """
                 INSERT INTO system_email_templates (
-                    id, tenant_id, template_key, email_type, subject, send_to, enabled,
-                    body_html, body_text, edited_by_user_id, edited_by_name, edited_at, config_json, created_at, updated_at
+                    id, tenantId, templateKey, emailType, subject, sendTo, enabled,
+                    bodyHtml, bodyText, editedByUserId, editedByName, editedAt, configJson, createdAt, updatedAt
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     f"system-email-{secrets.token_hex(8)}",
                     tenant_id,
-                    template_key,
+                    templateKey,
                     email_type,
                     subject,
                     send_to,
@@ -1010,7 +1009,7 @@ class AuthStore:
                     details.get("bodyHtml"),
                     details.get("bodyText"),
                     user["id"],
-                    user["display_name"] or user["email"],
+                    user["displayName"] or user["email"],
                     now,
                     json.dumps(config),
                     now,
@@ -1019,12 +1018,12 @@ class AuthStore:
             )
 
     def _replace_global_variables_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user_id: str | None, variables: dict[str, Any]) -> None:
-        conn.execute("DELETE FROM global_variables WHERE tenant_id = ?", (tenant_id,))
+        conn.execute("DELETE FROM global_variables WHERE tenantId = ?", (tenant_id,))
         if isinstance(variables, dict) and variables:
             self._upsert_global_variables_from_canonical(conn, tenant_id, user_id, variables)
 
     def _replace_system_email_templates_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user: sqlite3.Row, templates: dict[str, Any]) -> None:
-        conn.execute("DELETE FROM system_email_templates WHERE tenant_id = ?", (tenant_id,))
+        conn.execute("DELETE FROM system_email_templates WHERE tenantId = ?", (tenant_id,))
         if isinstance(templates, dict) and templates:
             self._upsert_system_email_templates_from_canonical(conn, tenant_id, user, templates)
 
@@ -1050,45 +1049,45 @@ class AuthStore:
         }
         return {
             "id": flow_id,
-            "tenant_id": tenant_id,
+            "tenantId": tenant_id,
             "name": str(flow.get("name") or f"Blueprint Flow {position + 1}").strip() or f"Blueprint Flow {position + 1}",
             # Deployment blueprints must not leave dormant flows behind.
             "status": "Active",
-            "nodes_json": json.dumps(flow.get("nodes") if isinstance(flow.get("nodes"), list) else []),
-            "edges_json": json.dumps(flow.get("edges") if isinstance(flow.get("edges"), list) else []),
-            "spec_json": json.dumps(flow.get("spec")) if flow.get("spec") is not None else None,
-            "metadata_json": json.dumps(merged_metadata),
-            "created_at": flow.get("createdAt") or now,
-            "updated_at": flow.get("updatedAt") or now,
-            "created_by": flow.get("createdBy") or actor_label,
-            "last_edited_by": flow.get("lastEditedBy") or actor_label,
+            "nodesJson": json.dumps(flow.get("nodes") if isinstance(flow.get("nodes"), list) else []),
+            "edgesJson": json.dumps(flow.get("edges") if isinstance(flow.get("edges"), list) else []),
+            "specJson": json.dumps(flow.get("spec")) if flow.get("spec") is not None else None,
+            "metadataJson": json.dumps(merged_metadata),
+            "createdAt": flow.get("createdAt") or now,
+            "updatedAt": flow.get("updatedAt") or now,
+            "createdBy": flow.get("createdBy") or actor_label,
+            "lastEditedBy": flow.get("lastEditedBy") or actor_label,
         }
 
     def _replace_deployment_flows(self, conn: sqlite3.Connection, tenant_id: str, flows: list[dict[str, Any]], actor_label: str) -> list[dict[str, Any]]:
-        conn.execute("DELETE FROM flows WHERE tenant_id = ?", (tenant_id,))
+        conn.execute("DELETE FROM flows WHERE tenantId = ?", (tenant_id,))
         inserted: list[dict[str, Any]] = []
         for index, flow in enumerate(flows):
             record = self._normalize_blueprint_flow_record(tenant_id, flow, index, actor_label)
             conn.execute(
                 """
                 INSERT INTO flows (
-                    id, tenant_id, name, status, nodes_json, edges_json, spec_json, metadata_json,
-                    created_at, updated_at, created_by, last_edited_by
+                    id, tenantId, name, status, nodesJson, edgesJson, specJson, metadataJson,
+                    createdAt, updatedAt, createdBy, lastEditedBy
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record["id"],
-                    record["tenant_id"],
+                    record["tenantId"],
                     record["name"],
                     record["status"],
-                    record["nodes_json"],
-                    record["edges_json"],
-                    record["spec_json"],
-                    record["metadata_json"],
-                    record["created_at"],
-                    record["updated_at"],
-                    record["created_by"],
-                    record["last_edited_by"],
+                    record["nodesJson"],
+                    record["edgesJson"],
+                    record["specJson"],
+                    record["metadataJson"],
+                    record["createdAt"],
+                    record["updatedAt"],
+                    record["createdBy"],
+                    record["lastEditedBy"],
                 ),
             )
             inserted.append(record)
@@ -1108,44 +1107,44 @@ class AuthStore:
         validation: dict[str, Any] | None,
         error_payload: dict[str, Any] | None,
         initiated_by_user_id: str | None,
-        created_at: str | None = None,
+        createdAt: str | None = None,
     ) -> dict[str, Any]:
         now = utcnow_iso()
-        timestamp = created_at or now
+        timestamp = createdAt or now
         record = {
             "id": deployment_id,
-            "tenant_id": tenant_id,
-            "blueprint_id": blueprint_id,
-            "blueprint_name": blueprint_name,
-            "blueprint_version": "" if blueprint_version is None else str(blueprint_version),
-            "blueprint_source": blueprint_source or "",
+            "tenantId": tenant_id,
+            "blueprintId": blueprint_id,
+            "blueprintName": blueprint_name,
+            "blueprintVersion": "" if blueprint_version is None else str(blueprint_version),
+            "blueprintSource": blueprint_source or "",
             "status": status,
-            "validation_json": json.dumps(validation or {}),
-            "error_json": json.dumps(error_payload or {}),
-            "initiated_by_user_id": initiated_by_user_id,
-            "created_at": timestamp,
-            "updated_at": now,
+            "validationJson": json.dumps(validation or {}),
+            "errorJson": json.dumps(error_payload or {}),
+            "initiatedByUserId": initiated_by_user_id,
+            "createdAt": timestamp,
+            "updatedAt": now,
         }
         conn.execute(
             """
             INSERT INTO tenant_deployments (
-                id, tenant_id, blueprint_id, blueprint_name, blueprint_version, blueprint_source,
-                status, validation_json, error_json, initiated_by_user_id, created_at, updated_at
+                id, tenantId, blueprintId, blueprintName, blueprintVersion, blueprintSource,
+                status, validationJson, errorJson, initiatedByUserId, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record["id"],
-                record["tenant_id"],
-                record["blueprint_id"],
-                record["blueprint_name"],
-                record["blueprint_version"],
-                record["blueprint_source"],
+                record["tenantId"],
+                record["blueprintId"],
+                record["blueprintName"],
+                record["blueprintVersion"],
+                record["blueprintSource"],
                 record["status"],
-                record["validation_json"],
-                record["error_json"],
-                record["initiated_by_user_id"],
-                record["created_at"],
-                record["updated_at"],
+                record["validationJson"],
+                record["errorJson"],
+                record["initiatedByUserId"],
+                record["createdAt"],
+                record["updatedAt"],
             ),
         )
         return record
@@ -1155,25 +1154,25 @@ class AuthStore:
         if not row:
             return None
         try:
-            validation = json.loads(row["validation_json"] or "{}")
+            validation = json.loads(row["validationJson"] or "{}")
         except json.JSONDecodeError:
             validation = {}
         try:
-            error_payload = json.loads(row["error_json"] or "{}")
+            error_payload = json.loads(row["errorJson"] or "{}")
         except json.JSONDecodeError:
             error_payload = {}
         return {
             "deploymentId": row["id"],
-            "tenantId": row["tenant_id"],
-            "blueprintId": row["blueprint_id"],
-            "blueprintName": row["blueprint_name"],
-            "blueprintVersion": row["blueprint_version"] or None,
-            "blueprintSource": row["blueprint_source"] or None,
+            "tenantId": row["tenantId"],
+            "blueprintId": row["blueprintId"],
+            "blueprintName": row["blueprintName"],
+            "blueprintVersion": row["blueprintVersion"] or None,
+            "blueprintSource": row["blueprintSource"] or None,
             "status": row["status"],
             "validation": validation,
             "error": error_payload,
-            "timestamp": row["created_at"],
-            "updatedAt": row["updated_at"],
+            "timestamp": row["createdAt"],
+            "updatedAt": row["updatedAt"],
         }
 
     def _deployment_validation_result(
@@ -1238,7 +1237,7 @@ class AuthStore:
         calendar_defaults = calendar.get("defaults") if isinstance(calendar.get("defaults"), dict) else {}
         add_check("calendarDefaults", bool(calendar_defaults), True, "Calendar defaults are populated.", calendar_defaults)
 
-        variable_count = conn.execute("SELECT COUNT(*) AS count FROM global_variables WHERE tenant_id = ?", (tenant_id,)).fetchone()["count"]
+        variable_count = conn.execute("SELECT COUNT(*) AS count FROM global_variables WHERE tenantId = ?", (tenant_id,)).fetchone()["count"]
         add_check(
             "globalVariables",
             variable_count >= expected_variables,
@@ -1247,7 +1246,7 @@ class AuthStore:
             variable_count,
         )
 
-        template_count = conn.execute("SELECT COUNT(*) AS count FROM system_email_templates WHERE tenant_id = ?", (tenant_id,)).fetchone()["count"]
+        template_count = conn.execute("SELECT COUNT(*) AS count FROM system_email_templates WHERE tenantId = ?", (tenant_id,)).fetchone()["count"]
         add_check(
             "systemEmailTemplates",
             template_count >= expected_templates,
@@ -1257,7 +1256,7 @@ class AuthStore:
         )
 
         active_flow_count = conn.execute(
-            "SELECT COUNT(*) AS count FROM flows WHERE tenant_id = ? AND lower(status) = 'active'",
+            "SELECT COUNT(*) AS count FROM flows WHERE tenantId = ? AND lower(status) = 'active'",
             (tenant_id,),
         ).fetchone()["count"]
         flow_check_ok = expected_flows == 0 or active_flow_count >= expected_flows
@@ -1292,15 +1291,15 @@ class AuthStore:
         if len(workspace_name) < 2:
             raise ValueError("Tenant name must be at least 2 characters.")
         deployment_id = f"deployment-{secrets.token_hex(8)}"
-        created_at = utcnow_iso()
+        createdAt = utcnow_iso()
         requested_blueprint_id = (blueprint_id or (blueprint_payload or {}).get("blueprintId") or "").strip() or None
 
         with self._connect() as conn:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], session["current_tenant_id"], {"owner", "admin"})
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            self._require_workspace_role(conn, session["userId"], session["currentTenantId"], {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
             tenant_id: str | None = None
@@ -1319,18 +1318,18 @@ class AuthStore:
                 final_templates = final_comms.get("systemEmailTemplates") if isinstance(final_comms.get("systemEmailTemplates"), dict) else {}
                 tenant_id = f"tenant-{secrets.token_hex(6)}"
                 tenant_slug = self._unique_workspace_slug(conn, workspace_name)
-                actor_label = user["display_name"] or user["email"] or "Current User"
+                actor_label = user["displayName"] or user["email"] or "Current User"
                 persisted_settings = strip_derived_tenant_sections(final_tenant_settings)
-                settings_json = json.dumps({"tenantSettings": persisted_settings})
+                settingsJson = json.dumps({"tenantSettings": persisted_settings})
                 now = utcnow_iso()
 
                 conn.execute(
-                    "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (tenant_id, workspace_name, tenant_slug, settings_json, now, now),
+                    "INSERT INTO tenants (id, name, slug, settingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
+                    (tenant_id, workspace_name, tenant_slug, settingsJson, now, now),
                 )
                 conn.execute(
                     """
-                    INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                    INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (f"membership-{secrets.token_hex(8)}", user["id"], tenant_id, "owner", now, now),
@@ -1346,11 +1345,11 @@ class AuthStore:
                 self._replace_deployment_flows(conn, tenant_id, plan["flows"], actor_label)
                 if switch_to_tenant:
                     conn.execute(
-                        "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                        "UPDATE app_sessions SET currentTenantId = ?, lastSeenAt = ? WHERE token = ?",
                         (tenant_id, now, token),
                     )
 
-                tenant_settings_snapshot = self._tenant_settings_from_raw(conn, tenant_id, settings_json)
+                tenant_settings_snapshot = self._tenant_settings_from_raw(conn, tenant_id, settingsJson)
                 validation = self._deployment_validation_result(
                     conn,
                     tenant_id,
@@ -1379,7 +1378,7 @@ class AuthStore:
                     validation=validation,
                     error_payload=None,
                     initiated_by_user_id=user["id"],
-                    created_at=created_at,
+                    createdAt=createdAt,
                 )
 
                 conn.commit()
@@ -1397,7 +1396,7 @@ class AuthStore:
                     validation=(error.payload or {}).get("detail", {}).get("validation"),
                     error_payload=error.payload,
                     initiated_by_user_id=user["id"],
-                    created_at=created_at,
+                    createdAt=createdAt,
                 )
                 conn.commit()
                 raise
@@ -1420,7 +1419,7 @@ class AuthStore:
                     validation=None,
                     error_payload=structured_error.payload,
                     initiated_by_user_id=user["id"],
-                    created_at=created_at,
+                    createdAt=createdAt,
                 )
                 conn.commit()
                 raise structured_error
@@ -1432,7 +1431,7 @@ class AuthStore:
             "tenantSettings": self.get_tenant_settings(tenant_id),
             "validation": validation,
             "switchedToTenant": bool(switch_to_tenant),
-            "activeTenantId": tenant_id if switch_to_tenant else session["current_tenant_id"],
+            "activeTenantId": tenant_id if switch_to_tenant else session["currentTenantId"],
         }
 
     def get_system_settings(self) -> dict[str, Any]:
@@ -1449,7 +1448,7 @@ class AuthStore:
                 session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
                 if not session:
                     raise ValueError("Session not found or expired.")
-                user_id = session["user_id"]
+                user_id = session["userId"]
             if not user_id:
                 raise ValueError("User context is required.")
             user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (user_id,)).fetchone()
@@ -1474,7 +1473,7 @@ class AuthStore:
             if not valid:
                 raise ValueError(f"Invalid system settings payload: {'; '.join(errors)}")
             conn.execute(
-                "UPDATE app_settings SET system_settings_json = ?, updated_at = ? WHERE id = 'system-primary'",
+                "UPDATE app_settings SET systemSettingsJson = ?, updatedAt = ? WHERE id = 'system-primary'",
                 (json.dumps(updated), utcnow_iso()),
             )
             conn.commit()
@@ -1487,8 +1486,8 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
 
@@ -1515,14 +1514,14 @@ class AuthStore:
 
             persisted = strip_derived_tenant_sections(merged)
             # Compatibility note:
-            # `tenants.settings_json` now stores canonical tenantSettings. Legacy `tenant.settings`
+            # `tenants.settingsJson` now stores canonical tenantSettings. Legacy `tenant.settings`
             # is projected from this payload at read time so the current frontend can keep working.
             # Boundary note:
             # tenant row fields (`id`, `name`, `slug`, other lookup-critical identity fields)
             # remain authoritative on the row. `tenantSettings.internal` is for operational
             # metadata only and must not become a mirrored identity store.
             conn.execute(
-                "UPDATE tenants SET settings_json = ?, updated_at = ? WHERE id = ?",
+                "UPDATE tenants SET settingsJson = ?, updatedAt = ? WHERE id = ?",
                 (json.dumps({"tenantSettings": persisted}), utcnow_iso(), tenant_id),
             )
             conn.commit()
@@ -1535,7 +1534,7 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
 
@@ -1558,7 +1557,7 @@ class AuthStore:
             conn.execute(
                 """
                 UPDATE app_users
-                SET phone = ?, locale = ?, timezone = ?, email_signature = ?, user_settings_json = ?, updated_at = ?
+                SET phone = ?, locale = ?, timezone = ?, emailSignature = ?, userSettingsJson = ?, updatedAt = ?
                 WHERE id = ?
                 """,
                 (
@@ -1582,8 +1581,8 @@ class AuthStore:
             rows = conn.execute(
                 """
                 SELECT * FROM flows
-                WHERE tenant_id = ?
-                ORDER BY created_at ASC, updated_at ASC
+                WHERE tenantId = ?
+                ORDER BY createdAt ASC, updatedAt ASC
                 """,
                 (tenant_id,),
             ).fetchall()
@@ -1592,15 +1591,15 @@ class AuthStore:
                     """
                     SELECT *
                     FROM tenant_deployments
-                    WHERE tenant_id = ?
-                    ORDER BY created_at DESC
+                    WHERE tenantId = ?
+                    ORDER BY createdAt DESC
                     LIMIT 1
                     """,
                     (tenant_id,),
                 ).fetchone()
             )
         for row in rows:
-            nodes = self._json_loads(row["nodes_json"], [])
+            nodes = self._json_loads(row["nodesJson"], [])
             if str(row["status"] or "").strip().lower() != "active":
                 continue
             if not any(str(node.get("type") or "").lower() == "trigger" for node in nodes if isinstance(node, dict)):
@@ -1611,9 +1610,9 @@ class AuthStore:
                     "name": row["name"],
                     "status": row["status"],
                     "nodes": nodes,
-                    "edges": self._json_loads(row["edges_json"], []),
-                    "spec": self._json_loads(row["spec_json"], None),
-                    "metadata": self._json_loads(row["metadata_json"], {}),
+                    "edges": self._json_loads(row["edgesJson"], []),
+                    "spec": self._json_loads(row["specJson"], None),
+                    "metadata": self._json_loads(row["metadataJson"], {}),
                 }
             )
         blueprint = build_tenant_blueprint(
@@ -1641,13 +1640,13 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
             persisted_settings = strip_derived_tenant_sections(final_tenant_settings)
-            settings_json = json.dumps({"tenantSettings": persisted_settings})
-            conn.execute("UPDATE tenants SET settings_json = ?, updated_at = ? WHERE id = ?", (settings_json, utcnow_iso(), tenant_id))
+            settingsJson = json.dumps({"tenantSettings": persisted_settings})
+            conn.execute("UPDATE tenants SET settingsJson = ?, updatedAt = ? WHERE id = ?", (settingsJson, utcnow_iso(), tenant_id))
             self._replace_global_variables_from_canonical(
                 conn,
                 tenant_id,
@@ -1655,7 +1654,7 @@ class AuthStore:
                 final_tenant_settings.get("globalVariables") if isinstance(final_tenant_settings.get("globalVariables"), dict) else {},
             )
             self._replace_system_email_templates_from_canonical(conn, tenant_id, user, final_templates)
-            self._replace_deployment_flows(conn, tenant_id, plan["flows"], user["display_name"] or user["email"] or "Current User")
+            self._replace_deployment_flows(conn, tenant_id, plan["flows"], user["displayName"] or user["email"] or "Current User")
             conn.commit()
         return self.get_tenant_settings(tenant_id)
 
@@ -1678,13 +1677,13 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             row = conn.execute(
                 """
                 SELECT *
                 FROM tenant_deployments
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                WHERE tenantId = ?
+                ORDER BY createdAt DESC
                 LIMIT 1
                 """,
                 (tenant_id,),
@@ -1698,13 +1697,13 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             rows = conn.execute(
                 """
                 SELECT *
                 FROM tenant_deployments
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                WHERE tenantId = ?
+                ORDER BY createdAt DESC
                 LIMIT ?
                 """,
                 (tenant_id, max(1, min(limit, 100))),
@@ -1724,8 +1723,8 @@ class AuthStore:
                 """
                 SELECT *
                 FROM ai_provider_configs
-                WHERE tenant_id = ?
-                ORDER BY is_default DESC, enabled DESC, label ASC, provider_key ASC
+                WHERE tenantId = ?
+                ORDER BY isDefault DESC, enabled DESC, label ASC, providerKey ASC
                 """,
                 (tenant_id,),
             ).fetchall()
@@ -1737,8 +1736,8 @@ class AuthStore:
                 """
                 SELECT *
                 FROM ai_provider_configs
-                WHERE tenant_id = ? AND enabled = 1
-                ORDER BY is_default DESC, updated_at DESC
+                WHERE tenantId = ? AND enabled = 1
+                ORDER BY is_default DESC, updatedAt DESC
                 LIMIT 1
                 """,
                 (tenant_id,),
@@ -1748,7 +1747,7 @@ class AuthStore:
     def get_ai_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM ai_provider_configs WHERE tenant_id = ? AND id = ? LIMIT 1",
+                "SELECT * FROM ai_provider_configs WHERE tenantId = ? AND id = ? LIMIT 1",
                 (tenant_id, config_id),
             ).fetchone()
         return self._ai_provider_record(row, include_secret=True) if row else None
@@ -1756,33 +1755,33 @@ class AuthStore:
     def _create_session(self, conn: sqlite3.Connection, user_id: str, provider: str, user_agent: str | None = None) -> dict[str, Any]:
         session_id = f"session-{secrets.token_hex(10)}"
         token = secrets.token_urlsafe(32)
-        created_at = utcnow_iso()
-        expires_at = (datetime.now(UTC) + timedelta(days=14)).isoformat()
+        createdAt = utcnow_iso()
+        expiresAt = (datetime.now(UTC) + timedelta(days=14)).isoformat()
         tenant_row = conn.execute(
             """
-            SELECT m.tenant_id
+            SELECT m.tenantId
             FROM memberships m
-            JOIN tenants t ON t.id = m.tenant_id
-            WHERE m.user_id = ?
-              AND t.archived_at IS NULL
-            ORDER BY m.created_at ASC
+            JOIN tenants t ON t.id = m.tenantId
+            WHERE m.userId = ?
+              AND t.archivedAt IS NULL
+            ORDER BY m.createdAt ASC
             LIMIT 1
             """,
             (user_id,),
         ).fetchone()
-        current_tenant_id = tenant_row["tenant_id"] if tenant_row else None
+        currentTenantId = tenant_row["tenantId"] if tenant_row else None
         conn.execute(
             """
-            INSERT INTO app_sessions (id, user_id, token, provider, current_tenant_id, created_at, expires_at, last_seen_at, user_agent)
+            INSERT INTO app_sessions (id, userId, token, provider, currentTenantId, createdAt, expiresAt, lastSeenAt, userAgent)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (session_id, user_id, token, provider, current_tenant_id, created_at, expires_at, created_at, user_agent),
+            (session_id, user_id, token, provider, currentTenantId, createdAt, expiresAt, createdAt, user_agent),
         )
         record = conn.execute(
             """
-            SELECT s.id, s.user_id, s.token, s.provider, s.current_tenant_id, s.created_at, s.expires_at, u.*
+            SELECT s.id, s.userId, s.token, s.provider, s.currentTenantId, s.createdAt, s.expiresAt, u.*
             FROM app_sessions s
-            JOIN app_users u ON u.id = s.user_id
+            JOIN app_users u ON u.id = s.userId
             WHERE s.id = ?
             """,
             (session_id,),
@@ -1811,14 +1810,14 @@ class AuthStore:
             username = self._resolve_unique_username(conn, normalized.split("@")[0], name)
             conn.execute(
                 """
-                INSERT INTO app_users (id, email, username, display_name, password_hash, password_salt, auth_provider, role, created_at, updated_at)
+                INSERT INTO app_users (id, email, username, displayName, passwordHash, passwordSalt, authProvider, role, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'operator', ?, ?)
                 """,
                 (user_id, normalized, username, name.strip() or normalized, password_hash, password_salt, "local-password", now, now),
             )
             conn.execute(
                 """
-                INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                 VALUES (?, ?, ?, 'owner', ?, ?)
                 """,
                 (f"membership-{secrets.token_hex(8)}", user_id, tenant_id, now, now),
@@ -1834,12 +1833,12 @@ class AuthStore:
                 "SELECT * FROM app_users WHERE lower(email) = lower(?) OR lower(username) = lower(?) LIMIT 1",
                 (normalized, normalized),
             ).fetchone()
-            if not record or not record["password_hash"] or not record["password_salt"]:
+            if not record or not record["passwordHash"] or not record["passwordSalt"]:
                 raise ValueError("Invalid email or password.")
-            if not verify_password(password, record["password_hash"], record["password_salt"]):
+            if not verify_password(password, record["passwordHash"], record["passwordSalt"]):
                 raise ValueError("Invalid email or password.")
             now = utcnow_iso()
-            conn.execute("UPDATE app_users SET last_login_at = ?, updated_at = ? WHERE id = ?", (now, now, record["id"]))
+            conn.execute("UPDATE app_users SET lastLoginAt = ?, updatedAt = ? WHERE id = ?", (now, now, record["id"]))
             session = self._create_session(conn, record["id"], "local-password", user_agent=user_agent)
             conn.commit()
         return session
@@ -1856,12 +1855,12 @@ class AuthStore:
                 conn.execute(
                     """
                     UPDATE app_users
-                    SET display_name = ?, avatar_url = ?, auth_provider = ?, last_login_at = ?, updated_at = ?
+                    SET displayName = ?, avatarUrl = ?, authProvider = ?, lastLoginAt = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (
-                        (name or existing["display_name"] or normalized).strip(),
-                        avatar_url or existing["avatar_url"],
+                        (name or existing["displayName"] or normalized).strip(),
+                        avatar_url or existing["avatarUrl"],
                         "google-oauth",
                         now,
                         now,
@@ -1875,14 +1874,14 @@ class AuthStore:
                 username = self._resolve_unique_username(conn, normalized.split("@")[0], name or normalized)
                 conn.execute(
                     """
-                    INSERT INTO app_users (id, email, username, display_name, auth_provider, role, avatar_url, last_login_at, created_at, updated_at)
+                    INSERT INTO app_users (id, email, username, displayName, authProvider, role, avatarUrl, lastLoginAt, createdAt, updatedAt)
                     VALUES (?, ?, ?, ?, 'google-oauth', 'operator', ?, ?, ?, ?)
                     """,
                     (user_id, normalized, username, (name or normalized).strip(), avatar_url, now, now, now),
                 )
                 conn.execute(
                     """
-                    INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                    INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                     VALUES (?, ?, ?, 'owner', ?, ?)
                     """,
                     (f"membership-{secrets.token_hex(8)}", user_id, tenant_id, now, now),
@@ -1900,9 +1899,9 @@ class AuthStore:
         with self._connect() as conn:
             record = conn.execute(
                 """
-                SELECT s.id, s.user_id, s.token, s.provider, s.current_tenant_id, s.created_at, s.expires_at, u.*
+                SELECT s.id, s.userId, s.token, s.provider, s.currentTenantId, s.createdAt, s.expiresAt, u.*
                 FROM app_sessions s
-                JOIN app_users u ON u.id = s.user_id
+                JOIN app_users u ON u.id = s.userId
                 WHERE s.token = ?
                 LIMIT 1
                 """,
@@ -1910,19 +1909,19 @@ class AuthStore:
             ).fetchone()
             if not record:
                 return None
-            expires_at = datetime.fromisoformat(record["expires_at"])
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=UTC)
-            if expires_at <= datetime.now(UTC):
+            expiresAt = datetime.fromisoformat(record["expiresAt"])
+            if expiresAt.tzinfo is None:
+                expiresAt = expiresAt.replace(tzinfo=UTC)
+            if expiresAt <= datetime.now(UTC):
                 conn.execute("DELETE FROM app_sessions WHERE token = ?", (token,))
                 conn.commit()
                 return None
-            conn.execute("UPDATE app_sessions SET last_seen_at = ? WHERE token = ?", (utcnow_iso(), token))
+            conn.execute("UPDATE app_sessions SET lastSeenAt = ? WHERE token = ?", (utcnow_iso(), token))
             session = self._build_session(conn, record)
             resolved_tenant_id = (session.get("tenant") or {}).get("id") if isinstance(session.get("tenant"), dict) else None
-            if resolved_tenant_id != record["current_tenant_id"]:
+            if resolved_tenant_id != record["currentTenantId"]:
                 conn.execute(
-                    "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                    "UPDATE app_sessions SET currentTenantId = ?, lastSeenAt = ? WHERE token = ?",
                     (resolved_tenant_id, utcnow_iso(), token),
                 )
             conn.commit()
@@ -1934,9 +1933,9 @@ class AuthStore:
         with self._connect() as conn:
             record = conn.execute(
                 """
-                SELECT s.id, s.user_id, s.token, s.provider, s.current_tenant_id, s.created_at, s.expires_at, u.*
+                SELECT s.id, s.userId, s.token, s.provider, s.currentTenantId, s.createdAt, s.expiresAt, u.*
                 FROM app_sessions s
-                JOIN app_users u ON u.id = s.user_id
+                JOIN app_users u ON u.id = s.userId
                 WHERE s.token = ?
                 LIMIT 1
                 """,
@@ -1944,17 +1943,17 @@ class AuthStore:
             ).fetchone()
             if not record:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, record["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, record["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             conn.execute(
-                "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                "UPDATE app_sessions SET currentTenantId = ?, lastSeenAt = ? WHERE token = ?",
                 (tenant_id, utcnow_iso(), token),
             )
             conn.commit()
             refreshed = conn.execute(
                 """
-                SELECT s.id, s.user_id, s.token, s.provider, s.current_tenant_id, s.created_at, s.expires_at, u.*
+                SELECT s.id, s.userId, s.token, s.provider, s.currentTenantId, s.createdAt, s.expiresAt, u.*
                 FROM app_sessions s
-                JOIN app_users u ON u.id = s.user_id
+                JOIN app_users u ON u.id = s.userId
                 WHERE s.token = ?
                 LIMIT 1
                 """,
@@ -1975,26 +1974,26 @@ class AuthStore:
             ).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], session["current_tenant_id"], {"owner", "admin"})
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            self._require_workspace_role(conn, session["userId"], session["currentTenantId"], {"owner", "admin"})
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
             workspace_id = f"tenant-{secrets.token_hex(6)}"
             now = utcnow_iso()
             persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
             conn.execute(
-                "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO tenants (id, name, slug, settingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
                 (workspace_id, workspace_name, f"{slugify(workspace_name)}-{secrets.token_hex(3)}", json.dumps(persisted_settings), now, now),
             )
             conn.execute(
                 """
-                INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (f"membership-{secrets.token_hex(8)}", user["id"], workspace_id, "owner", now, now),
             )
             conn.execute(
-                "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
+                "UPDATE app_sessions SET currentTenantId = ?, lastSeenAt = ? WHERE token = ?",
                 (workspace_id, now, token),
             )
             conn.commit()
@@ -2015,11 +2014,11 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             if name is not None:
                 # Workspace identity stays on the tenant row. Do not mirror `name` into
                 # `tenantSettings.internal`; operational metadata is updated separately.
-                conn.execute("UPDATE tenants SET name = ?, updated_at = ? WHERE id = ?", (workspace_name, utcnow_iso(), tenant_id))
+                conn.execute("UPDATE tenants SET name = ?, updatedAt = ? WHERE id = ?", (workspace_name, utcnow_iso(), tenant_id))
                 conn.commit()
         if settings is not None:
             self.update_tenant_settings(token, tenant_id, settings)
@@ -2032,43 +2031,43 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner"})
             active_memberships = conn.execute(
                 """
-                SELECT m.tenant_id
+                SELECT m.tenantId
                 FROM memberships m
-                JOIN tenants t ON t.id = m.tenant_id
-                WHERE m.user_id = ?
-                  AND t.archived_at IS NULL
-                ORDER BY t.created_at ASC, t.name ASC
+                JOIN tenants t ON t.id = m.tenantId
+                WHERE m.userId = ?
+                  AND t.archivedAt IS NULL
+                ORDER BY t.createdAt ASC, t.name ASC
                 """,
-                (session["user_id"],),
+                (session["userId"],),
             ).fetchall()
             if len(active_memberships) <= 1:
                 raise ValueError("You cannot archive your only remaining accessible workspace.")
-            fallback_row = next((row for row in active_memberships if row["tenant_id"] != tenant_id), None)
+            fallback_row = next((row for row in active_memberships if row["tenantId"] != tenant_id), None)
             if not fallback_row:
                 raise ValueError("No alternate workspace is available for this session.")
             workspace = self._require_active_workspace_row(conn, tenant_id)
             now = utcnow_iso()
             conn.execute(
-                "UPDATE tenants SET archived_at = ?, archived_by_user_id = ?, updated_at = ? WHERE id = ?",
-                (now, session["user_id"], now, tenant_id),
+                "UPDATE tenants SET archivedAt = ?, archivedByUserId = ?, updatedAt = ? WHERE id = ?",
+                (now, session["userId"], now, tenant_id),
             )
             conn.execute(
-                "UPDATE app_sessions SET current_tenant_id = NULL, last_seen_at = ? WHERE current_tenant_id = ?",
+                "UPDATE app_sessions SET currentTenantId = NULL, lastSeenAt = ? WHERE currentTenantId = ?",
                 (now, tenant_id),
             )
             conn.execute(
-                "UPDATE app_sessions SET current_tenant_id = ?, last_seen_at = ? WHERE token = ?",
-                (fallback_row["tenant_id"], now, token),
+                "UPDATE app_sessions SET currentTenantId = ?, lastSeenAt = ? WHERE token = ?",
+                (fallback_row["tenantId"], now, token),
             )
             conn.commit()
             refreshed = conn.execute(
                 """
-                SELECT s.id, s.user_id, s.token, s.provider, s.current_tenant_id, s.created_at, s.expires_at, u.*
+                SELECT s.id, s.userId, s.token, s.provider, s.currentTenantId, s.createdAt, s.expiresAt, u.*
                 FROM app_sessions s
-                JOIN app_users u ON u.id = s.user_id
+                JOIN app_users u ON u.id = s.userId
                 WHERE s.token = ?
                 LIMIT 1
                 """,
@@ -2079,15 +2078,15 @@ class AuthStore:
                     "id": workspace["id"],
                     "name": workspace["name"],
                     "slug": workspace["slug"],
-                    "archived_at": now,
+                    "archivedAt": now,
                 },
-                "fallback_workspace_id": fallback_row["tenant_id"],
+                "fallback_workspace_id": fallback_row["tenantId"],
                 "session": self._build_session(conn, refreshed),
             }
 
     def get_workspace(self, tenant_id: str) -> dict[str, Any]:
         with self._connect() as conn:
-            row = conn.execute("SELECT * FROM tenants WHERE id = ? AND archived_at IS NULL LIMIT 1", (tenant_id,)).fetchone()
+            row = conn.execute("SELECT * FROM tenants WHERE id = ? AND archivedAt IS NULL LIMIT 1", (tenant_id,)).fetchone()
         if not row:
             raise ValueError("Workspace not found.")
         tenant_settings = self.get_tenant_settings(tenant_id)
@@ -2101,8 +2100,8 @@ class AuthStore:
             "settings": tenant_settings_to_legacy_view(tenant_settings),
             "tenant_settings": tenant_settings,
             "system_settings": system_settings,
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
+            "createdAt": row["createdAt"],
+            "updatedAt": row["updatedAt"],
         }
 
     def list_notifications(self, token: str | None, tenant_id: str, limit: int = 50, unread_only: bool = False) -> dict[str, Any]:
@@ -2112,16 +2111,16 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
-            query = "SELECT * FROM notifications WHERE tenant_id = ?"
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            query = "SELECT * FROM notifications WHERE tenantId = ?"
             params: list[Any] = [tenant_id]
             if unread_only:
-                query += " AND read = 0"
-            query += " ORDER BY created_at DESC LIMIT ?"
+                query += " AND isRead = 0"
+            query += " ORDER BY createdAt DESC LIMIT ?"
             params.append(max(1, min(limit, 100)))
             rows = conn.execute(query, params).fetchall()
             unread_count = conn.execute(
-                "SELECT COUNT(*) AS count FROM notifications WHERE tenant_id = ? AND read = 0",
+                "SELECT COUNT(*) AS count FROM notifications WHERE tenantId = ? AND isRead = 0",
                 (tenant_id,),
             ).fetchone()["count"]
         return {
@@ -2133,9 +2132,9 @@ class AuthStore:
                     "message": row["message"],
                     "priority": row["priority"],
                     "link": row["link"],
-                    "read": bool(row["read"]),
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
+                    "read": bool(row["isRead"]),
+                    "createdAt": row["createdAt"],
+                    "updatedAt": row["updatedAt"],
                 }
                 for row in rows
             ],
@@ -2149,38 +2148,38 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             now = utcnow_iso()
             notification = {
                 "id": f"notif-{secrets.token_hex(8)}",
-                "tenant_id": tenant_id,
+                "tenantId": tenant_id,
                 "type": (payload.get("type") or "info").strip() or "info",
                 "title": (payload.get("title") or "").strip(),
                 "message": (payload.get("message") or "").strip(),
                 "priority": (payload.get("priority") or "normal").strip() or "normal",
                 "link": (payload.get("link") or "").strip() or None,
                 "read": 0,
-                "created_at": now,
-                "updated_at": now,
+                "createdAt": now,
+                "updatedAt": now,
             }
             if not notification["title"] or not notification["message"]:
                 raise ValueError("Notification title and message are required.")
             conn.execute(
                 """
-                INSERT INTO notifications (id, tenant_id, type, title, message, priority, link, read, created_at, updated_at)
+                INSERT INTO notifications (id, tenantId, type, title, message, priority, link, isRead, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     notification["id"],
-                    notification["tenant_id"],
+                    notification["tenantId"],
                     notification["type"],
                     notification["title"],
                     notification["message"],
                     notification["priority"],
                     notification["link"],
-                    notification["read"],
-                    notification["created_at"],
-                    notification["updated_at"],
+                    notification["isRead"],
+                    notification["createdAt"],
+                    notification["updatedAt"],
                 ),
             )
             conn.execute(
@@ -2188,8 +2187,8 @@ class AuthStore:
                 DELETE FROM notifications
                 WHERE id IN (
                     SELECT id FROM notifications
-                    WHERE tenant_id = ?
-                    ORDER BY created_at DESC
+                    WHERE tenantId = ?
+                    ORDER BY createdAt DESC
                     LIMIT -1 OFFSET 100
                 )
                 """,
@@ -2206,9 +2205,9 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             row = conn.execute(
-                "SELECT * FROM notifications WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM notifications WHERE id = ? AND tenantId = ? LIMIT 1",
                 (notification_id, tenant_id),
             ).fetchone()
             if not row:
@@ -2216,7 +2215,7 @@ class AuthStore:
             now = utcnow_iso()
             if read is not None:
                 conn.execute(
-                    "UPDATE notifications SET read = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                    "UPDATE notifications SET isRead = ?, updatedAt = ? WHERE id = ? AND tenantId = ?",
                     (1 if read else 0, now, notification_id, tenant_id),
                 )
             conn.commit()
@@ -2227,9 +2226,9 @@ class AuthStore:
             "message": row["message"],
             "priority": row["priority"],
             "link": row["link"],
-            "read": bool(read if read is not None else row["read"]),
-            "created_at": row["created_at"],
-            "updated_at": now if read is not None else row["updated_at"],
+            "read": bool(read if read is not None else row["isRead"]),
+            "createdAt": row["createdAt"],
+            "updatedAt": now if read is not None else row["updatedAt"],
         }
 
     def mark_all_notifications_read(self, token: str | None, tenant_id: str) -> dict[str, Any]:
@@ -2239,10 +2238,10 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             now = utcnow_iso()
             conn.execute(
-                "UPDATE notifications SET read = 1, updated_at = ? WHERE tenant_id = ?",
+                "UPDATE notifications SET read = 1, updatedAt = ? WHERE tenantId = ?",
                 (now, tenant_id),
             )
             conn.commit()
@@ -2255,14 +2254,14 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             row = conn.execute(
-                "SELECT id FROM notifications WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT id FROM notifications WHERE id = ? AND tenantId = ? LIMIT 1",
                 (notification_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("Notification not found.")
-            conn.execute("DELETE FROM notifications WHERE id = ? AND tenant_id = ?", (notification_id, tenant_id))
+            conn.execute("DELETE FROM notifications WHERE id = ? AND tenantId = ?", (notification_id, tenant_id))
             conn.commit()
         return {"success": True}
 
@@ -2273,14 +2272,14 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             rows = conn.execute(
                 """
-                SELECT m.*, u.email, u.display_name, u.auth_provider
+                SELECT m.*, u.email, u.displayName, u.authProvider
                 FROM memberships m
-                JOIN app_users u ON u.id = m.user_id
-                WHERE m.tenant_id = ?
-                ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END, u.display_name ASC, u.email ASC
+                JOIN app_users u ON u.id = m.userId
+                WHERE m.tenantId = ?
+                ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END, u.displayName ASC, u.email ASC
                 """,
                 (tenant_id,),
             ).fetchall()
@@ -2296,24 +2295,24 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             user = conn.execute("SELECT * FROM app_users WHERE email = ? LIMIT 1", (normalized_email,)).fetchone()
             if not user:
                 raise ValueError("No app user exists for that email yet.")
             existing = conn.execute(
-                "SELECT * FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM memberships WHERE userId = ? AND tenantId = ? LIMIT 1",
                 (user["id"], tenant_id),
             ).fetchone()
             now = utcnow_iso()
             if existing:
                 conn.execute(
-                    "UPDATE memberships SET role = ?, updated_at = ? WHERE id = ?",
+                    "UPDATE memberships SET role = ?, updatedAt = ? WHERE id = ?",
                     (role, now, existing["id"]),
                 )
             else:
                 conn.execute(
                     """
-                    INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                    INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (f"membership-{secrets.token_hex(8)}", user["id"], tenant_id, role, now, now),
@@ -2353,7 +2352,7 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            acting = self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            acting = self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             existing_by_email = conn.execute("SELECT id FROM app_users WHERE email = ? LIMIT 1", (normalized_email,)).fetchone()
             if existing_by_email:
                 raise ValueError("An app user with that email already exists.")
@@ -2361,7 +2360,7 @@ class AuthStore:
                 raise ValueError("That username is already in use.")
 
             user_id = f"user-{secrets.token_hex(8)}"
-            password_hash, password_salt = hash_password(password)
+            passwordHash, passwordSalt = hash_password(password)
             now = utcnow_iso()
             target_tenant_id = tenant_id
             target_role = role
@@ -2373,42 +2372,42 @@ class AuthStore:
                 workspace_slug = f"{slugify(workspace_label)}-{secrets.token_hex(3)}"
                 persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
                 conn.execute(
-                    "INSERT INTO tenants (id, name, slug, settings_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO tenants (id, name, slug, settingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
                     (target_tenant_id, workspace_label, workspace_slug, json.dumps(persisted_settings), now, now),
                 )
                 target_role = "owner"
                 existing_owner_membership = conn.execute(
-                    "SELECT id FROM memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1",
-                    (session["user_id"], target_tenant_id),
+                    "SELECT id FROM memberships WHERE userId = ? AND tenantId = ? LIMIT 1",
+                    (session["userId"], target_tenant_id),
                 ).fetchone()
                 if not existing_owner_membership:
                     conn.execute(
                         """
-                        INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                        INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                         VALUES (?, ?, ?, 'owner', ?, ?)
                         """,
-                        (f"membership-{secrets.token_hex(8)}", session["user_id"], target_tenant_id, now, now),
+                        (f"membership-{secrets.token_hex(8)}", session["userId"], target_tenant_id, now, now),
                     )
                 created_workspace = {
                     "id": target_tenant_id,
                     "name": workspace_label,
                     "slug": workspace_slug,
-                    "created_at": now,
-                    "updated_at": now,
+                    "createdAt": now,
+                    "updatedAt": now,
                 }
             elif acting["role"] != "owner" and role == "owner":
                 raise ValueError("Only owners can create another owner in this workspace.")
 
             conn.execute(
                 """
-                INSERT INTO app_users (id, email, username, display_name, password_hash, password_salt, auth_provider, role, created_at, updated_at)
+                INSERT INTO app_users (id, email, username, displayName, passwordHash, passwordSalt, authProvider, role, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?, 'local-password', ?, ?, ?)
                 """,
                 (user_id, normalized_email, normalized_username, normalized_name, password_hash, password_salt, resolved_user_role, now, now),
             )
             conn.execute(
                 """
-                INSERT INTO memberships (id, user_id, tenant_id, role, created_at, updated_at)
+                INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (f"membership-{secrets.token_hex(8)}", user_id, target_tenant_id, target_role, now, now),
@@ -2437,19 +2436,19 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            acting = self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            acting = self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             membership = conn.execute(
-                "SELECT * FROM memberships WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM memberships WHERE id = ? AND tenantId = ? LIMIT 1",
                 (membership_id, tenant_id),
             ).fetchone()
             if not membership:
                 raise ValueError("Workspace member not found.")
             if acting["role"] != "owner" and role == "owner":
                 raise ValueError("Only owners can assign the owner role.")
-            if membership["user_id"] == session["user_id"] and role != membership["role"] and membership["role"] == "owner":
+            if membership["userId"] == session["userId"] and role != membership["role"] and membership["role"] == "owner":
                 raise ValueError("Transfer ownership before changing your own owner role.")
             conn.execute(
-                "UPDATE memberships SET role = ?, updated_at = ? WHERE id = ?",
+                "UPDATE memberships SET role = ?, updatedAt = ? WHERE id = ?",
                 (role, utcnow_iso(), membership_id),
             )
             conn.commit()
@@ -2462,15 +2461,15 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            acting = self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            acting = self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             membership = conn.execute(
-                "SELECT * FROM memberships WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM memberships WHERE id = ? AND tenantId = ? LIMIT 1",
                 (membership_id, tenant_id),
             ).fetchone()
             if not membership:
                 raise ValueError("Workspace member not found.")
             owners = conn.execute(
-                "SELECT COUNT(*) AS total FROM memberships WHERE tenant_id = ? AND role = 'owner'",
+                "SELECT COUNT(*) AS total FROM memberships WHERE tenantId = ? AND role = 'owner'",
                 (tenant_id,),
             ).fetchone()
             if membership["role"] == "owner" and int(owners["total"] if owners else 0) <= 1:
@@ -2483,16 +2482,16 @@ class AuthStore:
                 SELECT m.tenant_id
                 FROM memberships m
                 JOIN tenants t ON t.id = m.tenant_id
-                WHERE m.user_id = ?
-                  AND t.archived_at IS NULL
-                ORDER BY m.created_at ASC
+                WHERE m.userId = ?
+                  AND t.archivedAt IS NULL
+                ORDER BY m.createdAt ASC
                 LIMIT 1
                 """,
-                (membership["user_id"],),
+                (membership["userId"],),
             ).fetchone()
             conn.execute(
-                "UPDATE app_sessions SET current_tenant_id = ? WHERE user_id = ? AND current_tenant_id = ?",
-                ((next_membership["tenant_id"] if next_membership else None), membership["user_id"], tenant_id),
+                "UPDATE app_sessions SET currentTenantId = ? WHERE userId = ? AND currentTenantId = ?",
+                ((next_membership["tenantId"] if next_membership else None), membership["userId"], tenant_id),
             )
             conn.commit()
         return {"memberships": self.list_workspace_memberships(token, tenant_id)}
@@ -2507,32 +2506,32 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], session["current_tenant_id"], {"owner", "admin", "staff"})
+            self._require_workspace_role(conn, session["userId"], session["currentTenantId"], {"owner", "admin", "staff"})
             user = conn.execute("SELECT * FROM app_users WHERE email = ? LIMIT 1", (normalized_email,)).fetchone()
             if not user:
                 return None
             memberships = conn.execute(
                 """
-                SELECT m.*, t.name AS tenant_name, t.slug AS tenant_slug
+                SELECT m.*, t.name AS tenantName, t.slug AS tenantSlug
                 FROM memberships m
-                JOIN tenants t ON t.id = m.tenant_id
-                WHERE m.user_id = ?
-                  AND t.archived_at IS NULL
-                ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END, t.created_at ASC, t.name ASC
+                JOIN tenants t ON t.id = m.tenantId
+                WHERE m.userId = ?
+                  AND t.archivedAt IS NULL
+                ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END, t.createdAt ASC, t.name ASC
                 """,
                 (user["id"],),
             ).fetchall()
             session_memberships = {
-                row["tenant_id"]
+                row["tenantId"]
                 for row in conn.execute(
                     """
-                    SELECT m.tenant_id
+                    SELECT m.tenantId
                     FROM memberships m
-                    JOIN tenants t ON t.id = m.tenant_id
-                    WHERE m.user_id = ?
-                      AND t.archived_at IS NULL
+                    JOIN tenants t ON t.id = m.tenantId
+                    WHERE m.userId = ?
+                      AND t.archivedAt IS NULL
                     """,
-                    (session["user_id"],),
+                    (session["userId"],),
                 ).fetchall()
             }
             return {
@@ -2540,11 +2539,11 @@ class AuthStore:
                 "memberships": [
                     {
                         "id": membership["id"],
-                        "tenant_id": membership["tenant_id"],
-                        "workspace_name": membership["tenant_name"],
-                        "workspace_slug": membership["tenant_slug"],
+                        "tenantId": membership["tenantId"],
+                        "workspaceName": membership["tenantName"],
+                        "workspaceSlug": membership["tenantSlug"],
                         "role": membership["role"],
-                        "can_switch_as_admin": membership["tenant_id"] in session_memberships,
+                        "canSwitchAsAdmin": membership["tenantId"] in session_memberships,
                     }
                     for membership in memberships
                 ],
@@ -2570,27 +2569,27 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
 
-            display_name = (payload.get("display_name") or user["display_name"] or user["email"]).strip()
+            display_name = (payload.get("displayName") or user["displayName"] or user["email"]).strip()
             if not display_name:
                 raise ValueError("Display name is required.")
 
             phone = (payload.get("phone") or "").strip() or None
             locale = (payload.get("locale") or "").strip() or user["locale"] or "en-US"
             timezone_value = (payload.get("timezone") or "").strip() or user["timezone"] or "America/New_York"
-            email_signature = payload.get("email_signature")
+            email_signature = payload.get("emailSignature")
             if email_signature is not None:
                 email_signature = str(email_signature).strip()
             else:
-                email_signature = user["email_signature"]
+                email_signature = user["emailSignature"]
 
             conn.execute(
                 """
                 UPDATE app_users
-                SET display_name = ?, phone = ?, locale = ?, timezone = ?, email_signature = ?, updated_at = ?
+                SET displayName = ?, phone = ?, locale = ?, timezone = ?, emailSignature = ?, updatedAt = ?
                 WHERE id = ?
                 """,
                 (display_name, phone, locale, timezone_value, email_signature, utcnow_iso(), user["id"]),
@@ -2610,16 +2609,16 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
-            if not user["password_hash"] or not user["password_salt"]:
+            if not user["passwordHash"] or not user["passwordSalt"]:
                 raise ValueError("This account does not have a local password yet.")
-            if not verify_password(current_password or "", user["password_hash"], user["password_salt"]):
+            if not verify_password(current_password or "", user["passwordHash"], user["passwordSalt"]):
                 raise ValueError("Current password is incorrect.")
             password_hash, password_salt = hash_password(new_password)
             conn.execute(
-                "UPDATE app_users SET password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?",
+                "UPDATE app_users SET passwordHash = ?, passwordSalt = ?, updatedAt = ? WHERE id = ?",
                 (password_hash, password_salt, utcnow_iso(), user["id"]),
             )
             conn.commit()
@@ -2633,25 +2632,25 @@ class AuthStore:
                 raise ValueError("Session not found or expired.")
             rows = conn.execute(
                 """
-                SELECT id, provider, user_agent, created_at, expires_at, last_seen_at
+                SELECT id, provider, userAgent, createdAt, expiresAt, lastSeenAt
                 FROM app_sessions
-                WHERE user_id = ?
-                ORDER BY last_seen_at DESC, created_at DESC
+                WHERE userId = ?
+                ORDER BY lastSeenAt DESC, createdAt DESC
                 """,
-                (current["user_id"],),
+                (current["userId"],),
             ).fetchall()
         sessions = []
         for row in rows:
             provider_label = (row["provider"] or "session").replace("-", " ").title()
-            user_agent = (row["user_agent"] or "").strip()
+            user_agent = (row["userAgent"] or "").strip()
             sessions.append(
                 {
                     "id": row["id"],
                     "provider": row["provider"],
                     "label": user_agent or provider_label,
-                    "created_at": row["created_at"],
-                    "expires_at": row["expires_at"],
-                    "last_seen_at": row["last_seen_at"],
+                    "createdAt": row["createdAt"],
+                    "expiresAt": row["expiresAt"],
+                    "lastSeenAt": row["lastSeenAt"],
                     "is_current": row["id"] == current["id"],
                 }
             )
@@ -2665,8 +2664,8 @@ class AuthStore:
             if not current:
                 raise ValueError("Session not found or expired.")
             target = conn.execute(
-                "SELECT * FROM app_sessions WHERE id = ? AND user_id = ? LIMIT 1",
-                (session_id, current["user_id"]),
+                "SELECT * FROM app_sessions WHERE id = ? AND userId = ? LIMIT 1",
+                (session_id, current["userId"]),
             ).fetchone()
             if not target:
                 raise ValueError("Session not found.")
@@ -2680,7 +2679,7 @@ class AuthStore:
             current = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not current:
                 raise ValueError("Session not found or expired.")
-            conn.execute("DELETE FROM app_sessions WHERE user_id = ? AND id != ?", (current["user_id"], current["id"]))
+            conn.execute("DELETE FROM app_sessions WHERE userId = ? AND id != ?", (current["userId"], current["id"]))
             conn.commit()
 
     def list_global_variables(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
@@ -2690,7 +2689,7 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             rows = self._list_global_variable_records_for_tenant(conn, tenant_id)
         return rows
 
@@ -2705,11 +2704,11 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff"})
             self._upsert_global_variables_from_canonical(
                 conn,
                 tenant_id,
-                session["user_id"],
+                session["userId"],
                 {
                     key: {
                         "value": str(value),
@@ -2732,9 +2731,9 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff"})
             row = conn.execute(
-                "SELECT * FROM global_variables WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM global_variables WHERE id = ? AND tenantId = ? LIMIT 1",
                 (variable_id, tenant_id),
             ).fetchone()
             if not row:
@@ -2750,11 +2749,11 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
             query = """
                 SELECT *
                 FROM system_email_templates
-                WHERE tenant_id = ?
+                WHERE tenantId = ?
             """
             params: list[Any] = [tenant_id]
             search_value = (search or "").strip().lower()
@@ -2766,22 +2765,22 @@ class AuthStore:
             rows = conn.execute(query, params).fetchall()
         templates = []
         for row in rows:
-            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            config = json.loads(row["configJson"]) if row["configJson"] else {}
             templates.append(
                 {
                     "id": row["id"],
-                    "template_key": row["template_key"],
-                    "email_type": row["email_type"],
+                    "templateKey": row["templateKey"],
+                    "emailType": row["emailType"],
                     "subject": row["subject"],
-                    "send_to": row["send_to"],
+                    "sendTo": row["sendTo"],
                     "enabled": bool(row["enabled"]),
-                    "body_html": row["body_html"],
-                    "body_text": row["body_text"],
-                    "edited_by_name": row["edited_by_name"],
-                    "edited_at": row["edited_at"],
+                    "bodyHtml": row["bodyHtml"],
+                    "bodyText": row["bodyText"],
+                    "editedByName": row["editedByName"],
+                    "editedAt": row["editedAt"],
                     "config": config,
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
+                    "createdAt": row["createdAt"],
+                    "updatedAt": row["updatedAt"],
                 }
             )
         return templates
@@ -2793,34 +2792,34 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["user_id"],)).fetchone()
+            user = conn.execute("SELECT * FROM app_users WHERE id = ? LIMIT 1", (session["userId"],)).fetchone()
             if not user:
                 raise ValueError("User not found.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff"})
             row = conn.execute(
-                "SELECT * FROM system_email_templates WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM system_email_templates WHERE id = ? AND tenantId = ? LIMIT 1",
                 (template_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("System email template not found.")
-            existing_config = json.loads(row["config_json"]) if row["config_json"] else {}
+            existing_config = json.loads(row["configJson"]) if row["configJson"] else {}
             next_config = payload.get("config") if payload.get("config") is not None else existing_config
             now = utcnow_iso()
             conn.execute(
                 """
                 UPDATE system_email_templates
-                SET subject = ?, send_to = ?, enabled = ?, body_html = ?, body_text = ?,
-                    edited_by_user_id = ?, edited_by_name = ?, edited_at = ?, config_json = ?, updated_at = ?
+                SET subject = ?, sendTo = ?, enabled = ?, bodyHtml = ?, bodyText = ?,
+                    editedByUserId = ?, editedByName = ?, editedAt = ?, configJson = ?, updatedAt = ?
                 WHERE id = ?
                 """,
                 (
                     (payload.get("subject") or row["subject"]).strip(),
-                    (payload.get("send_to") or row["send_to"]).strip(),
+                    (payload.get("sendTo") or row["sendTo"]).strip(),
                     1 if payload.get("enabled", bool(row["enabled"])) else 0,
-                    payload.get("body_html") if payload.get("body_html") is not None else row["body_html"],
-                    payload.get("body_text") if payload.get("body_text") is not None else row["body_text"],
+                    payload.get("bodyHtml") if payload.get("bodyHtml") is not None else row["bodyHtml"],
+                    payload.get("bodyText") if payload.get("bodyText") is not None else row["bodyText"],
                     user["id"],
-                    user["display_name"] or user["email"],
+                    user["displayName"] or user["email"],
                     now,
                     json.dumps(next_config or {}),
                     now,
@@ -2861,7 +2860,7 @@ class AuthStore:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError(
-            "Legacy ai_runs persistence is disabled. Use the canonical ai_engine_runs store with a read-only projection adapter."
+            "Legacy aiEngineRuns persistence is disabled. Use the canonical aiEngineRuns store with a read-only projection adapter."
         )
 
     def list_ai_runs(self, token: str | None, limit: int = 50) -> list[dict[str, Any]]:
@@ -2871,13 +2870,13 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            tenant_id = session["current_tenant_id"]
+            tenant_id = session["currentTenantId"]
             rows = conn.execute(
                 """
                 SELECT *
-                FROM ai_runs
-                WHERE tenant_id IS NULL OR tenant_id = ?
-                ORDER BY created_at DESC
+                FROM aiEngineRuns
+                WHERE tenantId = ?
+                ORDER BY createdAt DESC
                 LIMIT ?
                 """,
                 (tenant_id, max(1, min(limit, 200))),
@@ -2885,51 +2884,51 @@ class AuthStore:
         runs = []
         for row in rows:
             try:
-                metadata = json.loads(row["metadata_json"] or "{}")
+                metadata = json.loads(row["metadataJson"] or "{}")
             except json.JSONDecodeError:
                 metadata = {}
             try:
-                artifacts = json.loads(row["artifacts_json"] or "[]")
+                artifacts = json.loads(row["artifactsJson"] or "[]")
             except json.JSONDecodeError:
                 artifacts = []
             try:
-                steps = json.loads(row["steps_json"] or "[]")
+                steps = json.loads(row["stepsJson"] or "[]")
             except json.JSONDecodeError:
                 steps = []
             try:
-                delegate_chain = json.loads(row["delegate_chain_json"] or "[]")
+                delegate_chain = json.loads(row["delegateChainJson"] or "[]")
             except json.JSONDecodeError:
                 delegate_chain = []
             runs.append(
                 {
                     "id": row["id"],
-                    "tenant_id": row["tenant_id"],
-                    "user_id": row["user_id"],
+                    "tenantId": row["tenantId"],
+                    "userId": row["userId"],
                     "module": row["module"],
                     "surface": row["surface"],
                     "field": row["field"],
                     "intent": row["intent"],
                     "status": row["status"] or "completed",
-                    "agent_role": row["agent_role"],
-                    "intake_agent": row["intake_agent"],
-                    "dispatcher_agent": row["dispatcher_agent"],
-                    "executing_agent": row["executing_agent"],
-                    "requested_agent": row["requested_agent"],
-                    "delegate_chain": delegate_chain if isinstance(delegate_chain, list) else [],
-                    "permission_tier": row["permission_tier"],
-                    "thread_id": row["thread_id"],
-                    "contact_id": row["contact_id"],
-                    "company_id": row["company_id"],
-                    "command_text": row["command_text"],
-                    "provider_key": row["provider_key"],
-                    "provider_label": row["provider_label"],
+                    "agentRole": row["agentRole"],
+                    "intakeAgent": row["intakeAgent"],
+                    "dispatcherAgent": row["dispatcherAgent"],
+                    "executingAgent": row["executingAgent"],
+                    "requestedAgent": row["requestedAgent"],
+                    "delegateChain": delegate_chain if isinstance(delegate_chain, list) else [],
+                    "permissionTier": row["permissionTier"],
+                    "threadId": row["threadId"],
+                    "contactId": row["contactId"],
+                    "companyId": row["companyId"],
+                    "commandText": row["commandText"],
+                    "providerKey": row["providerKey"],
+                    "providerLabel": row["providerLabel"],
                     "model": row["model"],
                     "prompt": row["prompt"],
                     "result": row["result"],
                     "artifacts": artifacts if isinstance(artifacts, list) else [],
                     "steps": steps if isinstance(steps, list) else [],
                     "metadata": metadata,
-                    "created_at": row["created_at"],
+                    "createdAt": row["createdAt"],
                 }
             )
         return runs
@@ -2941,8 +2940,8 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
-            row = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner"})
+            row = conn.execute("SELECT * FROM omega_protocols WHERE tenantId = ? LIMIT 1", (tenant_id,)).fetchone()
         if not row:
             return {
                 "tenant_id": tenant_id,
@@ -2960,7 +2959,7 @@ class AuthStore:
     def _record_omega_event(self, conn: sqlite3.Connection, tenant_id: str, user_id: str | None, event_type: str, detail: str | None = None) -> None:
         conn.execute(
             """
-            INSERT INTO omega_protocol_events (id, tenant_id, user_id, event_type, detail, created_at)
+            INSERT INTO omega_protocol_events (id, tenantId, userId, eventType, detail, createdAt)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
@@ -2980,13 +2979,13 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner"})
             rows = conn.execute(
                 """
-                SELECT id, tenant_id, user_id, event_type, detail, created_at
+                SELECT id, tenant_id, user_id, event_type, detail, createdAt
                 FROM omega_protocol_events
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                WHERE tenantId = ?
+                ORDER BY createdAt DESC
                 LIMIT ?
                 """,
                 (tenant_id, max(1, limit)),
@@ -3006,19 +3005,19 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
-            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner"})
+            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenantId = ? LIMIT 1", (tenant_id,)).fetchone()
             if existing and (existing["status"] or "idle") == "armed":
                 raise ValueError("Omega is already armed for this workspace.")
             if existing:
                 conn.execute(
                     """
                     UPDATE omega_protocols
-                    SET status = 'armed', armed_by_user_id = ?, armed_at = ?, execute_at = ?, arm_code_hash = ?, cancel_code_hash = ?, last_event = 'armed', updated_at = ?
-                    WHERE tenant_id = ?
+                    SET status = 'armed', armed_by_userId = ?, armed_at = ?, execute_at = ?, arm_code_hash = ?, cancel_code_hash = ?, last_event = 'armed', updatedAt = ?
+                    WHERE tenantId = ?
                     """,
                     (
-                        session["user_id"],
+                        session["userId"],
                         now,
                         execute_at,
                         self._omega_code_digest(confirmation_code.strip()),
@@ -3031,12 +3030,12 @@ class AuthStore:
                 conn.execute(
                     """
                     INSERT INTO omega_protocols (
-                        tenant_id, status, armed_by_user_id, armed_at, execute_at, arm_code_hash, cancel_code_hash, last_event, updated_at
+                        tenant_id, status, armed_by_user_id, armed_at, execute_at, arm_code_hash, cancel_code_hash, last_event, updatedAt
                     ) VALUES (?, 'armed', ?, ?, ?, ?, ?, 'armed', ?)
                     """,
                     (
                         tenant_id,
-                        session["user_id"],
+                        session["userId"],
                         now,
                         execute_at,
                         self._omega_code_digest(confirmation_code.strip()),
@@ -3047,7 +3046,7 @@ class AuthStore:
             self._record_omega_event(
                 conn,
                 tenant_id,
-                session["user_id"],
+                session["userId"],
                 "armed",
                 f"Omega armed with {max(1, delay_minutes)} minute delay.",
             )
@@ -3064,8 +3063,8 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
-            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner"})
+            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenantId = ? LIMIT 1", (tenant_id,)).fetchone()
             if not existing or (existing["status"] or "idle") != "armed":
                 raise ValueError("Omega is not armed.")
             if not hmac.compare_digest(existing["cancel_code_hash"] or "", self._omega_code_digest(cancel_code.strip())):
@@ -3073,12 +3072,12 @@ class AuthStore:
             conn.execute(
                 """
                 UPDATE omega_protocols
-                SET status = 'cancelled', execute_at = NULL, arm_code_hash = NULL, cancel_code_hash = NULL, last_event = 'cancelled', updated_at = ?
-                WHERE tenant_id = ?
+                SET status = 'cancelled', execute_at = NULL, arm_code_hash = NULL, cancel_code_hash = NULL, last_event = 'cancelled', updatedAt = ?
+                WHERE tenantId = ?
                 """,
                 (now, tenant_id),
             )
-            self._record_omega_event(conn, tenant_id, session["user_id"], "cancelled", "Omega arm sequence cancelled.")
+            self._record_omega_event(conn, tenant_id, session["userId"], "cancelled", "Omega arm sequence cancelled.")
             conn.commit()
         return self.get_omega_protocol(token, tenant_id)
 
@@ -3091,8 +3090,8 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner"})
-            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner"})
+            existing = conn.execute("SELECT * FROM omega_protocols WHERE tenantId = ? LIMIT 1", (tenant_id,)).fetchone()
             if not existing or (existing["status"] or "idle") != "armed":
                 raise ValueError("Omega is not armed.")
             if not hmac.compare_digest(existing["arm_code_hash"] or "", self._omega_code_digest(confirmation_code.strip())):
@@ -3102,7 +3101,7 @@ class AuthStore:
             if not execute_dt or execute_dt > datetime.now(UTC):
                 raise ValueError("Omega countdown is still active.")
             protocol = dict(existing)
-            protocol["verified_by_user_id"] = session["user_id"]
+            protocol["verified_by_user_id"] = session["userId"]
         return protocol
 
     def list_ai_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
@@ -3112,24 +3111,24 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
         return self.list_ai_provider_configs_for_tenant(tenant_id)
 
     def get_ai_routing_record_for_tenant(self, tenant_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM ai_routing_configs WHERE tenant_id = ? LIMIT 1",
+                "SELECT * FROM ai_routing_configs WHERE tenantId = ? LIMIT 1",
                 (tenant_id,),
             ).fetchone()
         if not row:
             return None
-        config = json.loads(row["config_json"]) if row["config_json"] else {}
+        config = json.loads(row["configJson"]) if row["configJson"] else {}
         return {
             "id": row["id"],
-            "tenant_id": row["tenant_id"],
+            "tenantId": row["tenantId"],
             "config": config,
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
+            "createdAt": row["createdAt"],
+            "updatedAt": row["updatedAt"],
         }
 
     def get_ai_routing_config_for_tenant(self, tenant_id: str) -> dict[str, Any] | None:
@@ -3143,14 +3142,14 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
-            existing = conn.execute("SELECT * FROM ai_routing_configs WHERE tenant_id = ? LIMIT 1", (tenant_id,)).fetchone()
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            existing = conn.execute("SELECT * FROM ai_routing_configs WHERE tenantId = ? LIMIT 1", (tenant_id,)).fetchone()
             now = utcnow_iso()
             config_json = json.dumps(config or {})
             if existing:
                 conn.execute("""
                     UPDATE ai_routing_configs
-                    SET config_json = ?, updated_at = ?
+                    SET configJson = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (config_json, now, existing["id"]),
@@ -3158,13 +3157,13 @@ class AuthStore:
             else:
                 config_id = f"ai-routing-{secrets.token_hex(8)}"
                 conn.execute("""
-                    INSERT INTO ai_routing_configs (id, tenant_id, config_json, created_at, updated_at)
+                    INSERT INTO ai_routing_configs (id, tenantId, configJson, createdAt, updatedAt)
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     (config_id, tenant_id, config_json, now, now),
                 )
             conn.commit()
-        return self.get_ai_routing_record_for_tenant(tenant_id) or {"tenant_id": tenant_id, "config": config}
+        return self.get_ai_routing_record_for_tenant(tenant_id) or {"tenantId": tenant_id, "config": config}
 
     def list_automation_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -3172,8 +3171,8 @@ class AuthStore:
                 """
                 SELECT *
                 FROM automation_provider_configs
-                WHERE tenant_id = ?
-                ORDER BY updated_at DESC, created_at DESC
+                WHERE tenantId = ?
+                ORDER BY updatedAt DESC, createdAt DESC
                 """,
                 (tenant_id,),
             ).fetchall()
@@ -3182,7 +3181,7 @@ class AuthStore:
     def get_automation_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM automation_provider_configs WHERE tenant_id = ? AND id = ? LIMIT 1",
+                "SELECT * FROM automation_provider_configs WHERE tenantId = ? AND id = ? LIMIT 1",
                 (tenant_id, config_id),
             ).fetchone()
         return self._automation_provider_record(row, include_secret=True) if row else None
@@ -3194,7 +3193,7 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
         return self.list_automation_provider_configs_for_tenant(tenant_id)
 
     def upsert_automation_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -3207,9 +3206,9 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             existing = conn.execute(
-                "SELECT * FROM automation_provider_configs WHERE tenant_id = ? AND provider_key = ? LIMIT 1",
+                "SELECT * FROM automation_provider_configs WHERE tenantId = ? AND provider_key = ? LIMIT 1",
                 (tenant_id, normalized_provider),
             ).fetchone()
             now = utcnow_iso()
@@ -3229,7 +3228,7 @@ class AuthStore:
                     """
                     UPDATE automation_provider_configs
                     SET label = ?, base_url = ?, api_key = ?, enabled = ?, status = ?, config_json = ?,
-                        last_tested_at = ?, last_error = ?, updated_at = ?
+                        last_tested_at = ?, last_error = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (
@@ -3252,7 +3251,7 @@ class AuthStore:
                     """
                     INSERT INTO automation_provider_configs (
                         id, tenant_id, provider_key, label, base_url, api_key, enabled, status,
-                        config_json, last_tested_at, last_error, created_at, updated_at
+                        config_json, last_tested_at, last_error, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -3281,16 +3280,16 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             row = conn.execute(
-                "SELECT * FROM automation_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM automation_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
                 (config_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("Automation provider config not found.")
             conn.execute("DELETE FROM automation_provider_configs WHERE id = ?", (config_id,))
             conn.commit()
-        return {"deleted_id": config_id, "provider_key": row["provider_key"]}
+        return {"deletedId": config_id, "providerKey": row["providerKey"]}
 
     def save_automation_provider_test_result(
         self,
@@ -3303,20 +3302,20 @@ class AuthStore:
     ) -> dict[str, Any]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM automation_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM automation_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
                 (config_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("Automation provider config not found.")
-            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            config = json.loads(row["configJson"]) if row["configJson"] else {}
             if details:
                 config.update(details)
             now = utcnow_iso()
             conn.execute(
                 """
                 UPDATE automation_provider_configs
-                SET status = ?, last_tested_at = ?, last_error = ?, config_json = ?, updated_at = ?
-                WHERE id = ? AND tenant_id = ?
+                SET status = ?, lastTestedAt = ?, lastError = ?, configJson = ?, updatedAt = ?
+                WHERE id = ? AND tenantId = ?
                 """,
                 (status, now, last_error, json.dumps(config), now, config_id, tenant_id),
             )
@@ -3329,8 +3328,8 @@ class AuthStore:
                 """
                 SELECT *
                 FROM payment_provider_configs
-                WHERE tenant_id = ?
-                ORDER BY updated_at DESC, created_at DESC
+                WHERE tenantId = ?
+                ORDER BY updatedAt DESC, createdAt DESC
                 """,
                 (tenant_id,),
             ).fetchall()
@@ -3339,7 +3338,7 @@ class AuthStore:
     def get_payment_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM payment_provider_configs WHERE tenant_id = ? AND id = ? LIMIT 1",
+                "SELECT * FROM payment_provider_configs WHERE tenantId = ? AND id = ? LIMIT 1",
                 (tenant_id, config_id),
             ).fetchone()
         return self._payment_provider_record(row, include_secret=True) if row else None
@@ -3351,7 +3350,7 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin", "staff", "viewer"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
         return self.list_payment_provider_configs_for_tenant(tenant_id)
 
     def upsert_payment_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -3364,9 +3363,9 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             existing = conn.execute(
-                "SELECT * FROM payment_provider_configs WHERE tenant_id = ? AND provider_key = ? LIMIT 1",
+                "SELECT * FROM payment_provider_configs WHERE tenantId = ? AND providerKey = ? LIMIT 1",
                 (tenant_id, normalized_provider),
             ).fetchone()
             now = utcnow_iso()
@@ -3374,14 +3373,14 @@ class AuthStore:
             config = payload.get("config") or {}
             enabled = 1 if payload.get("enabled") else 0
             status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
-            last_error = payload.get("last_error")
+            last_error = payload.get("lastError")
             if existing:
-                resolved_last_tested_at = payload.get("last_tested_at", existing["last_tested_at"])
+                resolved_last_tested_at = payload.get("lastTestedAt", existing["lastTestedAt"])
                 conn.execute(
                     """
                     UPDATE payment_provider_configs
-                    SET label = ?, enabled = ?, status = ?, config_json = ?,
-                        last_tested_at = ?, last_error = ?, updated_at = ?
+                    SET label = ?, enabled = ?, status = ?, configJson = ?,
+                        lastTestedAt = ?, lastError = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (
@@ -3401,8 +3400,8 @@ class AuthStore:
                 conn.execute(
                     """
                     INSERT INTO payment_provider_configs (
-                        id, tenant_id, provider_key, label, enabled, status,
-                        config_json, last_tested_at, last_error, created_at, updated_at
+                        id, tenantId, providerKey, label, enabled, status,
+                        configJson, lastTestedAt, lastError, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -3413,7 +3412,7 @@ class AuthStore:
                         enabled,
                         status,
                         json.dumps(config),
-                        payload.get("last_tested_at"),
+                        payload.get("lastTestedAt"),
                         last_error,
                         now,
                         now,
@@ -3429,16 +3428,16 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             row = conn.execute(
-                "SELECT * FROM payment_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM payment_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
                 (config_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("Payment provider config not found.")
             conn.execute("DELETE FROM payment_provider_configs WHERE id = ?", (config_id,))
             conn.commit()
-        return {"deleted_id": config_id, "provider_key": row["provider_key"]}
+        return {"deletedId": config_id, "providerKey": row["providerKey"]}
 
     def upsert_ai_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not token:
@@ -3450,19 +3449,19 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             existing = conn.execute(
-                "SELECT * FROM ai_provider_configs WHERE tenant_id = ? AND provider_key = ? LIMIT 1",
+                "SELECT * FROM ai_provider_configs WHERE tenantId = ? AND providerKey = ? LIMIT 1",
                 (tenant_id, normalized_provider),
             ).fetchone()
             now = utcnow_iso()
             label = (payload.get("label") or normalized_provider.replace("-", " ").title()).strip()
-            base_url = (payload.get("base_url") or "").strip() or None
+            base_url = (payload.get("baseUrl") or "").strip() or None
             model = (payload.get("model") or "").strip() or None
-            api_key = payload.get("api_key")
+            api_key = payload.get("apiKey")
             if api_key is not None:
                 api_key = api_key.strip() or None
-            is_default = 1 if payload.get("is_default") else 0
+            is_default = 1 if payload.get("isDefault") else 0
             enabled = 1 if payload.get("enabled") else 0
             
             # Lockdown Rules
@@ -3472,31 +3471,31 @@ class AuthStore:
                 is_default = 0  # Rule 2 & 5: If disabled, MUST NOT be default
 
             status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
-            last_error = payload.get("last_error")
+            last_error = payload.get("lastError")
             
             # Merge guardrails into config
             config = payload.get("config") or {}
             if existing:
                 try:
-                    existing_config = json.loads(existing["config_json"]) if existing["config_json"] else {}
+                    existing_config = json.loads(existing["configJson"]) if existing["configJson"] else {}
                     config = {**existing_config, **config}
                 except json.JSONDecodeError:
                     pass
-            system_guardrails = (payload.get("system_guardrails") or "").strip()
-            task_guardrails = (payload.get("task_guardrails") or "").strip()
+            system_guardrails = (payload.get("systemGuardrails") or "").strip()
+            task_guardrails = (payload.get("taskGuardrails") or "").strip()
             if system_guardrails:
-                config["system_guardrails"] = system_guardrails
+                config["systemGuardrails"] = system_guardrails
             if task_guardrails:
-                config["task_guardrails"] = task_guardrails
+                config["taskGuardrails"] = task_guardrails
             
             if existing:
-                resolved_api_key = api_key if api_key is not None else existing["api_key"]
-                resolved_last_tested_at = payload.get("last_tested_at", existing["last_tested_at"])
+                resolved_api_key = api_key if api_key is not None else existing["apiKey"]
+                resolved_last_tested_at = payload.get("lastTestedAt", existing["lastTestedAt"])
                 conn.execute(
                     """
                     UPDATE ai_provider_configs
-                    SET label = ?, base_url = ?, model = ?, api_key = ?, enabled = ?, is_default = ?, status = ?,
-                        config_json = ?, last_tested_at = ?, last_error = ?, updated_at = ?
+                    SET label = ?, baseUrl = ?, model = ?, apiKey = ?, enabled = ?, isDefault = ?, status = ?,
+                        configJson = ?, lastTestedAt = ?, lastError = ?, updatedAt = ?
                     WHERE id = ?
                     """,
                     (
@@ -3520,8 +3519,8 @@ class AuthStore:
                 conn.execute(
                     """
                     INSERT INTO ai_provider_configs (
-                        id, tenant_id, provider_key, label, base_url, model, api_key, enabled, is_default, status,
-                        config_json, last_tested_at, last_error, created_at, updated_at
+                        id, tenantId, providerKey, label, baseUrl, model, apiKey, enabled, isDefault, status,
+                        configJson, lastTestedAt, lastError, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -3536,16 +3535,17 @@ class AuthStore:
                         is_default,
                         status,
                         json.dumps(config),
-                        payload.get("last_tested_at"),
+                        payload.get("lastTestedAt"),
                         last_error,
                         now,
                         now,
                     ),
                 )
 
+
             if is_default:
                 conn.execute(
-                    "UPDATE ai_provider_configs SET is_default = 0 WHERE tenant_id = ? AND id != ?",
+                    "UPDATE ai_provider_configs SET isDefault = 0 WHERE tenantId = ? AND id != ?",
                     (tenant_id, config_id),
                 )
             conn.commit()
@@ -3558,16 +3558,16 @@ class AuthStore:
             session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
             if not session:
                 raise ValueError("Session not found or expired.")
-            self._require_workspace_role(conn, session["user_id"], tenant_id, {"owner", "admin"})
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
             row = conn.execute(
-                "SELECT * FROM ai_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM ai_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
                 (config_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("AI provider config not found.")
             conn.execute("DELETE FROM ai_provider_configs WHERE id = ?", (config_id,))
             conn.commit()
-        return {"deleted_id": config_id, "provider_key": row["provider_key"]}
+        return {"deletedId": config_id, "providerKey": row["providerKey"]}
 
     def save_ai_provider_test_result(
         self,
@@ -3580,22 +3580,22 @@ class AuthStore:
     ) -> dict[str, Any]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM ai_provider_configs WHERE id = ? AND tenant_id = ? LIMIT 1",
+                "SELECT * FROM ai_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
                 (config_id, tenant_id),
             ).fetchone()
             if not row:
                 raise ValueError("AI provider config not found.")
-            config = json.loads(row["config_json"]) if row["config_json"] else {}
+            config = json.loads(row["configJson"]) if row["configJson"] else {}
             if connected_identity:
-                config["connected_identity"] = connected_identity
+                config["connectedIdentity"] = connected_identity
             elif last_error:
-                config.pop("connected_identity", None)
+                config.pop("connectedIdentity", None)
             now = utcnow_iso()
             conn.execute(
                 """
                 UPDATE ai_provider_configs
-                SET status = ?, last_tested_at = ?, last_error = ?, config_json = ?, updated_at = ?
-                WHERE id = ? AND tenant_id = ?
+                SET status = ?, lastTestedAt = ?, lastError = ?, configJson = ?, updatedAt = ?
+                WHERE id = ? AND tenantId = ?
                 """,
                 (status, now, last_error, json.dumps(config), now, config_id, tenant_id),
             )
@@ -3606,24 +3606,24 @@ class AuthStore:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS external_datasets (
                 id TEXT PRIMARY KEY,
-                tenant_id TEXT NOT NULL,
+                tenantId TEXT NOT NULL,
                 source TEXT NOT NULL,
-                data_type TEXT NOT NULL,
-                records_json TEXT NOT NULL,
-                metadata_json TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                dataType TEXT NOT NULL,
+                recordsJson TEXT NOT NULL,
+                metadataJson TEXT,
+                createdAt TEXT NOT NULL,
+                updatedAt TEXT NOT NULL
             )
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS content_metrics (
                 id TEXT PRIMARY KEY,
-                tenant_id TEXT NOT NULL,
+                tenantId TEXT NOT NULL,
                 platform TEXT NOT NULL,
-                content_type TEXT NOT NULL,
-                metrics_json TEXT NOT NULL,
+                contentType TEXT NOT NULL,
+                metricsJson TEXT NOT NULL,
                 date TEXT,
-                created_at TEXT NOT NULL
+                createdAt TEXT NOT NULL
             )
         """)
         conn.commit()
@@ -3636,7 +3636,7 @@ class AuthStore:
         with self._connect() as conn:
             self._ensure_external_tables(conn)
             conn.execute("""
-                INSERT INTO external_datasets (id, tenant_id, source, data_type, records_json, metadata_json, created_at, updated_at)
+                INSERT INTO external_datasets (id, tenantId, source, dataType, recordsJson, metadataJson, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (data_id, tenant_id, source, data_type, json.dumps(records), json.dumps(metadata), now, now))
             conn.commit()
@@ -3646,20 +3646,20 @@ class AuthStore:
         with self._connect() as conn:
             self._ensure_external_tables(conn)
             rows = conn.execute("""
-                SELECT id, tenant_id, source, data_type, metadata_json, created_at, updated_at
+                SELECT id, tenantId, source, dataType, metadataJson, createdAt, updatedAt
                 FROM external_datasets
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                WHERE tenantId = ?
+                ORDER BY createdAt DESC
             """, (tenant_id,)).fetchall()
         return [
             {
                 "id": row["id"],
-                "tenant_id": row["tenant_id"],
+                "tenantId": row["tenantId"],
                 "source": row["source"],
-                "data_type": row["data_type"],
-                "metadata": json.loads(row["metadata_json"]) if row["metadata_json"] else {},
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
+                "dataType": row["dataType"],
+                "metadata": json.loads(row["metadataJson"]) if row["metadataJson"] else {},
+                "createdAt": row["createdAt"],
+                "updatedAt": row["updatedAt"],
             }
             for row in rows
         ]
@@ -3672,13 +3672,13 @@ class AuthStore:
             return None
         return {
             "id": row["id"],
-            "tenant_id": row["tenant_id"],
+            "tenantId": row["tenantId"],
             "source": row["source"],
-            "data_type": row["data_type"],
-            "records": json.loads(row["records_json"]),
-            "metadata": json.loads(row["metadata_json"]) if row["metadata_json"] else {},
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
+            "dataType": row["dataType"],
+            "records": json.loads(row["recordsJson"]),
+            "metadata": json.loads(row["metadataJson"]) if row["metadataJson"] else {},
+            "createdAt": row["createdAt"],
+            "updatedAt": row["updatedAt"],
         }
 
     def delete_external_dataset(self, data_id: str) -> bool:
@@ -3695,7 +3695,7 @@ class AuthStore:
         with self._connect() as conn:
             self._ensure_external_tables(conn)
             conn.execute("""
-                INSERT INTO content_metrics (id, tenant_id, platform, content_type, metrics_json, date, created_at)
+                INSERT INTO content_metrics (id, tenantId, platform, contentType, metricsJson, date, createdAt)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (metrics_id, tenant_id, platform, content_type, json.dumps(metrics), date, now))
             conn.commit()
@@ -3707,25 +3707,25 @@ class AuthStore:
             if platform:
                 rows = conn.execute("""
                     SELECT * FROM content_metrics
-                    WHERE tenant_id = ? AND platform = ?
-                    ORDER BY created_at DESC
+                    WHERE tenantId = ? AND platform = ?
+                    ORDER BY createdAt DESC
                     LIMIT ?
                 """, (tenant_id, platform, limit)).fetchall()
             else:
                 rows = conn.execute("""
                     SELECT * FROM content_metrics
-                    WHERE tenant_id = ?
-                    ORDER BY created_at DESC
+                    WHERE tenantId = ?
+                    ORDER BY createdAt DESC
                     LIMIT ?
                 """, (tenant_id, limit)).fetchall()
         return [
             {
                 "id": row["id"],
                 "platform": row["platform"],
-                "content_type": row["content_type"],
-                "metrics": json.loads(row["metrics_json"]),
+                "contentType": row["contentType"],
+                "metrics": json.loads(row["metricsJson"]),
                 "date": row["date"],
-                "created_at": row["created_at"],
+                "createdAt": row["createdAt"],
             }
             for row in rows
         ]

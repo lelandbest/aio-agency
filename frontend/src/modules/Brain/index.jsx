@@ -58,11 +58,11 @@ import { INSIGHT_REPORTS } from './reports';
 import { useBrand } from '../../contexts/BrandContext';
 
 const EMPTY_PROFILE = {
-  company_name: '',
+  companyName: '',
   mission: '',
-  ideal_customer: '',
-  value_prop: '',
-  brand_voice: '',
+  idealCustomer: '',
+  valueProp: '',
+  brandVoice: '',
 };
 
 const SubPanelHeader = ({ title, icon: Icon }) => (
@@ -151,7 +151,7 @@ const FilePickerModal = ({ isOpen, onClose, onIngest }) => {
 };
 
 const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onModelChange, providers = [] }) => {
-  const provider = providers.find(p => p.provider_key === activeProviderId) || { models: [] };
+  const provider = providers.find(p => p.providerKey === activeProviderId) || { models: [] };
   
   return (
     <div className={COMMS_SUBPANEL + " p-5 flex flex-col gap-4 relative z-[200]"}>
@@ -164,8 +164,8 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
             onChange={(e) => onProviderChange(e.target.value)}
             className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] font-black uppercase tracking-widest text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]/40 transition-all cursor-pointer shadow-island-sm appearance-none"
           >
-            {providers.filter(p => p.api_key_present || p.provider_key === 'ollama' || p.is_connected).map(p => (
-              <option key={p.provider_key} value={p.provider_key} className="bg-[var(--color-bg-secondary)] text-sm italic">{p.label || p.provider_key}</option>
+            {providers.filter(p => p.apiKeyPresent || p.providerKey === 'ollama' || p.isConnected).map(p => (
+              <option key={p.providerKey} value={p.providerKey} className="bg-[var(--color-bg-secondary)] text-sm italic">{p.label || p.providerKey}</option>
             ))}
           </select>
           <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
@@ -740,40 +740,40 @@ const generateTemplateReport = (reportId, analytics) => {
   
   switch (reportId) {
     case 'brand-avatar':
-      lines.push(`[CRM TELEMETRY] ${safeNum(c.total_contacts)} contacts analyzed`);
+      lines.push(`[CRM TELEMETRY] ${safeNum(c.totalContacts)} contacts analyzed`);
       if (c.sources && Object.keys(c.sources).length > 0) {
         const topSource = Object.entries(c.sources).sort((a, b) => b[1] - a[1])[0];
         lines.push(`Top Source: ${topSource[0]} (${topSource[1]} contacts)`);
       }
-      if (c.score_distribution) {
-        lines.push(`Lead Quality: ${safeNum(c.score_distribution['90+'])} hot, ${safeNum(c.score_distribution['70-89'])} warm, ${safeNum(c.score_distribution['50-69'])} cool`);
+      if (c.scoreDistribution) {
+        lines.push(`Lead Quality: ${safeNum(c.scoreDistribution['90+'])} hot, ${safeNum(c.scoreDistribution['70-89'])} warm, ${safeNum(c.scoreDistribution['50-69'])} cool`);
       }
-      if (c.recent_contacts?.length > 0) {
-        lines.push(`Latest Entry: ${c.recent_contacts[0].name || c.recent_contacts[0].email || 'Unknown'}`);
+      if (c.recentContacts?.length > 0) {
+        lines.push(`Latest Entry: ${c.recentContacts[0].name || c.recentContacts[0].email || 'Unknown'}`);
       }
       lines.push('\n[STRATEGY] Focus on high-score leads for immediate conversion. Diversify lead sources to reduce concentration risk.');
       break;
       
     case 'awareness-attention':
-      lines.push(`[FUNNEL STATS] ${safeNum(c.total_deals)} deals in pipeline`);
+      lines.push(`[FUNNEL STATS] ${safeNum(c.totalDeals)} deals in pipeline`);
       if (c.stages) {
         const activeStages = Object.entries(c.stages).filter(([k]) => k !== 'Closed Won' && k !== 'Closed Lost');
         lines.push(`Active Stages: ${activeStages.map(([k, v]) => `${formatStage(k)}: ${v}`).join(', ')}`);
       }
-      lines.push(`[ENGAGEMENT] ${safeNum(com.total_threads)} communication threads`);
-      if (com.active_threads !== undefined) {
-        lines.push(`Active: ${com.active_threads}, Archived: ${com.archived_threads}`);
+      lines.push(`[ENGAGEMENT] ${safeNum(com.totalThreads)} communication threads`);
+      if (com.activeThreads !== undefined) {
+        lines.push(`Active: ${com.activeThreads}, Archived: ${com.archivedThreads}`);
       }
       lines.push('\n[STRATEGY] Optimize top-of-funnel. Increase engagement on stalled deals. Re-engage archived conversations.');
       break;
       
     case 'content-performance':
-      lines.push(`[DEAL VALUE] Total pipeline value: $${Object.values(c.stage_values || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()}`);
-      if (c.stages && c.stage_values) {
+      lines.push(`[DEAL VALUE] Total pipeline value: $${Object.values(c.stageValues || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()}`);
+      if (c.stages && c.stageValues) {
         const stageData = Object.entries(c.stages).map(([stage, count]) => ({
           stage: formatStage(stage),
           count,
-          value: safeNum(c.stage_values[stage])
+          value: safeNum(c.stageValues[stage])
         }));
         lines.push('Pipeline Breakdown:');
         stageData.forEach(s => lines.push(`  ${s.stage}: ${s.count} deals, $${s.value.toLocaleString()}`));
@@ -782,7 +782,7 @@ const generateTemplateReport = (reportId, analytics) => {
       break;
       
     case 'offer-conversion':
-      lines.push(`[CONVERSION METRICS] ${safeNum(c.total_deals)} deals tracked`);
+      lines.push(`[CONVERSION METRICS] ${safeNum(c.totalDeals)} deals tracked`);
       if (c.stages) {
         const won = safeNum(c.stages['Closed Won'] || c.stages['closed_won'] || 0);
         const lost = safeNum(c.stages['Closed Lost'] || c.stages['closed_lost'] || 0);
@@ -790,16 +790,16 @@ const generateTemplateReport = (reportId, analytics) => {
         const rate = total > 0 ? Math.round((won / total) * 100) : 0;
         lines.push(`Win Rate: ${rate}% (${won} won / ${lost} lost)`);
       }
-      if (c.quality_distribution) {
-        lines.push(`Quality Distribution: ${JSON.stringify(c.quality_distribution)}`);
+      if (c.qualityDistribution) {
+        lines.push(`Quality Distribution: ${JSON.stringify(c.qualityDistribution)}`);
       }
       lines.push('\n[STRATEGY] Analyze lost deals for patterns. Improve follow-up timing. Test offer variations.');
       break;
       
     case 'customer-journey':
-      lines.push(`[JOURNEY MAP] ${safeNum(c.total_contacts)} customer touchpoints`);
-      if (c.recent_contacts?.length > 0) {
-        lines.push(`Recent Journey Sample: ${c.recent_contacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
+      lines.push(`[JOURNEY MAP] ${safeNum(c.totalContacts)} customer touchpoints`);
+      if (c.recentContacts?.length > 0) {
+        lines.push(`Recent Journey Sample: ${c.recentContacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
       }
       if (c.engagement_distribution) {
         lines.push(`Engagement Levels: ${JSON.stringify(c.engagement_distribution)}`);
@@ -808,27 +808,27 @@ const generateTemplateReport = (reportId, analytics) => {
       break;
       
     case 'market-intelligence':
-      lines.push(`[MARKET SIGNALS] ${safeNum(c.total_contacts)} contacts in database`);
+      lines.push(`[MARKET SIGNALS] ${safeNum(c.totalContacts)} contacts in database`);
       if (c.sources) {
         lines.push(`Lead Sources: ${Object.entries(c.sources).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
       }
-      lines.push(`[COMPETITIVE] ${safeNum(com.total_threads)} active conversations`);
+      lines.push(`[COMPETITIVE] ${safeNum(com.totalThreads)} active conversations`);
       lines.push('\n[STRATEGY] Monitor source effectiveness. Track emerging channels. Analyze competitor mentions in conversations.');
       break;
       
     case 'competitive-intelligence':
-      lines.push(`[COMPETITOR DATA] ${safeNum(c.total_contacts)} contacts analyzed`);
-      if (c.quality_distribution) {
-        lines.push(`Quality Segmentation: ${Object.entries(c.quality_distribution).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+      lines.push(`[COMPETITOR DATA] ${safeNum(c.totalContacts)} contacts analyzed`);
+      if (c.qualityDistribution) {
+        lines.push(`Quality Segmentation: ${Object.entries(c.qualityDistribution).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
       }
-      lines.push(`[COMMUNICATIONS] ${safeNum(com.active_threads)} active threads`);
+      lines.push(`[COMMUNICATIONS] ${safeNum(com.activeThreads)} active threads`);
       lines.push('\n[STRATEGY] Identify positioning gaps. Benchmark against industry standards. Find blue ocean opportunities.');
       break;
       
     case 'service-performance':
-      lines.push(`[SERVICE METRICS] ${safeNum(c.total_deals)} active projects/deals`);
-      if (c.stage_values) {
-        const topStage = Object.entries(c.stage_values).sort((a, b) => safeNum(b[1]) - safeNum(a[1]))[0];
+      lines.push(`[SERVICE METRICS] ${safeNum(c.totalDeals)} active projects/deals`);
+      if (c.stageValues) {
+        const topStage = Object.entries(c.stageValues).sort((a, b) => safeNum(b[1]) - safeNum(a[1]))[0];
         if (topStage) lines.push(`Highest Value Stage: ${formatStage(topStage[0])} ($${safeNum(topStage[1]).toLocaleString()})`);
       }
       lines.push('\n[STRATEGY] Identify scaling bottlenecks. Optimize delivery workflow. Prioritize high-margin services.');
@@ -840,52 +840,52 @@ const generateTemplateReport = (reportId, analytics) => {
         lines.push('AI Usage by Module:');
         Object.entries(aiData.runs_by_module).forEach(([mod, count]) => lines.push(`  ${mod}: ${count} runs`));
       }
-      lines.push(`[AUTOMATION] ${safeNum(c.total_contacts)} contacts in system`);
+      lines.push(`[AUTOMATION] ${safeNum(c.totalContacts)} contacts in system`);
       lines.push('\n[STRATEGY] Optimize AI routing. Reduce manual touchpoints. Scale successful workflows.');
       break;
       
     case 'revenue-intelligence':
-      lines.push(`[REVENUE] $${Object.values(c.stage_values || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()} total pipeline value`);
+      lines.push(`[REVENUE] $${Object.values(c.stageValues || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()} total pipeline value`);
       if (c.stages) {
-        const wonVal = safeNum(c.stage_values?.['Closed Won'] || c.stage_values?.['closed_won'] || 0);
+        const wonVal = safeNum(c.stageValues?.['Closed Won'] || c.stageValues?.['closed_won'] || 0);
         lines.push(`Closed Revenue: $${wonVal.toLocaleString()}`);
       }
-      lines.push(`[CONCENTRATION] ${safeNum(c.total_contacts)} customers`);
-      if (c.score_distribution) {
-        const highValue = safeNum(c.score_distribution['90+']) + safeNum(c.score_distribution['70-89']);
+      lines.push(`[CONCENTRATION] ${safeNum(c.totalContacts)} customers`);
+      if (c.scoreDistribution) {
+        const highValue = safeNum(c.scoreDistribution['90+']) + safeNum(c.scoreDistribution['70-89']);
         lines.push(`High-Value Contacts: ${highValue}`);
       }
       lines.push('\n[STRATEGY] Track LTV patterns. Diversify revenue sources. Monitor concentration risk.');
       break;
       
     case 'client-retention':
-      lines.push(`[RETENTION] ${safeNum(c.total_contacts)} contacts tracked`);
+      lines.push(`[RETENTION] ${safeNum(c.totalContacts)} contacts tracked`);
       if (c.engagement_distribution) {
         lines.push(`Engagement: ${JSON.stringify(c.engagement_distribution)}`);
       }
-      if (c.quality_distribution) {
-        lines.push(`Quality: ${JSON.stringify(c.quality_distribution)}`);
+      if (c.qualityDistribution) {
+        lines.push(`Quality: ${JSON.stringify(c.qualityDistribution)}`);
       }
-      lines.push(`[GROWTH] ${safeNum(com.total_threads)} conversations`);
+      lines.push(`[GROWTH] ${safeNum(com.totalThreads)} conversations`);
       lines.push('\n[STRATEGY] Nurture high-engagement contacts. Re-engage dormant accounts. Identify expansion opportunities.');
       break;
       
     case 'innovation-opportunity':
-      lines.push(`[INNOVATION SIGNALS] ${safeNum(c.total_contacts)} contact profiles`);
-      if (c.recent_contacts?.length > 0) {
-        lines.push(`Recent additions: ${c.recent_contacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
+      lines.push(`[INNOVATION SIGNALS] ${safeNum(c.totalContacts)} contact profiles`);
+      if (c.recentContacts?.length > 0) {
+        lines.push(`Recent additions: ${c.recentContacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
       }
       const unmetNeeds = [];
-      if (c.score_distribution && safeNum(c.score_distribution['<50']) > 0) unmetNeeds.push('Low-score leads need better nurturing');
-      if (com.active_threads === 0) unmetNeeds.push('Expand communication channels');
+      if (c.scoreDistribution && safeNum(c.scoreDistribution['<50']) > 0) unmetNeeds.push('Low-score leads need better nurturing');
+      if (com.activeThreads === 0) unmetNeeds.push('Expand communication channels');
       if (Object.keys(c.sources || {}).length < 3) unmetNeeds.push('Diversify lead sources');
       if (unmetNeeds.length > 0) lines.push(`Potential Gaps: ${unmetNeeds.join('; ')}`);
       lines.push('\n[STRATEGY] Prioritize feature requests from high-value clients. Test new offer concepts. Prototype solutions.');
       break;
       
     default:
-      lines.push(`[DATA] CRM: ${safeNum(c.total_contacts)} contacts, ${safeNum(c.total_deals)} deals`);
-      lines.push(`Comms: ${safeNum(com.total_threads)} threads`);
+      lines.push(`[DATA] CRM: ${safeNum(c.totalContacts)} contacts, ${safeNum(c.totalDeals)} deals`);
+      lines.push(`Comms: ${safeNum(com.totalThreads)} threads`);
       lines.push(`AI: ${safeNum(aiData.total_runs)} runs`);
   }
   
@@ -998,10 +998,10 @@ const Cortex = () => {
       }));
       setProviders(normalized);
       
-      const savedProvider = profileData?.active_provider || normalized.find((provider) => provider.is_default)?.provider_key;
-      if (savedProvider && normalized.find(p => p.provider_key === savedProvider)) {
+      const savedProvider = profileData?.active_provider || normalized.find((provider) => provider.is_default)?.providerKey;
+      if (savedProvider && normalized.find(p => p.providerKey === savedProvider)) {
         setActiveProviderId(savedProvider);
-        const p = normalized.find(p => p.provider_key === savedProvider);
+        const p = normalized.find(p => p.providerKey === savedProvider);
         const savedModel = profileData?.active_model;
         if (savedModel && p.models?.includes(savedModel)) {
           setActiveModelId(savedModel);
@@ -1009,7 +1009,7 @@ const Cortex = () => {
           setActiveModelId(p.models[0]);
         }
       } else if (normalized.length > 0) {
-        setActiveProviderId(normalized[0].provider_key);
+        setActiveProviderId(normalized[0].providerKey);
         if (normalized[0].models?.length > 0) setActiveModelId(normalized[0].models[0]);
       }
     } catch (err) { console.error(err); }
@@ -1019,7 +1019,7 @@ const Cortex = () => {
     if (activeProviderId !== 'ollama') return;
     try {
       const models = await getOllamaModelsApi();
-      setProviders(prev => prev.map(p => p.provider_key === 'ollama' ? { ...p, models } : p));
+      setProviders(prev => prev.map(p => p.providerKey === 'ollama' ? { ...p, models } : p));
       if (models.length > 0) setActiveModelId(models[0]);
     } catch (err) { console.error(err); }
   };
@@ -1078,11 +1078,11 @@ const Cortex = () => {
             providers={providers} 
             onProviderChange={async (id) => {
               setActiveProviderId(id);
-              const p = providers.find(p => p.provider_key === id);
+              const p = providers.find(p => p.providerKey === id);
               if (p) {
                 try {
                   // Global activation
-                  await upsertAiProviderConfigApi(id, { ...p, provider_key: id, is_default: true, enabled: true });
+                  await upsertAiProviderConfigApi(id, { ...p, providerKey: id, is_default: true, enabled: true });
                   // Brain specific update
                   await updateBrainProfileApi({ ...profile, active_provider: id }); 
                   fetchProviders(); // Refresh to get updated is_default status
@@ -1091,11 +1091,11 @@ const Cortex = () => {
             }}
             onModelChange={async (model) => {
               setActiveModelId(model);
-              const p = providers.find(p => p.provider_key === activeProviderId);
+              const p = providers.find(p => p.providerKey === activeProviderId);
               try {
                 if (p) {
                   // Update default model for this provider globally
-                  await upsertAiProviderConfigApi(activeProviderId, { ...p, provider_key: activeProviderId, model });
+                  await upsertAiProviderConfigApi(activeProviderId, { ...p, providerKey: activeProviderId, model });
                 }
                 // Brain specific update
                 await updateBrainProfileApi({ ...profile, active_model: model });
@@ -1155,13 +1155,13 @@ const Cortex = () => {
                 try {
                     console.log('[CortexReport] Fetching analytics...');
                     const analytics = await getAnalyticsSummaryApi();
-                    const hasContacts = analytics?.crm?.total_contacts > 0;
-                    const hasThreads = analytics?.comms?.total_threads > 0;
+                    const hasContacts = analytics?.crm?.totalContacts > 0;
+                    const hasThreads = analytics?.comms?.totalThreads > 0;
                     console.log('[CortexReport] ANALYTICS', { 
                         reportId: r.id, 
                         hasAnalytics: !!analytics,
-                        total_contacts: analytics?.crm?.total_contacts,
-                        total_threads: analytics?.comms?.total_threads,
+                        totalContacts: analytics?.crm?.totalContacts,
+                        totalThreads: analytics?.comms?.totalThreads,
                         hasContacts,
                         hasThreads
                     });

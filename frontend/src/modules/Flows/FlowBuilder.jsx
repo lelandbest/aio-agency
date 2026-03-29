@@ -304,10 +304,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       case 'action-configuration': {
         const actionType = overrides.actionType || nodeConfigDraft.actionType || 'send_email';
         const configByAction = {
-          send_email: { channel: 'email', objective: 'Deliver a concise follow-up', tone: 'helpful and direct', required_fields: ['subject', 'body', 'owner'] },
-          send_sms: { channel: 'sms', objective: 'Send a short action-first reminder', tone: 'brief and clear', required_fields: ['message', 'owner'] },
-          store_data: { channel: 'storage', objective: 'Persist normalized payload', required_fields: ['target_table', 'fields'] },
-          create_task: { channel: 'task', objective: 'Create a follow-up task', required_fields: ['title', 'owner', 'due_in_hours'] },
+          send_email: { channel: 'email', objective: 'Deliver a concise follow-up', tone: 'helpful and direct', requiredFields: ['subject', 'body', 'owner'] },
+          send_sms: { channel: 'sms', objective: 'Send a short action-first reminder', tone: 'brief and clear', requiredFields: ['message', 'owner'] },
+          store_data: { channel: 'storage', objective: 'Persist normalized payload', requiredFields: ['target_table', 'fields'] },
+          create_task: { channel: 'task', objective: 'Create a follow-up task', requiredFields: ['title', 'owner', 'due_in_hours'] },
           verify_email: { email: '{{contact.email}}', contactId: '{{contact.id}}', mode: 'quick', writeback: true },
           verify_email_bulk: { contactIds: ['{{contact.id}}'], emails: [], mode: 'power', writeback: true },
           generate_script: { topic: '{{trigger.payload.topic}}', tone: 'clear', duration: '10 minutes', context: 'Prospect-facing episode outline', provider: 'stub-script' },
@@ -331,7 +331,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         return 'If intent contains "demo" or lead_score >= 75, route to sales. Otherwise send to nurture and create a review task.';
       }
       case 'payload-map':
-        return JSON.stringify({ contact_email: '{{trigger.payload.email}}', contact_name: '{{trigger.payload.name}}', stage: '{{crm.contact.pipeline_stage}}', owner: '{{crm.contact.owner}}' }, null, 2);
+        return JSON.stringify({ contactEmail: '{{trigger.payload.email}}', contactName: '{{trigger.payload.name}}', stage: '{{crm.contact.pipeline_stage}}', owner: '{{crm.contact.owner}}' }, null, 2);
       case 'headers':
         return JSON.stringify({ 'Content-Type': 'application/json', 'X-AIO-Flow': flowName, Authorization: 'Bearer {{global.API_TOKEN}}' }, null, 2);
       case 'general':
@@ -362,11 +362,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     };
     const mapped = keyByKind[kind] || { surface: 'flow-node', field: kind, currentValue: '' };
     const context = {
-      flow_name: flow?.name || 'Untitled Flow',
+      flowName: flow?.name || 'Untitled Flow',
       selected_label: overrides.label || selectedNode?.data?.label || 'this node',
-      action_type: overrides.actionType || nodeConfigDraft.actionType || 'send_email',
-      logic_type: overrides.logicType || nodeConfigDraft.logicType || 'if_then',
-      trigger_event: overrides.event || nodeConfigDraft.event || 'the selected event',
+      actionType: overrides.actionType || nodeConfigDraft.actionType || 'send_email',
+      logicType: overrides.logicType || nodeConfigDraft.logicType || 'if_then',
+      triggerEvent: overrides.event || nodeConfigDraft.event || 'the selected event',
     };
     return requestAiSuggestion({
       module: 'flows',
@@ -1152,8 +1152,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       const result = await triggerFlowManualApi(persistedFlow.id, {
         command: `Manual run for flow ${persistedFlow.name || 'Untitled Flow'}`,
         context: {
-          flow_id: persistedFlow.id,
-          flow_name: persistedFlow.name || 'Untitled Flow',
+          flowId: persistedFlow.id,
+          flowName: persistedFlow.name || 'Untitled Flow',
         },
       });
       setLatestRunDetail(normalizeRunInspector(result, {

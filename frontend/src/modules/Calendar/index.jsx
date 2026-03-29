@@ -32,17 +32,17 @@ const COMMS_CALENDAR = {
   user_id: 'system',
   name: 'Comms',
   color: '#f59e0b',
-  is_default: false,
-  is_visible: true,
+  isDefault: false,
+  isVisible: true,
   is_backend: true
 };
 
 const normalizeBackendEvent = (event) => ({
   ...event,
-  calendar_id: event.calendar_id || COMMS_CALENDAR.id,
-  location_type: event.location_type || 'other',
-  all_day: Boolean(event.all_day),
-  is_backend_artifact: Boolean(event.thread_id || event.source === 'comms' || event.source === 'external-import'),
+  calendarId: event.calendarId || COMMS_CALENDAR.id,
+  locationType: event.locationType || 'other',
+  allDay: Boolean(event.allDay),
+  is_backend_artifact: Boolean(event.threadId || event.source === 'comms' || event.source === 'external-import'),
   source_label: event.source === 'comms' ? 'Comms' : event.source === 'external-import' ? 'Imported' : 'Backend'
 });
 
@@ -222,7 +222,7 @@ const CalendarModule = ({ clientMode = false }) => {
 
   const toggleCalendar = (calId) => {
     setCalendars(calendars.map(cal =>
-      cal.id === calId ? { ...cal, is_visible: !cal.is_visible } : cal
+      cal.id === calId ? { ...cal, isVisible: !cal.isVisible } : cal
     ));
   };
 
@@ -265,10 +265,10 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   const getEventsForDay = (date) => {
-    const visibleCalendarIds = calendars.filter(c => c.is_visible).map(c => c.id);
+    const visibleCalendarIds = calendars.filter(c => c.isVisible).map(c => c.id);
     return events.filter(evt => {
-      if (!visibleCalendarIds.includes(evt.calendar_id)) return false;
-      const evtDate = new Date(evt.start_time);
+      if (!visibleCalendarIds.includes(evt.calendarId)) return false;
+      const evtDate = new Date(evt.startTime);
       return evtDate.toDateString() === date.toDateString();
     });
   };
@@ -293,7 +293,7 @@ const CalendarModule = ({ clientMode = false }) => {
     } else {
       await createCalendarEventApi({
         ...eventData,
-        calendar_id: calendars.find(c => c.is_default)?.id || calendars[0]?.id,
+        calendarId: calendars.find(c => c.isDefault)?.id || calendars[0]?.id,
         status: 'scheduled',
         source: 'calendar-local'
       });
@@ -304,7 +304,7 @@ const CalendarModule = ({ clientMode = false }) => {
 
   const handleDeleteEvent = async (eventId) => {
     const eventToDelete = events.find((evt) => evt.id === eventId) || selectedEvent;
-    if (eventToDelete?.thread_id) {
+    if (eventToDelete?.threadId) {
       setShowEventModal(false);
       return;
     }
@@ -336,7 +336,7 @@ const CalendarModule = ({ clientMode = false }) => {
   const handleGuestBooking = async (bookingData) => {
     await createCalendarEventApi({
       ...bookingData,
-      calendar_id: calendars.find(c => c.name === 'AIO Booking')?.id || calendars[0]?.id,
+      calendarId: calendars.find(c => c.name === 'AIO Booking')?.id || calendars[0]?.id,
       status: 'scheduled',
       source: 'booking'
     });
@@ -368,20 +368,20 @@ const CalendarModule = ({ clientMode = false }) => {
     ? events.filter((evt) =>
       [
         evt.title,
-        evt.guest_name,
-        evt.guest_email,
+        evt.guestName,
+        evt.guestEmail,
         evt.location,
         evt.status,
       ].some((value) => String(value || '').toLowerCase().includes(normalizedModuleSearch))
     )
     : events;
-  const selectedDayEvents = [...getEventsForDay(currentDate)].sort((left, right) => new Date(left.start_time) - new Date(right.start_time));
+  const selectedDayEvents = [...getEventsForDay(currentDate)].sort((left, right) => new Date(left.startTime) - new Date(right.startTime));
   const upcomingBookings = [...events]
     .filter((evt) => {
-      const start = new Date(evt.start_time).getTime();
+      const start = new Date(evt.startTime).getTime();
       return start >= Date.now() && String(evt.status || '').toLowerCase() !== 'cancelled';
     })
-    .sort((left, right) => new Date(left.start_time) - new Date(right.start_time))
+    .sort((left, right) => new Date(left.startTime) - new Date(right.startTime))
     .slice(0, 8);
 
   useEffect(() => {
@@ -527,7 +527,7 @@ const CalendarModule = ({ clientMode = false }) => {
                 </div>
                 <div className="space-y-1">
                   {dayEvents.slice(0, 3).map(evt => {
-                    const cal = calendars.find(c => c.id === evt.calendar_id);
+                    const cal = calendars.find(c => c.id === evt.calendarId);
                     return (
                       <div
                         key={evt.id}
@@ -537,7 +537,7 @@ const CalendarModule = ({ clientMode = false }) => {
                       >
                         <div className="text-[var(--color-text-primary)] font-medium truncate">{evt.title}</div>
                         <div className="text-[var(--color-text-secondary)] text-[10px]">
-                          {new Date(evt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                         </div>
                       </div>
                     );
@@ -592,13 +592,13 @@ const CalendarModule = ({ clientMode = false }) => {
                   </div>
                   {weekDays.map((day, i) => {
                     const dayEvents = getEventsForDay(day).filter(evt => {
-                      const evtHour = new Date(evt.start_time).getHours();
+                      const evtHour = new Date(evt.startTime).getHours();
                       return evtHour === hour;
                     });
                     return (
                       <div key={i} className="calendar-cell calendar-cell-hover p-1 min-h-[60px] transition relative">
                         {dayEvents.map(evt => {
-                          const cal = calendars.find(c => c.id === evt.calendar_id);
+                          const cal = calendars.find(c => c.id === evt.calendarId);
                           return (
                             <div
                               key={evt.id}
@@ -639,7 +639,7 @@ const CalendarModule = ({ clientMode = false }) => {
           <div>
             {hours.map(hour => {
               const hourEvents = dayEvents.filter(evt => {
-                const evtHour = new Date(evt.start_time).getHours();
+                const evtHour = new Date(evt.startTime).getHours();
                 return evtHour === hour;
               });
 
@@ -650,7 +650,7 @@ const CalendarModule = ({ clientMode = false }) => {
                   </div>
                   <div className="flex-1 p-2 min-h-[80px]">
                     {hourEvents.map(evt => {
-                      const cal = calendars.find(c => c.id === evt.calendar_id);
+                      const cal = calendars.find(c => c.id === evt.calendarId);
                       return (
                         <div
                           key={evt.id}
@@ -661,7 +661,7 @@ const CalendarModule = ({ clientMode = false }) => {
                           <div className="flex justify-between items-start mb-1">
                             <div className="text-[var(--color-text-primary)] font-medium">{evt.title}</div>
                             <div className="text-xs text-[var(--color-text-secondary)]">
-                              {new Date(evt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                              {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                             </div>
                           </div>
                           {evt.description && (
@@ -673,10 +673,10 @@ const CalendarModule = ({ clientMode = false }) => {
                               {evt.location}
                             </div>
                           )}
-                          {evt.meeting_url && (
+                          {evt.meetingUrl && (
                             <div className="text-xs text-[var(--color-accent)] flex items-center gap-1 mt-1 hover:opacity-80">
                               <ExternalLink size={10} />
-                              <a href={evt.meeting_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                              <a href={evt.meetingUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                                 Join Meeting
                               </a>
                             </div>
@@ -726,8 +726,8 @@ const CalendarModule = ({ clientMode = false }) => {
                   {selectedCalendarSource ? (
                     <div className="flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
-                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Events {selectedCalendarSource.event_counts?.total || 0}</span>
-                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.event_counts?.conflicts || 0}</span>
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Events {selectedCalendarSource.eventCounts?.total || 0}</span>
+                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.eventCounts?.conflicts || 0}</span>
                     </div>
                   ) : null}
                   <div className="grid grid-cols-2 gap-2">
@@ -747,7 +747,7 @@ const CalendarModule = ({ clientMode = false }) => {
                       <label key={cal.id} className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
                         <input
                           type="checkbox"
-                          checked={cal.is_visible}
+                          checked={cal.isVisible}
                           onChange={() => toggleCalendar(cal.id)}
                           className="rounded bg-[var(--color-bg-primary)] border-[var(--color-border)]"
                           style={{ accentColor: cal.color }}
@@ -833,10 +833,10 @@ const CalendarModule = ({ clientMode = false }) => {
                       >
                         <div className="text-sm font-medium text-[var(--color-text-primary)]">{evt.title}</div>
                         <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                          {new Date(evt.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                         </div>
-                        {evt.guest_name || evt.guest_email ? (
-                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guest_name || evt.guest_email}</div>
+                        {evt.guestName || evt.guestEmail ? (
+                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guestName || evt.guestEmail}</div>
                         ) : null}
                       </button>
                     )) : (
@@ -853,17 +853,17 @@ const CalendarModule = ({ clientMode = false }) => {
                         key={evt.id}
                         type="button"
                         onClick={() => {
-                          setCurrentDate(new Date(evt.start_time));
+                          setCurrentDate(new Date(evt.startTime));
                           handleEditEvent(evt);
                         }}
                         className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-left transition hover:border-[var(--color-primary)]/40"
                       >
                         <div className="text-sm font-medium text-[var(--color-text-primary)]">{evt.title}</div>
                         <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                          {new Date(evt.start_time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                          {new Date(evt.startTime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                         </div>
-                        {evt.guest_name || evt.guest_email ? (
-                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guest_name || evt.guest_email}</div>
+                        {evt.guestName || evt.guestEmail ? (
+                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guestName || evt.guestEmail}</div>
                         ) : null}
                       </button>
                     )) : (
@@ -1105,14 +1105,14 @@ const CalendarModule = ({ clientMode = false }) => {
           <div className="h-full overflow-auto no-scrollbar p-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredEvents.map(evt => {
-              const cal = calendars.find(c => c.id === evt.calendar_id);
+              const cal = calendars.find(c => c.id === evt.calendarId);
               return (
                 <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-[var(--radius-panel)] p-5 transition shadow-island-sm ${evt.is_backend_artifact ? 'border-[var(--color-success)]/30' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40'}`}>
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-[var(--color-text-primary)] mb-1">{evt.title}</h3>
                       <div className="text-xs text-[var(--color-text-secondary)] mb-2">
-                        {new Date(evt.start_time).toLocaleString('en-US', {
+                        {new Date(evt.startTime).toLocaleString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           hour: 'numeric',
@@ -1133,14 +1133,14 @@ const CalendarModule = ({ clientMode = false }) => {
                     </select>
                   </div>
 
-                  {evt.guest_name && (
+                  {evt.guestName && (
                     <div className="text-sm text-[var(--color-text-secondary)] mb-2">
-                      👤 {evt.guest_name}
+                      👤 {evt.guestName}
                     </div>
                   )}
-                  {evt.guest_email && (
+                  {evt.guestEmail && (
                     <div className="text-sm text-[var(--color-text-secondary)] mb-2">
-                      ✉️ {evt.guest_email}
+                      ✉️ {evt.guestEmail}
                     </div>
                   )}
                   {evt.location && (
@@ -1149,9 +1149,9 @@ const CalendarModule = ({ clientMode = false }) => {
                       {evt.location}
                     </div>
                   )}
-                  {evt.meeting_url && (
+                  {evt.meetingUrl && (
                     <a
-                      href={evt.meeting_url}
+                      href={evt.meetingUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-[var(--color-accent)] hover:opacity-80 mb-3 flex items-center gap-1"
@@ -1261,7 +1261,7 @@ const CalendarModule = ({ clientMode = false }) => {
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {filteredEvents.map(evt => {
-                    const cal = calendars.find(c => c.id === evt.calendar_id);
+                    const cal = calendars.find(c => c.id === evt.calendarId);
                     return (
                       <tr key={evt.id} className={`hover:bg-[var(--color-hover)]/20 ${evt.is_backend_artifact ? 'bg-emerald-500/[0.04]' : ''}`}>
                         <td className="p-4 text-[var(--color-text-primary)] font-medium">
@@ -1270,9 +1270,9 @@ const CalendarModule = ({ clientMode = false }) => {
                             <div className="mt-1 text-[11px] text-[var(--color-success)] uppercase tracking-[0.2em]">{evt.source_label || 'Comms'} managed</div>
                           ) : null}
                         </td>
-                        <td className="p-4 text-[var(--color-text-secondary)]">{evt.guest_name || evt.guest_email || (evt.contact_id ? 'Linked CRM contact' : '-')}</td>
+                        <td className="p-4 text-[var(--color-text-secondary)]">{evt.guestName || evt.guestEmail || (evt.contact_id ? 'Linked CRM contact' : '-')}</td>
                         <td className="p-4 text-[var(--color-text-secondary)]">
-                          {new Date(evt.start_time).toLocaleString('en-US', {
+                          {new Date(evt.startTime).toLocaleString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             hour: 'numeric',
@@ -1284,7 +1284,7 @@ const CalendarModule = ({ clientMode = false }) => {
                             <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
                               {cal?.name}
                             </span>
-                            {evt.thread_id ? (
+                            {evt.threadId ? (
                               <span className="px-2 py-1 rounded text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)]">
                                 Thread linked
                               </span>
@@ -1459,8 +1459,8 @@ const CalendarModule = ({ clientMode = false }) => {
           event={selectedEvent}
           calendars={calendars}
           clientMode={clientMode}
-          managedByBackend={Boolean(selectedEvent?.thread_id || selectedEvent?.source === 'comms')}
-          allowDelete={!selectedEvent?.thread_id}
+          managedByBackend={Boolean(selectedEvent?.threadId || selectedEvent?.source === 'comms')}
+          allowDelete={!selectedEvent?.threadId}
           onSave={handleSaveEvent}
           onDelete={handleDeleteEvent}
           onClose={() => setShowEventModal(false)}
@@ -1545,7 +1545,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
     description: booker?.description || '',
     duration_minutes: booker?.duration_minutes || 30,
     location: booker?.location || '',
-    location_type: booker?.location_type || 'other',
+    locationType: booker?.locationType || 'other',
     color: booker?.color || 'var(--color-primary)',
     buffer_before_minutes: booker?.buffer_before_minutes || 0,
     buffer_after_minutes: booker?.buffer_after_minutes || 0
@@ -1561,7 +1561,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
         phone: 'Phone Discovery Call',
         other: 'Client Planning Session',
       };
-      return labelByType[formData.location_type] || 'Client Meeting';
+      return labelByType[formData.locationType] || 'Client Meeting';
     }
     if (field === 'description') {
       return `Use this booking type for ${formData.name || 'this meeting'}.\nClarify the goal, who should attend, and what the client should prepare before the call.`;
@@ -1573,7 +1573,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
         phone: '+1 (555) 555-5555',
         other: 'Main office or private meeting link',
       };
-      return valueByType[formData.location_type] || 'Main office';
+      return valueByType[formData.locationType] || 'Main office';
     }
     return '';
   };
@@ -1590,7 +1590,7 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
         context: {
           ...formData,
           name: formData.name || '',
-          location_type: formData.location_type || 'other',
+          locationType: formData.locationType || 'other',
         },
         fallback: () => buildBookerAssistText(field),
       });
@@ -1681,8 +1681,8 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Location Type</label>
             <select
-              value={formData.location_type}
-              onChange={(e) => setFormData({ ...formData, location_type: e.target.value })}
+              value={formData.locationType}
+              onChange={(e) => setFormData({ ...formData, locationType: e.target.value })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
             >
               <option value="zoom">🎥 Zoom</option>
@@ -1703,9 +1703,9 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
               placeholder={
-                formData.location_type === 'zoom' ? 'Zoom Meeting' :
-                  formData.location_type === 'google_meet' ? 'Google Meet' :
-                    formData.location_type === 'phone' ? 'Phone number' :
+                formData.locationType === 'zoom' ? 'Zoom Meeting' :
+                  formData.locationType === 'google_meet' ? 'Google Meet' :
+                    formData.locationType === 'phone' ? 'Phone number' :
                       'e.g., Office, Address, or Link'
               }
             />
@@ -1785,8 +1785,8 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
         const slotTime = new Date(date);
         slotTime.setHours(hour, min, 0, 0);
         const hasConflict = events.some(evt => {
-          const evtStart = new Date(evt.start_time);
-          const evtEnd = new Date(evt.end_time);
+          const evtStart = new Date(evt.startTime);
+          const evtEnd = new Date(evt.endTime);
           const slotEnd = new Date(slotTime.getTime() + bookingType.duration_minutes * 60000);
           return slotTime < evtEnd && slotEnd > evtStart;
         });
@@ -1803,14 +1803,14 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
     onBook({
       title: `${bookingType.name} - ${guestInfo.name}`,
       description: guestInfo.notes,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
       location: bookingType.location,
       guest_name: guestInfo.name,
       guest_email: guestInfo.email,
       guest_phone: guestInfo.phone,
       booking_type_id: bookingType.id,
-      all_day: false
+      allDay: false
     });
   };
 
@@ -2092,12 +2092,12 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
   const [formData, setFormData] = useState({
     title: event?.title || '',
     description: event?.description || '',
-    start_time: event?.start_time ? new Date(event.start_time).toISOString().slice(0, 16) : '',
-    end_time: event?.end_time ? new Date(event.end_time).toISOString().slice(0, 16) : '',
+    startTime: event?.startTime ? new Date(event.startTime).toISOString().slice(0, 16) : '',
+    endTime: event?.endTime ? new Date(event.endTime).toISOString().slice(0, 16) : '',
     location: event?.location || '',
-    location_type: event?.location_type || 'other',
-    meeting_url: event?.meeting_url || '',
-    all_day: event?.all_day || false,
+    locationType: event?.locationType || 'other',
+    meetingUrl: event?.meetingUrl || '',
+    allDay: event?.allDay || false,
     timezone: event?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
   });
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -2124,7 +2124,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
         phone: 'Phone Follow-Up',
         other: 'Client Meeting',
       };
-      return titleByType[formData.location_type] || 'Client Meeting';
+      return titleByType[formData.locationType] || 'Client Meeting';
     }
     if (field === 'description') {
       return 'Objective: align on the next step.\nAgenda: review context, confirm blockers, and leave with one owner and one concrete action.\nPreparation: bring the latest notes and any open questions.';
@@ -2134,7 +2134,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
         phone: '+1 (555) 555-5555',
         other: 'Office address, room, or external meeting link',
       };
-      return valueByType[formData.location_type] || formData.location || 'Meeting details';
+      return valueByType[formData.locationType] || formData.location || 'Meeting details';
     }
     return '';
   };
@@ -2150,7 +2150,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
         currentValue: formData[field] || '',
         context: {
           ...formData,
-          location_type: formData.location_type || 'other',
+          locationType: formData.locationType || 'other',
           title: formData.title || '',
         },
         fallback: () => buildEventAssistText(field),
@@ -2192,8 +2192,8 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
     if (readOnly) return;
     onSave({
       ...formData,
-      start_time: new Date(formData.start_time).toISOString(),
-      end_time: new Date(formData.end_time).toISOString(),
+      startTime: new Date(formData.startTime).toISOString(),
+      endTime: new Date(formData.endTime).toISOString(),
     });
   };
 
@@ -2204,8 +2204,8 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
       const eventInfo = {
         title: formData.title || 'Meeting',
         description: formData.description || '',
-        start_time: formData.start_time,
-        end_time: formData.end_time
+        startTime: formData.startTime,
+        endTime: formData.endTime
       };
       if (type === 'zoom') {
         result = await generateZoomLink(eventInfo);
@@ -2215,7 +2215,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
       if (result.success) {
         setFormData({
           ...formData,
-          meeting_url: result.meeting_url,
+          meetingUrl: result.meetingUrl,
           location: type === 'zoom' ? 'Zoom Meeting' : 'Google Meet',
           meeting_id: result.meeting_id || null,
           meeting_password: result.password || null
@@ -2314,12 +2314,12 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
                 }}
                 className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]"
               >
-                {formatDateForDisplay(formData.start_time)}
+                {formatDateForDisplay(formData.startTime)}
               </button>
               {showStartPicker && (
                 <MiniCalendar
-                  selectedDate={formData.start_time}
-                  onSelect={(date) => setFormData({ ...formData, start_time: date })}
+                  selectedDate={formData.startTime}
+                  onSelect={(date) => setFormData({ ...formData, startTime: date })}
                   onClose={() => setShowStartPicker(false)}
                   position="left"
                 />
@@ -2339,12 +2339,12 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
                 }}
                 className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]"
               >
-                {formatDateForDisplay(formData.end_time)}
+                {formatDateForDisplay(formData.endTime)}
               </button>
               {showEndPicker && (
                 <MiniCalendar
-                  selectedDate={formData.end_time}
-                  onSelect={(date) => setFormData({ ...formData, end_time: date })}
+                  selectedDate={formData.endTime}
+                  onSelect={(date) => setFormData({ ...formData, endTime: date })}
                   onClose={() => setShowEndPicker(false)}
                   position="right"
                 />
@@ -2370,9 +2370,9 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
             <input
               type="checkbox"
               id="all-day"
-              checked={formData.all_day}
+              checked={formData.allDay}
               disabled={readOnly}
-              onChange={(e) => setFormData({ ...formData, all_day: e.target.checked })}
+              onChange={(e) => setFormData({ ...formData, allDay: e.target.checked })}
               className="rounded bg-[var(--color-bg-secondary)] border-[var(--color-border)]"
             />
             <label htmlFor="all-day" className="text-sm text-[var(--color-text-secondary)]">All day event</label>
@@ -2381,9 +2381,9 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Meeting Location</label>
             <select
-              value={formData.location_type}
+              value={formData.locationType}
               disabled={readOnly}
-              onChange={(e) => setFormData({ ...formData, location_type: e.target.value, meeting_url: '' })}
+              onChange={(e) => setFormData({ ...formData, locationType: e.target.value, meetingUrl: '' })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
             >
               <option value="zoom">🎥 Zoom</option>
@@ -2393,22 +2393,22 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
             </select>
           </div>
 
-          {(formData.location_type === 'zoom' || formData.location_type === 'google_meet') && (
+          {(formData.locationType === 'zoom' || formData.locationType === 'google_meet') && (
             <div>
               <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Video Call Link</label>
               <div className="flex gap-2">
                 <input
                   type="url"
-                  value={formData.meeting_url}
+                  value={formData.meetingUrl}
                   disabled={readOnly}
-                  onChange={(e) => setFormData({ ...formData, meeting_url: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, meetingUrl: e.target.value })}
                   className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none text-sm"
                   placeholder="Meeting link will be generated"
                   readOnly={generatingLink}
                 />
                 <button
                   type="button"
-                  onClick={() => generateMeetingLink(formData.location_type)}
+                  onClick={() => generateMeetingLink(formData.locationType)}
                   disabled={generatingLink || readOnly}
                   className="px-4 py-2 bg-[var(--color-accent)] hover:opacity-90 disabled:opacity-50 text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium whitespace-nowrap border border-transparent shadow-island-sm transition"
                 >
@@ -2416,12 +2416,12 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
                 </button>
               </div>
               <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-                {formData.location_type === 'zoom' ? '🎥 Zoom' : '📹 Google Meet'} link will be created automatically
+                {formData.locationType === 'zoom' ? '🎥 Zoom' : '📹 Google Meet'} link will be created automatically
               </p>
             </div>
           )}
 
-          {formData.location_type === 'phone' && (
+          {formData.locationType === 'phone' && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
@@ -2441,7 +2441,7 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
             </div>
           )}
 
-          {formData.location_type === 'other' && (
+          {formData.locationType === 'other' && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
@@ -2461,14 +2461,14 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
             </div>
           )}
 
-          {formData.meeting_url && (
+          {formData.meetingUrl && (
             <div className="bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 rounded p-3">
               <div className="text-xs text-[var(--color-success)] mb-1 font-medium">Meeting Link Generated</div>
-              <div className="text-xs text-[var(--color-text-secondary)] break-all">{formData.meeting_url}</div>
+              <div className="text-xs text-[var(--color-text-secondary)] break-all">{formData.meetingUrl}</div>
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(formData.meeting_url);
+                  navigator.clipboard.writeText(formData.meetingUrl);
                 }}
                 className="text-xs text-[var(--color-accent)] hover:opacity-80 mt-2 flex items-center gap-1"
               >

@@ -91,11 +91,11 @@ const DEFAULT_FORM_STATE = {
   prompt: '',
   image: '',
   script: '',
-  transcript_text: '',
-  source_url: '',
+  transcriptText: '',
+  sourceUrl: '',
   meetingProvider: 'zoom',
-  meeting_id: '',
-  meeting_title: '',
+  meetingId: '',
+  meetingTitle: '',
   mediaUrl: '',
 };
 
@@ -210,7 +210,7 @@ const MediaModule = () => {
           typeLabel: 'ScriptJob',
           status: job.status || 'queued',
           provider: job.provider || 'stub-script',
-          createdAt: job.created_at,
+          createdAt: job.createdAt,
           artifactId: job.artifact_id || null,
           assetId: null,
           lastError: job.last_error || '',
@@ -222,7 +222,7 @@ const MediaModule = () => {
           typeLabel: 'RunOfShowJob',
           status: job.status || 'queued',
           provider: job.provider || 'stub-run-of-show',
-          createdAt: job.created_at,
+          createdAt: job.createdAt,
           artifactId: job.artifact_id || null,
           assetId: null,
           lastError: job.last_error || '',
@@ -234,9 +234,9 @@ const MediaModule = () => {
           typeLabel: 'AudioRenderJob',
           status: job.status || 'queued',
           provider: job.provider || 'elevenlabs_tts',
-          createdAt: job.created_at,
+          createdAt: job.createdAt,
           artifactId: null,
-          assetId: Array.isArray(job.output_asset_ids) ? job.output_asset_ids[0] || null : null,
+          assetId: Array.isArray(job.outputAssetIds) ? job.outputAssetIds[0] || null : null,
           lastError: job.last_error || '',
         })),
         ...renderJobs.map((job) => ({
@@ -246,9 +246,9 @@ const MediaModule = () => {
           typeLabel: 'RenderJob',
           status: job.status || 'queued',
           provider: job.provider || 'stub-render',
-          createdAt: job.created_at,
+          createdAt: job.createdAt,
           artifactId: null,
-          assetId: Array.isArray(job.output_asset_ids) ? job.output_asset_ids[0] || null : null,
+          assetId: Array.isArray(job.outputAssetIds) ? job.outputAssetIds[0] || null : null,
           lastError: job.last_error || '',
         })),
         ...transcriptJobs.map((job) => ({
@@ -258,7 +258,7 @@ const MediaModule = () => {
           typeLabel: 'TranscriptJob',
           status: job.status || 'queued',
           provider: job.provider || 'elevenlabs_scribe',
-          createdAt: job.created_at,
+          createdAt: job.createdAt,
           artifactId: job.artifact_id || null,
           assetId: null,
           lastError: job.last_error || '',
@@ -270,7 +270,7 @@ const MediaModule = () => {
           typeLabel: 'PublishJob',
           status: job.status || 'queued',
           provider: job.provider || 'internal-publish',
-          createdAt: job.created_at,
+          createdAt: job.createdAt,
           artifactId: job.artifact_id || null,
           assetId: null,
           lastError: job.last_error || '',
@@ -297,7 +297,7 @@ const MediaModule = () => {
           typeLabel: 'RunOfShowArtifact',
           provider: artifact.provider || 'stub-run-of-show',
           createdAt: artifact.created_at,
-          previewText: artifact.run_of_show_text || '',
+          previewText: artifact.runOfShowText || '',
           sourceUrl: null,
           mediaType: 'text',
           status: 'complete',
@@ -321,10 +321,10 @@ const MediaModule = () => {
           typeLabel: 'PublishArtifact',
           provider: artifact.provider || 'internal-publish',
           createdAt: artifact.created_at,
-          previewText: `Target: ${artifact.publish_target || 'Unknown'} | Status: ${artifact.publication_status || 'unknown'}`,
+          previewText: `Target: ${artifact.publishTarget || 'Unknown'} | Status: ${artifact.publicationStatus || 'unknown'}`,
           sourceUrl: null,
           mediaType: 'text',
-          status: artifact.publication_status || 'published',
+          status: artifact.publicationStatus || 'published',
         })),
         ...assets.map((asset) => ({
           id: asset.id,
@@ -495,9 +495,9 @@ const MediaModule = () => {
         result = await createMediaRenderJobApi({
           provider: activeAction.provider,
           title: formState.title || 'Thumbnail Render',
-          media_type: 'image',
-          render_profile: 'thumbnail',
-          asset_type: 'thumbnail',
+          mediaType: 'image',
+          renderProfile: 'thumbnail',
+          assetType: 'thumbnail',
           script: [formState.title, formState.subtitle, formState.prompt, formState.image].filter(Boolean).join(' · '),
           metadata: { subtitle: formState.subtitle, prompt: formState.prompt, image: formState.image },
         });
@@ -505,8 +505,8 @@ const MediaModule = () => {
         result = await createMediaRenderJobApi({
           provider: activeAction.provider,
           title: formState.title || 'Video Render',
-          media_type: 'video',
-          render_profile: 'foundation',
+          mediaType: 'video',
+          renderProfile: 'foundation',
           script: formState.script,
           metadata: { prompt: formState.prompt },
         });
@@ -514,8 +514,8 @@ const MediaModule = () => {
         result = await createMediaTranscriptJobApi({
           provider: activeAction.provider,
           title: formState.title || 'Transcript Job',
-          source_url: formState.source_url || null,
-          transcript_text: formState.transcript_text || null,
+          sourceUrl: formState.source_url || null,
+          transcriptText: formState.transcript_text || null,
         });
       } else if (selectedAction === 'ingest_meeting_artifacts') {
         const provider = formState.meetingProvider || 'zoom';
@@ -523,12 +523,12 @@ const MediaModule = () => {
         result = await ingestMeetingMediaApi({
           provider,
           source: provider,
-          meeting_id: formState.meeting_id,
-          meeting_title: formState.meeting_title || 'Meeting Ingest',
-          transcript_text: formState.transcript_text || null,
-          auto_transcribe: Boolean(formState.transcript_text),
-          recording_files: provider === 'zoom' && mediaUrl ? [{ file_name: formState.meeting_title || 'Zoom Recording', url: mediaUrl, media_type: 'video' }] : [],
-          drive_files: provider === 'google_meet_drive' && mediaUrl ? [{ name: formState.meeting_title || 'Drive Recording', url: mediaUrl, mime_type: 'video/mp4' }] : [],
+          meetingId: formState.meeting_id,
+          meetingTitle: formState.meeting_title || 'Meeting Ingest',
+          transcriptText: formState.transcript_text || null,
+          autoTranscribe: Boolean(formState.transcript_text),
+          recordingFiles: provider === 'zoom' && mediaUrl ? [{ fileName: formState.meeting_title || 'Zoom Recording', url: mediaUrl, mediaType: 'video' }] : [],
+          driveFiles: provider === 'google_meet_drive' && mediaUrl ? [{ name: formState.meeting_title || 'Drive Recording', url: mediaUrl, mimeType: 'video/mp4' }] : [],
         });
       }
 

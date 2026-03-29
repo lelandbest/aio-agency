@@ -238,13 +238,13 @@ const normalizeAiText = (value, fallback = '') => {
 const matchesThreadFilters = (thread, { queueId = 'all', channel = 'all', mailboxId = 'all', search = '' }) => {
   const searchValue = search.trim().toLowerCase();
   const queueMatch = queueId === 'all' ? true : (thread.queueIds || []).includes(queueId);
-  const channelMatch = channel === 'all' ? true : thread.channel_type === channel;
-  const mailboxMatch = mailboxId === 'all' ? true : thread.mailbox_id === mailboxId;
+  const channelMatch = channel === 'all' ? true : thread.channelType === channel;
+  const mailboxMatch = mailboxId === 'all' ? true : thread.mailboxId === mailboxId;
   const searchMatch = !searchValue || [
     thread.subject,
-    thread.generated_title,
+    thread.generatedTitle,
     thread.preview,
-    thread.contact ? `${thread.contact.first_name} ${thread.contact.last_name}` : '',
+    thread.contact ? `${thread.contact.firstName} ${thread.contact.lastName}` : '',
     thread.company?.name || ''
   ].some((value) => (value || '').toLowerCase().includes(searchValue));
   return queueMatch && channelMatch && mailboxMatch && searchMatch;
@@ -254,17 +254,17 @@ const shapeThreadsForView = (threads, mode) => {
   if (mode === 'all') return threads;
   const grouped = new Map();
   threads.forEach((thread) => {
-    const contactKey = thread.contact_id || thread.contact?.email || thread.contact?.id || thread.id;
-    const key = mode === 'latest-contact-channel' ? `${contactKey}::${thread.channel_type}` : contactKey;
+    const contactKey = thread.contactId || thread.contact?.email || thread.contact?.id || thread.id;
+    const key = mode === 'latest-contact-channel' ? `${contactKey}::${thread.channelType}` : contactKey;
     const existing = grouped.get(key);
-    const currentStamp = new Date(thread.last_activity_at || thread.updated_at || 0).getTime();
-    const existingStamp = existing ? new Date(existing.last_activity_at || existing.updated_at || 0).getTime() : -1;
+    const currentStamp = new Date(thread.lastActivityAt || thread.updatedAt || 0).getTime();
+    const existingStamp = existing ? new Date(existing.lastActivityAt || existing.updatedAt || 0).getTime() : -1;
     if (!existing || currentStamp >= existingStamp) {
       grouped.set(key, thread);
     }
   });
   return Array.from(grouped.values()).sort(
-    (left, right) => new Date(right.last_activity_at || right.updated_at || 0).getTime() - new Date(left.last_activity_at || left.updated_at || 0).getTime()
+    (left, right) => new Date(right.lastActivityAt || right.updatedAt || 0).getTime() - new Date(left.lastActivityAt || left.updatedAt || 0).getTime()
   );
 };
 
@@ -281,38 +281,38 @@ const readErrorMessage = (error) => {
 const formatEventLabel = (eventType) => eventType.replace(/[._]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 
 const describeMailEvent = (event) => {
-  const payloadMessage = event.payload?.message || event.payload?.subject || event.payload?.sender_email || event.payload?.mailbox_address || event.source_provider;
-  if (event.event_type.includes('failed')) {
+  const payloadMessage = event.payload?.message || event.payload?.subject || event.payload?.senderEmail || event.payload?.mailboxAddress || event.sourceProvider;
+  if (event.eventType.includes('failed')) {
     return {
       tone: 'failure',
-      title: formatEventLabel(event.event_type),
+      title: formatEventLabel(event.eventType),
       detail: payloadMessage
     };
   }
-  if (event.event_type === 'mailbox.tested') {
+  if (event.eventType === 'mailbox.tested') {
     return {
       tone: event.payload?.status === 'ok' ? 'success' : 'warning',
       title: 'Connection Test',
       detail: payloadMessage
     };
   }
-  if (event.event_type === 'mail.sent') {
+  if (event.eventType === 'mail.sent') {
     return {
       tone: 'success',
       title: 'Outbound Delivered',
       detail: payloadMessage
     };
   }
-  if (event.event_type === 'mail.received' || event.event_type === 'mailbox.synced') {
+  if (event.eventType === 'mail.received' || event.eventType === 'mailbox.synced') {
     return {
       tone: 'info',
-      title: formatEventLabel(event.event_type),
+      title: formatEventLabel(event.eventType),
       detail: payloadMessage
     };
   }
   return {
     tone: 'warning',
-    title: formatEventLabel(event.event_type),
+    title: formatEventLabel(event.eventType),
     detail: payloadMessage
   };
 };
@@ -332,12 +332,12 @@ const getThreadPulse = (thread) => {
   const latestOutbound = [...messages].reverse().find((message) => message.direction === 'outbound') || null;
   const latestInbound = [...messages].reverse().find((message) => message.direction === 'inbound') || null;
   const latestSystem = [...messages].reverse().find((message) => message.direction === 'system') || null;
-  const awaitingReply = Boolean(latestOutbound) && (!latestInbound || new Date(latestOutbound.created_at).getTime() > new Date(latestInbound.created_at).getTime());
-  const replyAge = awaitingReply ? Date.now() - new Date(latestOutbound.created_at).getTime() : 0;
-  const followUpDue = Boolean(thread?.next_follow_up_at) && new Date(thread.next_follow_up_at).getTime() <= Date.now();
-  const followUpScheduled = Boolean(thread?.next_follow_up_at) && !followUpDue;
-  const deliveryFailure = messages.some((message) => message.direction === 'outbound' && message.delivery_status === 'failed');
-  const deliveryState = latestMessage?.direction === 'outbound' ? latestMessage.delivery_status || 'sent' : null;
+  const awaitingReply = Boolean(latestOutbound) && (!latestInbound || new Date(latestOutbound.createdAt).getTime() > new Date(latestInbound.createdAt).getTime());
+  const replyAge = awaitingReply ? Date.now() - new Date(latestOutbound.createdAt).getTime() : 0;
+  const followUpDue = Boolean(thread?.nextFollowUpAt) && new Date(thread.nextFollowUpAt).getTime() <= Date.now();
+  const followUpScheduled = Boolean(thread?.nextFollowUpAt) && !followUpDue;
+  const deliveryFailure = messages.some((message) => message.direction === 'outbound' && message.deliveryStatus === 'failed');
+  const deliveryState = latestMessage?.direction === 'outbound' ? latestMessage.deliveryStatus || 'sent' : null;
 
   const chips = [];
   if (deliveryFailure) {
@@ -348,16 +348,16 @@ const getThreadPulse = (thread) => {
   if (followUpDue) {
     chips.push({ key: 'follow-up-due', label: 'Follow-up due', tone: 'danger' });
   } else if (followUpScheduled) {
-    chips.push({ key: 'follow-up-scheduled', label: `Follow-up ${formatRelative(thread.next_follow_up_at)}`, tone: 'info' });
+    chips.push({ key: 'follow-up-scheduled', label: `Follow-up ${formatRelative(thread.nextFollowUpAt)}`, tone: 'info' });
   }
   if (awaitingReply) {
     chips.push({
       key: 'awaiting-reply',
-      label: replyAge >= 172800000 ? `No reply ${formatWindow(latestOutbound.created_at)}` : `Waiting ${formatWindow(latestOutbound.created_at)}`,
+      label: replyAge >= 172800000 ? `No reply ${formatWindow(latestOutbound.createdAt)}` : `Waiting ${formatWindow(latestOutbound.createdAt)}`,
       tone: replyAge >= 172800000 ? 'danger' : replyAge >= 86400000 ? 'warning' : 'info'
     });
   } else if (latestInbound) {
-    chips.push({ key: 'inbound-live', label: `Inbound ${formatWindow(latestInbound.created_at)}`, tone: 'success' });
+    chips.push({ key: 'inbound-live', label: `Inbound ${formatWindow(latestInbound.createdAt)}`, tone: 'success' });
   } else if (latestSystem) {
     chips.push({ key: 'system', label: 'Workflow touched', tone: 'neutral' });
   }
@@ -416,8 +416,8 @@ const createMailboxDraft = (provider = '') => ({
   name: '',
   address: '',
   provider,
-  inbound_enabled: true,
-  outbound_enabled: true,
+  inboundEnabled: true,
+  outboundEnabled: true,
   config: {}
 });
 
@@ -427,16 +427,16 @@ const openMailboxAdmin = () => window.dispatchEvent(new CustomEvent('aio:navigat
 
 const buildThreadReport = (thread, kind = 'executive') => {
   if (!thread) return '';
-  const contactName = thread.contact ? `${thread.contact.first_name} ${thread.contact.last_name}`.trim() : 'Unlinked contact';
+  const contactName = thread.contact ? `${thread.contact.firstName} ${thread.contact.lastName}`.trim() : 'Unlinked contact';
   const companyName = thread.company?.name || 'No company linked';
-  const stage = thread.contact?.pipeline_stage || 'No CRM stage';
+  const stage = thread.contact?.pipelineStage || 'No CRM stage';
   const summary = normalizeAiText(thread.brief?.summary, thread.preview || 'No brief available.');
-  const nextStep = normalizeAiText(thread.brief?.recommended_next_step, 'No recommended next step yet.');
-  const unresolved = (thread.brief?.unresolved_questions || []).filter(Boolean);
-  const cues = (thread.brief?.reasoning_cues || []).filter(Boolean);
+  const nextStep = normalizeAiText(thread.brief?.recommendedNextStep, 'No recommended next step yet.');
+  const unresolved = (thread.brief?.unresolvedQuestions || []).filter(Boolean);
+  const cues = (thread.brief?.reasoningCues || []).filter(Boolean);
   const flags = formatFlags(thread);
   const actions = ((thread.actions || []).filter((action) => action.status === 'completed').slice(-5)).map((action) => (
-    `- ${action.label} (${action.source || 'system'}, ${formatRelative(action.created_at || thread.updated_at)})`
+    `- ${action.label} (${action.source || 'system'}, ${formatRelative(action.createdAt || thread.updatedAt)})`
   ));
 
   if (kind === 'operator') {
@@ -466,7 +466,7 @@ const buildThreadReport = (thread, kind = 'executive') => {
   return [
     'Executive Thread Report',
     `Thread: ${thread.subject}`,
-    `Priority: ${thread.ai_priority || 'medium'}`,
+    `Priority: ${thread.aiPriority || 'medium'}`,
     `Contact: ${contactName}`,
     `Company: ${companyName}`,
     `Stage: ${stage}`,
@@ -500,7 +500,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const [composerChannel, setComposerChannel] = useState(initialChannel === 'all' ? 'email' : initialChannel);
   const [busyLabel, setBusyLabel] = useState('');
   const [mailboxEvents, setMailboxEvents] = useState([]);
-  const [mailboxForm, setMailboxForm] = useState({ name: '', address: '', provider: '', status: 'connected', inbound_enabled: true, outbound_enabled: true, config: {} });
+  const [mailboxForm, setMailboxForm] = useState({ name: '', address: '', provider: '', status: 'connected', inboundEnabled: true, outboundEnabled: true, config: {} });
   const [mailboxProviders, setMailboxProviders] = useState([]);
   const [mailboxTestResult, setMailboxTestResult] = useState(null);
   const [isMailboxComposerOpen, setIsMailboxComposerOpen] = useState(false);
@@ -575,7 +575,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   );
 
   const mailboxScopedThreads = useMemo(
-    () => channelScopedThreads.filter((thread) => activeMailboxId === 'all' ? true : thread.mailbox_id === activeMailboxId),
+    () => channelScopedThreads.filter((thread) => activeMailboxId === 'all' ? true : thread.mailboxId === activeMailboxId),
     [channelScopedThreads, activeMailboxId]
   );
 
@@ -610,7 +610,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const mailboxVisibleCounts = useMemo(() => {
     const counts = { all: channelScopedThreads.length };
     (snapshot.mailboxes || []).forEach((mailbox) => {
-      counts[mailbox.id] = channelScopedThreads.filter((thread) => thread.mailbox_id === mailbox.id).length;
+      counts[mailbox.id] = channelScopedThreads.filter((thread) => thread.mailboxId === mailbox.id).length;
     });
     return counts;
   }, [channelScopedThreads, snapshot.mailboxes]);
@@ -638,7 +638,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
   useEffect(() => {
     if (selectedThread) {
-      setComposerChannel(selectedThread.channel_type === 'internal' ? 'internal' : selectedThread.channel_type || 'email');
+      setComposerChannel(selectedThread.channelType === 'internal' ? 'internal' : selectedThread.channelType || 'email');
     }
   }, [selectedThreadId]);
 
@@ -690,9 +690,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   }, [activeLeftPanelWidth, activeResizeSide, activeRightPanelWidth, isCompactThreeColumnComms, isThreeColumnComms]);
 
   useEffect(() => {
-    const mailbox = (snapshot.mailboxes || []).find((item) => item.id === (selectedThread?.mailbox_id || activeMailbox?.id)) || snapshot.mailboxes?.[0] || null;
+    const mailbox = (snapshot.mailboxes || []).find((item) => item.id === (selectedThread?.mailboxId || activeMailbox?.id)) || snapshot.mailboxes?.[0] || null;
     if (!mailbox) {
-      setMailboxForm({ name: '', address: '', provider: '', status: 'connected', inbound_enabled: true, outbound_enabled: true, config: {} });
+      setMailboxForm({ name: '', address: '', provider: '', status: 'connected', inboundEnabled: true, outboundEnabled: true, config: {} });
       setMailboxTestResult(null);
       return;
     }
@@ -701,8 +701,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       address: mailbox.address || '',
       provider: mailbox.provider || '',
       status: mailbox.status || 'connected',
-      inbound_enabled: mailbox.inbound_enabled !== false,
-      outbound_enabled: mailbox.outbound_enabled !== false,
+      inboundEnabled: mailbox.inboundEnabled !== false,
+      outboundEnabled: mailbox.outboundEnabled !== false,
       config: mailbox.config || {}
     });
     setMailboxTestResult(null);
@@ -713,7 +713,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       setMailboxEvents([]);
       return undefined;
     }
-    const mailbox = (snapshot.mailboxes || []).find((item) => item.id === (selectedThread?.mailbox_id || activeMailbox?.id)) || snapshot.mailboxes?.[0] || null;
+    const mailbox = (snapshot.mailboxes || []).find((item) => item.id === (selectedThread?.mailboxId || activeMailbox?.id)) || snapshot.mailboxes?.[0] || null;
     if (!mailbox?.id) {
       setMailboxEvents([]);
       return;
@@ -753,13 +753,13 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     await runAction('Sending', async () => {
       if (composerChannel === 'email') {
         await sendThreadEmailApi(selectedThread.id, {
-          mailbox_id: selectedThread.mailbox_id,
+          mailboxId: selectedThread.mailboxId,
           body: composer.trim(),
-          sender_name: 'AIO Flow',
+          senderName: 'AIO Flow',
           recipients: [selectedThread.contact?.email].filter(Boolean)
         });
       } else {
-        await sendThreadMessageApi(selectedThread.id, { body: composer.trim(), channel_type: composerChannel });
+        await sendThreadMessageApi(selectedThread.id, { body: composer.trim(), channelType: composerChannel });
       }
       setComposer('');
     });
@@ -770,7 +770,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!subject) return;
     await runAction('Creating', async () => {
       const mailboxId = activeMailbox?.id || selectedMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
-      const thread = await createThreadApi({ subject, channel_type: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailbox_id: mailboxId });
+      const thread = await createThreadApi({ subject, channelType: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailboxId: mailboxId });
       setSelectedThreadId(thread?.id || null);
     });
   };
@@ -811,13 +811,13 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
           subject: selectedThread.subject,
           preview: selectedThread.preview,
           summary: selectedThread.brief?.summary,
-          recommended_next_step: selectedThread.brief?.recommended_next_step,
+          recommended_next_step: selectedThread.brief?.recommendedNextStep,
           disposition: selectedThread.brief?.disposition,
-          unresolved_questions: selectedThread.brief?.unresolved_questions || [],
-          reasoning_cues: selectedThread.brief?.reasoning_cues || [],
+          unresolved_questions: selectedThread.brief?.unresolvedQuestions || [],
+          reasoning_cues: selectedThread.brief?.reasoningCues || [],
           ai_flags: Object.keys(selectedThread.aiFlags || {}).filter((key) => selectedThread.aiFlags[key]),
-          priority: selectedThread.ai_priority,
-          contact_name: selectedThread.contact ? `${selectedThread.contact.first_name} ${selectedThread.contact.last_name}`.trim() : '',
+          priority: selectedThread.aiPriority,
+          contact_name: selectedThread.contact ? `${selectedThread.contact.firstName} ${selectedThread.contact.lastName}`.trim() : '',
           company_name: selectedThread.company?.name || '',
           assignee: selectedThread.assignee,
           latest_message: latestMessage?.plain_text || latestMessage?.body || '',
@@ -844,7 +844,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleWorkflowNote = async () => {
     if (!selectedThread) return;
     await runAction('Workflow', async () => {
-      await sendThreadMessageApi(selectedThread.id, { body: 'Workflow suggested: create follow-up task, refresh CRM brief, and offer a booking link.', channel_type: 'internal', sender_name: 'ALPHA', sender_email: 'system@aiocrm.local', recipients: ['Internal'], direction: 'system' });
+      await sendThreadMessageApi(selectedThread.id, { body: 'Workflow suggested: create follow-up task, refresh CRM brief, and offer a booking link.', channelType: 'internal', senderName: 'ALPHA', senderEmail: 'system@aiocrm.local', recipients: ['Internal'], direction: 'system' });
     });
   };
 
@@ -887,7 +887,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   };
 
   const handleMoveThreadToMailbox = async () => {
-    if (!selectedThread?.id || !activeMailbox?.id || selectedThread.mailbox_id === activeMailbox.id) return;
+    if (!selectedThread?.id || !activeMailbox?.id || selectedThread.mailboxId === activeMailbox.id) return;
     await runAction('Moving thread', async () => {
       try {
         await updateThreadMailboxApi(selectedThread.id, activeMailbox.id);
@@ -900,11 +900,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const handleReceiveForMailbox = async () => {
     if (!selectedMailbox?.id) return;
     await runAction('Receiving sample', async () => {
-      const seedThread = visibleThreads[0] || snapshot.allThreads?.find((thread) => thread.mailbox_id === selectedMailbox.id) || snapshot.allThreads?.[0];
+      const seedThread = visibleThreads[0] || snapshot.allThreads?.find((thread) => thread.mailboxId === selectedMailbox.id) || snapshot.allThreads?.[0];
       await ingestMailboxMessageApi(selectedMailbox.id, {
         subject: seedThread?.subject || `${selectedMailbox.name} inbound sample`,
         body: 'Inbound signal generated from the mailbox operations strip so you can validate routing, AI brief refresh, and queue movement in one step.',
-        sender_name: seedThread?.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Inbound Contact',
+        senderName: seedThread?.contact ? `${seedThread.contact.firstName} ${seedThread.contact.lastName}` : 'Inbound Contact',
         sender_email: seedThread?.contact?.email || 'contact@inbox.local',
         recipients: [selectedMailbox.address].filter(Boolean)
       });
@@ -990,7 +990,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   };
 
   const threadFlags = formatFlags(selectedThread || {});
-  const selectedMailboxId = selectedThread?.mailbox_id || activeMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
+  const selectedMailboxId = selectedThread?.mailboxId || activeMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
   const selectedMailbox = useMemo(
     () => (snapshot.mailboxes || []).find((mailbox) => mailbox.id === selectedMailboxId) || activeMailbox || snapshot.mailboxes?.[0] || null,
     [snapshot.mailboxes, selectedMailboxId, activeMailbox]
@@ -1000,9 +1000,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const selectedMailboxHealth = mailboxHealthTone[selectedMailbox?.health?.state || 'healthy'] || mailboxHealthTone.healthy;
   const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === selectedMailbox?.provider) || { id: '', label: selectedMailbox?.provider || 'Unknown provider', fields: [] };
   const selectedMailboxEventSummary = useMemo(() => ({
-    failures: mailboxEvents.filter((event) => event.event_type.includes('failed')).length,
-    sent: mailboxEvents.filter((event) => event.event_type === 'mail.sent').length,
-    received: mailboxEvents.filter((event) => event.event_type === 'mail.received').length,
+    failures: mailboxEvents.filter((event) => event.eventType.includes('failed')).length,
+    sent: mailboxEvents.filter((event) => event.eventType === 'mail.sent').length,
+    received: mailboxEvents.filter((event) => event.eventType === 'mail.received').length,
     latest: mailboxEvents[0] || null
   }), [mailboxEvents]);
   const selectedThreadPulse = useMemo(
@@ -1054,8 +1054,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (selectedThread?.activeAgentIdentity) {
       return selectedThread.activeAgentIdentity;
     }
-    const messageStamp = latestAgentMessage?.created_at ? new Date(latestAgentMessage.created_at).getTime() : 0;
-    const actionStamp = latestAgentAction?.created_at ? new Date(latestAgentAction.created_at).getTime() : 0;
+    const messageStamp = latestAgentMessage?.createdAt ? new Date(latestAgentMessage.createdAt).getTime() : 0;
+    const actionStamp = latestAgentAction?.createdAt ? new Date(latestAgentAction.createdAt).getTime() : 0;
     const latestRuntimeSignal = actionStamp >= messageStamp
       ? { name: `${latestAgentAction?.agent_name || latestAgentAction?.agent || ''}`.trim().toUpperCase(), zone: 'EXECUTION' }
       : { name: `${latestAgentMessage?.sender_name || ''}`.trim().toUpperCase(), zone: 'EXECUTION' };
@@ -1070,7 +1070,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     selectedThread?.preview || 'AI summary is being refined from the latest thread context.'
   );
   const briefNextStep = normalizeAiText(
-    selectedThread?.brief?.recommended_next_step,
+    selectedThread?.brief?.recommendedNextStep,
     'Review the latest inbound signal and send the next decisive response.'
   );
   const compactPulseItems = useMemo(() => {
@@ -1080,21 +1080,21 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         key: 'touch',
         label: 'Touch',
         value: selectedThreadPulse.latestMessage?.direction || 'none',
-        detail: selectedThreadPulse.latestMessage?.created_at ? formatRelative(selectedThreadPulse.latestMessage.created_at) : 'No messages yet',
+        detail: selectedThreadPulse.latestMessage?.createdAt ? formatRelative(selectedThreadPulse.latestMessage.createdAt) : 'No messages yet',
         tone: pulseTone.neutral
       },
       {
         key: 'reply',
         label: 'Reply',
-        value: selectedThreadPulse.awaitingReply ? `Waiting ${formatWindow(selectedThreadPulse.latestOutbound?.created_at)}` : 'Clear',
+        value: selectedThreadPulse.awaitingReply ? `Waiting ${formatWindow(selectedThreadPulse.latestOutbound?.createdAt)}` : 'Clear',
         detail: selectedThreadPulse.awaitingReply ? 'Needs response' : 'Not blocked',
-        tone: pulseTone[selectedThreadPulse.awaitingReply ? (selectedThreadPulse.latestOutbound && Date.now() - new Date(selectedThreadPulse.latestOutbound.created_at).getTime() >= 172800000 ? 'danger' : 'warning') : 'success']
+        tone: pulseTone[selectedThreadPulse.awaitingReply ? (selectedThreadPulse.latestOutbound && Date.now() - new Date(selectedThreadPulse.latestOutbound.createdAt).getTime() >= 172800000 ? 'danger' : 'warning') : 'success']
       },
       {
         key: 'follow-up',
         label: 'Follow-up',
-        value: selectedThreadPulse.followUpDue ? 'Due now' : selectedThreadPulse.followUpScheduled ? formatRelative(selectedThread?.next_follow_up_at) : 'None',
-        detail: selectedThreadPulse.followUpScheduled ? formatDateTime(selectedThread?.next_follow_up_at) : 'No scheduled follow-up',
+        value: selectedThreadPulse.followUpDue ? 'Due now' : selectedThreadPulse.followUpScheduled ? formatRelative(selectedThread?.nextFollowUpAt) : 'None',
+        detail: selectedThreadPulse.followUpScheduled ? formatDateTime(selectedThread?.nextFollowUpAt) : 'No scheduled follow-up',
         tone: pulseTone[selectedThreadPulse.followUpDue ? 'danger' : selectedThreadPulse.followUpScheduled ? 'info' : 'neutral']
       },
       {
@@ -1105,7 +1105,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         tone: pulseTone[selectedThreadPulse.deliveryState && selectedThreadPulse.deliveryState !== 'sent' ? 'warning' : 'success']
       }
     ];
-  }, [selectedThread?.next_follow_up_at, selectedThreadPulse]);
+  }, [selectedThread?.nextFollowUpAt, selectedThreadPulse]);
   const commsWindowStyle = COMMS_WORKSPACE_SCALE < 1
     ? {
         transform: `scale(${COMMS_WORKSPACE_SCALE})`,
@@ -1139,19 +1139,19 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         { label: 'Simulate Receive', icon: Target, onClick: () => runAction('Simulating', async () => {
           const seedThread = visibleThreads[0] || snapshot.allThreads?.[0];
           const targetChannel = channel === 'all' ? 'email' : channel;
-          if (seedThread && targetChannel === 'email' && (seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id)) {
-            await ingestMailboxMessageApi(seedThread.mailbox_id || snapshot.mailboxes?.[0]?.id, {
+          if (seedThread && targetChannel === 'email' && (seedThread.mailboxId || snapshot.mailboxes?.[0]?.id)) {
+            await ingestMailboxMessageApi(seedThread.mailboxId || snapshot.mailboxes?.[0]?.id, {
               subject: seedThread.subject,
               body: 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
-              sender_name: seedThread.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Incoming Contact',
+              senderName: seedThread.contact ? `${seedThread.contact.firstName} ${seedThread.contact.lastName}` : 'Incoming Contact',
               sender_email: seedThread.contact?.email || 'contact@inbox.local',
               recipients: [seedThread.mailbox?.address || snapshot.mailboxes?.[0]?.address].filter(Boolean)
             });
           } else if (seedThread) {
             await sendThreadMessageApi(seedThread.id, {
               body: targetChannel === 'sms' ? 'Quick check-in. Are we still on for the follow-up and do you have the latest scope details handy?' : 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
-              channel_type: targetChannel,
-              sender_name: seedThread.contact ? `${seedThread.contact.first_name} ${seedThread.contact.last_name}` : 'Incoming Contact',
+              channelType: targetChannel,
+              senderName: seedThread.contact ? `${seedThread.contact.firstName} ${seedThread.contact.lastName}` : 'Incoming Contact',
               sender_email: seedThread.contact?.email || 'contact@inbox.local',
               recipients: ['mission@aiocrm.local'],
               direction: 'inbound'
@@ -1297,7 +1297,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                           </div>
                           <div className={`${COMMS_SUBPANEL} px-2.5 py-2`}>
                             <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Outbound</div>
-                            <div className="mt-1 text-xs text-[var(--color-text-primary)]">{mailbox.outbound_enabled ? 'enabled' : 'off'}</div>
+                            <div className="mt-1 text-xs text-[var(--color-text-primary)]">{mailbox.outboundEnabled ? 'enabled' : 'off'}</div>
                           </div>
                           <div className={`${COMMS_SUBPANEL} px-2.5 py-2`}>
                             <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Visible</div>
@@ -1327,12 +1327,12 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         <div key={event.id} className={`rounded-xl border px-3 py-3 ${mailEventTone[meta.tone] || mailEventTone.info}`}>
                           <div className="flex items-center justify-between gap-3 text-xs opacity-80">
                             <span>{meta.title}</span>
-                            <span>{formatRelative(event.created_at)}</span>
+                            <span>{formatRelative(event.createdAt)}</span>
                           </div>
                           <div className="mt-1 text-sm font-medium">{meta.detail}</div>
                           <div className="mt-2 flex flex-wrap gap-2 text-[11px] opacity-80">
-                            <span>Provider {event.source_provider}</span>
-                            {event.payload?.mailbox_address ? <span>Mailbox {event.payload.mailbox_address}</span> : null}
+                            <span>Provider {event.sourceProvider}</span>
+                            {event.payload?.mailboxAddress ? <span>Mailbox {event.payload.mailboxAddress}</span> : null}
                             {event.payload?.recipient_count ? <span>Recipients {event.payload.recipient_count}</span> : null}
                           </div>
                         </div>
@@ -1462,15 +1462,15 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         <button key={thread.id} onClick={() => setSelectedThreadId(thread.id)} className={`${isCompactComms ? 'min-w-[16.5rem] max-w-[16.5rem]' : 'min-w-[18rem] max-w-[18rem]'} flex-none rounded-[var(--radius-panel)] border text-left transition shadow-sm ${isCompactComms ? 'p-[0.6875rem]' : 'p-3'} ${selectedThread?.id === thread.id ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_16px_32px_rgba(37,99,235,0.18)]' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/30'}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{thread.contact ? `${thread.contact.first_name} ${thread.contact.last_name}` : thread.generated_title}</div>
+                              <div className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{thread.contact ? `${thread.contact.firstName} ${thread.contact.lastName}` : thread.generatedTitle}</div>
                               <div className="truncate text-xs text-[var(--color-text-secondary)]">{thread.company?.name || thread.mailbox?.name}</div>
                             </div>
                             <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${statusTone[thread.status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>{thread.status.replace(/_/g, ' ')}</span>
                           </div>
                           <div className={`${isCompactComms ? 'mt-1.5' : 'mt-2'} line-clamp-1 text-sm text-[var(--color-text-primary)]`}>{thread.subject}</div>
                           <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] text-[var(--color-text-tertiary)]">
-                            <span className="min-w-0 truncate">{pulse.chips.slice(0, 3)[0]?.label || `${thread.ai_priority} priority`}</span>
-                            <span className="shrink-0">{formatRelative(thread.last_activity_at)}</span>
+                            <span className="min-w-0 truncate">{pulse.chips.slice(0, 3)[0]?.label || `${thread.aiPriority} priority`}</span>
+                            <span className="shrink-0">{formatRelative(thread.lastActivityAt)}</span>
                           </div>
                         </button>
                       );
@@ -1517,9 +1517,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                       </div>
                       {!isCompactComms ? (
                         <div className="flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
-                          <span>{selectedThread.contact ? `${selectedThread.contact.first_name} ${selectedThread.contact.last_name}` : 'Unlinked contact'}</span>
+                          <span>{selectedThread.contact ? `${selectedThread.contact.firstName} ${selectedThread.contact.lastName}` : 'Unlinked contact'}</span>
                           <span>{selectedThread.company?.name || selectedThread.mailbox?.name || 'No company linked'}</span>
-                          <span>{formatRelative(selectedThread.last_activity_at)}</span>
+                          <span>{formatRelative(selectedThread.lastActivityAt)}</span>
                         </div>
                       ) : null}
                     </div>
@@ -1534,11 +1534,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--color-text-secondary)]">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-[var(--color-text-primary)]">{message.sender_name}</span>
-                            {message.direction === 'outbound' && message.delivery_status ? (
-                              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${message.delivery_status === 'sent' ? pulseTone.success : pulseTone.warning}`}>{message.delivery_status}</span>
+                            {message.direction === 'outbound' && message.deliveryStatus ? (
+                              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${message.deliveryStatus === 'sent' ? pulseTone.success : pulseTone.warning}`}>{message.deliveryStatus}</span>
                             ) : null}
                           </div>
-                          <span>{formatRelative(message.created_at)}</span>
+                          <span>{formatRelative(message.createdAt)}</span>
                         </div>
                         <div className="text-sm leading-6 text-[var(--color-text-primary)] whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                           {normalizeAiText(message.plain_text, message.body || '')}
@@ -1561,7 +1561,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                             <div className="mt-1 text-sm font-semibold leading-none">{item.value}</div>
                           </div>
                         ))}
-                        {!clientMode ? <button onClick={handleMoveThreadToMailbox} disabled={!activeMailbox?.id || activeMailbox.id === selectedThread.mailbox_id} className={`${isCompactComms ? 'h-12 min-w-[7rem] px-2.5 py-1.5 text-xs' : 'h-[3.25rem] min-w-[7.5rem] px-3 py-2 text-sm'} flex-none rounded-[0.95rem] border border-[var(--color-border)] text-left text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50`}>
+                        {!clientMode ? <button onClick={handleMoveThreadToMailbox} disabled={!activeMailbox?.id || activeMailbox.id === selectedThread.mailboxId} className={`${isCompactComms ? 'h-12 min-w-[7rem] px-2.5 py-1.5 text-xs' : 'h-[3.25rem] min-w-[7.5rem] px-3 py-2 text-sm'} flex-none rounded-[0.95rem] border border-[var(--color-border)] text-left text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50`}>
                           <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mailbox</div>
                           <div className="mt-1 font-medium text-[var(--color-text-primary)]">Move Mail</div>
                         </button> : null}
@@ -1668,7 +1668,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                           <div className="text-sm font-medium text-[var(--color-text-primary)]">{action.label}</div>
                           <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{action.source || 'system'}</span>
                         </div>
-                        <div className="mt-2 text-xs text-[var(--color-text-secondary)]">{formatRelative(action.created_at || selectedThread.updated_at)}</div>
+                        <div className="mt-2 text-xs text-[var(--color-text-secondary)]">{formatRelative(action.createdAt || selectedThread.updatedAt)}</div>
                       </div>
                     )) : (
                       <div className={`${COMMS_SUBPANEL} px-3 py-3 text-sm text-[var(--color-text-secondary)]`}>
@@ -1683,7 +1683,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     <div className={isCompactComms ? 'space-y-[0.625rem]' : 'space-y-3'}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Bot size={16} /> AI Brief</div>
-                        <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.ai_priority} priority</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.aiPriority} priority</span>
                       </div>
                       <div className={`${COMMS_SUBPANEL} ${isCompactComms ? 'p-[0.6875rem]' : 'p-3'}`}>
                         <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">What Matters</div>
@@ -1698,10 +1698,10 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                           <span key={flag} className="max-w-full truncate px-2 py-1 rounded-full text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)]">{flag}</span>
                         ))}
                       </div>
-                      {(selectedThread.brief?.reasoning_cues || []).length ? (
+                      {(selectedThread.brief?.reasoningCues || []).length ? (
                         <div className="space-y-2">
                           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">AI Cues</div>
-                          {(selectedThread.brief?.reasoning_cues || []).slice(0, 3).map((cue) => (
+                          {(selectedThread.brief?.reasoningCues || []).slice(0, 3).map((cue) => (
                             <div key={cue} className={`${COMMS_SUBPANEL} ${isCompactComms ? 'px-[0.6875rem] py-2' : 'px-3 py-2'} text-sm text-[var(--color-text-secondary)]`}>{cue}</div>
                           ))}
                         </div>
@@ -1715,7 +1715,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                   <div className="grid sm:grid-cols-2 gap-3 text-sm">
                     <div className={`${COMMS_SUBPANEL} p-3`}>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-1">Contact</div>
-                      <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.contact ? `${selectedThread.contact.first_name} ${selectedThread.contact.last_name}` : 'Unlinked'}</div>
+                      <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.contact ? `${selectedThread.contact.firstName} ${selectedThread.contact.lastName}` : 'Unlinked'}</div>
                       <div className="text-[var(--color-text-secondary)]">{selectedThread.contact?.email || 'No email linked'}</div>
                     </div>
                     <div className={`${COMMS_SUBPANEL} p-3`}>
@@ -1725,8 +1725,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     </div>
                   </div>
                   <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-                    <div className="flex items-center gap-2"><CalendarDays size={14} /> Last activity {formatRelative(selectedThread.last_activity_at)}</div>
-                    <div className="flex items-center gap-2"><Building2 size={14} /> Channel {selectedThread.channel_type}</div>
+                    <div className="flex items-center gap-2"><CalendarDays size={14} /> Last activity {formatRelative(selectedThread.lastActivityAt)}</div>
+                    <div className="flex items-center gap-2"><Building2 size={14} /> Channel {selectedThread.channelType}</div>
                     <div className="flex items-center gap-2"><Mail size={14} /> Mailbox {selectedThread.mailbox?.status || 'unknown'} via {selectedThread.mailbox?.provider || 'unknown provider'}</div>
                   </div>
                 </section>
@@ -1734,12 +1734,12 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                 <section className={`${COMMS_PANEL} p-4 space-y-3`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Building2 size={16} /> CRM Linkage</div>
-                    <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.contact?.pipeline_stage || 'No stage'}</span>
+                    <span className="text-xs text-[var(--color-text-secondary)]">{selectedThread.contact?.pipelineStage || 'No stage'}</span>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3 text-sm">
                     <div className={`${COMMS_SUBPANEL} p-3`}>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-1">Current Stage</div>
-                      <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.contact?.pipeline_stage || 'Unlinked'}</div>
+                      <div className="text-[var(--color-text-primary)] font-medium">{selectedThread.contact?.pipelineStage || 'Unlinked'}</div>
                       <div className="text-[var(--color-text-secondary)]">{selectedThread.contact ? 'Derived from the linked contact record.' : 'Link a contact before moving this relationship through pipeline.'}</div>
                     </div>
                     <div className={`${COMMS_SUBPANEL} p-3`}>
@@ -1749,8 +1749,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     </div>
                   </div>
                   <div className="grid sm:grid-cols-3 gap-2">
-                    <button onClick={handleCreateDeal} disabled={!selectedThread.contact_id || Boolean(selectedDealLink)} className="px-3 py-3 rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50">Create Deal</button>
-                    <button onClick={handleAdvanceStage} disabled={!selectedThread.contact_id} className="px-3 py-3 rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50">Advance Stage</button>
+                    <button onClick={handleCreateDeal} disabled={!selectedThread.contactId || Boolean(selectedDealLink)} className="px-3 py-3 rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50">Create Deal</button>
+                    <button onClick={handleAdvanceStage} disabled={!selectedThread.contactId} className="px-3 py-3 rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50">Advance Stage</button>
                     <button onClick={handleScheduleMeeting} className="px-3 py-3 rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]">Schedule Meeting</button>
                   </div>
                 </section>
@@ -1835,7 +1835,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         </div>
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
                           <span>{action.status || 'completed'}</span>
-                          <span>{formatRelative(action.created_at || selectedThread.updated_at)}</span>
+                          <span>{formatRelative(action.createdAt || selectedThread.updatedAt)}</span>
                         </div>
                       </div>
                     ))}
@@ -1862,7 +1862,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         <div className="mt-2 text-sm text-[var(--color-text-secondary)] line-clamp-4">{artifact.body}</div>
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
                           <span>{artifact.created_by || 'AIO Flow'}</span>
-                          <span>{formatRelative(artifact.created_at || artifact.updated_at || selectedThread.updated_at)}</span>
+                          <span>{formatRelative(artifact.createdAt || artifact.updatedAt || selectedThread.updatedAt)}</span>
                         </div>
                       </div>
                     )) : (
@@ -1945,11 +1945,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     ) : null}
                     <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]">
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={mailboxDraft.inbound_enabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inbound_enabled: event.target.checked }))} />
+                        <input type="checkbox" checked={mailboxDraft.inboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inboundEnabled: event.target.checked }))} />
                         Inbound enabled
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={mailboxDraft.outbound_enabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outbound_enabled: event.target.checked }))} />
+                        <input type="checkbox" checked={mailboxDraft.outboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outboundEnabled: event.target.checked }))} />
                         Outbound enabled
                       </label>
                     </div>

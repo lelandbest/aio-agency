@@ -124,7 +124,7 @@ export async function logoutApi() {
 export async function switchTenantSessionApi(tenantId) {
   const response = await request('/api/auth/session/tenant', {
     method: 'PATCH',
-    body: JSON.stringify({ tenant_id: tenantId })
+    body: JSON.stringify({ tenantId })
   });
   return response.session || null;
 }
@@ -160,7 +160,7 @@ export async function runAiCommandApi(payload) {
 export async function getAiRunsApi(limit = 50, flowId = '') {
   const search = new URLSearchParams({ limit: String(limit) });
   if (flowId) {
-    search.set('flow_id', flowId);
+    search.set('flowId', flowId);
   }
   const response = await request(`/api/ai/runs?${search.toString()}`);
   return response.data || [];
@@ -175,7 +175,7 @@ export async function getAiRunApi(runId) {
 }
 
 export async function getAiAgentsApi(includeHidden = false) {
-  const suffix = includeHidden ? '?include_hidden=true' : '';
+  const suffix = includeHidden ? '?includeHidden=true' : '';
   const response = await request(`/api/ai/agents${suffix}`);
   return response.data || [];
 }
@@ -722,7 +722,7 @@ export async function deleteBrainLinkApi(linkId) {
 
 export async function getBrainIngestsApi(sourceId = '', limit = 25) {
   const params = new URLSearchParams();
-  if (sourceId) params.set('source_id', sourceId);
+  if (sourceId) params.set('sourceId', sourceId);
   if (limit) params.set('limit', String(limit));
   const suffix = params.toString() ? `?${params.toString()}` : '';
   const response = await request(`/api/brain/ingests${suffix}`);
@@ -755,7 +755,7 @@ export async function queryBrainMcpApi(sourceId, payload) {
 export async function searchBrainMemoryApi(query, limit = 6, options = {}) {
   const params = new URLSearchParams({ query, limit: String(limit) });
   if (options.includeRuntime) {
-    params.set('include_runtime', 'true');
+    params.set('includeRuntime', 'true');
   }
   const response = await request(`/api/brain/search?${params.toString()}`);
   return response.data || [];
@@ -890,7 +890,7 @@ export async function deleteCalendarEventApi(eventId) {
 export async function pushCalendarEventApi(eventId, sourceId = null) {
   return request(`/api/calendar/events/${encodeURIComponent(eventId)}/push`, {
     method: 'POST',
-    body: JSON.stringify({ source_id: sourceId })
+    body: JSON.stringify({ sourceId })
   });
 }
 
@@ -931,7 +931,7 @@ export async function listCalendarSourceCalendarsApi(sourceId) {
 }
 
 export async function deleteCalendarSourceApi(sourceId, fallbackSourceId) {
-  const search = fallbackSourceId ? `?fallback_source_id=${encodeURIComponent(fallbackSourceId)}` : '';
+  const search = fallbackSourceId ? `?fallbackSourceId=${encodeURIComponent(fallbackSourceId)}` : '';
   return request(`/api/calendar/sources/${encodeURIComponent(sourceId)}${search}`, {
     method: 'DELETE'
   });
@@ -1017,7 +1017,7 @@ export async function updateMailboxApi(mailboxId, payload) {
 }
 
 export async function deleteMailboxApi(mailboxId, fallbackMailboxId) {
-  const search = fallbackMailboxId ? `?fallback_mailbox_id=${encodeURIComponent(fallbackMailboxId)}` : '';
+  const search = fallbackMailboxId ? `?fallbackMailboxId=${encodeURIComponent(fallbackMailboxId)}` : '';
   return request(`/api/mailboxes/${encodeURIComponent(mailboxId)}${search}`, {
     method: 'DELETE'
   });
@@ -1183,7 +1183,7 @@ export async function getFormByIdApi(formId) {
 export async function submitFormApi(formId, formData) {
   return request(`/api/forms/${encodeURIComponent(formId)}/submit`, {
     method: 'POST',
-    body: JSON.stringify({ form_data: formData })
+    body: JSON.stringify({ formData })
   });
 }
 
@@ -1229,14 +1229,14 @@ export async function updateThreadStatusApi(threadId, status) {
 export async function assignThreadApi(threadId, assigneeName) {
   return request(`/api/comms/threads/${encodeURIComponent(threadId)}/assign`, {
     method: 'PATCH',
-    body: JSON.stringify({ assignee_name: assigneeName })
+    body: JSON.stringify({ assigneeName })
   });
 }
 
 export async function updateThreadMailboxApi(threadId, mailboxId) {
   return request(`/api/comms/threads/${encodeURIComponent(threadId)}/mailbox`, {
     method: 'PATCH',
-    body: JSON.stringify({ mailbox_id: mailboxId })
+    body: JSON.stringify({ mailboxId })
   });
 }
 
@@ -1268,7 +1268,7 @@ export async function advanceThreadStageApi(threadId) {
 export async function scheduleThreadMeetingApi(threadId, scheduledAt = null) {
   return request(`/api/comms/threads/${encodeURIComponent(threadId)}/schedule-meeting`, {
     method: 'POST',
-    body: JSON.stringify({ scheduled_at: scheduledAt })
+    body: JSON.stringify({ scheduledAt })
   });
 }
 
@@ -1362,9 +1362,9 @@ export async function createHelpBroadcastApi(payload) {
 // --- Notification APIs ---
 
 export async function getNotificationsApi(limit = 50, unreadOnly = false) {
-  const suffix = unreadOnly ? `?limit=${limit}&unread_only=true` : `?limit=${limit}`;
+  const suffix = unreadOnly ? `?limit=${limit}&unreadOnly=true` : `?limit=${limit}`;
   const response = await request(`/api/notifications${suffix}`);
-  return { data: response.data || [], unread_count: response.unread_count || 0 };
+  return { data: response.data || [], unreadCount: response.unreadCount || 0 };
 }
 
 export async function markNotificationReadApi(notificationId) {

@@ -78,7 +78,7 @@ const PipelineModule = () => {
     setLoading(true);
     try {
       const data = await getContactsApi();
-      setContacts((data || []).filter((contact) => !contact.deleted_at));
+      setContacts((data || []).filter((contact) => !contact.deletedAt));
     } catch (error) {
       console.error('Error loading pipeline contacts:', error);
     } finally {
@@ -91,9 +91,9 @@ const PipelineModule = () => {
     const dynamicColumns = [];
 
     contacts.forEach((contact) => {
-      const stageId = normalizeStageId(contact.pipeline_stage);
+      const stageId = normalizeStageId(contact.pipelineStage);
       if (!columnMap.has(stageId)) {
-        const title = contact.pipeline_stage || 'New';
+        const title = contact.pipelineStage || 'New';
         columnMap.set(stageId, []);
         dynamicColumns.push({ id: stageId, title });
       }
@@ -115,8 +115,8 @@ const PipelineModule = () => {
 
   const pipelineStats = useMemo(() => {
     const total = contacts.length;
-    const open = contacts.filter((contact) => !['Closed Won', 'Closed Lost'].includes(contact.pipeline_stage)).length;
-    const highValue = contacts.filter((contact) => (contact.lead_score || 0) >= 80).length;
+    const open = contacts.filter((contact) => !['Closed Won', 'Closed Lost'].includes(contact.pipelineStage)).length;
+    const highValue = contacts.filter((contact) => (contact.leadScore || 0) >= 80).length;
     const noOwner = contacts.filter((contact) => !contact.owner).length;
     return { total, open, highValue, noOwner };
   }, [contacts]);
@@ -144,11 +144,11 @@ const PipelineModule = () => {
     const contact = contacts.find((entry) => entry.id === draggedCard.contactId);
     if (!contact) return;
     const nextStage = targetColumn.title;
-    if (contact.pipeline_stage === nextStage) {
+    if (contact.pipelineStage === nextStage) {
       setDraggedCard(null);
       return;
     }
-    await updateContactApi(contact.id, { pipeline_stage: nextStage, updated_at: new Date().toISOString() });
+    await updateContactApi(contact.id, { pipelineStage: nextStage, updatedAt: new Date().toISOString() });
     await loadContacts();
     setDraggedCard(null);
   };
@@ -197,9 +197,9 @@ const PipelineModule = () => {
 
   const openCommsThread = async (contact, channelType = 'email') => {
     const thread = await openThreadForContactApi({
-      contact_id: contact.id,
-      channel_type: channelType,
-      subject: `${channelType.toUpperCase()} follow-up for ${contact.first_name} ${contact.last_name}`.trim()
+      contactId: contact.id,
+      channelType: channelType,
+      subject: `${channelType.toUpperCase()} follow-up for ${contact.firstName} ${contact.lastName}`.trim()
     });
     window.dispatchEvent(
       new CustomEvent('aio:navigate', {
@@ -212,7 +212,7 @@ const PipelineModule = () => {
   };
 
   const runPipelineAssist = async () => {
-    const highestSignal = [...contacts].sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))[0];
+    const highestSignal = [...contacts].sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0))[0];
     if (!highestSignal) return;
     
     try {
@@ -226,8 +226,8 @@ const PipelineModule = () => {
           contactName: highestSignal.name,
           contactEmail: highestSignal.email,
           dealValue: highestSignal.deal_value,
-          pipelineStage: highestSignal.pipeline_stage,
-          leadScore: highestSignal.lead_score
+          pipelineStage: highestSignal.pipelineStage,
+          leadScore: highestSignal.leadScore
         }
       });
       if (response?.suggestion) {
@@ -239,10 +239,10 @@ const PipelineModule = () => {
     }
   };
 
-  const getColumnHighlight = (cards) => [...cards].sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))[0] || null;
+  const getColumnHighlight = (cards) => [...cards].sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0))[0] || null;
 
   const renderCard = (contact) => {
-    const score = contact.lead_score || 0;
+    const score = contact.leadScore || 0;
     const priorityTone =
       score >= 85 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' :
       score >= 65 ? 'border-sky-500/30 bg-sky-500/10 text-sky-200' :
@@ -252,7 +252,7 @@ const PipelineModule = () => {
       <div
         key={contact.id}
         draggable
-        onDragStart={(event) => handleDragStart(event, contact.id, normalizeStageId(contact.pipeline_stage))}
+        onDragStart={(event) => handleDragStart(event, contact.id, normalizeStageId(contact.pipelineStage))}
         onDragEnd={handleDragEnd}
         onDoubleClick={() => openCrmRecord(contact.id)}
         className="group rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 transition hover:border-[var(--color-primary)]/45 hover:shadow-island"
@@ -260,10 +260,10 @@ const PipelineModule = () => {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
-              {contact.contact_id || contact.id}
+              {contact.contactId || contact.id}
             </div>
             <h3 className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">
-              {contact.first_name} {contact.last_name}
+              {contact.firstName} {contact.lastName}
             </h3>
             <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
               <Building2 size={12} />
@@ -294,7 +294,7 @@ const PipelineModule = () => {
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Updated</div>
             <div className="mt-1 text-[var(--color-text-primary)]">
-              {contact.updated_at ? new Date(contact.updated_at).toLocaleDateString() : '--'}
+              {contact.updatedAt ? new Date(contact.updatedAt).toLocaleDateString() : '--'}
             </div>
           </div>
         </div>
@@ -479,7 +479,7 @@ const PipelineModule = () => {
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Relationship Record</div>
                 <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
-                  {selectedCard.first_name} {selectedCard.last_name}
+                  {selectedCard.firstName} {selectedCard.lastName}
                 </h3>
               </div>
               <button onClick={() => setSelectedCard(null)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
@@ -494,13 +494,13 @@ const PipelineModule = () => {
                 </div>
                 <div className={innerPanelClass + ' p-4'}>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Stage</div>
-                  <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{selectedCard.pipeline_stage || 'New'}</div>
+                  <div className="mt-2 text-sm font-medium text-[var(--color-text-primary)]">{selectedCard.pipelineStage || 'New'}</div>
                 </div>
               </div>
               <div className={innerPanelClass + ' p-4 text-sm text-[var(--color-text-secondary)]'}>
                 <div>Email: <span className="text-[var(--color-text-primary)]">{selectedCard.email || '--'}</span></div>
                 <div className="mt-2">Owner: <span className="text-[var(--color-text-primary)]">{selectedCard.owner || 'Unassigned'}</span></div>
-                <div className="mt-2">Lead Score: <span className="text-[var(--color-text-primary)]">{selectedCard.lead_score || 0}</span></div>
+                <div className="mt-2">Lead Score: <span className="text-[var(--color-text-primary)]">{selectedCard.leadScore || 0}</span></div>
               </div>
             </div>
             <div className="flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-5 py-4">

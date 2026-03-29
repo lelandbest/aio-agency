@@ -90,21 +90,21 @@ const CRMModule = ({ initialContactId = null }) => {
     owner: { operator: 'is', value: '', active: false },
     company: { operator: 'is', value: '', active: false },
     tags: { operator: 'has', value: '', active: false },
-    system_tags: { operator: 'has', value: '', active: false },
+    systemTags: { operator: 'has', value: '', active: false },
     flow: { operator: 'is', value: '', active: false },
     input: { operator: 'is', value: '', active: false },
-    created_date: { operator: 'is', value: '', active: false },
-    updated_date: { operator: 'is', value: '', active: false },
-    last_contacted: { operator: 'is', value: '', active: false },
-    sms_email_activity: { operator: 'is', value: '', active: false },
-    lead_score: { operator: 'is', value: '', active: false },
+    createdDate: { operator: 'is', value: '', active: false },
+    updatedDate: { operator: 'is', value: '', active: false },
+    lastContacted: { operator: 'is', value: '', active: false },
+    smsEmailActivity: { operator: 'is', value: '', active: false },
+    leadScore: { operator: 'is', value: '', active: false },
     address: { operator: 'is', value: '', active: false },
-    extra_details: { operator: 'is', value: '', active: false },
+    extraDetails: { operator: 'is', value: '', active: false },
     pipeline: { operator: 'is', value: '', active: false },
-    pipeline_column: { operator: 'is', value: '', active: false },
+    pipelineColumn: { operator: 'is', value: '', active: false },
     name: { operator: 'is', value: '', active: false },
-    form_submitted: { operator: 'has', value: '', active: false },
-    form_submission_date: { operator: 'is', value: '', active: false }
+    formSubmitted: { operator: 'has', value: '', active: false },
+    formSubmissionDate: { operator: 'is', value: '', active: false }
   });
 
   // Filter Options (tags populated dynamically from API)
@@ -117,21 +117,21 @@ const CRMModule = ({ initialContactId = null }) => {
     owner: ['AIO Flow', 'System'],
     company: companies.map(c => c.name).filter(Boolean).sort(),
     tags: availableTags,
-    system_tags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
+    systemTags: ['Automated', 'Manual', 'Imported', 'API Created', 'Form Submission'],
     flow: ['Active', 'Paused', 'Inactive', 'Completed'],
     input: ['Email', 'Phone', 'Form', 'API', 'Manual'],
-    created_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
-    updated_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
-    last_contacted: ['Today', 'This week', 'This month', 'Last 30 days', 'Last 90 days'],
-    sms_email_activity: ['Active', 'Inactive', 'High Engagement', 'Low Engagement'],
-    lead_score: ['90-100', '70-89', '50-69', '30-49', 'Below 30'],
+    createdDate: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
+    updatedDate: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year', 'Custom'],
+    lastContacted: ['Today', 'This week', 'This month', 'Last 30 days', 'Last 90 days'],
+    smsEmailActivity: ['Active', 'Inactive', 'High Engagement', 'Low Engagement'],
+    leadScore: ['90-100', '70-89', '50-69', '30-49', 'Below 30'],
     address: ['US', 'International', 'CA', 'TX', 'NY', 'FL'],
-    extra_details: ['Verified', 'Unverified', 'Complete', 'Incomplete'],
+    extraDetails: ['Verified', 'Unverified', 'Complete', 'Incomplete'],
     pipeline: ['New', 'Qualified', 'Discovery', 'Closed Won', 'Closed Lost', 'Negotiating'],
-    pipeline_column: ['Planning', 'Active', 'Completed', 'On Hold'],
+    pipelineColumn: ['Planning', 'Active', 'Completed', 'On Hold'],
     name: ['A-M', 'N-Z'],
-    form_submitted: ['Contact Form', 'Demo Request', 'Newsletter Signup', 'Any Form'],
-    form_submission_date: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year']
+    formSubmitted: ['Contact Form', 'Demo Request', 'Newsletter Signup', 'Any Form'],
+    formSubmissionDate: ['Last 7 days', 'Last 30 days', 'Last 90 days', 'This year']
   };
 
   const shellPanelClass = 'island-panel rounded-[var(--radius-outer)]';
@@ -243,7 +243,7 @@ const CRMModule = ({ initialContactId = null }) => {
     setLoading(false);
   };
 
-  const canUseEmailVerification = Boolean(emailVerifierConfig?.enabled && emailVerifierConfig?.has_api_key);
+  const canUseEmailVerification = Boolean(emailVerifierConfig?.enabled && emailVerifierConfig?.hasApiKey);
 
   const setVerificationNotice = (tone, message) => {
     if (!message) {
@@ -261,7 +261,7 @@ const CRMModule = ({ initialContactId = null }) => {
   };
 
   const getEmailVerificationMeta = (contact) => {
-    const status = normalizeText(contact?.email_verification_status);
+    const status = normalizeText(contact?.emailVerificationStatus);
     if (!contact?.email) {
       return { label: 'No email', className: 'border-[var(--color-border)] text-[var(--color-text-tertiary)] bg-[var(--color-bg-secondary)]' };
     }
@@ -292,13 +292,13 @@ const CRMModule = ({ initialContactId = null }) => {
     setVerificationNotice(null, '');
     setVerifyingContactIds((current) => new Set(current).add(contact.id));
     try {
-      const result = await verifyEmailApi({ contact_id: contact.id, email: contact.email, mode });
+      const result = await verifyEmailApi({ contactId: contact.id, email: contact.email, mode });
       if (result?.contact) {
         updateContactInState(result.contact);
-        setVerificationNotice('success', `${contact.first_name || contact.email} verified as ${result.status || 'unknown'}.`);
+        setVerificationNotice('success', `${contact.firstName || contact.email} verified as ${result.status || 'unknown'}.`);
       } else {
         await loadData();
-        setVerificationNotice('success', `${contact.first_name || contact.email} verification completed.`);
+        setVerificationNotice('success', `${contact.firstName || contact.email} verification completed.`);
       }
     } catch (error) {
       setVerificationNotice('error', error.message || 'Unable to verify this email right now.');
@@ -325,9 +325,9 @@ const CRMModule = ({ initialContactId = null }) => {
     setVerificationNotice(null, '');
     setBulkVerificationSubmitting(true);
     try {
-      const task = await createEmailVerificationBulkTaskApi({ contact_ids: contactIds, mode: 'power' });
+      const task = await createEmailVerificationBulkTaskApi({ contactIds: contactIds, mode: 'power' });
       setEmailVerificationTask(task);
-      setVerificationNotice('info', `Bulk verification queued for ${task?.submitted_count || contactIds.length} contact${(task?.submitted_count || contactIds.length) === 1 ? '' : 's'}.`);
+      setVerificationNotice('info', `Bulk verification queued for ${task?.submittedCount || contactIds.length} contact${(task?.submittedCount || contactIds.length) === 1 ? '' : 's'}.`);
     } catch (error) {
       setVerificationNotice('error', error.message || 'Unable to start bulk email verification.');
     } finally {
@@ -350,16 +350,16 @@ const CRMModule = ({ initialContactId = null }) => {
           if (nextTask.status === 'completed') {
             setVerificationNotice(
               'success',
-              `Bulk verification completed: ${nextTask.valid_count || 0} valid, ${nextTask.risky_count || 0} risky, ${nextTask.invalid_count || 0} invalid, ${nextTask.unknown_count || 0} unknown.`
+              `Bulk verification completed: ${nextTask.validCount || 0} valid, ${nextTask.riskyCount || 0} risky, ${nextTask.invalidCount || 0} invalid, ${nextTask.unknownCount || 0} unknown.`
             );
           } else {
-            setVerificationNotice('error', nextTask.last_error || 'Bulk email verification failed.');
+            setVerificationNotice('error', nextTask.lastError || 'Bulk email verification failed.');
           }
           await loadData();
         }
       } catch (error) {
         if (!cancelled) {
-          setEmailVerificationTask((current) => current ? { ...current, status: 'failed', last_error: error.message || 'Verification polling failed.' } : current);
+          setEmailVerificationTask((current) => current ? { ...current, status: 'failed', lastError: error.message || 'Verification polling failed.' } : current);
           setVerificationNotice('error', error.message || 'Verification polling failed.');
         }
       }
@@ -418,7 +418,7 @@ const CRMModule = ({ initialContactId = null }) => {
   const normalizeText = (value) => String(value || '').trim().toLowerCase();
 
   const getSystemTagsForContact = (contact) => {
-    const tags = new Set(contact.system_tags || []);
+    const tags = new Set(contact.systemTags || []);
     if (contact.source === 'CSV Import') tags.add('Imported');
     if (contact.source === 'Manual Entry') tags.add('Manual');
     if (contact.source === 'API Created') tags.add('API Created');
@@ -427,7 +427,7 @@ const CRMModule = ({ initialContactId = null }) => {
   };
 
   const getAssignedFlows = (contact) => {
-    const flows = contact.custom_fields?.assigned_flows;
+    const flows = contact.customFields?.assignedFlows;
     return Array.isArray(flows) ? flows : [];
   };
 
@@ -438,7 +438,7 @@ const CRMModule = ({ initialContactId = null }) => {
     if (source.includes('manual')) return 'Manual';
     if (source.includes('email')) return 'Email';
     if (source.includes('phone')) return 'Phone';
-    return contact.input_type || '';
+    return contact.inputType || '';
   };
 
   const matchesSelectOperator = (operator, actualValue, expectedValue) => {
@@ -511,13 +511,13 @@ const CRMModule = ({ initialContactId = null }) => {
 
   // Filter and sort contacts
   const filteredAndSortedContacts = useMemo(() => {
-    let filtered = contacts.filter(contact => !contact.deleted_at);
+    let filtered = contacts.filter(contact => !contact.deletedAt);
     
     // Apply search
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(contact => 
-        `${contact.first_name} ${contact.last_name}`.toLowerCase().includes(search) ||
+        `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(search) ||
         contact.email?.toLowerCase().includes(search) ||
         contact.company?.toLowerCase().includes(search) ||
         contact.phone?.includes(search)
@@ -541,7 +541,7 @@ const CRMModule = ({ initialContactId = null }) => {
         case 'tags':
           filtered = filtered.filter((c) => matchesArrayOperator(filter.operator, c.tags, filter.value));
           break;
-        case 'system_tags':
+        case 'systemTags':
           filtered = filtered.filter((c) => matchesArrayOperator(filter.operator, getSystemTagsForContact(c), filter.value));
           break;
         case 'flow':
@@ -550,19 +550,19 @@ const CRMModule = ({ initialContactId = null }) => {
         case 'input':
           filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, getInputTypeForContact(c), filter.value));
           break;
-        case 'created_date':
-          filtered = filtered.filter((c) => matchesDatePreset(c.created_at, filter.value, filter.operator));
+        case 'createdDate':
+          filtered = filtered.filter((c) => matchesDatePreset(c.createdAt, filter.value, filter.operator));
           break;
-        case 'updated_date':
-          filtered = filtered.filter((c) => matchesDatePreset(c.updated_at, filter.value, filter.operator));
+        case 'updatedDate':
+          filtered = filtered.filter((c) => matchesDatePreset(c.updatedAt, filter.value, filter.operator));
           break;
-        case 'last_contacted':
-          filtered = filtered.filter((c) => matchesDatePreset(c.last_contacted_at, filter.value, filter.operator));
+        case 'lastContacted':
+          filtered = filtered.filter((c) => matchesDatePreset(c.lastContactedAt, filter.value, filter.operator));
           break;
-        case 'sms_email_activity':
+        case 'smsEmailActivity':
           filtered = filtered.filter((c) => {
             const engagement = normalizeText(c.engagement);
-            const hasRecent = Boolean(c.last_contacted_at);
+            const hasRecent = Boolean(c.lastContactedAt);
             let actual = 'Inactive';
             if (engagement === 'high') actual = 'High Engagement';
             else if (engagement === 'low') actual = 'Low Engagement';
@@ -570,9 +570,9 @@ const CRMModule = ({ initialContactId = null }) => {
             return matchesSelectOperator(filter.operator, actual, filter.value);
           });
           break;
-        case 'lead_score':
+        case 'leadScore':
           filtered = filtered.filter((c) => {
-            const score = c.lead_score || 0;
+            const score = c.leadScore || 0;
             if (filter.value === '90-100') return score >= 90 && score <= 100;
             if (filter.value === '70-89') return score >= 70 && score < 90;
             if (filter.value === '50-69') return score >= 50 && score < 70;
@@ -589,38 +589,38 @@ const CRMModule = ({ initialContactId = null }) => {
             return matchesSelectOperator(filter.operator, address, filter.value);
           });
           break;
-        case 'extra_details':
+        case 'extraDetails':
           filtered = filtered.filter((c) => {
             const completeness = c.email && c.phone && c.company ? 'Complete' : 'Incomplete';
-            const status = c.validation_status || completeness;
+            const status = c.validationStatus || completeness;
             return matchesSelectOperator(filter.operator, status, filter.value);
           });
           break;
         case 'pipeline':
-          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.pipeline_stage, filter.value));
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.pipelineStage, filter.value));
           break;
-        case 'pipeline_column':
-          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.custom_fields?.pipeline_column || c.status, filter.value));
+        case 'pipelineColumn':
+          filtered = filtered.filter((c) => matchesSelectOperator(filter.operator, c.customFields?.pipelineColumn || c.status, filter.value));
           break;
         case 'name':
           filtered = filtered.filter((c) => {
-            const letter = normalizeText(c.first_name || c.last_name).charAt(0);
+            const letter = normalizeText(c.firstName || c.lastName).charAt(0);
             const inFirstHalf = letter >= 'a' && letter <= 'm';
             const matches = filter.value === 'A-M' ? inFirstHalf : !inFirstHalf;
             return filter.operator === 'is not' ? !matches : matches;
           });
           break;
-        case 'form_submitted':
+        case 'formSubmitted':
           filtered = filtered.filter((c) => {
-            const forms = Array.isArray(c.custom_fields?.submitted_forms) ? c.custom_fields.submitted_forms : [];
+            const forms = Array.isArray(c.customFields?.submittedForms) ? c.customFields.submittedForms : [];
             if (filter.value === 'Any Form') {
               return forms.length > 0 || normalizeText(c.source).includes('form');
             }
             return matchesArrayOperator(filter.operator, forms, filter.value) || normalizeText(c.source) === normalizeText(filter.value);
           });
           break;
-        case 'form_submission_date':
-          filtered = filtered.filter((c) => matchesDatePreset(c.custom_fields?.last_form_submission_at || c.updated_at, filter.value, filter.operator));
+        case 'formSubmissionDate':
+          filtered = filtered.filter((c) => matchesDatePreset(c.customFields?.lastFormSubmissionAt || c.updatedAt, filter.value, filter.operator));
           break;
       }
     });
@@ -630,11 +630,11 @@ const CRMModule = ({ initialContactId = null }) => {
       let aVal, bVal;
       
       if (sortField === 'name') {
-        aVal = `${a.first_name} ${a.last_name}`.toLowerCase();
-        bVal = `${b.first_name} ${b.last_name}`.toLowerCase();
-      } else if (sortField === 'first_name') {
-        aVal = `${a.first_name} ${a.last_name}`.toLowerCase();
-        bVal = `${b.first_name} ${b.last_name}`.toLowerCase();
+        aVal = `${a.firstName} ${a.lastName}`.toLowerCase();
+        bVal = `${b.firstName} ${b.lastName}`.toLowerCase();
+      } else if (sortField === 'firstName') {
+        aVal = `${a.firstName} ${a.lastName}`.toLowerCase();
+        bVal = `${b.firstName} ${b.lastName}`.toLowerCase();
       } else {
         aVal = a[sortField];
         bVal = b[sortField];
@@ -651,10 +651,10 @@ const CRMModule = ({ initialContactId = null }) => {
   }, [contacts, searchTerm, filters, sortField, sortDirection]);
 
   const crmStats = useMemo(() => {
-    const activeContacts = contacts.filter((contact) => !contact.deleted_at);
+    const activeContacts = contacts.filter((contact) => !contact.deletedAt);
     return {
       total: activeContacts.length,
-      highSignal: activeContacts.filter((contact) => (contact.lead_score || 0) >= 80).length,
+      highSignal: activeContacts.filter((contact) => (contact.leadScore || 0) >= 80).length,
       needsOwner: activeContacts.filter((contact) => !contact.owner).length,
       formDriven: activeContacts.filter((contact) => normalizeText(contact.source).includes('form')).length
     };
@@ -666,7 +666,7 @@ const CRMModule = ({ initialContactId = null }) => {
     }
     if (emailVerificationTask.status === 'completed') {
       return {
-        label: `Verify ${emailVerificationTask.completed_count || 0}/${emailVerificationTask.submitted_count || 0}`,
+        label: `Verify ${emailVerificationTask.completedCount || 0}/${emailVerificationTask.submittedCount || 0}`,
         color: 'success'
       };
     }
@@ -677,7 +677,7 @@ const CRMModule = ({ initialContactId = null }) => {
       };
     }
     return {
-      label: `Verifying ${emailVerificationTask.completed_count || 0}/${emailVerificationTask.submitted_count || 0}`,
+      label: `Verifying ${emailVerificationTask.completedCount || 0}/${emailVerificationTask.submittedCount || 0}`,
       color: 'warning'
     };
   }, [emailVerificationTask]);
@@ -740,8 +740,8 @@ const CRMModule = ({ initialContactId = null }) => {
   const openContactThread = async (contact, channelType = 'email', options = {}) => {
     if (!contact?.id) return;
     const thread = await openThreadForContactApi({
-      contact_id: contact.id,
-      channel_type: channelType,
+      contactId: contact.id,
+      channelType: channelType,
       subject: options.subject,
       body: options.body || ''
     });
@@ -754,9 +754,9 @@ const CRMModule = ({ initialContactId = null }) => {
     const threads = [];
     for (const contact of selected) {
       threads.push(await openThreadForContactApi({
-        contact_id: contact.id,
-        channel_type: channelType,
-        subject: channelType.toUpperCase() + ' follow-up for ' + contact.first_name + ' ' + contact.last_name
+        contactId: contact.id,
+        channelType: channelType,
+        subject: channelType.toUpperCase() + ' follow-up for ' + contact.firstName + ' ' + contact.lastName
       }));
     }
     navigateToCommsThread(threads[0], channelType);
@@ -776,7 +776,7 @@ const CRMModule = ({ initialContactId = null }) => {
       case 'delete':
         if (confirm(`Delete ${selectedIds.length} contact(s)?`)) {
           for (const id of selectedIds) {
-            await updateContactApi(id, { deleted_at: new Date().toISOString() });
+            await updateContactApi(id, { deletedAt: new Date().toISOString() });
           }
           await loadData();
           setSelectedContacts(new Set());

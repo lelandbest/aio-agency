@@ -166,18 +166,18 @@ const createAiProviderDraft = (provider) => {
   const isOllama = provider?.id === 'ollama' || provider?.key === 'ollama';
 
   return {
-    base_url: provider?.defaultBaseUrl || findField('base_url')?.default || '',
+    baseUrl: provider?.defaultBaseUrl || findField('base_url')?.default || '',
     model: provider?.defaultModel || findField('model')?.default || '',
-    api_key: '',
+    apiKey: '',
     temperature: findField('temperature')?.default || (isOllama ? '0.2' : ''),
     username: '',
     password: '',
-    system_guardrails: '',
-    task_guardrails: '',
-    site_url: '',
-    app_name: 'AIO CRM',
+    systemGuardrails: '',
+    taskGuardrails: '',
+    siteUrl: '',
+    appName: 'AIO CRM',
     enabled: isOllama,
-    is_default: isOllama,
+    isDefault: isOllama,
     config: isOllama ? { temperature: '0.2', username: '', password: '' } : {}
   };
 };
@@ -207,8 +207,8 @@ const sanitizeAiProviderConfig = (rawConfig = {}) => {
 
 const createAutomationProviderDraft = (provider) => ({
   label: provider?.name || '',
-  base_url: provider?.fields?.find((field) => field.name === 'baseUrl')?.default || '',
-  api_key: '',
+  baseUrl: provider?.fields?.find((field) => field.name === 'baseUrl')?.default || '',
+  apiKey: '',
   enabled: true,
   config: Object.fromEntries(
     (provider?.fields || [])
@@ -219,9 +219,9 @@ const createAutomationProviderDraft = (provider) => ({
 
 const createPaymentProviderDraft = (provider) => ({
   label: provider?.name || '',
-  publishable_key: provider?.fields?.find((field) => field.name === 'publishableKey')?.default || '',
-  secret_key: '',
-  webhook_secret: '',
+  publishableKey: provider?.fields?.find((field) => field.name === 'publishableKey')?.default || '',
+  secretKey: '',
+  webhookSecret: '',
   enabled: true,
   config: Object.fromEntries(
     (provider?.fields || [])
@@ -234,18 +234,18 @@ const createMailboxDraft = (provider = 'gmail-oauth') => ({
   name: '',
   address: '',
   provider,
-  inbound_enabled: true,
-  outbound_enabled: true,
+  inboundEnabled: true,
+  outboundEnabled: true,
   config: {}
 });
 
 const createCalendarSourceDraft = (provider = 'google-calendar-oauth') => ({
   name: '',
   provider,
-  sync_direction: 'two-way',
+  syncDirection: 'two-way',
   config: {
-    authority_mode: 'local-first',
-    import_policy: 'review'
+    authorityMode: 'local-first',
+    importPolicy: 'review'
   }
 });
 
@@ -273,7 +273,7 @@ const hasConfigValue = (value) => {
 };
 
 const resolveCanonicalStatus = (resource = {}) => {
-  const normalized = String(resource.status_canonical || '').trim().toLowerCase();
+  const normalized = String(resource.statusCanonical || '').trim().toLowerCase();
   return CANONICAL_STATUS_VALUES.has(normalized) ? normalized : '';
 };
 
@@ -341,9 +341,9 @@ const getMailboxStateMeta = (mailbox = {}) => {
   const config = mailbox.config || {};
   const provider = mailbox.provider;
   const rawStatus = String(mailbox.status || '').trim().toLowerCase();
-  const lastError = String(config.last_error || '').trim();
-  const connectedIdentity = config.connected_identity || config.email || mailbox.address || '';
-  const missingRefreshToken = isMailboxOauthProvider(provider) && !hasConfigValue(config.refresh_token);
+  const lastError = String(config.lastError || '').trim();
+  const connectedIdentity = config.connectedIdentity || config.email || mailbox.address || '';
+  const missingRefreshToken = isMailboxOauthProvider(provider) && !hasConfigValue(config.refreshToken);
   const missingCredentials = isMailboxOauthProvider(provider)
     ? ['client_id', 'client_secret'].filter((key) => !hasConfigValue(config[key]))
     : [];
@@ -425,10 +425,10 @@ const getCalendarSourceStateMeta = (source = {}) => {
   const config = source.config || {};
   const provider = source.provider;
   const rawStatus = String(source.status || '').trim().toLowerCase();
-  const lastError = String(config.last_error || '').trim();
-  const connectedIdentity = config.connected_identity || config.email || '';
-  const connectedCalendar = config.connected_calendar || config.calendar_id || '';
-  const missingRefreshToken = isCalendarOauthProvider(provider) && !hasConfigValue(config.refresh_token);
+  const lastError = String(config.lastError || '').trim();
+  const connectedIdentity = config.connectedIdentity || config.email || '';
+  const connectedCalendar = config.connectedCalendar || config.calendar_id || '';
+  const missingRefreshToken = isCalendarOauthProvider(provider) && !hasConfigValue(config.refreshToken);
   const missingCredentials = provider === 'google-calendar-oauth'
     ? ['client_id', 'client_secret'].filter((key) => !hasConfigValue(config[key]))
     : provider === 'microsoft365-calendar'
@@ -446,7 +446,7 @@ const getCalendarSourceStateMeta = (source = {}) => {
       needsConfigDetail: lastError || 'Required calendar credentials or calendar selection are incomplete.',
       reconnectDetail: lastError || 'OAuth refresh token is missing. Reconnect to restore calendar access.',
       unauthorizedDetail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
-      connectedDetail: lastError || config.connected_calendar || config.connected_identity || 'Calendar source is ready.'
+      connectedDetail: lastError || config.connectedCalendar || config.connectedIdentity || 'Calendar source is ready.'
     });
   }
 
@@ -501,7 +501,7 @@ const getCalendarSourceStateMeta = (source = {}) => {
   return {
     machine: 'connected',
     label: 'Connected',
-    detail: lastError || config.connected_calendar || config.connected_identity || 'Calendar source is ready.',
+    detail: lastError || config.connectedCalendar || config.connectedIdentity || 'Calendar source is ready.',
     tone: 'success',
     authActionsDisabled: false,
     saveDisabled: false,
@@ -510,14 +510,14 @@ const getCalendarSourceStateMeta = (source = {}) => {
 };
 
 const createEmailVerifierDraft = (config = {}) => ({
-  api_key: '',
+  apiKey: '',
   enabled: !!config.enabled,
-  auto_verify_contacts: config.auto_verify_contacts !== false,
-  default_mode: config.default_mode === 'power' ? 'power' : 'quick',
+  autoVerifyContacts: config.auto_verify_contacts !== false,
+  defaultMode: config.default_mode === 'power' ? 'power' : 'quick',
 });
 
 const getEmailVerifierStatusMeta = (config = {}) => {
-  if (!config?.has_api_key) {
+  if (!config?.hasApiKey) {
     return { label: 'Disconnected', tone: 'disconnected' };
   }
   if (!config?.enabled) {
@@ -531,9 +531,9 @@ const getEmailVerifierStatusMeta = (config = {}) => {
 
 const getEmailVerifierDetail = (config = {}) => {
   if (config?.status === 'error') {
-    return config?.last_error || 'The last connection test failed.';
+    return config?.lastError || 'The last connection test failed.';
   }
-  if (!config?.has_api_key) {
+  if (!config?.hasApiKey) {
     return 'Add a Reoon API key to enable tenant-scoped email verification.';
   }
   if (!config?.enabled) {
@@ -586,7 +586,7 @@ const toneClass = (tone) => ({
   info: 'border-sky-500/30 bg-sky-500/10 text-sky-200'
 }[tone] || 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]');
 
-const providerStateDetail = (config = {}, fallback) => config.last_error || config.connected_identity || config.connected_calendar || fallback;
+const providerStateDetail = (config = {}, fallback) => config.lastError || config.connectedIdentity || config.connectedCalendar || fallback;
 
 const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, selected, onClick, chips = [] }) => (
   <button
@@ -668,8 +668,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
   const [busyAction, setBusyAction] = useState('');
-  const configuredEmailVerifierCount = emailVerifierConfig?.has_api_key ? 1 : 0;
-  const activeEmailVerifierCount = emailVerifierConfig?.has_api_key && emailVerifierConfig?.enabled ? 1 : 0;
+  const configuredEmailVerifierCount = emailVerifierConfig?.hasApiKey ? 1 : 0;
+  const activeEmailVerifierCount = emailVerifierConfig?.hasApiKey && emailVerifierConfig?.enabled ? 1 : 0;
   const standardCalendarSources = useMemo(
     () => calendarSources.filter((source) => !isVideoConferencingProvider(source.provider)),
     [calendarSources]
@@ -710,7 +710,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       if (cat.id === INTEGRATION_CATEGORIES.EMAIL) count = mailboxes.length + configuredEmailVerifierCount;
       if (cat.id === INTEGRATION_CATEGORIES.CALENDAR) count = standardCalendarSources.length;
       if (cat.id === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) count = videoConferencingSources.length;
-      if (cat.id === INTEGRATION_CATEGORIES.LLMS) count = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
+      if (cat.id === INTEGRATION_CATEGORIES.LLMS) count = aiProviderConfigs.filter((provider) => provider.enabled || provider.apiKey_present || provider.baseUrl).length;
       if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) count = paymentProviderConfigs.length;
       // SMS and Tracking are currently placeholders/empty in this version
       if (cat.id === INTEGRATION_CATEGORIES.SMS || cat.id === INTEGRATION_CATEGORIES.TRACKING) count = 0;
@@ -957,9 +957,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
     setPaymentProviderForm({
       label: existing.label || selectedPaymentProviderCatalog.name,
-      publishable_key: existing.publishable_key || selectedPaymentProviderCatalog.fields?.find((field) => field.name === 'publishableKey')?.default || '',
-      secret_key: '',
-      webhook_secret: existing.config?.webhook_secret || '',
+      publishableKey: existing.publishable_key || selectedPaymentProviderCatalog.fields?.find((field) => field.name === 'publishableKey')?.default || '',
+      secretKey: '',
+      webhookSecret: existing.config?.webhook_secret || '',
       enabled: existing.enabled,
       config: existing.config || {},
     });
@@ -975,8 +975,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       address: selectedMailbox.address || '',
       provider: selectedMailbox.provider || 'gmail-oauth',
       status: selectedMailbox.status || 'connected',
-      inbound_enabled: selectedMailbox.inbound_enabled !== false,
-      outbound_enabled: selectedMailbox.outbound_enabled !== false,
+      inboundEnabled: selectedMailbox.inboundEnabled !== false,
+      outboundEnabled: selectedMailbox.outboundEnabled !== false,
       config: selectedMailbox.config || {}
     });
   }, [selectedMailbox]);
@@ -986,7 +986,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   }, [emailVerifierConfig]);
 
   useEffect(() => {
-    setEmailVerifierConfigEditing(!emailVerifierConfig?.has_api_key);
+    setEmailVerifierConfigEditing(!emailVerifierConfig?.hasApiKey);
   }, [emailVerifierConfig]);
 
   useEffect(() => {
@@ -997,10 +997,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     setCalendarSourceForm({
       name: selectedCalendarSource.name || '',
       provider: selectedCalendarSource.provider || 'google-calendar-oauth',
-      sync_direction: selectedCalendarSource.sync_direction || 'two-way',
+      syncDirection: selectedCalendarSource.sync_direction || 'two-way',
       config: {
-        authority_mode: selectedCalendarSource.authority_mode || selectedCalendarSource.config?.authority_mode || 'local-first',
-        import_policy: selectedCalendarSource.import_policy || selectedCalendarSource.config?.import_policy || 'review',
+        authorityMode: selectedCalendarSource.authority_mode || selectedCalendarSource.config?.authority_mode || 'local-first',
+        importPolicy: selectedCalendarSource.import_policy || selectedCalendarSource.config?.import_policy || 'review',
         ...(selectedCalendarSource.config || {})
       }
     });
@@ -1024,7 +1024,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setCalendarOptionsLoading(false);
       return;
     }
-    const hasOAuthBinding = !!(selectedCalendarSource.config?.refresh_token || selectedCalendarSource.config?.connected_identity);
+    const hasOAuthBinding = !!(selectedCalendarSource.config?.refreshToken || selectedCalendarSource.config?.connectedIdentity);
     if (!hasOAuthBinding) {
       setCalendarOptions([]);
       setCalendarOptionsLoading(false);
@@ -1062,18 +1062,18 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     // Unified form loading using snake_case and normalization fallback
     const config = existing.config || {};
     setAiProviderForm({
-      base_url: existing.base_url || config.base_url || catalogEntry.default_base_url || '',
+      baseUrl: existing.baseUrl || config.baseUrl || catalogEntry.default_base_url || '',
       model: existing.model || config.model || catalogEntry.model || catalogEntry.default_model || '',
-      api_key: '', // Credentials never round-trip into form
+      apiKey: '', // Credentials never round-trip into form
       temperature: config.temperature || '0.2',
       username: config.username || '',
       password: '',
-      system_guardrails: existing.system_guardrails || config.system_guardrails || config.systemGuardrails || '',
-      task_guardrails: existing.task_guardrails || config.task_guardrails || config.taskGuardrails || '',
-      site_url: config.site_url || '',
-      app_name: config.app_name || 'AIO CRM',
+      systemGuardrails: existing.system_guardrails || config.system_guardrails || config.systemGuardrails || '',
+      taskGuardrails: existing.task_guardrails || config.task_guardrails || config.taskGuardrails || '',
+      siteUrl: config.site_url || '',
+      appName: config.app_name || 'AIO CRM',
       enabled: !!existing.enabled,
-      is_default: !!existing.is_default,
+      isDefault: !!existing.is_default,
       config: config
     });
   }, [selectedAiProviderCatalog, selectedAiProviderConfig]);
@@ -1092,8 +1092,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
     setAutomationProviderForm({
       label: existing.label || catalogEntry.name,
-      base_url: existing.base_url || catalogEntry.fields?.find((field) => field.name === 'baseUrl')?.default || '',
-      api_key: '',
+      baseUrl: existing.baseUrl || catalogEntry.fields?.find((field) => field.name === 'baseUrl')?.default || '',
+      apiKey: '',
       enabled: existing.enabled,
       config: {
         ...(existing.config || {}),
@@ -1132,8 +1132,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     setOllamaModelsLoading(true);
     try {
       const models = await getOllamaModelsApi({
-        base_url: preferredBaseUrl || aiProviderForm.base_url || (aiProviderCatalog.find(p => p.id === 'ollama') || {}).default_base_url,
-        api_key: aiProviderForm.api_key || '',
+        baseUrl: preferredBaseUrl || aiProviderForm.baseUrl || (aiProviderCatalog.find(p => p.id === 'ollama') || {}).default_base_url,
+        apiKey: aiProviderForm.apiKey || '',
         username: aiProviderForm.config?.username || '',
         password: aiProviderForm.config?.password || ''
       });
@@ -1160,8 +1160,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setOllamaModelsLoading(true);
       try {
         const models = await getOllamaModelsApi({
-          base_url: aiProviderForm.base_url || (aiProviderCatalog.find(p => p.id === 'ollama') || {}).default_base_url,
-          api_key: aiProviderForm.api_key || '',
+          baseUrl: aiProviderForm.baseUrl || (aiProviderCatalog.find(p => p.id === 'ollama') || {}).default_base_url,
+          apiKey: aiProviderForm.apiKey || '',
           username: aiProviderForm.config?.username || '',
           password: aiProviderForm.config?.password || ''
         });
@@ -1181,7 +1181,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     return () => {
       cancelled = true;
     };
-  }, [selectedAiProviderKey, aiProviderForm.base_url, aiProviderForm.api_key, aiProviderForm.config?.username, aiProviderForm.config?.password, aiProviderCatalog]);
+  }, [selectedAiProviderKey, aiProviderForm.baseUrl, aiProviderForm.apiKey, aiProviderForm.config?.username, aiProviderForm.config?.password, aiProviderCatalog]);
 
 
   const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === mailboxForm.provider) || DEFAULT_MAILBOX_PROVIDERS[0];
@@ -1215,7 +1215,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const automationNeedsConfig = isNeedsConfigStatus(selectedAutomationProviderConfig?.status);
   const emailVerifierNeedsConfig = emailVerifierConfig?.status === 'error';
   const automationConfigLocked = !!selectedAutomationProviderConfig && !automationConfigEditing;
-  const emailVerifierConfigLocked = !!emailVerifierConfig?.has_api_key && !emailVerifierConfigEditing;
+  const emailVerifierConfigLocked = !!emailVerifierConfig?.hasApiKey && !emailVerifierConfigEditing;
   const mailboxConfigLocked = !!selectedMailbox && !mailboxConfigEditing;
   const calendarConfigLocked = !!selectedCalendarSource && !calendarConfigEditing;
   const aiProviderConfigLocked = !!selectedAiProviderConfig && !aiProviderConfigEditing;
@@ -1237,7 +1237,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         alerts.push({
           key: 'email-verifier-error',
           tone: 'error',
-          message: emailVerifierConfig.last_error || 'Email verification provider test failed.'
+          message: emailVerifierConfig.lastError || 'Email verification provider test failed.'
         });
       }
     }
@@ -1268,7 +1268,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       } else if (category.id === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
         counts[category.id] = videoConferencingSources.length;
       } else if (category.id === INTEGRATION_CATEGORIES.LLMS) {
-        counts[category.id] = aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length;
+        counts[category.id] = aiProviderConfigs.filter((provider) => provider.enabled || provider.apiKey_present || provider.baseUrl).length;
       } else if (category.id === INTEGRATION_CATEGORIES.PAYMENTS) {
         counts[category.id] = paymentProviderConfigs.length;
       } else {
@@ -1297,8 +1297,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       const providerCatalogEntry = getProviderConfig(providerKey);
       const payload = {
         label: (providerCatalogEntry?.name || providerCatalogEntry?.label || providerKey).trim(),
-        base_url: (config.baseUrl || '').trim(),
-        api_key: config.apiKey || undefined,
+        baseUrl: (config.baseUrl || '').trim(),
+        apiKey: config.apiKey || undefined,
         enabled: true,
         config: {
           inbound_webhook_url: config.inboundWebhookUrl || '',
@@ -1328,11 +1328,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       
       const payload = {
         label: (providerCatalogEntry?.name || providerCatalogEntry?.label || providerKey).trim(),
-        base_url: (config.base_url || providerCatalogEntry?.default_base_url || '').trim(),
+        baseUrl: (config.baseUrl || providerCatalogEntry?.default_base_url || '').trim(),
         model: (config.model || providerCatalogEntry?.default_model || '').trim(),
-        api_key: config.api_key || config.apiKey || undefined,
+        apiKey: config.apiKey || config.apiKey || undefined,
         enabled: true,
-        is_default: !aiProviderConfigs.some((provider) => provider.is_default),
+        isDefault: !aiProviderConfigs.some((provider) => provider.is_default),
         config: Object.fromEntries(
           Object.entries(config)
             .filter(([key]) => !['label', 'base_url', 'model', 'api_key', 'apiKey'].includes(key))
@@ -1359,10 +1359,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         const source = await createCalendarSourceApi({
           name: (config.name || config.label || getProviderConfig(providerKey)?.name || providerKey).trim(),
           provider: providerKey,
-          sync_direction: 'two-way',
+          syncDirection: 'two-way',
           config: {
-            authority_mode: config.authority_mode || 'local-first',
-            import_policy: config.import_policy || 'review',
+            authorityMode: config.authority_mode || 'local-first',
+            importPolicy: config.import_policy || 'review',
             ...config,
           },
         });
@@ -1418,10 +1418,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const handleSaveEmailVerifier = async () => {
     try {
       const saved = await updateEmailVerifierConfigApi({
-        api_key: emailVerifierForm.api_key || undefined,
+        apiKey: emailVerifierForm.apiKey || undefined,
         enabled: !!emailVerifierForm.enabled,
-        auto_verify_contacts: !!emailVerifierForm.auto_verify_contacts,
-        default_mode: emailVerifierForm.default_mode,
+        autoVerifyContacts: !!emailVerifierForm.auto_verify_contacts,
+        defaultMode: emailVerifierForm.default_mode,
       });
       setEmailVerifierConfig(saved);
       setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
@@ -1438,12 +1438,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const handleTestEmailVerifier = async () => {
     setBusyAction('email-verifier-test');
     try {
-      if (emailVerifierForm.api_key) {
+      if (emailVerifierForm.apiKey) {
         const saved = await updateEmailVerifierConfigApi({
-          api_key: emailVerifierForm.api_key,
+          apiKey: emailVerifierForm.apiKey,
           enabled: !!emailVerifierForm.enabled,
-          auto_verify_contacts: !!emailVerifierForm.auto_verify_contacts,
-          default_mode: emailVerifierForm.default_mode,
+          autoVerifyContacts: !!emailVerifierForm.auto_verify_contacts,
+          defaultMode: emailVerifierForm.default_mode,
         });
         setEmailVerifierConfig(saved);
         setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
@@ -1716,20 +1716,20 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       await upsertAiProviderConfigApi(providerKey, {
         provider_type: providerKey,
         label: providerLabel,
-        base_url: (aiProviderForm.base_url || '').trim(),
+        baseUrl: (aiProviderForm.baseUrl || '').trim(),
         model: (aiProviderForm.model || '').trim(),
-        api_key: aiProviderForm.api_key || aiProviderForm.apiKey || undefined,
-        system_guardrails: aiProviderForm.system_guardrails || '',
-        task_guardrails: aiProviderForm.task_guardrails || '',
+        apiKey: aiProviderForm.apiKey || aiProviderForm.apiKey || undefined,
+        systemGuardrails: aiProviderForm.system_guardrails || '',
+        taskGuardrails: aiProviderForm.task_guardrails || '',
         enabled: !!aiProviderForm.enabled,
-        is_default: !!aiProviderForm.is_default,
+        isDefault: !!aiProviderForm.is_default,
         config: {
           ...sanitizedConfig,
           temperature: aiProviderForm.temperature || '0.2',
           username: aiProviderForm.username || '',
           password: aiProviderForm.password || undefined,
-          site_url: aiProviderForm.site_url || '',
-          app_name: aiProviderForm.app_name || 'AIO CRM',
+          siteUrl: aiProviderForm.site_url || '',
+          appName: aiProviderForm.app_name || 'AIO CRM',
         },
       });
       setAiProviderConfigEditing(false);
@@ -1750,20 +1750,20 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       const saved = await upsertAiProviderConfigApi(providerKey, {
         provider_type: providerKey,
         label: providerLabel,
-        base_url: (aiProviderForm.base_url || '').trim(),
+        baseUrl: (aiProviderForm.baseUrl || '').trim(),
         model: (aiProviderForm.model || '').trim(),
-        api_key: aiProviderForm.api_key || aiProviderForm.apiKey || undefined,
-        system_guardrails: aiProviderForm.system_guardrails || '',
-        task_guardrails: aiProviderForm.task_guardrails || '',
+        apiKey: aiProviderForm.apiKey || aiProviderForm.apiKey || undefined,
+        systemGuardrails: aiProviderForm.system_guardrails || '',
+        taskGuardrails: aiProviderForm.task_guardrails || '',
         enabled: !!aiProviderForm.enabled,
-        is_default: !!aiProviderForm.is_default,
+        isDefault: !!aiProviderForm.is_default,
         config: {
           ...sanitizedConfig,
           temperature: aiProviderForm.temperature || '0.2',
           username: aiProviderForm.username || '',
           password: aiProviderForm.password || undefined,
-          site_url: aiProviderForm.site_url || '',
-          app_name: aiProviderForm.app_name || 'AIO CRM',
+          siteUrl: aiProviderForm.site_url || '',
+          appName: aiProviderForm.app_name || 'AIO CRM',
         },
       });
       const response = await testAiProviderConfigApi(saved.id);
@@ -1794,8 +1794,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     try {
       await upsertAutomationProviderConfigApi(selectedAutomationProviderCatalog.id, {
         label: (automationProviderForm.label || selectedAutomationProviderCatalog.name).trim(),
-        base_url: (automationProviderForm.base_url || '').trim(),
-        api_key: automationProviderForm.api_key || undefined,
+        baseUrl: (automationProviderForm.baseUrl || '').trim(),
+        apiKey: automationProviderForm.apiKey || undefined,
         enabled: !!automationProviderForm.enabled,
         status: selectedAutomationProviderConfig?.status,
         config: automationProviderForm.config || {},
@@ -1815,8 +1815,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     try {
       const saved = await upsertAutomationProviderConfigApi(selectedAutomationProviderCatalog.id, {
         label: (automationProviderForm.label || selectedAutomationProviderCatalog.name).trim(),
-        base_url: (automationProviderForm.base_url || '').trim(),
-        api_key: automationProviderForm.api_key || undefined,
+        baseUrl: (automationProviderForm.baseUrl || '').trim(),
+        apiKey: automationProviderForm.apiKey || undefined,
         enabled: !!automationProviderForm.enabled,
         status: selectedAutomationProviderConfig?.status || 'configured',
         config: automationProviderForm.config || {},
@@ -1849,9 +1849,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     try {
       const payload = {
         label: (paymentProviderForm.label || selectedPaymentProviderCatalog.name).trim(),
-        publishable_key: (paymentProviderForm.publishable_key || '').trim(),
-        secret_key: paymentProviderForm.secret_key || undefined,
-        webhook_secret: (paymentProviderForm.webhook_secret || '').trim(),
+        publishableKey: (paymentProviderForm.publishable_key || '').trim(),
+        secretKey: paymentProviderForm.secret_key || undefined,
+        webhookSecret: (paymentProviderForm.webhook_secret || '').trim(),
         enabled: !!paymentProviderForm.enabled,
         config: paymentProviderForm.config || {},
       };
@@ -1894,7 +1894,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               title={config?.label || provider.name}
               subtitle={provider.id}
               status={config?.status || 'not configured'}
-              detail={config?.last_error || provider.description}
+              detail={config?.lastError || provider.description}
               selected={selectedAutomationProviderKey === provider.id}
               onClick={() => setSelectedAutomationProviderKey(provider.id)}
               chips={[
@@ -1935,18 +1935,18 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Delivery</div><div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.config?.last_delivery_at ? new Date(selectedAutomationProviderConfig.config.last_delivery_at).toLocaleString() : 'No delivery yet'}</div></div>
             </div>
 
-            {selectedAutomationProviderConfig?.last_error ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAutomationProviderConfig.last_error}</div>
+            {selectedAutomationProviderConfig?.lastError ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAutomationProviderConfig.lastError}</div>
             ) : null}
 
             <fieldset disabled={automationConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={automationProviderForm.label} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, label: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={automationProviderForm.base_url} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, base_url: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={automationProviderForm.baseUrl} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, baseUrl: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
             </div>
 
             {selectedAutomationProviderCatalog.fields?.some((field) => field.name === 'apiKey') ? (
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={automationProviderForm.api_key} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, api_key: event.target.value }))} placeholder={selectedAutomationProviderConfig?.api_key_present ? 'Saved in workspace config' : ''} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={automationProviderForm.apiKey} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={selectedAutomationProviderConfig?.apiKey_present ? 'Saved in workspace config' : ''} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
             ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1977,7 +1977,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         const emailVerifierStatusMeta = getEmailVerifierStatusMeta(emailVerifierConfig || {});
         const emailVerifierDetail = emailVerifierConfig?.status === 'error'
           ? 'The last verification provider test failed. Update the API key and test again.'
-          : (!emailVerifierConfig?.has_api_key
+          : (!emailVerifierConfig?.hasApiKey
             ? 'Add a Reoon API key to enable tenant-scoped email verification.'
             : (!emailVerifierConfig?.enabled
               ? 'Config is saved but verification is disabled for this tenant.'
@@ -2012,8 +2012,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               </div>
             ) : null}
             <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.inbound_enabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inbound_enabled: event.target.checked }))} />Inbound enabled</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.outbound_enabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outbound_enabled: event.target.checked }))} />Outbound enabled</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.inboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.outboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label>
             </div>
             <button onClick={handleCreateMailbox} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim()} className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:opacity-50">Attach</button>
           </div>
@@ -2038,7 +2038,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 chips={[
                   `Now ${mailbox.queue_counts?.now || 0}`,
                   `Reply ${mailbox.queue_counts?.['needs-reply'] || 0}`,
-                  mailbox.inbound_enabled ? 'Inbound On' : 'Inbound Off',
+                  mailbox.inboundEnabled ? 'Inbound On' : 'Inbound Off',
                   mailboxStateMeta.machine === 'connected' ? 'Auth Ready' : mailboxStateMeta.label
                 ]}
               />
@@ -2072,12 +2072,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{emailVerifierProviderConfig?.description || 'Tenant-scoped verification provider used by CRM single verify, bulk verify, and flow nodes.'}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {emailVerifierConfig?.has_api_key ? <button onClick={() => setEmailVerifierConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button> : null}
+                {emailVerifierConfig?.hasApiKey ? <button onClick={() => setEmailVerifierConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button> : null}
                 <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
                 <button onClick={handleSaveEmailVerifier} disabled={emailVerifierConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} label="Saved" />
-                {emailVerifierConfig?.has_api_key ? <button onClick={handleDeleteEmailVerifier} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Disconnect</button> : null}
+                {emailVerifierConfig?.hasApiKey ? <button onClick={handleDeleteEmailVerifier} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Disconnect</button> : null}
               </div>
             </div>
             {emailVerifierConfig?.status === 'error' ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">Last connection test failed. Update the API key and run a new test.</div> : null}
@@ -2092,12 +2092,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             </div>
             <fieldset disabled={emailVerifierConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
-              <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.api_key} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, api_key: event.target.value }))} placeholder={emailVerifierConfig?.has_api_key ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.default_mode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, default_mode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick</option><option value="power">Power</option></select></label>
+              <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.apiKey} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={emailVerifierConfig?.hasApiKey ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.default_mode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick</option><option value="power">Power</option></select></label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 text-sm text-[var(--color-text-secondary)]">
               <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.enabled} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this tenant</label>
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.auto_verify_contacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, auto_verify_contacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
+              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.auto_verify_contacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, autoVerifyContacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
             </div>
             </fieldset>
           </div>
@@ -2117,7 +2117,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />{selectedMailboxStateMeta.authActionsDisabled ? 'Delete / Reset' : 'Delete'}</button>
               </div>
             </div>
-            {mailboxForm.config?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{mailboxForm.config.last_error}</div> : null}
+            {mailboxForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{mailboxForm.config.lastError}</div> : null}
             {selectedMailboxStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedMailboxStateMeta.tone)}`}>{selectedMailboxStateMeta.detail} Test, sync, save, and disconnect are disabled until recovery.</div> : null}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               This page is for connection management. The actual mail reader is the thread workspace in <span className="font-medium text-[var(--color-text-primary)]">Comms</span>.
@@ -2126,11 +2126,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.last_synced_at ? new Date(selectedMailbox.last_synced_at).toLocaleString() : 'Never'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Inbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.inbound_enabled ? 'Enabled' : 'Disabled'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Outbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.outbound_enabled ? 'Enabled' : 'Disabled'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Inbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.inboundEnabled ? 'Enabled' : 'Disabled'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Outbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.outboundEnabled ? 'Enabled' : 'Disabled'}</div></div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.connected_identity || mailboxForm.address || 'Not connected'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.connectedIdentity || mailboxForm.address || 'Not connected'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.last_tested_at ? new Date(mailboxForm.config.last_tested_at).toLocaleString() : 'Never'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
             </div>
@@ -2142,7 +2142,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><input value={mailboxForm.status || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
             </div>
             {selectedMailboxProvider.fields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedMailboxProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={mailboxForm.config?.[field.key] || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
-            <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]"><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.inbound_enabled} onChange={(event) => setMailboxForm((current) => ({ ...current, inbound_enabled: event.target.checked }))} />Inbound enabled</label><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.outbound_enabled} onChange={(event) => setMailboxForm((current) => ({ ...current, outbound_enabled: event.target.checked }))} />Outbound enabled</label></div>
+            <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]"><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.inboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.outboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label></div>
             </fieldset>
           </div>
         ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-8 text-center text-[var(--color-text-secondary)]">Create or select a mailbox to manage credentials and sync behavior.</div>}
@@ -2182,11 +2182,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           <div className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-4 space-y-3">
             <div className="grid gap-3 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceDraft.name} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceDraft.provider} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, provider: event.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceDraft.provider} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authority_mode || 'local-first', importPolicy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceDraft.config?.authority_mode || 'local-first'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceDraft.config?.import_policy || 'review'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), import_policy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceDraft.config?.authority_mode || 'local-first'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authorityMode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceDraft.config?.import_policy || 'review'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
             </div>
             {calendarDraftProvider.fields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{calendarDraftProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceDraft.config?.[field.key] || ''} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : null}
             <button onClick={handleCreateCalendarSource} disabled={!calendarSourceDraft.name.trim()} className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:opacity-50">Attach</button>
@@ -2235,7 +2235,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />{selectedCalendarSourceStateMeta.authActionsDisabled ? 'Delete / Reset' : 'Delete'}</button>
               </div>
             </div>
-            {calendarSourceForm.config?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{calendarSourceForm.config.last_error}</div> : null}
+            {calendarSourceForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{calendarSourceForm.config.lastError}</div> : null}
             {selectedCalendarSourceStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedCalendarSourceStateMeta.tone)}`}>{selectedCalendarSourceStateMeta.detail} Test, sync, import, save, and disconnect are disabled until recovery.</div> : null}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               {calendarSourceDeleteTarget ? `Deleting this source will move any linked events to ${calendarSourceDeleteTarget.name}.` : 'If this is the last source, linked events will simply be detached from it.'}
@@ -2247,20 +2247,20 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Conflicts</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.event_counts?.conflicts || 0}</div></div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connected_identity || calendarSourceForm.config?.email || 'Not connected'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Calendar</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connected_calendar || 'Not selected'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connectedIdentity || calendarSourceForm.config?.email || 'Not connected'}</div></div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Calendar</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connectedCalendar || 'Not selected'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.last_tested_at ? new Date(calendarSourceForm.config.last_tested_at).toLocaleString() : 'Never'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.last_synced_at ? new Date(selectedCalendarSource.last_synced_at).toLocaleString() : 'Never'}</div></div>
             </div>
             <fieldset disabled={calendarConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceForm.name} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceForm.config?.authority_mode || 'local-first'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), authority_mode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceForm.config?.import_policy || 'review'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), import_policy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authority_mode || 'local-first', importPolicy: current.config?.import_policy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceForm.config?.authority_mode || 'local-first'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), authorityMode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceForm.config?.import_policy || 'review'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
             </div>
             {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Connection is read-only at this stage. The platform binds the Google or Microsoft account, loads available calendars, and stores the selected calendar id. No event import, mirror, overwrite, or deletion occurs during connection.</div> : null}
-            {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="grid gap-3 sm:grid-cols-2 text-sm"><label className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between gap-3"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Active Calendar</div>{calendarOptionsLoading ? <span className="text-[11px] text-[var(--color-text-tertiary)]">Loading calendars...</span> : null}</div><select value={calendarSourceForm.config?.calendar_id || ''} onChange={(event) => { const nextId = event.target.value; const selectedOption = calendarOptions.find((item) => String(item.id || '') === nextId) || null; setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), calendar_id: nextId || '', connected_calendar: selectedOption?.label || '' } })); }} disabled={!calendarOptions.length && !calendarOptionsLoading} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="">{calendarOptions.length ? 'Select a calendar' : calendarSourceForm.config?.connected_identity ? 'No calendars loaded yet' : 'Connect OAuth first'}</option>{calendarOptions.map((item) => <option key={item.id} value={item.id}>{item.label}{item.primary ? ' (Primary)' : ''}</option>)}</select>{calendarSourceForm.config?.connected_identity && !calendarOptions.length && !calendarOptionsLoading ? <div className="text-xs text-[var(--color-text-secondary)]">This source is connected, but the calendar list is not available yet. Save or reconnect to refresh the available calendars.</div> : null}</label></div> : null}
+            {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="grid gap-3 sm:grid-cols-2 text-sm"><label className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between gap-3"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Active Calendar</div>{calendarOptionsLoading ? <span className="text-[11px] text-[var(--color-text-tertiary)]">Loading calendars...</span> : null}</div><select value={calendarSourceForm.config?.calendar_id || ''} onChange={(event) => { const nextId = event.target.value; const selectedOption = calendarOptions.find((item) => String(item.id || '') === nextId) || null; setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), calendar_id: nextId || '', connected_calendar: selectedOption?.label || '' } })); }} disabled={!calendarOptions.length && !calendarOptionsLoading} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="">{calendarOptions.length ? 'Select a calendar' : calendarSourceForm.config?.connectedIdentity ? 'No calendars loaded yet' : 'Connect OAuth first'}</option>{calendarOptions.map((item) => <option key={item.id} value={item.id}>{item.label}{item.primary ? ' (Primary)' : ''}</option>)}</select>{calendarSourceForm.config?.connectedIdentity && !calendarOptions.length && !calendarOptionsLoading ? <div className="text-xs text-[var(--color-text-secondary)]">This source is connected, but the calendar list is not available yet. Save or reconnect to refresh the available calendars.</div> : null}</label></div> : null}
             {selectedCalendarProviderFields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedCalendarProviderFields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceForm.config?.[field.key] || ''} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
             </fieldset>
             <div className="flex flex-wrap gap-2 text-xs text-[var(--color-text-secondary)]"><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Authority {sourceRuleLabels[selectedCalendarSource.authority_mode] || selectedCalendarSource.authority_mode}</span><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Import {sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</span></div>
@@ -2304,7 +2304,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                   title={config.label || provider.name}
                   subtitle={config.provider_key}
                   status={config.status || 'Ready'}
-                  detail={config.last_error || config.model || provider.description}
+                  detail={config.lastError || config.model || provider.description}
                   selected={selectedAiProviderKey === config.provider_key}
                   onClick={() => setSelectedAiProviderKey(config.provider_key)}
                   chips={[
@@ -2342,7 +2342,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.model || selectedAiProviderCatalog.defaultModel || selectedAiProviderCatalog.default_model || 'Unset'}</div></div>
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.last_tested_at ? new Date(selectedAiProviderConfig.last_tested_at).toLocaleString() : 'Never'}</div></div>
           </div>
-          {selectedAiProviderConfig?.last_error ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.last_error}</div> : null}
+          {selectedAiProviderConfig?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.lastError}</div> : null}
           
           <fieldset disabled={aiProviderConfigLocked} className="space-y-3 disabled:opacity-70">
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
@@ -2382,7 +2382,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                     autoComplete={field.type === 'password' ? 'new-password' : undefined}
                     value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
                     onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
-                    placeholder={fieldName === 'api_key' && selectedAiProviderConfig?.api_key_present ? 'Saved in workspace config' : field.placeholder || ''}
+                    placeholder={fieldName === 'api_key' && selectedAiProviderConfig?.apiKey_present ? 'Saved in workspace config' : field.placeholder || ''}
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
                   />
                 )}
@@ -2401,7 +2401,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 onChange={(event) => setAiProviderForm((current) => ({ 
                   ...current, 
                   enabled: event.target.checked, 
-                  is_default: event.target.checked ? current.is_default : false // Rule 2: If disabled, cannot be default
+                  isDefault: event.target.checked ? current.is_default : false // Rule 2: If disabled, cannot be default
                 }))} 
               /> 
               Enable provider for this workspace
@@ -2412,7 +2412,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 checked={!!aiProviderForm.is_default} 
                 onChange={(event) => setAiProviderForm((current) => ({ 
                   ...current, 
-                  is_default: event.target.checked, 
+                  isDefault: event.target.checked, 
                   enabled: event.target.checked ? true : current.enabled // Rule 1: If default, MUST be enabled
                 }))} 
               /> 
@@ -2469,7 +2469,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     </div>
   );
 
-  const totalConnected = automationProviderConfigs.length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION).length + mailboxes.length + calendarSources.length + aiProviderConfigs.filter((provider) => provider.enabled || provider.api_key_present || provider.base_url).length + paymentProviderConfigs.length;
+  const totalConnected = automationProviderConfigs.length + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION).length + mailboxes.length + calendarSources.length + aiProviderConfigs.filter((provider) => provider.enabled || provider.apiKey_present || provider.baseUrl).length + paymentProviderConfigs.length;
   const activeConnected = automationProviderConfigs.filter((provider) => provider.enabled).length
     + integrations.filter((integration) => integration.category !== INTEGRATION_CATEGORIES.AUTOMATION && integration.enabled).length
     + mailboxes.filter((mailbox) => (mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox)).machine === 'connected').length

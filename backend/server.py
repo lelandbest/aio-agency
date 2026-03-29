@@ -1337,9 +1337,9 @@ def project_engine_run_for_ui(run: dict[str, Any] | None) -> dict[str, Any] | No
         "flowId": flow_id or None,
         "flowName": flow_name or None,
         "metadata": {
-            "projection_source": "ai_engine_runs",
+            "projection_source": "aiEngineRuns",
             "legacy_ai_runs_adapter": True,
-            "scheduled_removal": "Remove compatibility projection after UI history consumers read ai_engine_runs natively.",
+            "scheduled_removal": "Remove compatibility projection after UI history consumers read aiEngineRuns natively.",
             "trace": trace,
             "context": context,
             "pending_approvals": pending_approvals,
@@ -1447,7 +1447,7 @@ class AuthLoginRequest(BaseModel):
 
 
 class AuthTenantSwitchRequest(BaseModel):
-    tenant_id: str
+    tenantId: str
 
 
 class WorkspaceCreateRequest(BaseModel):
@@ -1474,33 +1474,33 @@ class WorkspaceUserCreateRequest(BaseModel):
     password: str
     name: str
     role: str = "staff"
-    user_role: str = "operator"
-    create_workspace: bool = False
-    workspace_name: str | None = None
+    userRole: str = "operator"
+    createWorkspace: bool = False
+    workspaceName: str | None = None
 
 
 class ProfileUpdateRequest(BaseModel):
-    display_name: str
+    displayName: str
     phone: str | None = None
     locale: str | None = None
     timezone: str | None = None
-    email_signature: str | None = None
+    emailSignature: str | None = None
 
 
 class PasswordChangeRequest(BaseModel):
-    current_password: str
-    new_password: str
+    currentPassword: str
+    newPassword: str
 
 
 class GlobalVariableUpsertRequest(BaseModel):
     key: str
     value: str
     description: str | None = None
-    is_secret: bool = False
-    is_system: bool = False
+    isSecret: bool = False
+    isSystem: bool = False
     label: str | None = None
     category: str | None = None
-    editable_by_client: bool = True
+    editableByClient: bool = True
 
 
 class CanonicalSettingsUpdateRequest(BaseModel):
@@ -1520,98 +1520,98 @@ class TenantDeployRequest(BaseModel):
 
 
 class EmailVerifierConfigUpdateRequest(BaseModel):
-    api_key: str | None = None
+    apiKey: str | None = None
     enabled: bool | None = None
-    auto_verify_contacts: bool | None = None
-    default_mode: str | None = None
+    autoVerifyContacts: bool | None = None
+    defaultMode: str | None = None
 
 
 class EmailVerifierSingleRequest(BaseModel):
     email: str | None = None
-    contact_id: str | None = None
+    contactId: str | None = None
     mode: str | None = None
 
 
 class EmailVerifierBulkRequest(BaseModel):
-    contact_ids: list[str] | None = None
+    contactIds: list[str] | None = None
     emails: list[str] | None = None
     mode: str | None = None
 
 
 class BrainProfileUpdateRequest(BaseModel):
-    company_name: str | None = None
+    companyName: str | None = None
     website: str | None = None
     industry: str | None = None
     overview: str | None = None
     mission: str | None = None
-    brand_voice: str | None = None
-    ideal_customer: str | None = None
+    brandVoice: str | None = None
+    idealCustomer: str | None = None
 
 
 class BrainSourceRequest(BaseModel):
     label: str
-    source_type: str = "document"
+    sourceType: str = "document"
     status: str = "draft"
     location: str = ""
     notes: str = ""
-    graph_x: float | None = None
-    graph_y: float | None = None
+    graphX: float | None = None
+    graphY: float | None = None
 
 
 class BrainSourceUpdateRequest(BaseModel):
     label: str | None = None
-    source_type: str | None = None
+    sourceType: str | None = None
     status: str | None = None
     location: str | None = None
     notes: str | None = None
-    graph_x: float | None = None
-    graph_y: float | None = None
+    graphX: float | None = None
+    graphY: float | None = None
 
 
 class BrainItemRequest(BaseModel):
     title: str
     category: str = "note"
     content: str = ""
-    source_id: str | None = None
+    sourceId: str | None = None
     status: str = "draft"
     tags: list[str] = []
-    graph_x: float | None = None
-    graph_y: float | None = None
+    graphX: float | None = None
+    graphY: float | None = None
 
 
 class BrainItemUpdateRequest(BaseModel):
     title: str | None = None
     category: str | None = None
     content: str | None = None
-    source_id: str | None = None
+    sourceId: str | None = None
     status: str | None = None
     tags: list[str] | None = None
-    graph_x: float | None = None
-    graph_y: float | None = None
+    graphX: float | None = None
+    graphY: float | None = None
 
 
 class BrainLinkRequest(BaseModel):
-    from_type: str
-    from_id: str
-    to_type: str
-    to_id: str
-    relationship_type: str = "supports"
+    fromType: str
+    fromId: str
+    toType: str
+    toId: str
+    relationshipType: str = "supports"
 
 
 class BrainIngestRequest(BaseModel):
-    source_id: str | None = None
+    sourceId: str | None = None
     label: str | None = None
-    source_type: str = "document"
+    sourceType: str = "document"
     status: str | None = None
     location: str = ""
     notes: str = ""
-    ingest_type: str = "text"
+    ingestType: str = "text"
     title: str | None = None
     content: str | None = None
     url: str | None = None
-    file_name: str | None = None
-    mime_type: str | None = None
-    file_content_base64: str | None = None
+    fileName: str | None = None
+    mimeType: str | None = None
+    fileContentBase64: str | None = None
 
 
 class BrainMCPQueryRequest(BaseModel):
@@ -1621,10 +1621,10 @@ class BrainMCPQueryRequest(BaseModel):
 
 class SystemEmailTemplateUpdateRequest(BaseModel):
     subject: str | None = None
-    send_to: str | None = None
+    sendTo: str | None = None
     enabled: bool | None = None
-    body_html: str | None = None
-    body_text: str | None = None
+    bodyHtml: str | None = None
+    bodyText: str | None = None
     config: dict[str, Any] | None = None
     config: dict[str, Any] | None = None
 
@@ -1634,11 +1634,11 @@ class AIAssistRequest(BaseModel):
     surface: str
     field: str
     intent: str = "draft"
-    current_value: str = ""
+    currentValue: str = ""
     context: dict[str, Any] | None = None
     task: str | None = None
-    route_hints: dict[str, Any] | None = None
-    provider_override: dict[str, Any] | str | None = None
+    routeHints: dict[str, Any] | None = None
+    providerOverride: dict[str, Any] | str | None = None
 
 
 class OperatorAssistRequest(BaseModel):
@@ -1651,34 +1651,33 @@ class AICommandRequest(BaseModel):
     context: dict[str, Any] | None = None
     agent: str | None = None
     collabAgents: list[str] | None = None
-    flow_id: str | None = None
     flowId: str | None = None
 
 
 class OmegaArmRequest(BaseModel):
-    confirmation_code: str
-    cancel_code: str
+    confirmationCode: str
+    cancelCode: str
 
 
 class OmegaCancelRequest(BaseModel):
-    cancel_code: str
+    cancelCode: str
 
 
 class OmegaExecuteRequest(BaseModel):
-    confirmation_code: str
+    confirmationCode: str
 
 
 class AIProviderUpsertRequest(BaseModel):
     label: str | None = None
-    base_url: str | None = None
+    baseUrl: str | None = None
     model: str | None = None
-    api_key: str | None = None
+    apiKey: str | None = None
     enabled: bool = False
-    is_default: bool = False
+    isDefault: bool = False
     status: str | None = None
     config: dict[str, Any] | None = None
-    system_guardrails: str | None = None
-    task_guardrails: str | None = None
+    systemGuardrails: str | None = None
+    taskGuardrails: str | None = None
 
 
 class AIRoutingConfigRequest(BaseModel):
@@ -1690,49 +1689,49 @@ class AIRoutingConfigRequest(BaseModel):
 
 class AutomationProviderUpsertRequest(BaseModel):
     label: str | None = None
-    base_url: str | None = None
-    api_key: str | None = None
+    baseUrl: str | None = None
+    apiKey: str | None = None
     enabled: bool = False
     status: str | None = None
     config: dict[str, Any] | None = None
 
 
 class OllamaModelsRequest(BaseModel):
-    base_url: str | None = None
-    api_key: str | None = None
+    baseUrl: str | None = None
+    apiKey: str | None = None
     username: str | None = None
     password: str | None = None
 
 
 class FormSubmissionRequest(BaseModel):
-    form_data: dict[str, Any]
+    formData: dict[str, Any]
 
 
 class ThreadCreateRequest(BaseModel):
     subject: str
-    channel_type: str = "email"
-    contact_id: str | None = None
-    company_id: str | None = None
+    channelType: str = "email"
+    contactId: str | None = None
+    companyId: str | None = None
     body: str = ""
     status: str = "new"
     assignee: str = "ECHO"
-    mailbox_id: str | None = None
+    mailboxId: str | None = None
 
 
 class ThreadOpenRequest(BaseModel):
-    contact_id: str
-    channel_type: str = "email"
+    contactId: str
+    channelType: str = "email"
     subject: str | None = None
     body: str = ""
-    force_new: bool = False
-    mailbox_id: str | None = None
+    forceNew: bool = False
+    mailboxId: str | None = None
 
 
 class ThreadMessageRequest(BaseModel):
     body: str
-    channel_type: str | None = None
-    sender_name: str = "AIO Flow"
-    sender_email: str = "mission@aiocrm.local"
+    channelType: str | None = None
+    senderName: str = "AIO Flow"
+    senderEmail: str = "mission@aiocrm.local"
     recipients: list[str] = []
     direction: str = "outbound"
 
@@ -1742,12 +1741,12 @@ class ThreadStatusRequest(BaseModel):
 
 
 class ThreadAssignRequest(BaseModel):
-    assignee_name: str | None = None
+    assigneeName: str | None = None
     assignee: str | None = None
 
 
 class ThreadMailboxRequest(BaseModel):
-    mailbox_id: str
+    mailboxId: str
 
 
 class ThreadDraftRequest(BaseModel):
@@ -1755,7 +1754,7 @@ class ThreadDraftRequest(BaseModel):
 
 
 class ThreadMeetingRequest(BaseModel):
-    scheduled_at: str | None = None
+    scheduledAt: str | None = None
 
 
 class ThreadReportRequest(BaseModel):
@@ -1765,18 +1764,18 @@ class ThreadReportRequest(BaseModel):
 class CalendarEventUpdateRequest(BaseModel):
     title: str | None = None
     description: str | None = None
-    start_time: str | None = None
-    end_time: str | None = None
+    startTime: str | None = None
+    endTime: str | None = None
     status: str | None = None
-    location_type: str | None = None
+    locationType: str | None = None
     location: str | None = None
-    meeting_url: str | None = None
+    meetingUrl: str | None = None
 
 
 class CalendarSourceCreateRequest(BaseModel):
     name: str
     provider: str = "google-calendar-oauth"
-    sync_direction: str = "two-way"
+    syncDirection: str = "two-way"
     config: dict[str, Any] | None = None
 
 
@@ -1784,13 +1783,13 @@ class CalendarSourceUpdateRequest(BaseModel):
     name: str | None = None
     provider: str | None = None
     status: str | None = None
-    sync_direction: str | None = None
-    last_synced_at: str | None = None
+    syncDirection: str | None = None
+    lastSyncedAt: str | None = None
     config: dict[str, Any] | None = None
 
 
 class CalendarPushRequest(BaseModel):
-    source_id: str | None = None
+    sourceId: str | None = None
 
 
 class CalendarEventReconcileRequest(BaseModel):
@@ -1801,8 +1800,8 @@ class MailboxCreateRequest(BaseModel):
     name: str
     address: str
     provider: str = "gmail-oauth"
-    inbound_enabled: bool = True
-    outbound_enabled: bool = True
+    inboundEnabled: bool = True
+    outboundEnabled: bool = True
     config: dict[str, Any] | None = None
 
 
@@ -1811,17 +1810,17 @@ class MailboxUpdateRequest(BaseModel):
     address: str | None = None
     provider: str | None = None
     status: str | None = None
-    inbound_enabled: bool | None = None
-    outbound_enabled: bool | None = None
-    last_synced_at: str | None = None
+    inboundEnabled: bool | None = None
+    outboundEnabled: bool | None = None
+    lastSyncedAt: str | None = None
     config: dict[str, Any] | None = None
 
 
 class MailIngestRequest(BaseModel):
     subject: str
     body: str
-    sender_name: str
-    sender_email: str
+    senderName: str
+    senderEmail: str
     recipients: list[str] = []
 
 class TagCreateRequest(BaseModel):
@@ -1838,7 +1837,7 @@ class TagUpdateRequest(BaseModel):
 
 
 class ContactActivityCreateRequest(BaseModel):
-    activity_type: str = "note"
+    activityType: str = "note"
     title: str = "Note"
     description: str = ""
     metadata: dict[str, Any] | None = None
@@ -1881,12 +1880,12 @@ class FlowManualTriggerRequest(BaseModel):
 class MediaRenderRequest(BaseModel):
     provider: str | None = None
     title: str | None = None
-    asset_type: str | None = None
-    media_type: str | None = "video"
-    source_url: str | None = None
-    output_url: str | None = None
+    assetType: str | None = None
+    mediaType: str | None = "video"
+    sourceUrl: str | None = None
+    outputUrl: str | None = None
     script: str | None = None
-    render_profile: str | None = None
+    renderProfile: str | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
 
@@ -1894,9 +1893,9 @@ class MediaRenderRequest(BaseModel):
 class MediaTranscriptRequest(BaseModel):
     provider: str | None = None
     title: str | None = None
-    source_url: str | None = None
-    transcript_text: str | None = None
-    speaker_segments: list[dict[str, Any]] | None = None
+    sourceUrl: str | None = None
+    transcriptText: str | None = None
+    speakerSegments: list[dict[str, Any]] | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
     api_key: str | None = None
@@ -3363,7 +3362,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
             "brain_memory": brain_results,
             "selected_agent_locked": bool(requested_agent),
             "result_metadata": primary_data.get("metadata") or {},
-            "projection_source": "ai_engine_runs",
+            "projection_source": "aiEngineRuns",
         },
         "run": run,
         "run_id": run["id"],

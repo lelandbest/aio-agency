@@ -10,9 +10,9 @@ import { storeSessionToken } from '../services/authStorage';
 import { openOAuthPopup } from '../utils/oauthPopup';
 
 const initialStatus = {
-  has_users: false,
-  can_bootstrap_owner: false,
-  google_oauth_available: false,
+  hasUsers: false,
+  canBootstrapOwner: false,
+  googleOauthAvailable: false,
 };
 
 const AuthScreen = ({ onLogin }) => {
@@ -24,7 +24,7 @@ const AuthScreen = ({ onLogin }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const isBootstrap = !status.has_users && status.can_bootstrap_owner;
+  const isBootstrap = !status.hasUsers && status.canBootstrapOwner;
 
   useEffect(() => {
     let cancelled = false;
@@ -126,11 +126,11 @@ const AuthScreen = ({ onLogin }) => {
           <div className="space-y-4">
             <button
               onClick={handleGoogleLogin}
-              disabled={submitting || !status.google_oauth_available}
+              disabled={submitting || !status.googleOauthAvailable}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-white py-3 font-bold text-black transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Chrome size={18} />
-              {status.google_oauth_available ? 'Continue with Google' : 'Google Sign-In Not Configured'}
+              {status.googleOauthAvailable ? 'Continue with Google' : 'Google Sign-In Not Configured'}
             </button>
 
             <div className="relative flex items-center py-2">

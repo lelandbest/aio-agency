@@ -17,7 +17,7 @@ const OrdersModule = () => {
         surface: 'order-list',
         field: 'summary',
         intent: 'analyze',
-        current_value: '',
+        currentValue: '',
         context: { orderCount: data.length }
       });
       if (response?.suggestion) {
@@ -43,8 +43,8 @@ const OrdersModule = () => {
       const formatted = response.map(o => ({
         id: o.id.split('-').pop() || o.id,
         contact: o.contact_id || 'Unknown',
-        payment_status: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
-        fulfillment_status: o.status === 'active' ? 'Processing' : 'Shipped',
+        paymentStatus: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
+        fulfillmentStatus: o.status === 'active' ? 'Processing' : 'Shipped',
         items: o.items?.length || 1,
         total: o.total_amount || 0,
         date: new Date(o.created_at).toLocaleDateString()

@@ -2,16 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { X, AlertTriangle, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useSignal } from '../contexts/SignalContext';
 
-useEffect(() => {
-  const handleSignal = (event) => {
-    const { type, message } = event.detail || {};
-    if (type && message) {
-      window.__signalContext?.addSignal({ type, message });
-    }
-  };
-  window.addEventListener('aio:signal', handleSignal);
-  return () => window.removeEventListener('aio:signal', handleSignal);
-}, []);
 
 const ICON_MAP = {
   success: CheckCircle,
