@@ -6293,6 +6293,28 @@ class SQLiteProvider(BaseProvider):
                 force_new=True,
             )
 
+        try:
+            from orchestration import emit_system_event
+            emit_system_event(
+                self,
+                {
+                    "type": "form_submitted",
+                    "payload": {
+                        "form_id": form_id,
+                        "form_name": form.get("name"),
+                        "submission_id": submission_id,
+                        "contact_id": contact_id,
+                        "form_data": form_data,
+                    },
+                    "meta": {"depth": 0},
+                },
+                actor={},
+                tenant={"id": self._tenantId()},
+                provider_config=None,
+            )
+        except Exception:
+            pass
+
         return {"success": True, "contactId": contact_id, "created": created_contact, "submissionId": submission_id}
 
     def list_contact_activities(self, contactId: str) -> list[dict[str, Any]]:

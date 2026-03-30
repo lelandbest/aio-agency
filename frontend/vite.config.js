@@ -60,9 +60,9 @@ export default defineConfig(async () => {
     plugins: [react()],
 
     server: {
-      host: isHosted ? "0.0.0.0" : "localhost",
+      host: "0.0.0.0",
       port: 5175,
-      strictPort: true,
+      strictPort: false,
 
       hmr: isHosted
         ? {
