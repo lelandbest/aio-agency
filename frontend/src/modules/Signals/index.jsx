@@ -3,18 +3,100 @@ import {
   TrendingUp, Users, MessageSquare, AlertTriangle,
   Activity, Brain, Crosshair, Send,
   RefreshCw, AlertCircle, Target,
-  ChevronRight, Play, Clock, Plus
+  ChevronRight, Play, Clock, Plus, Loader2, Zap
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 
-const runSignalAction = (action) => {
-  if (!action?.type) {
+const executeSignalApi = async (signalType, action, target, input, context = {}) => {
+  const response = await fetch('/api/signals/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      signalType,
+      action,
+      target: target || null,
+      input: input || '',
+      context,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Signal execution failed');
+  }
+  return response.json();
+};
+
+const runSignalAction = async (signal, onResult) => {
+  if (!signal?.primaryAction?.action) {
     return;
   }
+  
+  const action = signal.primaryAction.action;
+  
+  // Check if this is an execution action
+  if (action.type === 'execute_agent' && action.agent) {
+    try {
+      const result = await executeSignalApi(
+        signal.type,
+        'agent',
+        action.agent,
+        action.input || `Process ${signal.title}`,
+        action.context || {}
+      );
+      if (onResult) onResult(result);
+      return result;
+    } catch (error) {
+      console.error('Signal execution failed:', error);
+      throw error;
+    }
+  }
+  
+  if (action.type === 'execute_flow' && action.flowId) {
+    try {
+      const result = await executeSignalApi(
+        signal.type,
+        'flow',
+        action.flowId,
+        action.input || '',
+        action.context || {}
+      );
+      if (onResult) onResult(result);
+      return result;
+    } catch (error) {
+      console.error('Signal execution failed:', error);
+      throw error;
+    }
+  }
+  
+  if (action.type === 'execute_command') {
+    try {
+      const result = await executeSignalApi(
+        signal.type,
+        'command',
+        null,
+        action.input || `Process ${signal.title}`,
+        action.context || {}
+      );
+      if (onResult) onResult(result);
+      return result;
+    } catch (error) {
+      console.error('Signal execution failed:', error);
+      throw error;
+    }
+  }
+  
+  // Fallback to navigation/dispatch for non-execution actions
+  if (action.type === 'open_module' || action.type === 'navigate') {
+    dispatchAction(action, { ...(action.payload || {}), source: 'signals' });
+    return { status: 'navigated' };
+  }
+  
+  // Default dispatch
   dispatchAction(action, { ...(action.payload || {}), source: 'signals' });
+  return { status: 'dispatched' };
 };
 
 /**
@@ -106,6 +188,25 @@ const mapDataToSignals = (rawData) => {
       primaryAction: {
         label: 'View Runs',
         action: { type: 'open_module', payload: { module: 'flows' } }
+      },
+      timestamp: now
+    });
+  }
+
+  // Add execution-capable signals
+  // Example: Quick AI Analysis signal
+  if (threads.length > 0 || contacts.length > 0) {
+    signals.push({
+      id: `quick-analysis-${now}`,
+      type: 'ai_analysis',
+      severity: 'info',
+      title: 'Quick AI Analysis Available',
+      description: 'Analyze current workspace state with AI.',
+      impact: 'Get instant insights on contacts and conversations.',
+      timeContext: 'On-demand',
+      primaryAction: {
+        label: 'Run Analysis',
+        action: { type: 'execute_agent', agent: 'ALPHA', input: 'Analyze the current workspace state and provide insights on contacts, conversations, and opportunities.' }
       },
       timestamp: now
     });
@@ -245,7 +346,10 @@ const SignalSummaryStrip = ({ signals, compact = false }) => {
   );
 };
 
-const SignalCard = ({ signal }) => {
+const SignalCard = ({ signal, onExecute }) => {
+  const [executing, setExecuting] = useState(false);
+  const [result, setResult] = useState(null);
+  
   const severityColor = {
     critical: 'border-red-500/35 bg-red-500/6 text-red-300',
     warning: 'border-amber-500/35 bg-amber-500/6 text-amber-300',
@@ -267,6 +371,26 @@ const SignalCard = ({ signal }) => {
     warning: 'bg-amber-500 hover:bg-amber-600 text-black',
     info: 'bg-cyan-500 hover:bg-cyan-600 text-slate-950',
   }[signal.severity];
+
+  const isExecutionAction = signal.primaryAction?.action?.type?.startsWith('execute_');
+  
+  const handleAction = async () => {
+    if (isExecutionAction) {
+      setExecuting(true);
+      setResult(null);
+      try {
+        const execResult = await runSignalAction(signal);
+        setResult(execResult);
+        if (onExecute) onExecute(execResult);
+      } catch (error) {
+        setResult({ error: error.message });
+      } finally {
+        setExecuting(false);
+      }
+    } else {
+      runSignalAction(signal);
+    }
+  };
 
   return (
     <div className={`relative rounded-2xl border ${severityColor} p-4 pr-[148px] transition-all duration-300 shadow-[0_12px_28px_rgba(0,0,0,0.14)]`}>
@@ -299,12 +423,18 @@ const SignalCard = ({ signal }) => {
           </div>
         </div>
       </div>
+      {result && (
+        <div className="mt-3 p-2 rounded-lg bg-black/20 text-[9px] text-white/70">
+          {result.runId ? `Executed: ${result.runId}` : result.error ? `Error: ${result.error}` : 'Executed'}
+        </div>
+      )}
       <button
-        onClick={() => runSignalAction(signal.primaryAction.action)}
-        className={`absolute right-4 bottom-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[8px] font-black uppercase tracking-[0.18em] transition-all ${actionTone}`}
+        onClick={handleAction}
+        disabled={executing}
+        className={`absolute right-4 bottom-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[8px] font-black uppercase tracking-[0.18em] transition-all ${actionTone} ${executing ? 'opacity-50 cursor-wait' : ''}`}
       >
-        <Play size={9} />
-        {signal.primaryAction.label}
+        {executing ? <Loader2 size={9} className="animate-spin" /> : isExecutionAction ? <Zap size={9} /> : <Play size={9} />}
+        {executing ? 'Executing...' : signal.primaryAction.label}
       </button>
     </div>
   );

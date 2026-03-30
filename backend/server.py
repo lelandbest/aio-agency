@@ -5867,6 +5867,157 @@ async def delete_notification(notification_id: str, request: Request):
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
+# =============================================================================
+# SIGNAL EXECUTION ENDPOINT
+# =============================================================================
+
+class SignalExecuteRequest(BaseModel):
+    signalType: str
+    action: str  # "agent" | "flow" | "command"
+    target: str | None = None  # agent name, flowId, or null for command
+    input: str | dict[str, Any] = ""
+    context: dict[str, Any] = {}
+
+
+@app.post("/api/signals/execute")
+async def execute_signal(request: Request, payload: SignalExecuteRequest):
+    """
+    Execute an action triggered by a Signal.
+    
+    Routes signals into existing execution paths:
+    - agent → /api/ai/command
+    - flow → flow trigger execution
+    - command → /api/ai/command
+    """
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can execute signals.")
+    token = extract_session_token(request)
+    tenant = session.get("tenant") or {}
+    user = session.get("user") or {}
+    tenant_id = str(tenant.get("id") or "").strip()
+    
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="No tenant context")
+    
+    signal_type = payload.signalType
+    action = payload.action
+    target = payload.target
+    signal_input = payload.input
+    incoming_context = payload.context or {}
+    
+    # Build signal metadata for pass-through
+    signal_metadata = {
+        "signal": {
+            "type": signal_type,
+            "triggeredAt": utcnow_iso(),
+            "source": "signal",
+        }
+    }
+    
+    # Merge with incoming context
+    resolved_context = {**incoming_context, **signal_metadata}
+    
+    result = None
+    run_id = None
+    status = "success"
+    
+    try:
+        if action == "agent":
+            # Route to /api/ai/command with agent
+            if not target:
+                raise ValueError("Agent target is required for agent action")
+            
+            resolved_context["source"] = "signal"
+            resolved_context["signalType"] = signal_type
+            
+            # Call ai_command logic directly
+            command_text = str(signal_input) if signal_input else f"Process signal: {signal_type}"
+            
+            from ai_service import ai_assist_service
+            ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant_id) if tenant_id else None
+            
+            run_result = ai_assist_service.run_assist(
+                command=command_text,
+                agent=target,
+                context=resolved_context,
+                token=token,
+                session=session,
+                auth_store=auth_store,
+                provider=provider,
+            )
+            
+            result = run_result.get("result") or run_result
+            run_id = run_result.get("runId") or run_result.get("run", {}).get("id")
+            
+        elif action == "flow":
+            # Route to flow trigger
+            if not target:
+                raise ValueError("Flow ID is required for flow action")
+            
+            flow = provider.get_flow(target)
+            if not flow:
+                raise ValueError(f"Flow not found: {target}")
+            
+            if flow.get("status") != "Active":
+                raise ValueError(f"Flow is not active: {target}")
+            
+            # Execute flow via existing trigger mechanism
+            from orchestration import ExecutionEngine
+            engine = ExecutionEngine(provider, auth_store)
+            
+            trigger_targets = resolve_flow_trigger_targets(flow, "signal_trigger")
+            
+            if not trigger_targets:
+                trigger_targets = resolve_flow_trigger_targets(flow, "manual_trigger")
+            
+            run_result = engine.run_flow(
+                flow_id=target,
+                trigger_type="signal_trigger",
+                context=resolved_context,
+                token=token,
+            )
+            
+            result = run_result
+            run_id = run_result.get("runId") or run_result.get("id")
+            
+        elif action == "command":
+            # Route to /api/ai/command without agent override
+            resolved_context["source"] = "signal"
+            resolved_context["signalType"] = signal_type
+            
+            command_text = str(signal_input) if signal_input else f"Process signal: {signal_type}"
+            
+            from ai_service import ai_assist_service
+            
+            run_result = ai_assist_service.run_assist(
+                command=command_text,
+                agent=None,
+                context=resolved_context,
+                token=token,
+                session=session,
+                auth_store=auth_store,
+                provider=provider,
+            )
+            
+            result = run_result.get("result") or run_result
+            run_id = run_result.get("runId") or run_result.get("run", {}).get("id")
+            
+        else:
+            raise ValueError(f"Unknown action: {action}. Must be 'agent', 'flow', or 'command'")
+            
+    except Exception as e:
+        status = "error"
+        result = {"error": str(e)}
+    
+    return {
+        "status": status,
+        "signalType": signal_type,
+        "action": action,
+        "target": target,
+        "runId": run_id,
+        "result": result,
+    }
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")
