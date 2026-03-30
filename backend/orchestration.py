@@ -2959,13 +2959,37 @@ class StepExecutor:
             },
         )
         transcript_job = result.get("transcript_job") or {}
+        transcript_artifact = result.get("transcript_artifact")
         failed = transcript_job and clean_text(transcript_job.get("status")) == "failed"
+        
+        brain_item_id = None
+        if not failed and transcript_artifact:
+            try:
+                tenant_id = clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None
+                transcript_text = transcript_artifact.get("transcript_text", "")
+                if transcript_text and tenant_id:
+                    brain_item_payload = {
+                        "title": transcript_artifact.get("title") or "Meeting Transcript",
+                        "category": "transcript",
+                        "content": transcript_text,
+                        "source_id": transcript_artifact.get("id"),
+                        "status": "published",
+                        "tags": ["MTG:TRANSCRIPT"],
+                    }
+                    if hasattr(self.provider, "create_brain_item"):
+                        brain_item = self.provider.create_brain_item(brain_item_payload)
+                        brain_item_id = brain_item.get("id")
+            except Exception:
+                pass
+        
         return {
             "stepId": step.get("id"),
             "intent": step.get("intent"),
             "status": "failed" if failed else "success",
             "data": result,
             "error": transcript_job.get("last_error") if failed else None,
+            "brainItemId": brain_item_id,
+            "tags": ["MTG:TRANSCRIPT"] if brain_item_id else [],
         }
 
     def _publish_asset(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
