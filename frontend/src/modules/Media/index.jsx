@@ -33,6 +33,7 @@ import {
   getMediaScriptJobsApi,
   getMediaTranscriptArtifactsApi,
   getMediaTranscriptJobsApi,
+  getMediaProviderConfigsApi,
   ingestMeetingMediaApi,
 } from '../../services/backendApi';
 import { templates } from '../Flows/data/templates';
@@ -53,6 +54,16 @@ const QUICK_ACTION_MAP = QUICK_ACTIONS.reduce((accumulator, action) => {
   accumulator[action.key] = action;
   return accumulator;
 }, {});
+
+const getProviderStatus = (providerId, configs) => {
+  const config = configs.find((c) => c.providerKey === providerId);
+  if (!config) return { status: 'Not Configured', tone: 'border-red-500/30 bg-red-500/10 text-red-200', configured: false };
+  if (!config.apiKey) return { status: 'Needs API Key', tone: 'border-amber-500/30 bg-amber-500/10 text-amber-200', configured: false };
+  if (config.status === 'error' || config.status === 'disconnected') {
+    return { status: 'Reconnect Required', tone: 'border-amber-500/30 bg-amber-500/10 text-amber-200', configured: true };
+  }
+  return { status: 'Connected', tone: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200', configured: true };
+};
 
 const INGESTION_SOURCES = [
   {
@@ -161,6 +172,7 @@ const MediaModule = () => {
   const [launchingAction, setLaunchingAction] = useState('');
   const [launchingTemplate, setLaunchingTemplate] = useState('');
   const [lastLaunchResult, setLastLaunchResult] = useState(null);
+  const [mediaProviderConfigs, setMediaProviderConfigs] = useState([]);
   const [workspace, setWorkspace] = useState({
     jobs: [],
     outputs: [],
@@ -188,6 +200,7 @@ const MediaModule = () => {
         audioRenderJobs,
         publishJobs,
         publishArtifacts,
+        providerConfigs,
       ] = await Promise.all([
         getMediaAssetsApi(),
         getMediaRenderJobsApi(),
@@ -200,7 +213,10 @@ const MediaModule = () => {
         getMediaAudioRenderJobsApi(),
         getMediaPublishJobsApi(),
         getMediaPublishArtifactsApi(),
+        getMediaProviderConfigsApi().catch(() => []),
       ]);
+
+      setMediaProviderConfigs(providerConfigs || []);
 
       const jobs = [
         ...scriptJobs.map((job) => ({
@@ -920,6 +936,30 @@ const MediaModule = () => {
               </section>
             </div>
           </div>
+
+          <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Transcription Provider Status</div>
+            <div className="mt-1 text-sm text-[var(--color-text-secondary)]">Integration configuration from the media provider settings.</div>
+            <div className="mt-4 space-y-3">
+              {[
+                { id: 'elevenlabs-scribe', label: 'ElevenLabs Scribe', detail: 'Live transcription support.' },
+                { id: 'aws-transcribe', label: 'AWS Transcribe', detail: 'Backend stubbed - not fully live.' },
+              ].map((provider) => {
+                const providerStatus = getProviderStatus(provider.id, mediaProviderConfigs);
+                return (
+                  <div key={provider.id} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-[var(--color-text-primary)]">{provider.label}</div>
+                      <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${providerStatus.tone}`}>
+                        {providerStatus.status}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm text-[var(--color-text-secondary)]">{provider.detail}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
 
           <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-4">
             <div className="flex items-center justify-between gap-3">
