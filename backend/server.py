@@ -2250,7 +2250,7 @@ def is_client_allowed_api_request(method: str, path: str) -> bool:
         return True
     if path == "/api/booking-types" and method == "GET":
         return True
-    if path == "/api/assist" and method == "POST":
+    if path == "/api/ai/assist" and method == "POST":
         return True
     return False
 
@@ -2314,7 +2314,7 @@ async def inject_tenant_context(request: Request, call_next):
 PROTECTED_API_PREFIXES = [
     "/api/ai/command",
     "/api/ai/draft",
-    "/api/assist",
+    "/api/ai/assist",
     "/api/flow",
     "/api/node",
     "/api/agent",
@@ -2855,20 +2855,38 @@ async def logout_other_auth_sessions(request: Request):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@app.post("/api/assist")
-async def operator_assist(request: Request, payload: OperatorAssistRequest):
+@app.post("/api/ai/assist")
+async def ai_assist(request: Request, payload: OperatorAssistRequest):
+    # Route to the same implementation as legacy /api/assist
     session = require_client_safe_surface(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can use Operator Assist.")
     token = extract_session_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
     tenant = session.get("tenant") or {}
     resolved_context = dict(payload.context or {})
+    
+    # Inject brain context
     brain_query = build_brain_assist_query(payload.message, resolved_context, tenant)
     if brain_query:
         resolved_context = inject_brain_context(brain_query, resolved_context, tenant)
+    
     try:
         return generate_assist_response(
             message=payload.message,
+            context=resolved_context,
+            token=token,
+            session=session,
+            auth_store=auth_store,
+            provider=provider,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if brain_query:
+        resolved_context = inject_brain_context(brain_query, resolved_context, tenant)
+    
+    try:
+        return generate_assist_response(
+            message=message,
             context=resolved_context,
             token=token,
             session=session,
@@ -2897,34 +2915,13 @@ async def get_system_health(request: Request):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-# Canonical generic drafting path. This is the preferred route for AI-assisted writing,
-# form completion, and content generation.
+# Generic drafting route - separate from assist
 @app.post("/api/ai/draft")
 async def ai_draft(request: Request, payload: AIAssistRequest):
     return await ai_assist_logic(request, payload)
 
 
-# Legacy generic assist path. Marked as LEGACY; use `/api/ai/draft` for all new callers.
-# Canonical grounded operator assist is `/api/assist`.
-@app.post("/api/ai/assist")
-async def ai_assist(request: Request, payload: AIAssistRequest):
-    return await ai_assist_logic(request, payload)
-
-
 async def ai_assist_logic(request: Request, payload: AIAssistRequest):
-    # This logic powers both `/api/ai/draft` (canonical) and `/api/ai/assist` (legacy).
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can use AI workspace tools.")
-    tenant = session.get("tenant") or {}
-    user = session.get("user") or {}
-    tenant_id = str(tenant.get("id") or "").strip()
-    resolved_module = str(payload.module or "").strip().lower() or "generic"
-    resolved_surface = str(payload.surface or "").strip().lower() or "general"
-    resolved_field = str(payload.field or "").strip().lower() or "content"
-    resolved_intent = str(payload.intent or "").strip().lower() or "draft"
-    resolved_context = dict(payload.context or {})
-    route_hints = payload.route_hints if isinstance(payload.route_hints, dict) else None
-    if not route_hints and isinstance(resolved_context.get("route_hints"), dict):
-        route_hints = resolved_context.get("route_hints")
     provider_override = payload.provider_override
     if provider_override is None and isinstance(resolved_context, dict):
         provider_override = resolved_context.get("provider_override")

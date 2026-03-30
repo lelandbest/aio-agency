@@ -138,9 +138,9 @@ export async function draftAiApi(payload) {
   return response.data || null;
 }
 
-// Canonical embedded assist path. This stays grounded on real system state via `/api/assist`.
+// Canonical embedded assist path. This stays grounded on real system state via `/api/ai/assist`.
 export async function getOperatorAssistResponseApi(payload) {
-  return request('/api/assist', {
+  return request('/api/ai/assist', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
