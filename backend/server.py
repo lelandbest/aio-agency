@@ -666,9 +666,12 @@ def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
                 "capabilities": definition.capabilities,
                 "agent_id": definition.agent_id,
             }
-            row = conn.execute("SELECT id FROM agents WHERE registry_key = ?", (key,)).fetchone()
-            if row:
-                agent["id"] = row["id"]
+            try:
+                row = conn.execute("SELECT id FROM agents WHERE registry_key = ?", (key,)).fetchone()
+                if row:
+                    agent["id"] = row["id"]
+            except sqlite3.OperationalError:
+                pass
             agents.append(agent)
     finally:
         conn.close()
@@ -2383,15 +2386,15 @@ async def get_brain_overview(request: Request):
             "links": provider.list_brain_links(limit=50),  # Limit links
             "ingests": ingests,
             "stats": {
-                "source_count": len(sources),
-                "knowledge_count": len(items),
-                "ingest_count": len(all_ingests),
-                "active_count": sum(1 for item in items if item.get("status") == "active"),
-                "draft_count": sum(1 for item in items if item.get("status") == "draft"),
+                "sourceCount": len(sources),
+                "knowledgeCount": len(items),
+                "ingestCount": len(all_ingests),
+                "activeCount": sum(1 for item in items if item.get("status") == "active"),
+                "draftCount": sum(1 for item in items if item.get("status") == "draft"),
             },
             "categories": categories,
-            "source_statuses": status_counts,
-            "recent_items": items[:6],
+            "sourceStatuses": status_counts,
+            "recentItems": items[:6],
         }
     }
 
@@ -3413,11 +3416,11 @@ async def list_ollama_provider_models_post(request: Request, payload: OllamaMode
     
     try:
         # Pass explicit base_url if provided, otherwise let list_ollama_models resolve from config
-        if payload.base_url:
-            print(f"[OllamaModels] POST Using explicit base_url: {payload.base_url}")
+        if payload.baseUrl:
+            print(f"[OllamaModels] POST Using explicit base_url: {payload.baseUrl}")
             models = list_ollama_models(
-                base_url=payload.base_url,
-                api_key=payload.api_key,
+                base_url=payload.baseUrl,
+                api_key=payload.apiKey,
                 username=payload.username,
                 password=payload.password,
             )
@@ -3425,7 +3428,7 @@ async def list_ollama_provider_models_post(request: Request, payload: OllamaMode
             print(f"[OllamaModels] POST Resolving from config for tenant: {tenant_id}")
             models = list_ollama_models(
                 tenant_id=tenant_id,
-                api_key=payload.api_key,
+                api_key=payload.apiKey,
                 username=payload.username,
                 password=payload.password,
             )
@@ -4144,8 +4147,8 @@ async def update_email_verifier_config(request: Request, payload: EmailVerifierC
     require_operator(request, "Only operators can manage email verification.")
     require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can update email verification settings.")
     data = payload.model_dump(exclude_unset=True)
-    data["default_mode"] = normalize_email_verifier_mode(data.get("default_mode"), default="quick")
-    if "enabled" in data and data.get("enabled") and not str(data.get("api_key") or provider.get_email_verifier_config(include_secret=True).get("api_key") or "").strip():
+    data["defaultMode"] = normalize_email_verifier_mode(data.get("defaultMode"), default="quick")
+    if "enabled" in data and data.get("enabled") and not str(data.get("apiKey") or provider.get_email_verifier_config(include_secret=True).get("apiKey") or "").strip():
         raise HTTPException(status_code=400, detail="An API key is required to enable email verification.")
     return {"data": provider.upsert_email_verifier_config(data)}
 
@@ -4155,18 +4158,18 @@ async def test_email_verifier_config(request: Request):
     require_operator(request, "Only operators can manage email verification.")
     require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test email verification settings.")
     config = provider.get_email_verifier_config(include_secret=True)
-    if not str(config.get("api_key") or "").strip():
+    if not str(config.get("apiKey") or "").strip():
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
     try:
-        verify_single_email_address(config["api_key"], "support@reoon.com", "quick")
+        verify_single_email_address(config["apiKey"], "support@reoon.com", "quick")
         updated = provider.upsert_email_verifier_config({
-            "api_key": config.get("api_key") or "",
+            "apiKey": config.get("apiKey") or "",
             "enabled": config.get("enabled", False),
-            "auto_verify_contacts": config.get("auto_verify_contacts", True),
-            "default_mode": config.get("default_mode", "quick"),
-            "last_tested_at": utcnow_iso(),
+            "autoVerifyContacts": config.get("autoVerifyContacts", True),
+            "defaultMode": config.get("defaultMode", "quick"),
+            "lastTestedAt": utcnow_iso(),
             "status": "active" if config.get("enabled") else "disabled",
-            "last_error": None,
+            "lastError": None,
         })
         return {
             "result": {"success": True, "message": "Reoon connection verified."},
@@ -5387,7 +5390,7 @@ async def get_analytics_summary(request: Request):
     try:
         contacts = provider.list_contacts()
         print(f"[AnalyticsAPI] contacts fetched: {len(contacts)}")
-        deals = [c for c in contacts if c.get("pipeline_stage")]
+        deals = [c for c in contacts if c.get("pipelineStage")]
         threads = provider.get_comms_snapshot().get("threads", [])
         ai_runs = [project_engine_run_for_ui(run) for run in provider.list_ai_runs(limit=100)]
         ai_runs = [run for run in ai_runs if run]
@@ -5395,9 +5398,9 @@ async def get_analytics_summary(request: Request):
         stages = {}
         stage_values = {}
         for c in deals:
-            stage = c.get("pipeline_stage", "Unknown")
+            stage = c.get("pipelineStage", "Unknown")
             stages[stage] = stages.get(stage, 0) + 1
-            val = c.get("deal_value") or c.get("lead_score", 0) * 100
+            val = c.get("dealValue") or c.get("leadScore", 0) * 100
             stage_values[stage] = stage_values.get(stage, 0) + val
         
         sources = {}
@@ -5407,7 +5410,7 @@ async def get_analytics_summary(request: Request):
         
         score_buckets = {"90+": 0, "70-89": 0, "50-69": 0, "<50": 0}
         for c in contacts:
-            score = c.get("lead_score", 0)
+            score = c.get("leadScore", 0)
             if score >= 90: score_buckets["90+"] += 1
             elif score >= 70: score_buckets["70-89"] += 1
             elif score >= 50: score_buckets["50-69"] += 1
@@ -5425,26 +5428,26 @@ async def get_analytics_summary(request: Request):
         
         return {
             "crm": {
-                "total_contacts": len(contacts),
-                "total_deals": len(deals),
-                "avg_lead_score": round(sum(c.get("lead_score", 0) for c in contacts) / max(len(contacts), 1), 1),
+                "totalContacts": len(contacts),
+                "totalDeals": len(deals),
+                "avgLeadScore": round(sum(c.get("leadScore", 0) for c in contacts) / max(len(contacts), 1), 1),
                 "stages": stages,
-                "stage_values": stage_values,
-                "score_distribution": score_buckets,
-                "quality_distribution": quality_dist,
-                "engagement_distribution": engagement_dist,
+                "stageValues": stage_values,
+                "scoreDistribution": score_buckets,
+                "qualityDistribution": quality_dist,
+                "engagementDistribution": engagement_dist,
                 "sources": sources,
-                "recent_contacts": sorted(contacts, key=lambda x: x.get("updated_at", ""), reverse=True)[:10],
+                "recentContacts": sorted(contacts, key=lambda x: x.get("updatedAt", ""), reverse=True)[:10],
             },
             "comms": {
-                "total_threads": len(threads),
-                "active_threads": len([t for t in threads if t.get("status") == "active"]),
-                "archived_threads": len([t for t in threads if t.get("status") == "archived"]),
+                "totalThreads": len(threads),
+                "activeThreads": len([t for t in threads if t.get("status") == "active"]),
+                "archivedThreads": len([t for t in threads if t.get("status") == "archived"]),
             },
             "ai": {
-                "total_runs": len(ai_runs),
-                "runs_by_module": _group_by_module(ai_runs),
-                "recent_runs": ai_runs[:10],
+                "totalRuns": len(ai_runs),
+                "runsByModule": _group_by_module(ai_runs),
+                "recentRuns": ai_runs[:10],
             },
             "timestamp": datetime.now().isoformat(),
         }

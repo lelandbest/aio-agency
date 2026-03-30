@@ -1737,7 +1737,7 @@ class AuthStore:
                 SELECT *
                 FROM ai_provider_configs
                 WHERE tenantId = ? AND enabled = 1
-                ORDER BY is_default DESC, updatedAt DESC
+                ORDER BY isDefault DESC, updatedAt DESC
                 LIMIT 1
                 """,
                 (tenant_id,),

@@ -438,9 +438,9 @@ const buildAssistantMessageFromRun = (run, overrides = {}) => ({
   role: 'assistant',
   runId: run?.id,
   content: run?.output || '',
-  timestamp: formatRunTimestamp(run?.updatedAt || run?.createdAt),
-  rank: run?.executingAgent || run?.agentRole || 'AI',
-  chain: normalizeDelegateChain(run?.delegateChain),
+  timestamp: formatRunTimestamp(run?.updated_at || run?.created_at),
+  rank: run?.executing_agent || run?.agent_role || 'AI',
+  chain: normalizeDelegateChain(run?.delegate_chain),
   status: formatRunStatus(run?.status),
   error: run?.error || null,
   pending: false,
@@ -499,7 +499,7 @@ const AIOAgentsModule = () => {
   const normalizeAgentRecord = (agent = {}) => ({
     ...agent,
     registryKey: agent.registryKey || agent.registry_key || agent.name || '',
-    registryKey: agent.registry_key || agent.registryKey || agent.name || '',
+    registry_key: agent.registry_key || agent.registryKey || agent.name || '',
     name: agent.name || agent.registry_key || agent.registryKey || '',
   });
 
@@ -687,15 +687,15 @@ const AIOAgentsModule = () => {
         command: nextMessage,
         ...(selectedAgent ? { agent: selectedAgent } : {}),
         ...(collabAgents.length ? { collabAgents } : {}),
-        ...(selectedFlow ? { flowId: selectedFlow.id } : {}),
+        ...(selectedFlow ? { flow_id: selectedFlow.id } : {}),
         context: {
           module: 'agents',
           surface: 'command',
-          requestedAgent: selectedAgent || '',
-          active_agent: selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || '',
-          collabAgents: collabAgents,
-          flowId: selectedFlow?.id || null,
-          flowName: selectedFlow?.name || null,
+          requested_agent: selectedAgent || '',
+          active_agent: selectedAgent || activeRun?.executing_agent || activeRun?.agent_role || '',
+          collab_agents: collabAgents,
+          flow_id: selectedFlow?.id || null,
+          flow_name: selectedFlow?.name || null,
         }
       });
       const runId = response?.run_id || response?.run?.id || '';
@@ -801,7 +801,7 @@ const AIOAgentsModule = () => {
           module: 'flows',
           action: 'select_agent_flow',
           flowId: selectedFlow?.id || null,
-          intent: selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || 'agents',
+          intent: selectedAgent || activeRun?.executing_agent || activeRun?.agent_role || 'agents',
         },
       })
     );
@@ -827,7 +827,7 @@ const AIOAgentsModule = () => {
     const existingRun = aiRuns.find((item) => item?.id === runId) || null;
     const run = hydrateActiveRun(existingRun || await getAiRunApi(runId));
     if (!run) return;
-    const nextAgentKey = run.executingAgent || run.agentRole || activeAgent?.registry_key || activeAgent?.name || '';
+    const nextAgentKey = run.executing_agent || run.agent_role || activeAgent?.registry_key || activeAgent?.name || '';
     const nextAgent = agents.find((agent) => (agent.registryKey || agent.registry_key || agent.name) === nextAgentKey) || activeAgent;
     if (nextAgent) {
       setActiveAgent(nextAgent);
@@ -844,12 +844,12 @@ const AIOAgentsModule = () => {
   const status = activeRun?.status || null;
   const error = activeRun?.error || null;
   const metadata = activeRun || null;
-  const activeRunAgent = metadata?.executingAgent || metadata?.agentRole || '';
-  const derivedAgentKey = activeRun?.executingAgent || activeRun?.requested_agent || activeRun?.agentRole || selectedAgent || '';
+  const activeRunAgent = metadata?.executing_agent || metadata?.agent_role || '';
+  const derivedAgentKey = activeRun?.executing_agent || activeRun?.requested_agent || activeRun?.agent_role || selectedAgent || '';
   const derivedAgentDefinition = derivedAgentKey ? SPECIALIST_REGISTRY[derivedAgentKey] : null;
   const activeRunStatus = formatRunStatus(status);
-  const activeRunTimestamp = formatRunTimestamp(metadata?.updatedAt || metadata?.createdAt);
-  const activeRunChain = normalizeDelegateChain(metadata?.delegateChain);
+  const activeRunTimestamp = formatRunTimestamp(metadata?.updated_at || metadata?.created_at);
+  const activeRunChain = normalizeDelegateChain(metadata?.delegate_chain);
   const activeRunCommand = metadata?.command_text || '';
   const activeRunOutput = output;
   const hasActiveRun = Boolean(activeRun);
@@ -941,13 +941,13 @@ const AIOAgentsModule = () => {
           };
 
           const buildRunRoute = (run = {}) => {
-            const chain = Array.isArray(run.delegateChain) ? run.delegateChain : [];
-            const source = run.intake_agent || run.dispatcher_agent || chain[0] || run.requested_agent || run.agentRole || 'USER';
-            const target = run.executingAgent || chain[chain.length - 1] || run.agentRole || run.requested_agent || 'SYSTEM';
+            const chain = Array.isArray(run.delegate_chain) ? run.delegate_chain : [];
+            const source = run.intake_agent || run.dispatcher_agent || chain[0] || run.requested_agent || run.agent_role || 'USER';
+            const target = run.executing_agent || chain[chain.length - 1] || run.agent_role || run.requested_agent || 'SYSTEM';
             return {
-              id: run.id || `${source}-${target}-${run.createdAt || ''}`,
+              id: run.id || `${source}-${target}-${run.created_at || ''}`,
               runId: run.id || null,
-              time: formatRunTime(run.createdAt),
+              time: formatRunTime(run.created_at),
               source: formatToken(source, 'USER'),
               target: formatToken(target, 'SYSTEM'),
               action: formatAction(run.intent || run.field || run.module || run.surface),
@@ -964,7 +964,7 @@ const AIOAgentsModule = () => {
             ? formatStatus(
                 activeRun.status === 'failed'
                   ? 'error'
-                  : activeRun.dispatcher_agent || activeRun.executingAgent
+                  : activeRun.dispatcher_agent || activeRun.executing_agent
                     ? 'routed'
                     : activeRun.status || 'pending'
               )
@@ -973,7 +973,7 @@ const AIOAgentsModule = () => {
             ? formatStatus(
                 activeRun.status === 'failed'
                   ? 'failed'
-                  : activeRun.executingAgent
+                  : activeRun.executing_agent
                     ? activeRun.status || 'running'
                     : activeRun.dispatcher_agent
                       ? 'queued'
@@ -986,7 +986,7 @@ const AIOAgentsModule = () => {
                 activeRun.intake_agent || 'CHARLIE',
                 activeRun.dispatcher_agent || 'ALPHA',
                 activeRun.flowId || activeRun.flow_id || activeRun.metadata?.flowId ? `FLOW ${activeRun.flowName || activeRun.flow_name || activeRun.metadata?.flowName || activeRun.flowId || activeRun.flow_id || activeRun.metadata?.flowId}` : null,
-                activeRun.executingAgent || activeRun.requested_agent || 'TARGET AGENT',
+                activeRun.executing_agent || activeRun.requested_agent || 'TARGET AGENT',
                 (activeRun.status || '').toLowerCase() === 'failed' ? 'FAILED' : 'RESULT',
               ].filter((label, index, array) => label && array.indexOf(label) === index)
             : [];
@@ -999,7 +999,7 @@ const AIOAgentsModule = () => {
 
             const charlieIdx = commandPath.findIndex(l => l === (activeRun.intake_agent || 'CHARLIE'));
             const alphaIdx = commandPath.findIndex(l => l === (activeRun.dispatcher_agent || 'ALPHA'));
-            const targetIdx = commandPath.findIndex(l => l === (activeRun.executingAgent || activeRun.requested_agent || 'TARGET AGENT'));
+            const targetIdx = commandPath.findIndex(l => l === (activeRun.executing_agent || activeRun.requested_agent || 'TARGET AGENT'));
             const flowIdx = commandPath.findIndex(l => l?.startsWith('FLOW '));
             const resultIdx = commandPath.length - 1;
 
@@ -1295,7 +1295,7 @@ const AIOAgentsModule = () => {
                           <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
                             <div className="flex items-center justify-between">
                               <span>Target</span>
-                              <span>{activeRun.dispatcher_agent || activeRun.executingAgent || activeRun.requested_agent || 'TARGET'}</span>
+                              <span>{activeRun.dispatcher_agent || activeRun.executing_agent || activeRun.requested_agent || 'TARGET'}</span>
                             </div>
                           </div>
                         </>
@@ -1318,7 +1318,7 @@ const AIOAgentsModule = () => {
                           <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
                             <div className="flex items-center justify-between">
                               <span>Owner</span>
-                              <span>{activeRun.executingAgent || activeRun.requested_agent || 'UNASSIGNED'}</span>
+                              <span>{activeRun.executing_agent || activeRun.requested_agent || 'UNASSIGNED'}</span>
                             </div>
                           </div>
                           <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
@@ -1515,9 +1515,9 @@ const AIOAgentsModule = () => {
                    {messages.map((msg, i) => {
                       const preferredRun = resolveMessageRun(msg);
                       const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
-                      const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agent_role || msg.rank) : msg.rank;
-                      const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegateChain) : msg.chain;
-                      const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updatedAt || preferredRun.createdAt) : msg.timestamp;
+                      const preferredRank = preferredRun ? (preferredRun.executing_agent || preferredRun.agent_role || msg.rank) : msg.rank;
+                      const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegate_chain) : msg.chain;
+                      const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updated_at || preferredRun.created_at) : msg.timestamp;
                       const preferredStatus = preferredRun ? formatRunStatus(preferredRun.status) : msg.status;
                       const preferredError = preferredRun ? preferredRun.error : msg.error;
                       const messageToken = msg.runId || msg.clientId || `message-${i}`;
@@ -1795,10 +1795,10 @@ const AIOAgentsModule = () => {
                     <div>
                       <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Timestamps</div>
                       <div className="mt-1 text-xs font-mono text-[var(--color-text-secondary)]">
-                        {metadata?.createdAt ? `Created ${formatRunTimestamp(metadata.createdAt)}` : 'Created PENDING'}
+                        {metadata?.created_at ? `Created ${formatRunTimestamp(metadata.created_at)}` : 'Created PENDING'}
                       </div>
                       <div className="text-xs font-mono text-[var(--color-text-secondary)]">
-                        {metadata?.updatedAt ? `Updated ${formatRunTimestamp(metadata.updatedAt)}` : 'Updated PENDING'}
+                        {metadata?.updated_at ? `Updated ${formatRunTimestamp(metadata.updated_at)}` : 'Updated PENDING'}
                       </div>
                     </div>
                     <div>

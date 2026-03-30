@@ -1191,9 +1191,9 @@ const CRMModule = ({ initialContactId = null }) => {
                             className="w-4 h-4" 
                           />
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('first_name')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('firstName')}>
                           <div className="flex items-center gap-2">
-                            NAME {renderSortIcon('first_name')}
+                            NAME {renderSortIcon('firstName')}
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
@@ -1201,22 +1201,22 @@ const CRMModule = ({ initialContactId = null }) => {
                             COMPANY {renderSortIcon('company')}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('lead_score')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('leadScore')}>
                           <div className="flex items-center gap-2">
-                            SCORE {renderSortIcon('lead_score')}
+                            SCORE {renderSortIcon('leadScore')}
                           </div>
                         </th>
                         <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
                           TAGS
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('created_at')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('createdAt')}>
                           <div className="flex items-center gap-2">
-                            CREATED {renderSortIcon('created_at')}
+                            CREATED {renderSortIcon('createdAt')}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updated_at')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updatedAt')}>
                           <div className="flex items-center gap-2">
-                            UPDATED {renderSortIcon('updated_at')}
+                            UPDATED {renderSortIcon('updatedAt')}
                           </div>
                         </th>
                       </tr>
@@ -1237,7 +1237,7 @@ const CRMModule = ({ initialContactId = null }) => {
                           </td>
                           <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
                             <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
-                              {contact.first_name} {contact.last_name}
+                              {contact.firstName} {contact.lastName}
                             </div>
                             <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{contact.email || 'No email on file'}</div>
                             <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -1262,7 +1262,7 @@ const CRMModule = ({ initialContactId = null }) => {
                           <td className="px-4 py-3 text-[var(--color-text-secondary)]">{contact.company || '--'}</td>
                           <td className="px-4 py-3">
                             <span className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-primary)]">
-                              {contact.lead_score || '--'}
+                              {contact.leadScore || '--'}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -1275,17 +1275,17 @@ const CRMModule = ({ initialContactId = null }) => {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                            {new Date(contact.created_at).toLocaleDateString()}
+                            {new Date(contact.createdAt).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-3 text-[var(--color-text-secondary)] text-xs">
-                            {new Date(contact.updated_at).toLocaleDateString()}
+                            {new Date(contact.updatedAt).toLocaleDateString()}
                           </td>
                           {/* Row Delete Button */}
                           <td className="w-10">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`Delete ${contact.first_name} ${contact.last_name}?`)) {
+                                if (confirm(`Delete ${contact.firstName} ${contact.lastName}?`)) {
                                   handleBulkAction('delete', [contact.id]);
                                 }
                               }}
@@ -1375,11 +1375,11 @@ const CRMModule = ({ initialContactId = null }) => {
 
   // CONTACT DETAIL VIEW
   const renderContactDetailView = () => {
-    const meetingActivities = activities.filter((activity) => activity.activity_type === 'meeting');
-    const workflowActivities = activities.filter((activity) => activity.activity_type === 'workflow');
+    const meetingActivities = activities.filter((activity) => activity.activityType === 'meeting');
+    const workflowActivities = activities.filter((activity) => activity.activityType === 'workflow');
     const upcomingMeeting = [...meetingActivities]
-      .filter((activity) => new Date(activity.created_at).getTime() >= Date.now())
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0] || null;
+      .filter((activity) => new Date(activity.createdAt).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0] || null;
     const getActivityIcon = (type) => {
       switch(type) {
         case 'form': return '≡ƒôï';
@@ -1986,7 +1986,7 @@ const CRMModule = ({ initialContactId = null }) => {
                       </div>
                       {activity.metadata ? renderActivityMetadata(activity) : null}
                       <p className="text-[var(--color-text-tertiary)] text-xs mt-2">
-                        {new Date(activity.created_at).toLocaleString()}
+                        {new Date(activity.createdAt).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -2070,7 +2070,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     <div key={activity.id} className="p-2 bg-[var(--color-bg-secondary)] rounded text-xs border border-[var(--color-border)]">
                       <p className="text-[var(--color-text-primary)] font-medium">{activity.title}</p>
                       <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
-                      <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{new Date(activity.created_at).toLocaleString()}</p>
+                      <p className="text-[10px] text-[var(--color-text-tertiary)] mt-1">{new Date(activity.createdAt).toLocaleString()}</p>
                     </div>
                   ))}
                 </div>

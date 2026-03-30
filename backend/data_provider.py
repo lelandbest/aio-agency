@@ -4415,17 +4415,17 @@ class SQLiteProvider(BaseProvider):
 
     def _contact_from_row(self, row: dict[str, Any]) -> dict[str, Any]:
         contact = dict(row)
-        contact["tags"] = json_loads(contact.pop("tags_json", None), [])
-        contact["address"] = json_loads(contact.pop("address_json", None), {})
-        contact["custom_fields"] = json_loads(contact.pop("custom_fields_json", None), {})
-        contact["opt_in_email"] = bool(contact.get("opt_in_email", 1))
-        contact["opt_in_sms"] = bool(contact.get("opt_in_sms", 1))
-        contact["opt_in_calls"] = bool(contact.get("opt_in_calls", 1))
-        contact["opt_in_flows"] = bool(contact.get("opt_in_flows", 1))
-        if contact.get("email_verified") is None:
-            contact["email_verified"] = None
-        else:
-            contact["email_verified"] = bool(contact.get("email_verified"))
+        contact["tags"] = json_loads(contact.pop("tagsJson", None), [])
+        contact["address"] = json_loads(contact.pop("addressJson", None), {})
+        contact["customFields"] = json_loads(contact.pop("customFieldsJson", None), {})
+        contact["optInEmail"] = bool(contact.get("optInEmail", 1))
+        contact["optInSms"] = bool(contact.get("optInSms", 1))
+        contact["optInCalls"] = bool(contact.get("optInCalls", 1))
+        contact["optInFlows"] = bool(contact.get("optInFlows", 1))
+        
+        email_v = contact.get("emailVerified")
+        contact["emailVerified"] = bool(email_v) if email_v is not None else None
+        
         return contact
 
     def _email_verifier_config_from_row(self, row: dict[str, Any] | None, *, include_secret: bool = False) -> dict[str, Any]:
@@ -4435,26 +4435,26 @@ class SQLiteProvider(BaseProvider):
                 "tenantId": self._tenantId(),
                 "provider": "reoon",
                 "enabled": False,
-                "auto_verify_contacts": True,
-                "default_mode": "quick",
-                "last_tested_at": None,
+                "autoVerifyContacts": True,
+                "defaultMode": "quick",
+                "lastTestedAt": None,
                 "status": "unconfigured",
-                "last_error": None,
-                "has_api_key": False,
-                "api_key": "" if include_secret else None,
+                "lastError": None,
+                "hasApiKey": False,
+                "apiKey": "" if include_secret else None,
                 "createdAt": None,
                 "updatedAt": None,
             }
         config = dict(row)
-        api_key = str(config.get("api_key") or "").strip()
+        api_key = str(config.get("apiKey") or "").strip()
         config["enabled"] = bool(config.get("enabled"))
-        config["auto_verify_contacts"] = bool(config.get("auto_verify_contacts", 1))
+        config["autoVerifyContacts"] = bool(config.get("autoVerifyContacts", 1))
         config["provider"] = config.get("provider") or "reoon"
-        config["default_mode"] = config.get("default_mode") or "quick"
+        config["defaultMode"] = config.get("defaultMode") or "quick"
         config["status"] = config.get("status") or ("active" if api_key else "unconfigured")
-        config["last_error"] = str(config.get("last_error") or "").strip() or None
-        config["has_api_key"] = bool(api_key)
-        config["api_key"] = api_key if include_secret else None
+        config["lastError"] = str(config.get("lastError") or "").strip() or None
+        config["hasApiKey"] = bool(api_key)
+        config["apiKey"] = api_key if include_secret else None
         return config
 
     def get_email_verifier_config(self, *, include_secret: bool = False) -> dict[str, Any]:
@@ -4468,9 +4468,9 @@ class SQLiteProvider(BaseProvider):
     def upsert_email_verifier_config(self, payload: dict[str, Any]) -> dict[str, Any]:
         now = utcnow()
         current = self.get_email_verifier_config(include_secret=True)
-        api_key = str(payload.get("api_key") if "api_key" in payload else current.get("api_key") or "").strip()
+        api_key = str(payload.get("apiKey") if "apiKey" in payload else current.get("apiKey") or "").strip()
         enabled = bool(payload.get("enabled", current.get("enabled", False)) and api_key)
-        auto_verify_contacts = bool(payload.get("auto_verify_contacts", current.get("auto_verify_contacts", True)))
+        auto_verify_contacts = bool(payload.get("autoVerifyContacts", current.get("autoVerifyContacts", True)))
         next_status = payload.get("status")
         if next_status is None:
             if not api_key:
@@ -4483,13 +4483,13 @@ class SQLiteProvider(BaseProvider):
             "id": current.get("id") or f"email-verifier-config-{unique_suffix()}",
             "tenantId": self._tenantId(),
             "provider": "reoon",
-            "api_key": api_key,
+            "apiKey": api_key,
             "enabled": int(enabled),
-            "auto_verify_contacts": int(auto_verify_contacts),
-            "default_mode": "power" if str(payload.get("default_mode") or current.get("default_mode") or "quick").strip().lower() == "power" else "quick",
-            "last_tested_at": payload.get("last_tested_at") if "last_tested_at" in payload else current.get("last_tested_at"),
+            "autoVerifyContacts": int(auto_verify_contacts),
+            "defaultMode": "power" if str(payload.get("defaultMode") or current.get("defaultMode") or "quick").strip().lower() == "power" else "quick",
+            "lastTestedAt": payload.get("lastTestedAt") if "lastTestedAt" in payload else current.get("lastTestedAt"),
             "status": next_status,
-            "last_error": str(payload.get("last_error") if "last_error" in payload else current.get("last_error") or "").strip() or None,
+            "lastError": str(payload.get("lastError") if "lastError" in payload else current.get("lastError") or "").strip() or None,
             "createdAt": current.get("createdAt") or now,
             "updatedAt": now,
         }
@@ -4514,13 +4514,13 @@ class SQLiteProvider(BaseProvider):
                     record["id"],
                     record["tenantId"],
                     record["provider"],
-                    record["api_key"],
+                    record["apiKey"],
                     record["enabled"],
-                    record["auto_verify_contacts"],
-                    record["default_mode"],
-                    record["last_tested_at"],
+                    record["autoVerifyContacts"],
+                    record["defaultMode"],
+                    record["lastTestedAt"],
                     record["status"],
-                    record["last_error"],
+                    record["lastError"],
                     record["createdAt"],
                     record["updatedAt"],
                 ),
@@ -4532,20 +4532,20 @@ class SQLiteProvider(BaseProvider):
         current = self.get_email_verifier_config(include_secret=True)
         updates: dict[str, Any] = {
             "status": status,
-            "last_tested_at": last_tested_at or utcnow(),
+            "lastTestedAt": last_tested_at or utcnow(),
         }
         if last_error:
-            updates["last_error"] = last_error
+            updates["lastError"] = last_error
         elif status != "error":
-            updates["last_error"] = None
+            updates["lastError"] = None
         if last_error and "error" in status:
             updates["status"] = "error"
         return self.upsert_email_verifier_config({
             **updates,
-            "api_key": current.get("api_key") or "",
+            "apiKey": current.get("apiKey") or "",
             "enabled": current.get("enabled", False),
-            "auto_verify_contacts": current.get("auto_verify_contacts", True),
-            "default_mode": current.get("default_mode", "quick"),
+            "autoVerifyContacts": current.get("autoVerifyContacts", True),
+            "defaultMode": current.get("defaultMode", "quick"),
         })
 
     def delete_email_verifier_config(self) -> dict[str, Any]:
@@ -4902,43 +4902,43 @@ class SQLiteProvider(BaseProvider):
         now = utcnow()
         record = {
             "id": payload.get("id") or f"contact-{unique_suffix()}",
-            "contact_id": payload.get("contact_id") or f"CNT-{unique_suffix().upper()}",
-            "organization_id": payload.get("organization_id") or "org-1",
+            "contactId": payload.get("contactId") or f"CNT-{unique_suffix().upper()}",
+            "organizationId": payload.get("organizationId") or "org-1",
             "tenantId": self._tenantId(),
-            "first_name": payload.get("first_name"),
-            "last_name": payload.get("last_name"),
+            "firstName": payload.get("firstName"),
+            "lastName": payload.get("lastName"),
             "email": payload.get("email"),
             "phone": payload.get("phone"),
             "company": payload.get("company"),
-            "company_id": payload.get("company_id"),
+            "companyId": payload.get("companyId"),
             "title": payload.get("title"),
             "department": payload.get("department"),
             "owner": payload.get("owner") or "AIO Flow",
             "source": payload.get("source") or "Manual Entry",
             "status": payload.get("status") or "contact",
-            "lead_score": payload.get("lead_score") or 50,
+            "leadScore": payload.get("leadScore") or 50,
             "quality": payload.get("quality") or "warm",
             "engagement": payload.get("engagement") or "medium",
-            "tags_json": json.dumps(payload.get("tags") or []),
-            "last_contacted_at": payload.get("last_contacted_at"),
-            "pipeline_stage": payload.get("pipeline_stage") or "New",
-            "email_verified": None if "email_verified" not in payload else (None if payload.get("email_verified") is None else int(bool(payload.get("email_verified")))),
-            "email_verified_at": payload.get("email_verified_at"),
-            "email_verification_status": payload.get("email_verification_status"),
-            "email_verification_score": payload.get("email_verification_score"),
+            "tagsJson": json.dumps(payload.get("tags") or []),
+            "lastContactedAt": payload.get("lastContactedAt"),
+            "pipelineStage": payload.get("pipelineStage") or "New",
+            "emailVerified": None if "emailVerified" not in payload else (None if payload.get("emailVerified") is None else int(bool(payload.get("emailVerified")))),
+            "emailVerifiedAt": payload.get("emailVerifiedAt"),
+            "emailVerificationStatus": payload.get("emailVerificationStatus"),
+            "emailVerificationScore": payload.get("emailVerificationScore"),
             "createdAt": payload.get("createdAt") or now,
             "updatedAt": now,
-            "deleted_at": payload.get("deleted_at"),
+            "deletedAt": payload.get("deletedAt"),
             "website": payload.get("website"),
             "dob": payload.get("dob"),
-            "owner_id": payload.get("owner_id"),
-            "address_json": json.dumps(payload.get("address") or {}),
-            "custom_fields_json": json.dumps(payload.get("custom_fields") or {}),
-            "opt_in_email": int(payload.get("opt_in_email", True)),
-            "opt_in_sms": int(payload.get("opt_in_sms", True)),
-            "opt_in_calls": int(payload.get("opt_in_calls", True)),
-            "opt_in_flows": int(payload.get("opt_in_flows", True)),
-            "ai_employee": payload.get("ai_employee"),
+            "ownerId": payload.get("ownerId"),
+            "addressJson": json.dumps(payload.get("address") or {}),
+            "customFieldsJson": json.dumps(payload.get("customFields") or {}),
+            "optInEmail": int(payload.get("optInEmail", True)),
+            "optInSms": int(payload.get("optInSms", True)),
+            "optInCalls": int(payload.get("optInCalls", True)),
+            "optInFlows": int(payload.get("optInFlows", True)),
+            "aiEmployee": payload.get("aiEmployee"),
         }
         with self._connect() as conn:
             conn.execute(
@@ -4950,11 +4950,11 @@ class SQLiteProvider(BaseProvider):
                     createdAt, updatedAt, deletedAt, website, dob, ownerId,
                     addressJson, customFieldsJson, optInEmail, optInSms, optInCalls, optInFlows, aiEmployee
                 ) VALUES (
-                    :id, :contact_id, :organization_id, :tenantId, :first_name, :last_name, :email, :phone, :company, :company_id,
-                    :title, :department, :owner, :source, :status, :lead_score, :quality, :engagement, :tags_json,
-                    :last_contacted_at, :pipeline_stage, :email_verified, :email_verified_at, :email_verification_status, :email_verification_score,
-                    :createdAt, :updatedAt, :deleted_at, :website, :dob, :owner_id,
-                    :address_json, :custom_fields_json, :opt_in_email, :opt_in_sms, :opt_in_calls, :opt_in_flows, :ai_employee
+                    :id, :contactId, :organizationId, :tenantId, :firstName, :lastName, :email, :phone, :company, :companyId,
+                    :title, :department, :owner, :source, :status, :leadScore, :quality, :engagement, :tagsJson,
+                    :lastContactedAt, :pipelineStage, :emailVerified, :emailVerifiedAt, :emailVerificationStatus, :emailVerificationScore,
+                    :createdAt, :updatedAt, :deletedAt, :website, :dob, :ownerId,
+                    :addressJson, :customFieldsJson, :optInEmail, :optInSms, :optInCalls, :optInFlows, :aiEmployee
                 )
                 """,
                 record,
@@ -4962,21 +4962,21 @@ class SQLiteProvider(BaseProvider):
             conn.commit()
         return self._contact_from_row(record)
 
-    def update_contact(self, contact_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    def update_contact(self, contactId: str, updates: dict[str, Any]) -> dict[str, Any]:
         allowed_scalar = {
-            "first_name", "last_name", "email", "phone", "company", "company_id", "title", "department",
-            "owner", "source", "status", "lead_score", "quality", "engagement", "last_contacted_at",
+            "firstName", "lastName", "email", "phone", "company", "companyId", "title", "department",
+            "owner", "source", "status", "leadScore", "quality", "engagement", "lastContactedAt",
             "pipelineStage", "deletedAt", "website", "dob", "ownerId", "aiEmployee",
-            "email_verified", "email_verified_at", "email_verification_status", "email_verification_score"
+            "emailVerified", "emailVerifiedAt", "emailVerificationStatus", "emailVerificationScore"
         }
         with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
+            existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenantId = ?", (contactId, self._tenantId())).fetchone()
             if not existing:
                 raise ValueError("Contact not found")
             payload = {}
             for key in allowed_scalar:
                 if key in updates:
-                    if key == "email_verified":
+                    if key == "emailVerified":
                         payload[key] = None if updates[key] is None else int(bool(updates[key]))
                     else:
                         payload[key] = updates[key]
@@ -4984,17 +4984,17 @@ class SQLiteProvider(BaseProvider):
                 next_email = str(updates.get("email") or "").strip().lower()
                 current_email = str(existing["email"] or "").strip().lower()
                 if next_email != current_email:
-                    payload["email_verified"] = None
-                    payload["email_verified_at"] = None
-                    payload["email_verification_status"] = None
-                    payload["email_verification_score"] = None
+                    payload["emailVerified"] = None
+                    payload["emailVerifiedAt"] = None
+                    payload["emailVerificationStatus"] = None
+                    payload["emailVerificationScore"] = None
             if "tags" in updates:
-                payload["tags_json"] = json.dumps(updates.get("tags") or [])
+                payload["tagsJson"] = json.dumps(updates.get("tags") or [])
             if "address" in updates:
-                payload["address_json"] = json.dumps(updates.get("address") or {})
-            if "custom_fields" in updates:
-                payload["custom_fields_json"] = json.dumps(updates.get("custom_fields") or {})
-            for key in ["opt_in_email", "opt_in_sms", "opt_in_calls", "opt_in_flows"]:
+                payload["addressJson"] = json.dumps(updates.get("address") or {})
+            if "customFields" in updates:
+                payload["customFieldsJson"] = json.dumps(updates.get("customFields") or {})
+            for key in ["optInEmail", "optInSms", "optInCalls", "optInFlows"]:
                 if key in updates:
                     payload[key] = int(bool(updates[key]))
             if not payload:
@@ -6295,7 +6295,7 @@ class SQLiteProvider(BaseProvider):
 
         return {"success": True, "contactId": contact_id, "created": created_contact, "submissionId": submission_id}
 
-    def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
+    def list_contact_activities(self, contactId: str) -> list[dict[str, Any]]:
         activities: list[dict[str, Any]] = []
         rows = self._rows(
             """
@@ -6303,7 +6303,7 @@ class SQLiteProvider(BaseProvider):
             WHERE tenantId = ? AND contactId = ?
             ORDER BY createdAt DESC
             """,
-            (self._tenantId(), contact_id),
+            (self._tenantId(), contactId),
         )
         for row in rows:
             activities.append(
@@ -6313,24 +6313,24 @@ class SQLiteProvider(BaseProvider):
                 }
             )
         for thread in self._get_thread_context():
-            if thread["contact_id"] != contact_id:
+            if thread["contactId"] != contactId:
                 continue
             for message in thread["messages"]:
                 direction = message.get("direction")
-                title = f"{thread['channel_type'].upper()} {'received' if direction == 'inbound' else 'sent' if direction == 'outbound' else 'logged'}"
+                title = f"{thread['channelType'].upper()} {'received' if direction == 'inbound' else 'sent' if direction == 'outbound' else 'logged'}"
                 activities.append(
                     {
                         "id": f"thread-activity-{message['id']}",
-                        "contact_id": contact_id,
+                        "contactId": contactId,
                         "userId": "user-1",
-                        "activity_type": "email" if thread["channel_type"] == "email" else "sms" if thread["channel_type"] == "sms" else "note",
+                        "activityType": "email" if thread["channelType"] == "email" else "sms" if thread["channelType"] == "sms" else "note",
                         "title": title,
-                        "description": message.get("plain_text") or message.get("body") or "",
+                        "description": message.get("plainText") or message.get("body") or "",
                         "metadata": {
-                            "thread_id": thread["id"],
-                            "channel_type": thread["channel_type"],
+                            "threadId": thread["id"],
+                            "channelType": thread["channelType"],
                             "subject": thread["subject"],
-                            "ai_priority": thread.get("ai_priority"),
+                            "aiPriority": thread.get("aiPriority"),
                         },
                         "createdAt": message["createdAt"],
                     }
@@ -6338,19 +6338,19 @@ class SQLiteProvider(BaseProvider):
             for action in thread.get("actions", []):
                 if action.get("status") != "completed":
                     continue
-                if action.get("action_type") not in {"create-deal", "advance-stage", "schedule-meeting", "calendar-event-updated"}:
+                if action.get("actionType") not in {"create-deal", "advance-stage", "schedule-meeting", "calendar-event-updated"}:
                     continue
                 activities.append(
                     {
                         "id": action["id"],
-                        "contact_id": contact_id,
+                        "contactId": contactId,
                         "userId": "user-1",
-                        "activity_type": "workflow",
+                        "activityType": "workflow",
                         "title": action.get("label") or "Workflow action",
                         "description": f"Comms workflow executed on thread {thread['subject']}.",
                         "metadata": {
-                            "thread_id": thread["id"],
-                            "channel_type": thread["channel_type"],
+                            "threadId": thread["id"],
+                            "channelType": thread["channelType"],
                             "subject": thread["subject"],
                             "status": action.get("status"),
                         },
@@ -8299,18 +8299,18 @@ class SQLiteProvider(BaseProvider):
             return None
         parsed = dict(row)
         for key, default in [
-            ("steps_json", []),
-            ("artifacts_json", []),
-            ("pending_approvals_json", []),
-            ("routing_json", {}),
-            ("trace_json", []),
-            ("actor_json", {}),
-            ("context_json", {}),
+            ("stepsJson", []),
+            ("artifactsJson", []),
+            ("pendingApprovalsJson", []),
+            ("routingJson", {}),
+            ("traceJson", []),
+            ("actorJson", {}),
+            ("contextJson", {}),
         ]:
             try:
-                parsed[key[:-5] if key.endswith("_json") else key] = json.loads(parsed.get(key) or json.dumps(default))
+                parsed[key[:-4] if key.endswith("Json") else key] = json.loads(parsed.get(key) or json.dumps(default))
             except json.JSONDecodeError:
-                parsed[key[:-5] if key.endswith("_json") else key] = default
+                parsed[key[:-4] if key.endswith("Json") else key] = default
         return parsed
 
     def get_ai_run(self, run_id: str) -> dict[str, Any] | None:
