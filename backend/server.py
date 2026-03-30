@@ -28,6 +28,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+from request_validators import convert_to_camelcase, detect_snake_case_keys
+
 CURRENT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = CURRENT_DIR.parent
 if str(REPO_ROOT) not in sys.path:
@@ -2306,6 +2308,64 @@ async def inject_tenant_context(request: Request, call_next):
         return await call_next(request)
     finally:
         reset_request_tenant(context_token)
+
+
+# CamelCase enforcement middleware for protected API routes
+PROTECTED_API_PREFIXES = [
+    "/api/ai/command",
+    "/api/ai/draft",
+    "/api/assist",
+    "/api/flow",
+    "/api/node",
+    "/api/agent",
+    "/api/integration",
+    "/api/provider",
+]
+
+
+@app.middleware("http")
+async def enforce_camelcase_request(request: Request, call_next):
+    path = request.url.path
+    
+    should_validate = any(path.startswith(prefix) for prefix in PROTECTED_API_PREFIXES)
+    
+    if should_validate and request.method in ("POST", "PUT", "PATCH"):
+        try:
+            body = await request.body()
+            if body:
+                data = json.loads(body)
+                violations = detect_snake_case_keys(data)
+                if violations:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": "invalidPayload",
+                            "message": "snake_case keys are not allowed at API boundaries",
+                            "invalidKeys": violations,
+                        },
+                    )
+        except json.JSONDecodeError:
+            pass
+    
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def enforce_camelcase_response(request: Request, call_next):
+    response = await call_next(request)
+    
+    if request.url.path.startswith("/api"):
+        if hasattr(response, "body"):
+            try:
+                body = response.body
+                if body:
+                    data = json.loads(body)
+                    converted = convert_to_camelcase(data)
+                    response.body = json.dumps(converted).encode()
+            except (json.JSONDecodeError, AttributeError):
+                pass
+    
+    return response
 
 
 # Move CORSMiddleware to be the outermost middleware by adding it LAST.
