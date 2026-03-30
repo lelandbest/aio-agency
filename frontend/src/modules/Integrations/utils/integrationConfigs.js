@@ -17,6 +17,8 @@ export const INTEGRATION_CATEGORIES = {
   SMS: 'sms',
   TRACKING: 'tracking',
   PAYMENTS: 'payments',
+  MEDIA: 'media',
+  PROPOSALS: 'proposals',
 };
 
 export const integrationConfigs = {
@@ -405,6 +407,60 @@ export const integrationConfigs = {
           },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/paypal-3.svg',
+      },
+    ]
+  },
+
+  [INTEGRATION_CATEGORIES.MEDIA]: {
+    id: INTEGRATION_CATEGORIES.MEDIA,
+    name: 'Media & Transcription',
+    icon: 'mic',
+    description: 'Audio transcription and media processing providers.',
+    providers: [
+      {
+        id: 'elevenlabs-scribe',
+        name: 'ElevenLabs Scribe',
+        icon: 'mic',
+        description: 'Transcription service for audio and video content.',
+        fields: [
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'ElevenLabs Scribe' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+        ],
+        logo: null,
+      },
+      {
+        id: 'aws-transcribe',
+        name: 'AWS Transcribe',
+        icon: 'cloud',
+        description: 'AWS-powered speech-to-text service.',
+        fields: [
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'AWS Transcribe' },
+          { name: 'access_key_id', label: 'Access Key ID', type: 'text', required: true },
+          { name: 'secret_access_key', label: 'Secret Access Key', type: 'password', required: true },
+          { name: 'region', label: 'AWS Region', type: 'text', required: true, default: 'us-east-1' },
+        ],
+        logo: null,
+      },
+    ]
+  },
+
+  [INTEGRATION_CATEGORIES.PROPOSALS]: {
+    id: INTEGRATION_CATEGORIES.PROPOSALS,
+    name: 'Proposals & Invoices',
+    icon: 'file-text',
+    description: 'Proposal, estimate, and invoicing integrations.',
+    providers: [
+      {
+        id: 'waveapps',
+        name: 'WaveApps',
+        icon: 'file-text',
+        description: 'Ready for future estimate/proposal/invoice API access. No workflow features enabled yet.',
+        fields: [
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'WaveApps' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'api_secret', label: 'API Secret', type: 'password', required: true },
+        ],
+        logo: null,
       },
     ]
   },

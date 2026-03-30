@@ -328,6 +328,31 @@ export async function testAutomationProviderConfigApi(configId) {
   });
 }
 
+export async function getMediaProviderConfigsApi() {
+  const response = await request('/api/media/providers');
+  return response.data || [];
+}
+
+export async function upsertMediaProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/media/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteMediaProviderConfigApi(configId) {
+  return request(`/api/media/providers/${encodeURIComponent(configId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function testMediaProviderConfigApi(configId) {
+  return request(`/api/media/providers/${encodeURIComponent(configId)}/test`, {
+    method: 'POST'
+  });
+}
+
 export async function getWorkspacesApi() {
   const response = await request('/api/workspaces');
   return response.data || [];

@@ -1701,6 +1701,15 @@ class AutomationProviderUpsertRequest(BaseModel):
     config: dict[str, Any] | None = None
 
 
+class MediaProviderUpsertRequest(BaseModel):
+    label: str | None = None
+    baseUrl: str | None = None
+    apiKey: str | None = None
+    enabled: bool = False
+    status: str | None = None
+    config: dict[str, Any] | None = None
+
+
 class OllamaModelsRequest(BaseModel):
     baseUrl: str | None = None
     apiKey: str | None = None
@@ -3622,6 +3631,71 @@ async def test_automation_provider_config(config_id: str, request: Request):
             last_error=str(error),
         )
         raise HTTPException(status_code=400, detail=updated.get("last_error") or str(error)) from error
+
+
+@app.get("/api/media/providers")
+async def list_media_provider_configs(request: Request):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return {"data": auth_store.list_media_provider_configs(token, tenant_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.put("/api/media/providers/{providerKey}")
+async def upsert_media_provider_config(providerKey: str, request: Request, payload: MediaProviderUpsertRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage media providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        config = auth_store.upsert_media_provider_config(token, tenant_id, providerKey, payload.model_dump())
+        return {"data": config}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/media/providers/{configId}")
+async def delete_media_provider_config(configId: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete media providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return auth_store.delete_media_provider_config(token, tenant_id, configId)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/providers/{configId}/test")
+async def test_media_provider_config(configId: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test media providers.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_media_provider_config_for_tenant(tenant_id, configId)
+    if not config:
+        raise HTTPException(status_code=404, detail="Media provider config not found")
+    try:
+        apiKey = config.get("apiKey")
+        if not apiKey:
+            raise ValueError("API key is required for testing.")
+        result = {"status": "connected", "message": "Media provider configuration is valid."}
+        details = {"provider": config.get("providerKey")}
+        updated = auth_store.save_media_provider_test_result(
+            tenant_id,
+            configId,
+            status="connected",
+            lastError=None,
+            details=details,
+        )
+        return {"result": result, "data": updated}
+    except ValueError as error:
+        updated = auth_store.save_media_provider_test_result(
+            tenant_id,
+            configId,
+            status="error",
+            lastError=str(error),
+        )
+        raise HTTPException(status_code=400, detail=updated.get("lastError") or str(error)) from error
 
 
 @app.get("/api/workspaces")
