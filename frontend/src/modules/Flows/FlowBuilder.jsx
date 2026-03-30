@@ -246,6 +246,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [leftPanelTab, setLeftPanelTab] = useState('nodes');
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState('details');
   const [showStickerModal, setShowStickerModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showNoteEditModal, setShowNoteEditModal] = useState(false);
@@ -267,13 +268,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [nodeConfigRawError, setNodeConfigRawError] = useState('');
   const [assistTarget, setAssistTarget] = useState('');
   const [assistError, setAssistError] = useState('');
-  
+
   // Template & Mapping state
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [mappingTemplate, setMappingTemplate] = useState(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [customTemplates, setCustomTemplates] = useState([]);
-  
+
   // Terminal state
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState([]);
@@ -286,7 +287,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [historyInspectingRunId, setHistoryInspectingRunId] = useState('');
   const [historyComparingRunId, setHistoryComparingRunId] = useState('');
   const [historyRerunningRunId, setHistoryRerunningRunId] = useState('');
-  
+
   // Terminal logging helper
   const logToTerminal = useCallback((message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
@@ -468,10 +469,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const createGhostStarterNode = () => ({
     id: 'ghost-starter',
     type: 'trigger',
-    position: { x: 360, y: 220 },
+    position: { x: typeof window !== 'undefined' ? ((window.innerWidth - 256) / 2) - 36 : 360, y: typeof window !== 'undefined' ? (window.innerHeight / 2) - 100 : 200 },
     data: {
-      label: 'Add your first node',
-      description: 'Drag a trigger or webhook to start',
+      label: 'Add your first ...',
+      description: '',
       typeLabel: '',
       nodeColor: 'trigger',
       iconName: 'Plus',
@@ -517,21 +518,21 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         }
 
         // 1. Initial Load Ingress (Saved)
-        const initialResult = ingestFlowSource({ 
-          nodes: flowData.nodes || [], 
-          edges: flowData.edges || [], 
-          source: 'saved' 
+        const initialResult = ingestFlowSource({
+          nodes: flowData.nodes || [],
+          edges: flowData.edges || [],
+          source: 'saved'
         });
-        
+
         // 2. Draft Ingress (Priority)
         const activeDraft = await flowDraftRepository.getActiveDraft();
         if (activeDraft && (!flowId || !flowData?.metadata?.sourceDraftId)) {
-          const draftResult = ingestFlowSource({ 
-            nodes: activeDraft.draftSpec?.nodes || activeDraft.nodes || [], 
-            edges: activeDraft.draftSpec?.edges || activeDraft.edges || [], 
-            source: 'draft' 
+          const draftResult = ingestFlowSource({
+            nodes: activeDraft.draftSpec?.nodes || activeDraft.nodes || [],
+            edges: activeDraft.draftSpec?.edges || activeDraft.edges || [],
+            source: 'draft'
           });
-          
+
           if (draftResult.validation.blockers.length === 0) {
             // Rule: Ghost logic based ONLY on ingested result length
             if (draftResult.nodes.length > 0) {
@@ -548,14 +549,14 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             });
             await flowDraftRepository.clearActiveDraft();
           } else {
-             // Fallback to initialResult
-             if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
-               setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
-               setEdges(initialResult.edges);
-             } else {
-               setNodes([createGhostStarterNode()]);
-               setEdges([]);
-             }
+            // Fallback to initialResult
+            if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
+              setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
+              setEdges(initialResult.edges);
+            } else {
+              setNodes([createGhostStarterNode()]);
+              setEdges([]);
+            }
           }
         } else {
           // Normal hydration
@@ -605,7 +606,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     [setEdges, nodes, edges]
   );
 
-  
+
   const handleLibraryAdd = useCallback((nodeTemplate) => {
     if (!nodeTemplate) return;
     const base = lastAddedPosition || { x: 240, y: 220 };
@@ -614,7 +615,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       x: base.x + offset.x,
       y: base.y + offset.y,
     };
-    
+
     // Rule: Use mutateFlowGraph for runtime additions
     const result = mutateFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
@@ -638,7 +639,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const screenX = rect.left + padding;
     const screenY = rect.bottom - padding;
     const position = reactFlowInstance?.screenToFlowPosition({ x: screenX, y: screenY }) || { x: 0, y: 0 };
-    
+
     // Rule: Use mutateFlowGraph for runtime additions
     const result = mutateFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
@@ -656,7 +657,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const handleDeleteSelectedNode = useCallback(() => {
     if (!selectedNode || selectedNode?.data?.isGhost) return;
     const nodeId = selectedNode.id;
-    
+
     // Rule: Use mutateFlowGraph for internal deletions (Prevents orphans)
     const result = mutateFlowGraph(nodes, edges, {
       type: 'DELETE_NODE',
@@ -673,7 +674,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [selectedNode, nodes, edges, setNodes, setEdges]);
 
-// Handle drag over canvas
+  // Handle drag over canvas
   const onDragOver = useCallback((event) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -699,7 +700,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           type: 'ADD_NODE',
           payload: { nodeTemplate, position }
         });
-        
+
         if (result.validation.blockers.length === 0) {
           setNodes(result.nodes);
           setIsDirty(true);
@@ -799,14 +800,14 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
   const applyDraftToCanvas = useCallback((draft) => {
     if (!draft) return;
-    
+
     // Rule: Strict gating for external draft sources
     const result = ingestFlowSource({
       nodes: draft.draftSpec?.nodes || [],
       edges: draft.draftSpec?.edges || [],
       source: 'draft'
     });
-    
+
     if (result.validation.blockers.length === 0) {
       if (result.nodes.length > 0) {
         setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
@@ -832,7 +833,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       x: 240,
       y: 200,
     }) || { x: 200, y: 200 };
-    
+
     // Rule: Use mutateFlowGraph for runtime additions
     const result = mutateFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
@@ -859,7 +860,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
   const applyTemplate = useCallback((template) => {
     if (!template) return;
-    
+
     // Check if mapping is needed
     if (template.placeholders && template.placeholders.length > 0) {
       setMappingTemplate(template);
@@ -879,7 +880,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const injectTemplateToCanvas = useCallback((template, mappings = {}) => {
     // Rule: Strict gating for external template sources
     const result = ingestFlowSource(template, { source: 'template', mappings });
-    
+
     if (result.validation.blockers.length > 0) {
       console.error('Template injection blocked by validation:', result.validation.blockers);
       return;
@@ -891,12 +892,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     });
     setEdges((eds) => [...eds, ...result.edges]);
     setIsDirty(true);
-    
+
     setShowMappingModal(false);
     setMappingTemplate(null);
   }, [setNodes, setEdges]);
 
-  
+
   const getSanitizedGraph = useCallback(() => {
     const sanitizedNodes = nodes.filter((node) => !node.data?.isGhost);
     const sanitizedNodeIds = new Set(sanitizedNodes.map((node) => node.id));
@@ -926,7 +927,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     setValidationResult(collectValidation());
   }, [flow, nodes, edges, collectValidation]);
 
-// Handle save flow
+  // Handle save flow
   const handleSaveFlow = useCallback(async () => {
     if (!flow) return;
 
@@ -1232,7 +1233,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
   const handleSaveAsTemplate = useCallback(() => {
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
-    
+
     // Detect placeholders (any string inside {{}})
     const placeholders = new Set();
     sanitizedNodes.forEach(node => {
@@ -1249,7 +1250,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       iconName: 'Layers',
       complexity: 'Intermediate',
       nodes: sanitizedNodes.map(n => ({
-        id: n.id.split('-')[0], 
+        id: n.id.split('-')[0],
         type: n.type,
         position: n.position,
         data: { label: n.data.label, iconName: n.data.iconName }
@@ -1407,13 +1408,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           border: 1px solid var(--color-border) !important;
         }
       `}</style>
-      
+
       <FlowBuilderHeader
         flowName={flow?.name}
         status={flow?.status}
         onToggleDetails={() => setRightPanelOpen(!rightPanelOpen)}
         isDetailsOpen={rightPanelOpen}
-        onOpenHistory={() => setShowHistory(true)}
         breadcrumbs={[{ id: 'editor', label: 'Editor' }]}
         aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
         onSave={handleSaveFlow}
@@ -1427,19 +1427,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
       {/* Main Layout: 3 Columns */}
       <div className="flex flex-1 overflow-hidden relative">
-        
+
         {/* LEFT: Node & Template Library */}
-        <div 
-          className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border-r border-[var(--color-border)] overflow-hidden ${leftPanelOpen ? 'w-64' : 'w-0 border-none'}`}
+        <div
+          className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${leftPanelOpen ? 'w-64' : 'w-0 border-none m-0 shadow-none'}`}
         >
           <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
-            <button 
+            <button
               onClick={() => setLeftPanelTab('nodes')}
               className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Nodes
             </button>
-            <button 
+            <button
               onClick={() => setLeftPanelTab('templates')}
               className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
@@ -1448,7 +1448,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           </div>
 
           <div className="p-2 border-b border-[var(--color-border)] px-3">
-            <button 
+            <button
               onClick={() => setShowAiModal(true)}
               className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg hover:shadow-sky-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
@@ -1458,13 +1458,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           </div>
           <div className="flex-1 overflow-y-auto crm-scroll-hidden">
             {leftPanelTab === 'nodes' ? (
-              <NodeLibraryPanel 
-                embedded 
+              <NodeLibraryPanel
+                embedded
                 onAddNode={handleLibraryAdd}
                 onAddNodeAtViewport={handleLibraryAddAtViewport}
               />
             ) : (
-              <TemplateLibraryPanel 
+              <TemplateLibraryPanel
                 onApplyTemplate={applyTemplate}
                 onPreviewTemplate={(template) => console.log('Preview:', template)}
                 customTemplates={customTemplates}
@@ -1475,25 +1475,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
         {/* CENTER: Canvas Wrapper */}
         <div className="flex-1 relative overflow-hidden bg-[var(--color-bg-primary)]" ref={reactFlowWrapper}>
-          
-          {/* TOP OVERLAY: Stable Floating Controls */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-md flex justify-center">
-            <div className="pointer-events-auto flex items-center gap-3 bg-[var(--color-bg-secondary)]/80 backdrop-blur-md border border-[var(--color-border)] rounded-full px-4 py-1.5 shadow-2xl">
-              <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-400 uppercase tracking-widest">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Builder Only
-              </div>
-              <div className="h-4 w-[1px] bg-[var(--color-border)]" />
-              <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest">
-                <Bot className="w-3.5 h-3.5 text-sky-400" />
-                Alpha Dispatch
-              </div>
-              <div className="h-4 w-[1px] bg-[var(--color-border)]" />
-              <div className="px-2 py-1 rounded-full bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest border border-white/5">
-                v1.1.0-COMMS
-              </div>
-            </div>
-          </div>
+
+
 
           <ReactFlow
             nodes={nodes}
@@ -1516,7 +1499,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
             onEdgeContextMenu={onEdgeContextMenu}
             nodeTypes={nodeTypes}
-            fitView
+            fitView={!nodes.some(n => n.data?.isGhost)}
             connectionRadius={40}
             proOptions={{ hideAttribution: true }}
             defaultEdgeOptions={{
@@ -1541,138 +1524,209 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             snapGrid={[8, 8]}
           >
             {/* Grid points hidden per request, snapping active at 8px for tactile feedback */}
-            
+
+            {/* Minimap Removed as per user request */}
             <div className="flow-control-dock">
               <Controls showInteractive={false} showFitView={true} className="flow-controls-buttons" />
-              <MiniMap
-                className="flow-minimap"
-                nodeColor={(node) => {
-                  const colorMap = {
-                    trigger: 'var(--node-trigger)',
-                    action: 'var(--node-action)',
-                    logic: 'var(--node-logic)',
-                    webhook: 'var(--node-webhook)',
-                    socket: 'var(--node-socket)',
-                    input: 'var(--node-input)',
-                  };
-                  return colorMap[node.type] || 'var(--color-border)';
-                }}
-              />
             </div>
           </ReactFlow>
         </div>
 
         {/* RIGHT: Inspector Panel */}
-        <div 
-          className={`sidebar-transition bg-[var(--color-bg-primary)] border-l border-[var(--color-border)] overflow-hidden ${rightPanelOpen ? 'w-80' : 'w-0 border-none'}`}
+        <div
+          className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${rightPanelOpen ? 'w-[340px]' : 'w-0 border-none m-0 shadow-none'}`}
         >
-          <FlowInfoPanel
-            flow={flow}
-            onFlowUpdate={handleFlowUpdate}
-            onApplyDraft={applyDraftToCanvas}
-            onInsertFormTrigger={insertFormTrigger}
-            onSaveAsTemplate={handleSaveAsTemplate}
-            showDetails={true}
-          />
+          <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] shrink-0">
+            <button 
+              onClick={() => setRightPanelTab('details')}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+            >
+              Details
+            </button>
+            <button 
+              onClick={() => setRightPanelTab('history')}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+            >
+              History
+            </button>
+          </div>
+
+          <div className={`flex-1 overflow-y-auto crm-scroll-hidden flex flex-col relative ${rightPanelOpen ? 'w-[340px]' : 'w-0'}`}>
+            <div className={`flex-1 flex flex-col ${rightPanelTab === 'details' ? 'flex' : 'hidden'}`}>
+              <FlowInfoPanel
+                flow={flow}
+                onFlowUpdate={handleFlowUpdate}
+                onApplyDraft={applyDraftToCanvas}
+                onInsertFormTrigger={insertFormTrigger}
+                onSaveAsTemplate={handleSaveAsTemplate}
+                showDetails={true}
+              />
+              <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-primary)]">MiniMap</span>
+                <MiniMap nodeColor={(node) => {
+                  switch (node.data?.nodeColor) {
+                    case 'trigger': return '#22d3ee';
+                    case 'action': return '#a855f7';
+                    case 'logic': return '#facc15';
+                    case 'agent': return '#06b6d4';
+                    default: return '#94a3b8';
+                  }
+                }} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[180px] !bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl opacity-90 hover:opacity-100 transition-opacity !m-0" />
+              </div>
+            </div>
+            
+            <div className={`h-full ${rightPanelTab === 'history' ? 'block' : 'hidden'}`}>
+              <FlowRunHistoryPanel
+                runs={flowRunHistory}
+                loading={flowRunHistoryLoading}
+                error={flowRunHistoryError}
+                activeRunId={latestRunDetail?.runId || ''}
+                compareRunId={compareRunDetail?.runId || ''}
+                inspectingRunId={historyInspectingRunId}
+                comparingRunId={historyComparingRunId}
+                rerunningRunId={historyRerunningRunId}
+                onInspect={inspectStoredRun}
+                onCompare={compareStoredRun}
+                onRerun={rerunStoredRun}
+                onClose={() => setRightPanelOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* TOP OVERLAY: Stable Floating Controls (Moved out so it won't shift with panel) */}
+      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none w-full max-w-lg flex justify-center mt-2">
+        <div className="pointer-events-auto flex items-center gap-3 bg-[var(--color-bg-secondary)]/80 backdrop-blur-md border border-[var(--color-border)] rounded-full px-4 py-1.5 shadow-2xl">
+          <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-400 uppercase tracking-widest">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Builder Only
+          </div>
+          <div className="h-4 w-[1px] bg-[var(--color-border)]" />
+          <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest">
+            <Bot className="w-3.5 h-3.5 text-sky-400" />
+            Alpha Dispatch
+          </div>
+          <div className="h-4 w-[1px] bg-[var(--color-border)]" />
+          <div className="px-2 py-1 rounded-full bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest border border-white/5">
+            v1.1.1 COMMS
+          </div>
+          <div className="h-4 w-[1px] bg-[var(--color-border)]" />
+          <div
+            className={`px-3 py-1 rounded-[var(--radius-pill)] text-[9px] font-black uppercase tracking-widest flex-shrink-0 border ${flow?.status === 'Active'
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                : 'bg-[var(--color-primary)]/15 text-[var(--color-text-secondary)] border-[var(--color-border)]'
+              }`}
+          >
+            {flow?.status || 'Draft'}
+          </div>
         </div>
       </div>
 
       {/* Floating Toolbar */}
       <div className="pointer-events-none absolute left-1/2 bottom-4 -translate-x-1/2 z-40">
-        <div className="pointer-events-auto flex items-center gap-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-full px-3 py-2 shadow-lg">
+        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md border border-[var(--color-border)]/50 rounded-xl px-2 py-1.5 shadow-island-sm">
           <button
             type="button"
             onClick={handleRunFlow}
             disabled={isRunningFlow}
-            className={`flow-toolbar-btn flow-toolbar-btn--success ${isRunningFlow ? 'opacity-60 cursor-wait' : ''}`}
+            className={`btn-primary-skeuo h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2 ${isRunningFlow ? 'opacity-60 cursor-wait' : ''}`}
           >
             {isRunningFlow ? 'Running...' : 'Run Flow'}
           </button>
-          <button type="button" disabled className="flow-toolbar-btn opacity-60 cursor-not-allowed">
-            Deploy Disabled
-          </button>
+
           <button
             type="button"
             onClick={handleSaveFlow}
-            className="flow-toolbar-btn"
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
           >
             Save
           </button>
+
           {onSelectForAgents ? (
             <button
               type="button"
               onClick={() => flow?.id && onSelectForAgents(flow)}
-              className="flow-toolbar-btn flow-toolbar-btn--purple"
+              className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight text-[var(--color-primary)]"
             >
               Use In Agents
             </button>
           ) : null}
+
           <button
             type="button"
-            disabled
-            className="flow-toolbar-btn flow-toolbar-btn--success flex items-center gap-2 opacity-60 cursor-not-allowed"
+            onClick={handleToggleStatus}
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2"
           >
-            <span>Activation Disabled</span>
+            <span>{flow?.status === 'Active' ? 'Deactivate' : 'Activate'}</span>
             <span
-              className={`w-9 h-5 rounded-full border border-[var(--color-border)] relative transition-colors ${
-                flow?.status === 'Active' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-bg-secondary)]'
-              }`}
+              className={`w-7 h-4 rounded-full border border-[var(--color-border)] relative transition-colors ${flow?.status === 'Active' ? 'bg-emerald-500' : 'bg-[var(--color-bg-secondary)]'
+                }`}
             >
               <span
-                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
-                style={{ left: flow?.status === 'Active' ? '1.1rem' : '0.15rem' }}
+                className="absolute top-[1px] w-[12px] h-[12px] rounded-full bg-white transition-all shadow-sm"
+                style={{ left: flow?.status === 'Active' ? '14px' : '2px' }}
               />
             </span>
           </button>
+
+          <div className="w-[1px] h-4 bg-[var(--color-border)]/50 mx-1" />
+
           <button
             type="button"
             onClick={() => {
               openNodeLibrary();
             }}
-            className="flow-toolbar-btn flow-toolbar-btn--purple"
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
           >
             Add Node
           </button>
+
           <button
             type="button"
-            className="flow-toolbar-btn"
             onClick={() => {
-              openNodeLibrary();
+              setLeftPanelOpen(true);
+              setLeftPanelTab('templates');
             }}
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
           >
-            AI Node
+            Templates
           </button>
+
           <button
             type="button"
             onClick={() => {
-              // Rule: Use mutateFlowGraph for internal layout updates
               const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
               if (result.validation.blockers.length === 0) {
                 setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
               }
             }}
-            className="flow-toolbar-btn"
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
           >
             Align Nodes
           </button>
+
           <button
             type="button"
-            className="flow-toolbar-btn flow-toolbar-btn--neutral-light"
             onClick={() => setShowNoteModal(true)}
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
           >
             Add Note
           </button>
+
+          <div className="w-[1px] h-4 bg-[var(--color-border)]/50 mx-1" />
+
           <button
             type="button"
-            className="flow-toolbar-btn flow-toolbar-btn--danger"
             onClick={handleDeleteSelectedNode}
+            className="h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 transition-all flex items-center justify-center shadow-sm"
           >
             Delete node
           </button>
-
         </div>
-        <div className="mt-2 text-[10px] text-[var(--color-text-tertiary)] text-center">
-          Scenario: {flow?.name || 'Untitled Flow'} | v{flow?.metadata?.version || 1} | {flow?.status || 'Draft'}
+
+        <div className="mt-3 text-[10px] text-[var(--color-text-tertiary)] text-center font-bold uppercase tracking-widest drop-shadow-md">
+          {flow?.name || 'Untitled Flow'} | v{flow?.metadata?.version || 1}
         </div>
       </div>
 
@@ -1704,11 +1758,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 <button
                   key={tab}
                   onClick={() => setNodeModalTab(tab)}
-                  className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide border-b-2 transition-colors ${
-                    nodeModalTab === tab
+                  className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide border-b-2 transition-colors ${nodeModalTab === tab
                       ? 'border-[var(--color-primary)] text-[var(--color-text-primary)]'
                       : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                  }`}
+                    }`}
                 >
                   {tab === 'general' ? 'General' : tab === 'config' ? 'Config' : 'Advanced'}
                 </button>
@@ -2748,8 +2801,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                     // Rule: Use mutateFlowGraph for runtime config updates
                     const result = mutateFlowGraph(nodes, edges, {
                       type: 'UPDATE_NODE_CONFIG',
-                      payload: { 
-                        nodeId: selectedNode.id, 
+                      payload: {
+                        nodeId: selectedNode.id,
                         config: nodeConfigDraft,
                         dataUpdates: { config: nodeConfigDraft }
                       }
@@ -2786,25 +2839,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onSave={handleConfigSave}
       />
 
-      {showHistory && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowHistory(false)}></div>
-          <div className="absolute right-0 top-0 h-full w-80 bg-[var(--color-bg-primary)] border-l border-[var(--color-border)] shadow-xl flex flex-col">
-            <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Execution History</h3>
-              <button
-                onClick={() => setShowHistory(false)}
-                className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
-              >
-                x
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 text-xs text-[var(--color-text-secondary)]">
-              No executions yet.
-            </div>
-          </div>
-        </div>
-      )}
+      {/* History panel successfully relocated entirely to Details dock Tab */}
 
       {showActivateModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
@@ -2881,7 +2916,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         </div>
       )}
 
-      
+
 
       {nodeMenu && (
         <div className="fixed inset-0 z-50">
@@ -2933,9 +2968,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   // Rule: Use mutateFlowGraph for runtime config toggle
                   const result = mutateFlowGraph(nodes, edges, {
                     type: 'UPDATE_NODE_CONFIG',
-                    payload: { 
-                      nodeId: node.id, 
-                      config: { ignoreErrors: !node.data?.config?.ignoreErrors } 
+                    payload: {
+                      nodeId: node.id,
+                      config: { ignoreErrors: !node.data?.config?.ignoreErrors }
                     }
                   });
                   if (result.validation.blockers.length === 0) {
@@ -2972,163 +3007,163 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         </div>
       )}
 
-      
 
-{showNoteModal && (
-  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-    <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl w-full max-w-md p-6">
-      <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Note</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Label</label>
-          <input
-            value={noteDraft.label}
-            onChange={(e) => setNoteDraft((prev) => ({ ...prev, label: e.target.value }))}
-            className="w-full px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-          />
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Note</label>
-            <AIAssistButton variant="inline" onAssist={() => applyNoteAssist('new')} loading={assistTarget === 'note:new'} tooltip="Draft note with AI" iconType="crosshair" />
+
+      {showNoteModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Note</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Label</label>
+                <input
+                  value={noteDraft.label}
+                  onChange={(e) => setNoteDraft((prev) => ({ ...prev, label: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                />
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Note</label>
+                  <AIAssistButton variant="inline" onAssist={() => applyNoteAssist('new')} loading={assistTarget === 'note:new'} tooltip="Draft note with AI" iconType="crosshair" />
+                </div>
+                <textarea
+                  value={noteDraft.note}
+                  onChange={(e) => setNoteDraft((prev) => ({ ...prev, note: e.target.value }))}
+                  className="w-full min-h-[90px] px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Color</label>
+                <input
+                  type="color"
+                  value={noteDraft.color}
+                  onChange={(e) => setNoteDraft((prev) => ({ ...prev, color: e.target.value }))}
+                  className="w-16 h-10 rounded border border-[var(--color-border)] bg-transparent"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setShowNoteModal(false)}
+                className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const position = reactFlowInstance?.screenToFlowPosition({ x: 260, y: 220 }) || { x: 260, y: 220 };
+
+                  // Rule: Use mutateFlowGraph for runtime additions
+                  const result = mutateFlowGraph(nodes, edges, {
+                    type: 'ADD_NODE',
+                    payload: {
+                      nodeTemplate: {
+                        id: `note-${Date.now()}`,
+                        type: 'note',
+                        data: {
+                          label: noteDraft.label,
+                          note: noteDraft.note,
+                          color: noteDraft.color,
+                        },
+                        style: { zIndex: -1, width: 280, height: 160 },
+                      },
+                      position
+                    }
+                  });
+
+                  if (result.validation.blockers.length === 0) {
+                    setNodes(result.nodes);
+                    setShowNoteModal(false);
+                  }
+                }}
+                className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
+              >
+                Add Note
+              </button>
+            </div>
           </div>
-          <textarea
-            value={noteDraft.note}
-            onChange={(e) => setNoteDraft((prev) => ({ ...prev, note: e.target.value }))}
-            className="w-full min-h-[90px] px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-          />
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Color</label>
-          <input
-            type="color"
-            value={noteDraft.color}
-            onChange={(e) => setNoteDraft((prev) => ({ ...prev, color: e.target.value }))}
-            className="w-16 h-10 rounded border border-[var(--color-border)] bg-transparent"
-          />
-        </div>
-      </div>
-      <div className="mt-4 flex gap-2">
-        <button
-          onClick={() => setShowNoteModal(false)}
-          className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => {
-            const position = reactFlowInstance?.screenToFlowPosition({ x: 260, y: 220 }) || { x: 260, y: 220 };
-            
-            // Rule: Use mutateFlowGraph for runtime additions
-            const result = mutateFlowGraph(nodes, edges, {
-              type: 'ADD_NODE',
-              payload: {
-                nodeTemplate: {
-                  id: `note-${Date.now()}`,
-                  type: 'note',
-                  data: {
-                    label: noteDraft.label,
-                    note: noteDraft.note,
-                    color: noteDraft.color,
-                  },
-                  style: { zIndex: -1, width: 280, height: 160 },
-                },
-                position
-              }
-            });
+      )}
 
-            if (result.validation.blockers.length === 0) {
-              setNodes(result.nodes);
-              setShowNoteModal(false);
-            }
-          }}
-          className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
-        >
-          Add Note
-        </button>
-      </div>
-    </div>
-  </div>
-)}
 
-      
 
-{showNoteEditModal && noteEditingNode && (
-  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-    <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl w-full max-w-md p-6">
-      <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Edit Note</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Label</label>
-          <input
-            value={noteEditDraft.label}
-            onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, label: e.target.value }))}
-            className="w-full px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-          />
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Note</label>
-            <AIAssistButton variant="inline" onAssist={() => applyNoteAssist('edit')} loading={assistTarget === 'note:edit'} tooltip="Redraft note with AI" iconType="crosshair" />
+      {showNoteEditModal && noteEditingNode && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Edit Note</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Label</label>
+                <input
+                  value={noteEditDraft.label}
+                  onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, label: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                />
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide">Note</label>
+                  <AIAssistButton variant="inline" onAssist={() => applyNoteAssist('edit')} loading={assistTarget === 'note:edit'} tooltip="Redraft note with AI" iconType="crosshair" />
+                </div>
+                <textarea
+                  value={noteEditDraft.note}
+                  onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, note: e.target.value }))}
+                  className="w-full min-h-[90px] px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Color</label>
+                <input
+                  type="color"
+                  value={noteEditDraft.color}
+                  onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, color: e.target.value }))}
+                  className="w-16 h-10 rounded border border-[var(--color-border)] bg-transparent"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setShowNoteEditModal(false)}
+                className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Rule: Use mutateFlowGraph for runtime config updates
+                  const result = mutateFlowGraph(nodes, edges, {
+                    type: 'UPDATE_NODE_CONFIG',
+                    payload: {
+                      nodeId: noteEditingNode.id,
+                      config: {
+                        label: noteEditDraft.label,
+                        note: noteEditDraft.note,
+                        color: noteEditDraft.color,
+                      },
+                      dataUpdates: {
+                        label: noteEditDraft.label,
+                        note: noteEditDraft.note,
+                        color: noteEditDraft.color,
+                      }
+                    }
+                  });
+
+                  if (result.validation.blockers.length === 0) {
+                    setNodes(result.nodes);
+                    setShowNoteEditModal(false);
+                  } else {
+                    console.error('Note update blocked by validation:', result.validation.blockers);
+                  }
+                }}
+                className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
+              >
+                Update Note
+              </button>
+            </div>
           </div>
-          <textarea
-            value={noteEditDraft.note}
-            onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, note: e.target.value }))}
-            className="w-full min-h-[90px] px-3 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-          />
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Color</label>
-          <input
-            type="color"
-            value={noteEditDraft.color}
-            onChange={(e) => setNoteEditDraft((prev) => ({ ...prev, color: e.target.value }))}
-            className="w-16 h-10 rounded border border-[var(--color-border)] bg-transparent"
-          />
-        </div>
-      </div>
-      <div className="mt-4 flex gap-2">
-        <button
-          onClick={() => setShowNoteEditModal(false)}
-          className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => {
-            // Rule: Use mutateFlowGraph for runtime config updates
-            const result = mutateFlowGraph(nodes, edges, {
-              type: 'UPDATE_NODE_CONFIG',
-              payload: {
-                nodeId: noteEditingNode.id,
-                config: {
-                  label: noteEditDraft.label,
-                  note: noteEditDraft.note,
-                  color: noteEditDraft.color,
-                },
-                dataUpdates: {
-                  label: noteEditDraft.label,
-                  note: noteEditDraft.note,
-                  color: noteEditDraft.color,
-                }
-              }
-            });
-            
-            if (result.validation.blockers.length === 0) {
-              setNodes(result.nodes);
-              setShowNoteEditModal(false);
-            } else {
-              console.error('Note update blocked by validation:', result.validation.blockers);
-            }
-          }}
-          className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90"
-        >
-          Update Note
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       {edgeMenu && (
         <div className="fixed inset-0 z-50">
@@ -3222,25 +3257,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         </div>
       )}
 
-      {flow?.id ? (
-        <div className={`pointer-events-none absolute bottom-20 z-30 ${leftPanelOpen ? 'left-[21rem]' : 'left-4'}`}>
-          <div className="pointer-events-auto">
-            <FlowRunHistoryPanel
-              runs={flowRunHistory}
-              loading={flowRunHistoryLoading}
-              error={flowRunHistoryError}
-              activeRunId={latestRunDetail?.runId || ''}
-              compareRunId={compareRunDetail?.runId || ''}
-              inspectingRunId={historyInspectingRunId}
-              comparingRunId={historyComparingRunId}
-              rerunningRunId={historyRerunningRunId}
-              onInspect={inspectStoredRun}
-              onCompare={compareStoredRun}
-              onRerun={rerunStoredRun}
-            />
-          </div>
-        </div>
-      ) : null}
+
 
       {latestRunDetail ? (
         <RunDetailInspector
@@ -3284,9 +3301,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   <span className="text-[var(--color-text-tertiary)] shrink-0">[{log.timestamp}]</span>
                   <span className={
                     log.type === 'error' ? 'text-red-400' :
-                    log.type === 'success' ? 'text-emerald-400' :
-                    log.type === 'warning' ? 'text-amber-400' :
-                    'text-[var(--color-text-secondary)]'
+                      log.type === 'success' ? 'text-emerald-400' :
+                        log.type === 'warning' ? 'text-amber-400' :
+                          'text-[var(--color-text-secondary)]'
                   }>
                     {log.message}
                   </span>
@@ -3297,21 +3314,21 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         </div>
       )}
       {/* Mapping Modal */}
-      <VariableMappingModal 
+      <VariableMappingModal
         isOpen={showMappingModal}
         template={mappingTemplate}
         onClose={() => { setShowMappingModal(false); setMappingTemplate(null); }}
         onConfirm={(mappings) => injectTemplateToCanvas(mappingTemplate, mappings)}
       />
       {/* AI Generation Modal */}
-      <AiGeneratorModal 
+      <AiGeneratorModal
         isOpen={showAiModal}
         onClose={() => setShowAiModal(false)}
         onGenerate={(prompt) => {
           const lower = prompt.toLowerCase();
           const nodes = [];
           const edges = [];
-          
+
           // Basic keyword mapping
           if (lower.includes('form') || lower.includes('contact')) {
             nodes.push({ id: 'n1', type: 'trigger', data: { label: 'New Lead', iconName: 'User' }, position: { x: 50, y: 150 } });
@@ -3320,27 +3337,27 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           }
 
           if (lower.includes('ai') || lower.includes('bot') || lower.includes('qualify')) {
-            nodes.push({ id: 'n2', type: 'action', data: { label: 'AI Qualifier', iconName: 'Bot' }, position: { x: 300, y: 150 } });
+            nodes.push({ id: 'n2', type: 'action', data: { label: 'AI Qualifier', iconName: 'Bot', actionType: 'ai_qualify' }, position: { x: 300, y: 150 } });
           }
 
           if (lower.includes('wait') || lower.includes('delay')) {
             const lastId = nodes[nodes.length - 1].id;
             const nextId = `n${nodes.length + 1}`;
-            nodes.push({ id: nextId, type: 'logic', data: { label: 'Wait/Delay', iconName: 'Clock' }, position: { x: 300 + (nodes.length * 200), y: 150 } });
+            nodes.push({ id: nextId, type: 'logic', data: { label: 'Wait/Delay', iconName: 'Clock', logicType: 'time_delay' }, position: { x: 300 + (nodes.length * 200), y: 150 } });
           }
 
           if (lower.includes('email') || lower.includes('send')) {
             const lastId = nodes[nodes.length - 1].id;
-            nodes.push({ id: 'n-final', type: 'action', data: { label: 'Send Email', iconName: 'Mail' }, position: { x: nodes.length * 250, y: 150 } });
+            nodes.push({ id: 'n-final', type: 'action', data: { label: 'Send Email', iconName: 'Mail', actionType: 'send_email' }, position: { x: nodes.length * 250, y: 150 } });
           }
 
           if (lower.includes('slack') || lower.includes('notify')) {
-            nodes.push({ id: 'n-slack', type: 'action', data: { label: 'Slack Alert', iconName: 'MessageSquare' }, position: { x: nodes.length * 250, y: 250 } });
+            nodes.push({ id: 'n-slack', type: 'action', data: { label: 'Slack Alert', iconName: 'MessageSquare', actionType: 'http_request' }, position: { x: nodes.length * 250, y: 250 } });
           }
 
           // Generate simple linear edges
           for (let i = 0; i < nodes.length - 1; i++) {
-            edges.push({ id: `e${i}-${i+1}`, source: nodes[i].id, target: nodes[i+1].id, animated: true });
+            edges.push({ id: `e${i}-${i + 1}`, source: nodes[i].id, target: nodes[i + 1].id, animated: true });
           }
 
           const aiTemplate = {
@@ -3350,7 +3367,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             edges,
             placeholders: []
           };
-          
+
           // Rule: Strict gating for AI-generated flows
           const result = ingestFlowSource(aiTemplate, { source: 'ai' });
           if (result.validation.blockers.length === 0) {

@@ -608,6 +608,7 @@ class StubRenderProvider(BaseRenderProvider):
 
 class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
     provider_id = "elevenlabs_scribe"
+    BASE_URL = "https://api.elevenlabs.io"
 
     def transcribeMedia(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         transcript_text = clean_text(payload.get("transcript_text"))
@@ -619,10 +620,90 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
                 "timestamps": [{"start": item.get("start"), "end": item.get("end"), "speaker": item.get("speaker")} for item in segments],
                 "message": "Transcript normalized from provided text.",
             }
+        
         api_key = clean_text(payload.get("api_key"))
         if not api_key:
             raise ValueError("ElevenLabs Scribe API key is missing.")
-        raise NotImplementedError("Live ElevenLabs Scribe transcription is not wired in this safe pass.")
+        
+        audio_url = clean_text(payload.get("source_url"))
+        if not audio_url:
+            raise ValueError("ElevenLabs Scribe requires source_url for live transcription.")
+        
+        import urllib.request
+        import urllib.error
+        import json
+        
+        request_id = job.get("id", "transcribe")
+        
+        upload_url = f"{self.BASE_URL}/v1/scribe/upload"
+        headers = {
+            "xi-api-key": api_key,
+        }
+        
+        try:
+            req = urllib.request.Request(
+                f"{upload_url}?prompt={urllib.parse.quote(payload.get('prompt', ''))}",
+                headers=headers,
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=30) as response:
+                upload_result = json.loads(response.read().decode())
+                audio_id = upload_result.get("audio_id")
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise ValueError("ElevenLabs API key is invalid.")
+            elif e.code == 402:
+                raise ValueError("ElevenLabs API quota exceeded.")
+            else:
+                raise ValueError(f"ElevenLabs upload failed: {e.reason}")
+        except Exception as e:
+            raise ValueError(f"ElevenLabs upload error: {str(e)}")
+        
+        if not audio_id:
+            raise ValueError("ElevenLabs failed to return audio_id after upload.")
+        
+        transcript_url = f"{self.BASE_URL}/v1/scribe/{audio_id}/transcript"
+        
+        try:
+            req = urllib.request.Request(transcript_url, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=60) as response:
+                result = json.loads(response.read().decode())
+                text = result.get("text", "")
+                speaker_segments = []
+                timestamps = []
+                
+                if "words" in result:
+                    current_speaker = "Speaker A"
+                    for word in result["words"]:
+                        if "speaker" in word:
+                            current_speaker = word["speaker"]
+                        speaker_segments.append({
+                            "speaker": current_speaker,
+                            "text": word.get("text", ""),
+                            "start": word.get("start"),
+                            "end": word.get("end"),
+                        })
+                        timestamps.append({
+                            "start": word.get("start"),
+                            "end": word.get("end"),
+                            "speaker": current_speaker,
+                        })
+                
+                return {
+                    "transcript_text": text,
+                    "speaker_segments": speaker_segments,
+                    "timestamps": timestamps,
+                    "message": "Transcript fetched from ElevenLabs Scribe.",
+                }
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise ValueError("ElevenLabs API key is invalid.")
+            elif e.code == 404:
+                raise ValueError("Audio file not found or expired.")
+            else:
+                raise ValueError(f"ElevenLabs transcription failed: {e.reason}")
+        except Exception as e:
+            raise ValueError(f"ElevenLabs transcription error: {str(e)}")
 
 
 class AwsTranscribeProvider(BaseTranscriptionProvider):

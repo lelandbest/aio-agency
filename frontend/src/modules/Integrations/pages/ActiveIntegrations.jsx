@@ -512,8 +512,8 @@ const getCalendarSourceStateMeta = (source = {}) => {
 const createEmailVerifierDraft = (config = {}) => ({
   apiKey: '',
   enabled: !!config.enabled,
-  autoVerifyContacts: config.auto_verify_contacts !== false,
-  defaultMode: config.default_mode === 'power' ? 'power' : 'quick',
+  autoVerifyContacts: config.autoVerifyContacts !== false,
+  defaultMode: config.defaultMode === 'power' ? 'power' : 'quick',
 });
 
 const getEmailVerifierStatusMeta = (config = {}) => {
@@ -1420,8 +1420,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       const saved = await updateEmailVerifierConfigApi({
         apiKey: emailVerifierForm.apiKey || undefined,
         enabled: !!emailVerifierForm.enabled,
-        autoVerifyContacts: !!emailVerifierForm.auto_verify_contacts,
-        defaultMode: emailVerifierForm.default_mode,
+        autoVerifyContacts: !!emailVerifierForm.autoVerifyContacts,
+        defaultMode: emailVerifierForm.defaultMode,
       });
       setEmailVerifierConfig(saved);
       setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
@@ -2093,11 +2093,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <fieldset disabled={emailVerifierConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.apiKey} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={emailVerifierConfig?.hasApiKey ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.default_mode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick</option><option value="power">Power</option></select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.defaultMode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick</option><option value="power">Power</option></select></label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 text-sm text-[var(--color-text-secondary)]">
               <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.enabled} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this tenant</label>
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.auto_verify_contacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, autoVerifyContacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
+              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.autoVerifyContacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, autoVerifyContacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
             </div>
             </fieldset>
           </div>

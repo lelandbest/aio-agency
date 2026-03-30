@@ -38,9 +38,10 @@ const FlowRunHistoryPanel = ({
   onCompare,
   onRerun,
   isSidebar = false,
+  onClose,
 }) => {
   const content = (
-    <div className={`p-3 crm-scroll-hidden ${isSidebar ? '' : 'max-h-[20rem] overflow-y-auto'}`}>
+    <div className={`p-3 crm-scroll-hidden ${isSidebar ? '' : 'overflow-y-auto'}`}>
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">
           {error}
@@ -155,7 +156,18 @@ const FlowRunHistoryPanel = ({
             Stored execution history for this flow
           </div>
         </div>
-        {loading ? <Loader2 className="h-4 w-4 animate-spin text-[var(--color-text-tertiary)]" /> : null}
+        <div className="flex items-center gap-2">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin text-[var(--color-text-tertiary)]" /> : null}
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
       {content}
     </div>

@@ -45,7 +45,13 @@ const CustomNode = ({ data, selected, isConnectable }) => {
   const glowColor = getGlowColor(data.nodeColor, data.type);
 
   return (
-    <div className="relative flex flex-col items-center">
+    <div 
+      className="relative flex flex-col items-center transition-all"
+      style={{
+        transform: isGhost ? 'scale(1.2)' : 'none',
+        transformOrigin: 'center center'
+      }}
+    >
       <div
         className={`
           relative w-[72px] h-[72px] border-2 transition-all

@@ -2884,8 +2884,38 @@ class StepExecutor:
             },
         )
         job = result.get("job") or {}
+        artifact = result.get("artifact")
         status = "success" if clean_text(job.get("status")) == "complete" else "failed"
-        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+        
+        brain_item_id = None
+        if status == "success" and artifact:
+            try:
+                tenant_id = clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None
+                transcript_text = artifact.get("transcript_text", "")
+                if transcript_text and tenant_id:
+                    brain_item_payload = {
+                        "title": artifact.get("title") or "Meeting Transcript",
+                        "category": "transcript",
+                        "content": transcript_text,
+                        "source_id": artifact.get("id"),
+                        "status": "published",
+                        "tags": ["MTG:TRANSCRIPT"],
+                    }
+                    if hasattr(self.provider, "create_brain_item"):
+                        brain_item = self.provider.create_brain_item(brain_item_payload)
+                        brain_item_id = brain_item.get("id")
+            except Exception:
+                pass
+        
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": status,
+            "data": result,
+            "error": job.get("last_error"),
+            "brainItemId": brain_item_id,
+            "tags": ["MTG:TRANSCRIPT"] if brain_item_id else [],
+        }
 
     def _ingest_meeting_artifacts(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         payload, missing = self._resolved_media_payload(step, context, runtime)
