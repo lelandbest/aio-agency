@@ -3380,6 +3380,19 @@ class AuthStore:
             ).fetchone()
         return self._media_provider_record(row, include_secret=True) if row else None
 
+    def get_media_provider_config_by_provider_key(self, tenant_id: str, provider_key: str) -> dict[str, Any] | None:
+        """Returns the ENABLED media provider config for a providerKey, including the secret API key.
+        Returns None if not found or disabled — callers must treat None as a hard failure."""
+        normalized = (provider_key or "").strip().lower()
+        if not normalized or not tenant_id:
+            return None
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM media_provider_configs WHERE tenantId = ? AND providerKey = ? AND enabled = 1 LIMIT 1",
+                (tenant_id, normalized),
+            ).fetchone()
+        return self._media_provider_record(row, include_secret=True) if row else None
+
     def list_media_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
         if not token:
             raise ValueError("Session token is required.")

@@ -2,30 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
 import { getAiAgentsApi, getAiRunApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
-import { SPECIALIST_REGISTRY } from './data/agentRegistry';
+import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
 
-const ROW_COLOR_LANES = [
-  [
-    { bg: 'bg-blue-950/50', border: 'border-blue-600/40', shadow: 'rgba(37,99,235,0.2)', icon: 'text-blue-300' },
-    { bg: 'bg-blue-900/50', border: 'border-blue-500/40', shadow: 'rgba(59,130,246,0.2)', icon: 'text-blue-200' },
-    { bg: 'bg-blue-800/45', border: 'border-blue-400/40', shadow: 'rgba(96,165,250,0.22)', icon: 'text-blue-200' },
-  ],
-  [
-    { bg: 'bg-cyan-950/50', border: 'border-cyan-600/40', shadow: 'rgba(8,145,178,0.2)', icon: 'text-cyan-300' },
-    { bg: 'bg-cyan-900/50', border: 'border-cyan-500/40', shadow: 'rgba(6,182,212,0.2)', icon: 'text-cyan-200' },
-    { bg: 'bg-cyan-800/45', border: 'border-cyan-400/40', shadow: 'rgba(34,211,238,0.22)', icon: 'text-cyan-200' },
-  ],
-  [
-    { bg: 'bg-emerald-950/45', border: 'border-emerald-600/40', shadow: 'rgba(16,185,129,0.2)', icon: 'text-emerald-300' },
-    { bg: 'bg-emerald-900/45', border: 'border-emerald-500/40', shadow: 'rgba(16,185,129,0.2)', icon: 'text-emerald-200' },
-    { bg: 'bg-emerald-800/45', border: 'border-emerald-400/40', shadow: 'rgba(52,211,153,0.22)', icon: 'text-emerald-200' },
-  ],
-  [
-    { bg: 'bg-amber-950/45', border: 'border-amber-600/40', shadow: 'rgba(217,119,6,0.2)', icon: 'text-amber-300' },
-    { bg: 'bg-amber-900/45', border: 'border-amber-500/40', shadow: 'rgba(245,158,11,0.2)', icon: 'text-amber-200' },
-    { bg: 'bg-amber-800/45', border: 'border-amber-400/40', shadow: 'rgba(251,191,36,0.22)', icon: 'text-amber-200' },
-  ],
-];
+
 
 const AGENT_CHAT_STORAGE_KEY = 'aio-agents-chat-session';
 const AGENT_SELECTED_FLOW_STORAGE_KEY = 'aio-agents-selected-flow';
@@ -883,31 +862,29 @@ const AIOAgentsModule = () => {
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
 
   return (
-     <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-tertiary)] rounded-[var(--radius-outer)] text-[var(--color-text-primary)] font-sans selection:bg-purple-900/50 overflow-hidden shadow-island border border-[var(--color-border)]">
+     <div className="h-full min-h-0 flex flex-col gap-4 overflow-hidden relative selection:bg-purple-900/50">
       <ModuleHeader
         showTitle={false}
         leftActions={[
           {
-            label: 'Command Post',
+            label: 'OPEN BARRACKS',
             icon: Target,
             onClick: () => setView('barracks'),
             variant: view === 'barracks' ? 'primary' : 'secondary'
           },
           {
-            label: 'Command Interface',
+            label: 'OPEN COMMAND',
             icon: Terminal,
             onClick: () => setView('command'),
             variant: view === 'command' ? 'primary' : 'secondary'
-          },
-          <div className="inline-flex px-3 py-1 rounded-[var(--radius-pill)] text-xs font-medium whitespace-nowrap border shadow-premium bg-green-500/20 text-green-400 border-green-500/30">
-            Operational Status
-          </div>
+          }
         ]}
         showActions={true}
       />
 
       {/* Main Workspace */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/[0.02] pointer-events-none" />
         
         {/* BARRACKS VIEW */}
         {view === 'barracks' && (() => {
@@ -1000,27 +977,14 @@ const AIOAgentsModule = () => {
             const charlieIdx = commandPath.findIndex(l => l === (activeRun.intake_agent || 'CHARLIE'));
             const alphaIdx = commandPath.findIndex(l => l === (activeRun.dispatcher_agent || 'ALPHA'));
             const targetIdx = commandPath.findIndex(l => l === (activeRun.executing_agent || activeRun.requested_agent || 'TARGET AGENT'));
-            const flowIdx = commandPath.findIndex(l => l?.startsWith('FLOW '));
-            const resultIdx = commandPath.length - 1;
 
             const getNodeState = (idx) => {
-              if (hasFailed) {
-                return idx >= resultIdx - 1 ? 'failed' : 'completed';
-              }
-              if (isCompleted) {
-                return idx === resultIdx - 1 ? 'completed' : idx < resultIdx - 1 ? 'completed' : 'completed';
-              }
+              if (hasFailed) return idx >= commandPath.length - 2 ? 'failed' : 'completed';
+              if (isCompleted) return 'completed';
               if (!isInProgress) return 'idle';
-              
-              const maxActiveIdx = Math.max(
-                charlieIdx >= 0 ? charlieIdx : -1,
-                alphaIdx >= 0 ? alphaIdx : -1,
-                targetIdx >= 0 ? targetIdx : -1
-              );
-              
+              const maxActiveIdx = Math.max(charlieIdx, alphaIdx, targetIdx);
               if (idx === maxActiveIdx) return 'active';
               if (idx < maxActiveIdx) return 'completed';
-              if (idx === resultIdx) return 'pending';
               return 'pending';
             };
 
@@ -1032,97 +996,98 @@ const AIOAgentsModule = () => {
           })();
 
           return (
-            <div className="flex-1 min-h-0 flex gap-2 p-1.5 overflow-hidden relative">
+            <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-hidden relative">
               <style>{`
                 @keyframes route-flow {
                   0% { transform: translateX(-10%); opacity: 0.25; }
                   40% { opacity: 0.8; }
                   100% { transform: translateX(110%); opacity: 0.2; }
                 }
-                .route-flow {
-                  animation: route-flow linear infinite;
-                }
-                @keyframes node-pulse {
-                  0%, 100% { box-shadow: 0 0 18px rgba(59, 130, 246, 0.25); }
-                  50% { box-shadow: 0 0 32px rgba(59, 130, 246, 0.45); }
-                }
-                .node-active {
-                  animation: node-pulse 1.5s ease-in-out infinite;
-                }
+                .route-flow { animation: route-flow linear infinite; }
               `}</style>
+              
               {/* LEFT - Command Islands */}
-              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-3 lg:p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] flex flex-col gap-3 shadow-sm overflow-hidden">
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-primary)]/40 flex flex-col gap-4 shadow-inner overflow-hidden">
 
                 {/* ISLAND 1 — ALPHA */}
                 {alpha && (
                   <div
                     onClick={() => { setActiveAgent(alpha); setActiveRun(null); setView('command'); }}
-                    className="group shrink-0 cursor-pointer rounded-[var(--radius-panel)] border border-green-500/30 bg-gradient-to-br from-green-500/10 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shadow-[0_18px_32px_rgba(0,0,0,0.28),0_0_28px_rgba(34,197,94,0.10),inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    className="group shrink-0 cursor-pointer rounded-[var(--radius-panel)] border border-green-500/30 bg-gradient-to-br from-green-500/10 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shadow-[var(--shadow-island)]"
                   >
-                    <div className="px-4 py-3 flex items-center gap-3 border-b border-green-500/10">
-                      {/* Avatar */}
+                    <div className="px-4 py-3 flex items-center gap-4 border-b border-green-500/10">
                       <div className="relative shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-green-500/10 border-2 border-green-500/40 flex items-center justify-center text-sm font-black text-green-400 shadow-[0_0_18px_rgba(34,197,94,0.2)]">
+                        <div className={`w-12 h-12 rounded-full ${HQ_AGENT_STYLE.bg} border-2 ${HQ_AGENT_STYLE.border} flex items-center justify-center text-sm font-black ${HQ_AGENT_STYLE.icon}`}>
                           AL
                         </div>
-                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-[var(--color-bg-secondary)] shadow-[0_0_6px_rgba(34,197,94,0.8)]" />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white dark:border-[var(--color-bg-secondary)]" />
                       </div>
 
-                      {/* Identity */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h2 className="text-base font-black text-[var(--color-text-primary)] tracking-wide">{alpha.name || 'ALPHA'}</h2>
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-[0.2em] bg-green-500/15 text-green-400 border border-green-500/30">
-                            System Layer
+                          <h2 className="text-base font-black text-[var(--color-text-primary)] tracking-wide">{alpha.name}</h2>
+                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-[0.2em] bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/30">
+                            HQ Layer
                           </span>
                         </div>
-                        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold">AGT-CMD-001 - HQ</p>
-                        <p className="mt-1 text-[8px] text-green-300/80 uppercase tracking-[0.22em] font-mono">
-                          {activeRun ? `SYSTEM ${sessionStatusLabel} • ${activeRunAgent || 'ROUTING'}` : 'SYSTEM IDLE • ENTRY POINT READY'}
-                        </p>
+                        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold">AGT-CMD-001</p>
                       </div>
 
-                      {/* Action */}
-                      <div className="flex items-center justify-end gap-2 shrink-0 min-w-[340px]">
-                        <div className="rounded border border-green-500/15 bg-black/20 px-2.5 py-2 text-right text-[8px] font-mono uppercase tracking-[0.18em]">
-                          <div className="text-green-200/45">Routing</div>
-                          <div className="mt-1 text-green-300 whitespace-nowrap">{selectedRoute?.source || 'Operator'} → {activeRun?.intake_agent || 'Charlie'}</div>
+                      <div className="flex items-center justify-end gap-3 shrink-0">
+                        <div className="rounded border border-[var(--color-border)] bg-black/5 px-2.5 py-1.5 text-right font-mono">
+                          <div className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)]">Routing</div>
+                          <div className="text-[10px] text-green-600 dark:text-green-400 font-bold whitespace-nowrap">{selectedRoute?.source || 'USER'} → {activeRun?.intake_agent || 'CHARLIE'}</div>
                         </div>
-                        <div className="rounded border border-green-500/15 bg-black/20 px-2.5 py-2 text-right text-[8px] font-mono uppercase tracking-[0.18em]">
-                          <div className="text-green-200/45">Summary</div>
-                          <div className="mt-1 text-green-300 whitespace-nowrap">{hasActiveRun ? (activeRunCommand || activeRunStatus) : 'Awaiting command'}</div>
+                        <div className="rounded border border-[var(--color-border)] bg-black/5 px-2.5 py-1.5 text-right font-mono">
+                          <div className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)]">Status</div>
+                          <div className="text-[10px] text-green-600 dark:text-green-400 font-bold whitespace-nowrap uppercase">{sessionStatusLabel}</div>
                         </div>
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="px-2 py-1 rounded-full border border-green-500/20 bg-green-500/10 text-[8px] font-black uppercase tracking-[0.22em] text-green-300">
-                            {sessionStatusLabel}
-                          </span>
-                          <div className="text-yellow-400/70 text-[8px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                            Open <ArrowRight size={8} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="px-4 py-2 bg-yellow-500/5 border-t border-green-500/10">
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[8px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] flex items-center gap-1 mr-1">
-                          <Users size={8} /> Direct ({alphaRegistry?.subordinates?.length || 0}):
-                        </span>
-                        {(alphaRegistry?.subordinates || []).map(key => (
-                          <span
-                            key={key}
-                            className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:border-[var(--color-primary)]/30 hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
-                          >
-                            {key}
-                          </span>
-                        ))}
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* ISLAND 2 — SPECIALIST ARENA */}
-                <div className="flex-1 min-h-0 rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 p-3 flex flex-col overflow-hidden shadow-[0_12px_24px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.03)]">
+                {/* Monitors grid */}
+                <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+                   <div className="flex flex-col bg-[var(--color-bg-primary)] dark:bg-[#0a0a14] rounded-[var(--radius-card)] border border-blue-500/20 overflow-hidden shadow-[var(--shadow-monitor-inner)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #1e3a8a 1px, #1e3a8a 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-blue-900/40 border-b border-blue-500/20 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)] animate-pulse"></div>
+                      CHARLIE
+                    </div>
+                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                       {activeRun ? (
+                        <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-600 dark:text-blue-300 uppercase tracking-widest flex justify-between">
+                          <span>Intake</span>
+                          <span>{selectedRoute?.source || 'OPERATOR'}</span>
+                        </div>
+                       ) : <div className="text-[8px] font-mono text-blue-500/40 p-2 text-center">No active intake</div>}
+                    </div>
+                   </div>
+
+                  <div className="flex-1 flex flex-col bg-[var(--color-bg-primary)] dark:bg-[#0a140a] rounded-[var(--radius-card)] border border-green-500/20 overflow-hidden shadow-[var(--shadow-monitor-inner)] relative">
+                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
+                    <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
+                      ALPHA
+                    </div>
+                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                       {activeRun ? (
+                        <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-600 dark:text-green-300 uppercase tracking-widest flex justify-between">
+                          <span>Stage</span>
+                          <span>{alphaStatus}</span>
+                        </div>
+                       ) : <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">No active execution</div>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Specialist Arena */}
+                <div className="h-[45%] rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 p-4 flex flex-col overflow-hidden shadow-inner">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Specialist Control</span>
+                    <span className="text-[8px] font-mono text-[var(--color-text-tertiary)]">{regularAgents.length} Active</span>
+                  </div>
                   <div className="mb-2 flex items-center justify-between gap-2 shrink-0">
                     <div className="flex items-center gap-2">
                     <Target size={10} className="text-[var(--color-primary)]" />
@@ -1191,7 +1156,7 @@ const AIOAgentsModule = () => {
 
                   <div className="relative z-10 px-4 py-2 flex items-center gap-4 border-b border-red-900/20">
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-red-950/40 border-2 border-red-800/50 flex items-center justify-center shadow-[0_0_15px_rgba(127,29,29,0.35)]">
+                      <div className={`w-10 h-10 rounded-full ${OMEGA_AGENT_STYLE.bg} border-2 ${OMEGA_AGENT_STYLE.border} flex items-center justify-center shadow-[0_0_15px_${OMEGA_AGENT_STYLE.shadow}]`}>
                         <Radiation className="w-6 h-6 text-red-400" />
                       </div>
                       <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-600/40 border-2 border-[var(--color-bg-secondary)]" />

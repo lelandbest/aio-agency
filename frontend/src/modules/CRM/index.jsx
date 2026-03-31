@@ -1191,30 +1191,30 @@ const CRMModule = ({ initialContactId = null }) => {
                             className="w-4 h-4" 
                           />
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('firstName')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-black tracking-[0.2em] text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)] transition-colors" onClick={() => handleSort('firstName')}>
                           <div className="flex items-center gap-2">
                             NAME {renderSortIcon('firstName')}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('company')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-black tracking-[0.2em] text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)] transition-colors" onClick={() => handleSort('company')}>
                           <div className="flex items-center gap-2">
                             COMPANY {renderSortIcon('company')}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('leadScore')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-black tracking-[0.2em] text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)] transition-colors" onClick={() => handleSort('leadScore')}>
                           <div className="flex items-center gap-2">
                             SCORE {renderSortIcon('leadScore')}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase">
+                        <th className="px-4 py-3 text-left text-[11px] font-black tracking-[0.2em] text-[var(--color-text-secondary)] uppercase">
                           TAGS
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('createdAt')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-black tracking-[0.2em] text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)] transition-colors" onClick={() => handleSort('createdAt')}>
                           <div className="flex items-center gap-2">
                             CREATED {renderSortIcon('createdAt')}
                           </div>
                         </th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold tracking-[0.18em] text-[var(--color-text-tertiary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)]" onClick={() => handleSort('updatedAt')}>
+                        <th className="px-4 py-3 text-left text-[11px] font-black tracking-[0.2em] text-[var(--color-text-secondary)] uppercase cursor-pointer hover:text-[var(--color-text-primary)] transition-colors" onClick={() => handleSort('updatedAt')}>
                           <div className="flex items-center gap-2">
                             UPDATED {renderSortIcon('updatedAt')}
                           </div>
@@ -2896,7 +2896,7 @@ const CRMModule = ({ initialContactId = null }) => {
 
   // MAIN RENDER
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col gap-4 overflow-hidden relative">
       <input
         ref={importInputRef}
         type="file"
@@ -2908,9 +2908,9 @@ const CRMModule = ({ initialContactId = null }) => {
       <ModuleHeader
         showTitle={false}
         leftActions={[
-          { label: 'Create Contact', icon: Plus, onClick: () => setShowCreateModal(true), variant: 'primary', color: 'primary' },
-          { label: 'Import', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', color: 'slate' },
-          { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary', color: 'slate' },
+          { label: '+ ADD CONTACT', icon: Plus, onClick: () => setShowCreateModal(true), variant: 'primary' },
+          { label: 'Import', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', groupStart: true },
+          { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary' },
         ]}
         toolbarLeftSlot={
           selectedContact ? (
@@ -2945,6 +2945,15 @@ const CRMModule = ({ initialContactId = null }) => {
         ]}
         toolbarRightSlot={
           <div className="flex items-center gap-2">
+            {selectedContacts.size > 0 && (
+              <button 
+                onClick={() => handleBulkAction('delete')} 
+                className="flex items-center gap-2 px-3 h-8 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-bold rounded border border-red-500/30 transition shadow-sm mr-2"
+              >
+                <Trash2 size={12} />
+                <span>DELETE ({selectedContacts.size})</span>
+              </button>
+            )}
             {/* Verify Dropdown - Left side */}
             <div className="relative group">
               <button className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
@@ -2993,44 +3002,10 @@ const CRMModule = ({ initialContactId = null }) => {
                 </div>
               </div>
             </div>
-            {emailVerificationStatusBadge && (
-              <span className={`px-2 py-1 rounded-full border text-[10px] uppercase tracking-wider ${emailVerificationStatusBadge.color === 'success' ? 'border-green-500/40 bg-green-500/15 text-green-400' : emailVerificationStatusBadge.color === 'warning' ? 'border-yellow-500/40 bg-yellow-500/15 text-yellow-400' : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
-                {emailVerificationStatusBadge.label}
-              </span>
-            )}
           </div>
         }
         showActions={true}
-        aiAssistSlot={(
-          <>
-            {selectedContacts.size > 0 && (
-              <button onClick={() => handleBulkAction('delete')} className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm">
-                <Trash2 size={14} />
-                <span>DELETE SELECTED ({selectedContacts.size})</span>
-              </button>
-            )}
-            <button
-              onClick={openAIAssist}
-              className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
-              title="Brain"
-            >
-              <Brain size={16} />
-            </button>
-          </>
-        )}
-        executeSlot={(
-          <button
-            onClick={() => {
-              const selectedId = Array.from(selectedContacts)[0];
-              if (selectedId) openContactThread(selectedId, 'email');
-            }}
-            disabled={selectedContacts.size === 0}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
-            title="Execute"
-          >
-            <Crosshair size={16} />
-          </button>
-        )}
+        onModuleAi={() => openAIAssist({ context: { module: 'crm', selectedCount: selectedContacts.size, selectedContactId: selectedContact?.id } })}
         hasSelection={selectedContacts.size > 0}
       />
 
@@ -3039,7 +3014,7 @@ const CRMModule = ({ initialContactId = null }) => {
         {/* Alert Pills */}
         {!canUseEmailVerification ? (
           <div className="px-4 py-2">
-            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-200">
               Email verification is unavailable until Reoon is configured for this workspace.
             </div>
           </div>

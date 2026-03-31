@@ -659,10 +659,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [paymentProviderForm, setPaymentProviderForm] = useState(() => createPaymentProviderDraft(getProviderConfig('stripe')));
   const [paymentConfigEditing, setPaymentConfigEditing] = useState(false);
 
-  const [mediaProviderConfigs, setMediaProviderConfigs] = useState([]);
-  const [selectedMediaProviderKey, setSelectedMediaProviderKey] = useState(null);
-  const [mediaProviderForm, setMediaProviderForm] = useState({});
-  const [mediaProviderConfigEditing, setMediaProviderConfigEditing] = useState(false);
+
 
   const [aiProviderCatalog, setAiProviderCatalog] = useState(() => getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS));
   const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
@@ -743,13 +740,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
       setAutomationProviderConfigs([]);
-    }
-
-    try {
-      setMediaProviderConfigs(await getMediaProviderConfigsApi());
-    } catch (error) {
-      nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setMediaProviderConfigs([]);
     }
 
     try {
@@ -2617,7 +2607,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 setPanelOpen(true);
               }
             },
-            variant: 'primary'
+            variant: 'secondary'
           },
           { label: 'Refresh', icon: RefreshCw, onClick: loadAll, variant: 'secondary' }
         ]}

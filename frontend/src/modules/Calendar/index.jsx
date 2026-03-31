@@ -1010,18 +1010,18 @@ const CalendarModule = ({ clientMode = false }) => {
                 className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded text-sm font-medium flex items-center gap-2"
               >
                 <Plus size={16} />
-                Create Meeting Type
+                + ADD EVENT
               </button>
             </div>
             <div className="border border-[var(--color-border)] rounded-lg overflow-hidden bg-[var(--color-bg-primary)]">
               <table className="w-full text-left text-sm">
-                <thead className="bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] text-xs uppercase font-bold tracking-wider">
+                <thead className="bg-[var(--color-bg-primary)] border-b border-[var(--color-border)] text-[var(--color-text-secondary)] text-[11px] uppercase font-black tracking-[0.2em]">
                   <tr>
-                    <th className="p-4">Name</th>
-                    <th className="p-4">Duration</th>
-                    <th className="p-4">Location</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Actions</th>
+                    <th className="p-4">NAME</th>
+                    <th className="p-4">DURATION</th>
+                    <th className="p-4">LOCATION</th>
+                    <th className="p-4">STATUS</th>
+                    <th className="p-4 text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
@@ -1378,7 +1378,7 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   return (
-    <div className="calendar-surface h-full flex flex-col relative rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)] shadow-island bg-[var(--color-bg-secondary)]">
+    <div className="calendar-surface h-full flex flex-col gap-4 overflow-hidden relative">
       <ModuleHeader
         showTitle={false}
         showActions={true}
@@ -1398,11 +1398,11 @@ const CalendarModule = ({ clientMode = false }) => {
             variant: 'secondary'
           }] : []),
           {
-            label: 'Create Event',
+            label: '+ ADD EVENT',
             icon: Plus,
             onClick: handleCreateEvent,
             variant: 'primary',
-            color: 'primary'
+            groupStart: true
           }
         ]}
         toolbarCenterSlot={
@@ -1441,7 +1441,7 @@ const CalendarModule = ({ clientMode = false }) => {
         }
       />
 
-      <div className="flex-1 min-h-0 p-2">
+      <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden">
         <div className="h-full flex-1 min-h-0 overflow-hidden relative">
         {loading ? (
           <div className="flex items-center justify-center h-full">

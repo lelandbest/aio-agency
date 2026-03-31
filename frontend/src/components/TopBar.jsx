@@ -171,7 +171,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                 </button>
                 {TitleIcon && (
                     <div className="w-10 h-10 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0">
-                        <TitleIcon size={20} className="text-sky-400" />
+                        <TitleIcon size={20} className="text-[var(--color-primary)]" />
                     </div>
                 )}
                 <div className="min-w-0">

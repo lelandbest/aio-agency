@@ -583,26 +583,82 @@ class BaseAudioRenderProvider(ABC):
         raise NotImplementedError
 
 
-class StubRenderProvider(BaseRenderProvider):
+class RemotionLocalRenderProvider(BaseRenderProvider):
     provider_id = "stub-render"
 
     def renderMedia(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        import json
+        import subprocess
+        import os
+        from pathlib import Path
+
         title = clean_text(payload.get("title")) or clean_text(job.get("title")) or "Generated Video"
+        audioUrl = clean_text(payload.get("audioUrl") or payload.get("sourceUrl") or payload.get("audio_url") or payload.get("source_url"))
+        transcript = clean_text(payload.get("transcript"))
+        branding = payload.get("branding")
+        
+        props = {}
+        if title:
+            props["title"] = title
+        if audioUrl:
+            props["audioUrl"] = audioUrl
+        if transcript:
+            props["transcript"] = transcript
+        if branding:
+            props["branding"] = branding
+
+        job_id = clean_text(job.get("id")) or unique_id("video")
+        video_filename = f"{job_id}.mp4"
+        video_dir = Path(__file__).resolve().parent / "data" / "video"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        video_path = video_dir / video_filename
+
+        frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+        remotion_cmd = [
+            "npx.cmd" if os.name == "nt" else "npx",
+            "remotion",
+            "render",
+            "remotion/index.ts",
+            "VideoComposition",
+            str(video_path),
+            "--props",
+            json.dumps(props),
+            "--log=info"
+        ]
+
+        try:
+            result = subprocess.run(
+                remotion_cmd,
+                cwd=str(frontend_dir),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            raise ValueError(f"Remotion render failed: {e.stderr or e.stdout}")
+        except Exception as e:
+            raise ValueError(f"Failed to execute Remotion: {str(e)}")
+
+        if not video_path.exists():
+            raise ValueError("Remotion render succeeded but output file is missing.")
+            
         return {
             "assets": [
                 {
-                    "asset_type": clean_text(payload.get("asset_type")) or "render_output",
-                    "media_type": clean_text(payload.get("media_type")) or "video",
+                    "asset_type": clean_text(payload.get("assetType") or payload.get("asset_type")) or "render_output",
+                    "media_type": clean_text(payload.get("mediaType") or payload.get("media_type")) or "video",
                     "title": title,
-                    "source_url": clean_text(payload.get("output_url")) or None,
+                    "source_url": f"/api/media/video/{video_filename}",
                     "metadata": {
-                        "stub": True,
+                        "provider": "RemotionLocalRenderProvider",
                         "script": clean_text(payload.get("script")),
-                        "render_profile": clean_text(payload.get("render_profile")) or "foundation",
+                        "renderProfile": clean_text(payload.get("renderProfile") or payload.get("render_profile")) or "foundation",
                     },
                 }
             ],
-            "message": "Render job completed through the stub media provider.",
+            "message": "Render job completed through the Remotion local media provider.",
         }
 
 
@@ -621,23 +677,28 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
                 "message": "Transcript normalized from provided text.",
             }
         
-        api_key = clean_text(payload.get("api_key"))
-        if not api_key:
-            raise ValueError("ElevenLabs Scribe API key is missing.")
-        
+        try:
+            import os
+            apiKey = os.getenv("ELEVEN_LABS_API_KEY")
+        except Exception:
+            apiKey = None
+
+        if not apiKey:
+            raise ValueError("ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.")
+
         audio_url = clean_text(payload.get("source_url"))
         if not audio_url:
             raise ValueError("ElevenLabs Scribe requires source_url for live transcription.")
-        
+
         import urllib.request
         import urllib.error
         import json
-        
+
         request_id = job.get("id", "transcribe")
-        
+
         upload_url = f"{self.BASE_URL}/v1/scribe/upload"
         headers = {
-            "xi-api-key": api_key,
+            "xi-api-key": apiKey,
         }
         
         try:
@@ -887,38 +948,121 @@ class StubRunOfShowProvider(BaseRunOfShowProvider):
 
 class ElevenLabsTTSProvider(BaseAudioRenderProvider):
     provider_id = "elevenlabs_tts"
+    BASE_URL = "https://api.elevenlabs.io"
+    DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+    _VOICE_NAME_MAP: dict[str, str] = {
+        "rachel": "21m00Tcm4TlvDq8ikWAM",
+        "domi": "AZnzlk1XvdvUeBnXmlld",
+        "bella": "EXAVITQu4vr4xnSDxMaL",
+        "adam": "pNInz6obpgDQGcFmaJgB",
+        "sarah": "EXAVITQu4vr4xnSDxMaL",
+        "antoni": "ErXwobaYiN019PkySvjV",
+    }
+
+    def _resolve_voice_id(self, voice: str) -> str:
+        if not voice:
+            return self.DEFAULT_VOICE_ID
+        lower = voice.strip().lower()
+        if lower in self._VOICE_NAME_MAP:
+            return self._VOICE_NAME_MAP[lower]
+        return voice.strip() or self.DEFAULT_VOICE_ID
 
     def renderAudio(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        import urllib.request
+        import urllib.error
+        import os
+
         text = clean_text(payload.get("text") or payload.get("script_text") or payload.get("script"))
         if not text:
             raise ValueError("Audio render requires text or script input.")
+
+        try:
+            apiKey = os.getenv("ELEVEN_LABS_API_KEY")
+        except Exception:
+            apiKey = None
+
+        if not apiKey:
+            raise ValueError("ElevenLabs TTS provider is not configured. Add ELEVEN_LABS_API_KEY to environment.")
+
         voice = clean_text(payload.get("voice")) or "Rachel"
-        style = clean_text(payload.get("style")) or "conversational"
+        voice_id = self._resolve_voice_id(voice)
         title = clean_text(payload.get("title")) or clean_text(job.get("title")) or "Voice Render"
+
+        url = f"{self.BASE_URL}/v1/text-to-speech/{voice_id}"
+        request_body = json.dumps({
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            url,
+            data=request_body,
+            headers={
+                "xi-api-key": apiKey,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response:
+                audio_bytes = response.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise ValueError("ElevenLabs API key is invalid.")
+            elif e.code == 422:
+                raise ValueError("ElevenLabs rejected the request. Check voice ID or text content.")
+            elif e.code == 429:
+                raise ValueError("ElevenLabs API quota exceeded or rate limited.")
+            else:
+                body_text = ""
+                try:
+                    body_text = e.read().decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+                raise ValueError(f"ElevenLabs TTS request failed ({e.code}): {body_text or e.reason}")
+        except Exception as e:
+            raise ValueError(f"ElevenLabs TTS connection error: {str(e)}")
+
+        if not audio_bytes:
+            raise ValueError("ElevenLabs returned an empty audio response.")
+
+        audio_dir = Path(__file__).resolve().parent / "data" / "audio"
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        job_id = clean_text(job.get("id")) or unique_id("audio")
+        filename = f"{job_id}.mp3"
+        audio_path = audio_dir / filename
+        audio_path.write_bytes(audio_bytes)
+
         return {
             "assets": [
                 {
                     "asset_type": "audio_render",
                     "media_type": "audio",
                     "title": title,
-                    "source_url": clean_text(payload.get("output_url")) or None,
+                    "source_url": f"/api/media/audio/{filename}",
                     "metadata": {
-                        "provider_mode": "foundation_stub",
+                        "provider": self.provider_id,
                         "voice": voice,
-                        "style": style,
-                        "script_excerpt": text[:240],
+                        "voiceId": voice_id,
+                        "modelId": "eleven_monolingual_v1",
+                        "mimeType": "audio/mpeg",
+                        "fileSizeBytes": len(audio_bytes),
+                        "scriptExcerpt": text[:240],
                     },
                 }
             ],
-            "message": "Audio render completed through the ElevenLabs TTS foundation provider.",
+            "message": "Audio render completed via ElevenLabs TTS.",
         }
+
 
 
 class MediaEngine:
     def __init__(self, store: MediaStateStore | None = None) -> None:
         self.store = store or MediaStateStore()
         self.render_providers: dict[str, BaseRenderProvider] = {
-            StubRenderProvider.provider_id: StubRenderProvider(),
+            RemotionLocalRenderProvider.provider_id: RemotionLocalRenderProvider(),
         }
         self.transcription_providers: dict[str, BaseTranscriptionProvider] = {
             ElevenLabsScribeTranscriptionProvider.provider_id: ElevenLabsScribeTranscriptionProvider(),
@@ -1235,7 +1379,7 @@ class MediaEngine:
             return {"job": failed, "artifact": None}
 
     def render_media(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        provider_id = clean_text(payload.get("provider")) or StubRenderProvider.provider_id
+        provider_id = clean_text(payload.get("provider")) or RemotionLocalRenderProvider.provider_id
         provider = self.render_providers.get(provider_id)
         if not provider:
             raise ValueError(f"Unknown render provider '{provider_id}'.")

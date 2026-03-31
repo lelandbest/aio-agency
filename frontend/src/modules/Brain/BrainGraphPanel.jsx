@@ -108,6 +108,16 @@ const BrainAnimations = () => (
     .breathing-surface {
       animation: breathing-grid 10s ease-in-out infinite;
     }
+    @keyframes text-glitch {
+      0%, 94%, 100% { opacity: 1; transform: skew(0deg); }
+      95% { opacity: 0.8; transform: skew(3deg) translateX(1px); text-shadow: 1px 0 #fb7185, -1px 0 #0891b2; }
+      96% { opacity: 1; transform: skew(-3deg) translateX(-1px); text-shadow: -1px 0 #fb7185, 1px 0 #0891b2; }
+      97% { opacity: 0.7; transform: skew(0deg); }
+      98% { opacity: 1; }
+    }
+    .animate-text-glitch {
+      animation: text-glitch 4s ease-in-out infinite;
+    }
     .font-ethnocentric {
       font-family: "Ethnocentric", "Inter", sans-serif;
     }
@@ -164,8 +174,6 @@ export default function BrainGraphPanel({
       const baseX = nodePositions[node.id]?.x ?? node.x;
       const baseY = nodePositions[node.id]?.y ?? node.y;
       
-      // Radial Pulse (Fractal/Kaleidoscope effect)
-      // Only for non-profile nodes
       if (node.id === 'profile') return { ...node, x: baseX, y: baseY };
       
       const dx = baseX - 50;
@@ -173,10 +181,7 @@ export default function BrainGraphPanel({
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist === 0) return { ...node, x: baseX, y: baseY };
       
-      // Calculate a staggered pulse + organic drift
       const pulseAmount = Math.sin(time + dist * 0.1 + (node.id.length * 0.5)) * 1.5;
-      
-      // Organic Drift (Slow Brownian-like motion)
       const driftX = Math.sin(time * 0.5 + node.id.length) * 1.2;
       const driftY = Math.cos(time * 0.4 + node.id.length) * 1.2;
       
@@ -304,17 +309,18 @@ export default function BrainGraphPanel({
       <div className="absolute inset-0 pointer-events-none breathing-surface" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '40px 40px' }} />
       
+      {/* Smoked Glass Overlay (Project Standard) */}
       {!interactionArmed && (
         <div className="overlay-scrim absolute inset-0 z-[200] flex flex-col items-center justify-center transition-all duration-700 pointer-events-none">
-              <div className="text-[40px] font-black tracking-[0.5em] text-slate-100/90 font-ethnocentric selection:bg-sky-500/20 mb-8">AIO CORTEX</div>
-              <div className="text-[14px] font-black tracking-[0.4em] text-sky-400 animate-pulse" style={{ textShadow: '0 0 10px rgba(56, 189, 248, 0.8)' }}>CLICK TO ENTER NEURAL NETWORK</div>
+           <div className="text-[40px] font-black tracking-[0.5em] text-slate-100/90 font-ethnocentric selection:bg-sky-500/20 mb-8">AIO CORTEX</div>
+           <div className="text-[21px] font-black tracking-[0.4em] text-sky-400 animate-text-glitch uppercase whitespace-nowrap" style={{ textShadow: '0 0 10px rgba(56, 189, 248, 0.8)' }}>CLICK TO ENTER NEURAL NETWORK</div>
         </div>
       )}
 
       {/* Header Overlay */}
       <div className="absolute top-8 left-8 z-40 space-y-1 pointer-events-none">
-        <div className="text-[13px] font-black uppercase tracking-[0.5em] text-cyan-500/60">Cortex v4</div>
-        <div className="text-[22px] font-black uppercase tracking-[0.2em] text-slate-500 font-ethnocentric">AIO CORTEX</div>
+        <div className="text-[13px] font-black uppercase tracking-[0.3em] text-cyan-500/60">Cortex v4</div>
+        <div className="text-[22px] font-black uppercase text-slate-500 font-ethnocentric">AIO CORTEX</div>
       </div>
 
       {/* Interactive Legend */}
@@ -343,7 +349,7 @@ export default function BrainGraphPanel({
         onWheel={(e) => setZoom(z => Math.max(0.5, Math.min(2, z + (e.deltaY < 0 ? 0.05 : -0.05))))}
       >
         <div
-          className="absolute inset-0 origin-center transition-transform duration-100 workspace-floating"
+          className={`absolute inset-0 origin-center transition-transform duration-100 workspace-floating ${!interactionArmed ? 'blur-md grayscale-[0.5]' : ''}`}
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
         >
           <svg className="absolute inset-0 h-full w-full pointer-events-none" style={{ shapeRendering: 'geometricPrecision' }}>
@@ -395,7 +401,6 @@ export default function BrainGraphPanel({
                     <span className="text-[14px] font-black tracking-[0.2em] text-white opacity-100 font-ethnocentric z-10" style={{ textShadow: '0 0 10px rgba(56, 189, 248, 0.8)' }}>AIO</span>
                   </div>
                 )}
-                {/* Check icon for items? No, user didn't ask. */}
               </div>
               {/* Label on Hover */}
               <div className="floating-surface absolute top-full left-1/2 z-50 mt-2 -translate-x-1/2 rounded-[var(--radius-card)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest opacity-0 group-hover/node:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">

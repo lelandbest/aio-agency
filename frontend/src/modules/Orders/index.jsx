@@ -57,7 +57,7 @@ const OrdersModule = () => {
   };
 
   return (
-    <div className="h-full flex flex-col relative bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] overflow-hidden border border-[var(--color-border)]">
+    <div className="h-full flex flex-col gap-4 relative overflow-hidden">
       <ModuleHeader
         showTitle={false}
         leftActions={[
@@ -127,7 +127,7 @@ const OrdersModule = () => {
         )}
         hasSelection={false}
       />
-      <div className="flex-1 min-h-0 p-2">
+      <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden p-2">
         <div className="h-full flex-1 overflow-auto p-4 relative">
         {loading ? (
           <div className="text-center text-gray-500 mt-10">Loading Orders...</div>

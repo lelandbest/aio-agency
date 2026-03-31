@@ -249,3 +249,39 @@ export const VISIBLE_SPECIALIST_KEYS = Object.keys(SPECIALIST_REGISTRY).filter(
 export const HIDDEN_SPECIALIST_KEYS = Object.keys(SPECIALIST_REGISTRY).filter(
   (key) => SPECIALIST_REGISTRY[key].visibility === 'hidden'
 );
+export const ROW_COLOR_LANES = [
+  [
+    { bg: 'bg-blue-950/50', border: 'border-blue-600/40', shadow: 'rgba(37,99,235,0.2)', icon: 'text-blue-300' },
+    { bg: 'bg-blue-900/50', border: 'border-blue-500/40', shadow: 'rgba(59,130,246,0.2)', icon: 'text-blue-200' },
+    { bg: 'bg-blue-800/45', border: 'border-blue-400/40', shadow: 'rgba(96,165,250,0.22)', icon: 'text-blue-200' },
+  ],
+  [
+    { bg: 'bg-cyan-950/50', border: 'border-cyan-600/40', shadow: 'rgba(8,145,178,0.2)', icon: 'text-cyan-300' },
+    { bg: 'bg-cyan-900/50', border: 'border-cyan-500/40', shadow: 'rgba(6,182,212,0.2)', icon: 'text-cyan-200' },
+    { bg: 'bg-cyan-800/45', border: 'border-cyan-400/40', shadow: 'rgba(34,211,238,0.22)', icon: 'text-cyan-200' },
+  ],
+  [
+    { bg: 'bg-emerald-950/45', border: 'border-emerald-600/40', shadow: 'rgba(16,185,129,0.2)', icon: 'text-emerald-300' },
+    { bg: 'bg-emerald-900/45', border: 'border-emerald-500/40', shadow: 'rgba(16,185,129,0.2)', icon: 'text-emerald-200' },
+    { bg: 'bg-emerald-800/45', border: 'border-emerald-400/40', shadow: 'rgba(52,211,153,0.22)', icon: 'text-emerald-200' },
+  ],
+  [
+    { bg: 'bg-amber-950/45', border: 'border-amber-600/40', shadow: 'rgba(217,119,6,0.2)', icon: 'text-amber-300' },
+    { bg: 'bg-amber-900/45', border: 'border-amber-500/40', shadow: 'rgba(245,158,11,0.2)', icon: 'text-amber-200' },
+    { bg: 'bg-amber-800/45', border: 'border-amber-400/40', shadow: 'rgba(251,191,36,0.22)', icon: 'text-amber-200' },
+  ],
+];
+
+export const HQ_AGENT_STYLE = {
+  bg: 'bg-green-500/10',
+  border: 'border-green-500/40',
+  shadow: 'rgba(34,197,94,0.3)',
+  icon: 'text-green-600 dark:text-green-400',
+};
+
+export const OMEGA_AGENT_STYLE = {
+  bg: 'bg-red-950/40',
+  border: 'border-red-800/50',
+  shadow: 'rgba(127,29,29,0.35)',
+  icon: 'text-red-400',
+};

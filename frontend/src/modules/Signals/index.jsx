@@ -497,16 +497,16 @@ const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false, c
   }[color] || 'text-purple-400';
 
   return (
-    <div className={`flex items-center gap-2.5 bg-black/15 rounded-xl border border-white/5 ${compact ? 'min-w-[170px] shrink-0 px-3 py-2' : 'px-3 py-2'}`}>
+    <div className={`flex items-center gap-2 bg-[var(--color-bg-primary)]/40 rounded-lg border border-[var(--color-border)]/20 ${compact ? 'min-w-[140px] shrink-0 px-4 py-1.5' : 'px-4 py-2'}`}>
       <div className={`${colorClass} shrink-0`}>
-        <Icon size={15} />
+        <Icon size={12} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-500">{title}</p>
-        <p className="text-sm font-black text-white">{value}</p>
+        <p className="text-[7px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">{title}</p>
+        <p className="text-[12px] font-black text-[var(--color-text-primary)]">{value}</p>
       </div>
       {live && (
-        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
+        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
       )}
     </div>
   );
@@ -585,24 +585,32 @@ const SignalsModule = () => {
     loadEngineData();
   }, []);
 
-  const quickActions = [
-    { id: 'new-contact', label: 'New Contact', icon: Users, action: { type: 'open_module', payload: { module: 'crm' } } },
-    { id: 'send-msg', label: 'Send Message', icon: Send, action: { type: 'open_module', payload: { module: 'chat' } } },
-    { id: 'new-deal', label: 'New Deal', icon: Crosshair, action: { type: 'open_module', payload: { module: 'pipelines' } } },
-  ];
-
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
+    <div className="h-full min-h-0 flex flex-col gap-4 overflow-hidden relative">
       <ModuleHeader
         showTitle={false}
-        leftActions={quickActions.map(action => ({
-          label: action.label,
-          icon: action.icon,
-          onClick: () => runSignalAction(action.action),
-          variant: 'secondary'
-        }))}
+        leftActions={[
+          { 
+            label: '+ ADD CONTACT', 
+            icon: Users, 
+            onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'crm' } }),
+            variant: 'primary' 
+          },
+          { 
+            label: '+ ADD DEAL', 
+            icon: Crosshair, 
+            onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'pipelines' } }),
+            variant: 'secondary' 
+          },
+          { 
+            label: 'OPEN COMMS', 
+            icon: Send, 
+            onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'chat' } }),
+            variant: 'secondary' 
+          },
+        ]}
         toolbarLeftSlot={(
-          <div className="ml-2">
+          <div className="ml-2 flex items-center">
             <PulseBand stats={stats} compact />
           </div>
         )}
@@ -611,63 +619,48 @@ const SignalsModule = () => {
             {!loading ? <SignalSummaryStrip signals={signals} compact /> : null}
           </div>
         )}
-        aiAssistSlot={(
-          <button
-            onClick={openAIAssist}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
-            title="Brain"
-          >
-            <Brain size={16} />
-          </button>
-        )}
-        executeSlot={(
-          <button
-            disabled={true}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
-            title="Execute"
-          >
-            <Crosshair size={16} />
-          </button>
-        )}
+        onModuleAi={() => openAIAssist({ context: { module: 'signals', surface: 'toolbar_heuristics', stats } })}
         hasSelection={false}
       />
 
-      <div className="flex-1 min-h-0 p-6 bg-gradient-to-b from-transparent to-black/10">
+      <div className="flex-1 min-h-0 p-6 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/[0.02] pointer-events-none" />
+        
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500">
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-[var(--color-text-tertiary)]">
             <RefreshCw className="animate-spin" size={24} />
             <p className="text-[10px] font-black uppercase tracking-[0.3em]">Syncing signal feeds...</p>
           </div>
         ) : (
-          <div className="grid h-full min-h-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] max-w-[1600px] mx-auto">
+          <div className="relative z-10 grid h-full min-h-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] max-w-[1600px] mx-auto">
             {/* Main Intelligence Grid */}
             <div className="min-h-0 overflow-y-auto no-scrollbar pr-1">
               <div className="space-y-10">
-              <section className="space-y-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-6 bg-[var(--color-primary)]" />
-                    <h2 className="text-[12px] font-black text-white uppercase tracking-[0.4em]">Priority Signals</h2>
-                  </div>
-                  <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{signals.length} Signals</span>
-                </div>
-                
-                <div className="space-y-6">
-                  {signals.length > 0 ? (
-                    signals.map(signal => (
-                      <SignalCard key={signal.id} signal={signal} />
-                    ))
-                  ) : (
-                    <div className="py-20 rounded-3xl border border-dashed border-white/5 flex flex-col items-center justify-center text-slate-600 gap-4">
-                      <TrendingUp size={48} className="opacity-20" />
-                      <div className="text-center">
-                        <p className="text-sm font-black uppercase tracking-widest">Signals Clear</p>
-                        <p className="text-[10px] uppercase tracking-widest opacity-50">No urgent items detected.</p>
-                      </div>
+                <section className="space-y-8">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-1.5 h-6 bg-[var(--color-primary)] shadow-[0_0_12px_var(--color-primary)]/30" />
+                      <h2 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.4em]">Priority Signals</h2>
                     </div>
-                  )}
-                </div>
-              </section>
+                    <span className="text-[9px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">{signals.length} Signals</span>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {signals.length > 0 ? (
+                      signals.map(signal => (
+                        <SignalCard key={signal.id} signal={signal} />
+                      ))
+                    ) : (
+                      <div className="py-20 rounded-3xl border border-dashed border-[var(--color-border)] flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-4">
+                        <TrendingUp size={48} className="opacity-20" />
+                        <div className="text-center">
+                          <p className="text-sm font-black uppercase tracking-widest">Signals Clear</p>
+                          <p className="text-[10px] uppercase tracking-widest opacity-50">No urgent items detected.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
             </div>
 

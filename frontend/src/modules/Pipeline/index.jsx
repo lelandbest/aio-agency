@@ -44,7 +44,6 @@ const ownerInitials = (owner) =>
 
 const shellPanelClass = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-island-sm';
 const innerPanelClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
-const softActionClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] shadow-island-sm';
 
 const PipelineModule = () => {
   const { openAIAssist } = useAIAssist();
@@ -325,7 +324,7 @@ const PipelineModule = () => {
   };
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <ModuleHeader
         title="Pipelines"
         showTitle={false}
@@ -341,25 +340,7 @@ const PipelineModule = () => {
             variant: 'secondary',
           },
         ]}
-        aiAssistSlot={(
-          <button
-            onClick={openAIAssist}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
-            title="Brain"
-          >
-            <Brain size={16} />
-          </button>
-        )}
-        executeSlot={(
-          <button
-            onClick={() => selectedCard && openCrmRecord(selectedCard.id)}
-            disabled={!selectedCard}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
-            title="Execute"
-          >
-            <Crosshair size={16} />
-          </button>
-        )}
+        onModuleAi={runPipelineAssist}
         hasSelection={!!selectedCard}
         toolbarRightSlot={(
           <div className="flex items-center gap-2">
@@ -377,7 +358,7 @@ const PipelineModule = () => {
         )}
       />
 
-      <div className="flex-1 min-h-0 p-2">
+      <div className="flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island p-2">
         <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
         {loading ? (
           <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
@@ -470,6 +451,7 @@ const PipelineModule = () => {
             ) : null}
           </div>
         )}
+        </div>
       </div>
 
       {selectedCard ? (
@@ -517,7 +499,6 @@ const PipelineModule = () => {
           </div>
         </div>
       ) : null}
-      </div>
     </div>
   );
 };

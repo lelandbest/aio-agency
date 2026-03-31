@@ -152,7 +152,7 @@ const normalizeRunInspector = (result, meta = {}) => {
   return {
     runId: result.runId || meta.runId || null,
     status: result.status || meta.status || 'unknown',
-    triggerType: meta.triggerType || result.triggerType || 'manual_trigger',
+    triggerType: meta.triggerType || result.triggerType || 'manualTrigger',
     startedAt: stepStartedAt[0] || meta.startedAt || null,
     finishedAt: stepCompletedAt[stepCompletedAt.length - 1] || meta.finishedAt || null,
     error: result.error || meta.error || null,
@@ -186,7 +186,7 @@ const deriveRunError = (run) => {
 
 const deriveRunTriggerType = (run) => {
   const context = getRunContextPayload(run);
-  return context?.trigger_event?.type || run?.triggerType || run?.intent || 'manual_trigger';
+  return context?.trigger_event?.type || run?.triggerType || run?.intent || 'manualTrigger';
 };
 
 const buildRerunContext = (run, flowRecord) => {
@@ -1038,22 +1038,22 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }
       const data = step?.data && typeof step.data === 'object' ? step.data : {};
       const job = data.job && typeof data.job === 'object' ? data.job : null;
-      const transcriptJob = data.transcript_job && typeof data.transcript_job === 'object' ? data.transcript_job : null;
+      const scribeWork = (data.scribeWork || data.transcript_job) && typeof (data.scribeWork || data.transcript_job) === 'object' ? (data.scribeWork || data.transcript_job) : null;
       const artifact = data.artifact && typeof data.artifact === 'object' ? data.artifact : null;
-      const transcriptArtifact = data.transcript_artifact && typeof data.transcript_artifact === 'object' ? data.transcript_artifact : null;
+      const scribeArtifact = (data.scribeArtifact || data.transcript_artifact) && typeof (data.scribeArtifact || data.transcript_artifact) === 'object' ? (data.scribeArtifact || data.transcript_artifact) : null;
       const assets = Array.isArray(data.assets) ? data.assets : [];
 
       if (job?.id) {
         logToTerminal(`created ${job.kind || 'media job'} ${job.id} (${job.status || 'unknown'})`, 'info');
       }
-      if (transcriptJob?.id) {
-        logToTerminal(`created transcript job ${transcriptJob.id} (${transcriptJob.status || 'unknown'})`, 'info');
+      if (scribeWork?.id) {
+        logToTerminal(`created scribe work ${scribeWork.id} (${scribeWork.status || 'unknown'})`, 'info');
       }
       if (artifact?.id) {
         logToTerminal(`artifact created: ${artifact.id}`, 'info');
       }
-      if (transcriptArtifact?.id) {
-        logToTerminal(`artifact created: ${transcriptArtifact.id}`, 'info');
+      if (scribeArtifact?.id) {
+        logToTerminal(`artifact created: ${scribeArtifact.id}`, 'info');
       }
       assets.forEach((asset) => {
         if (asset?.id) {

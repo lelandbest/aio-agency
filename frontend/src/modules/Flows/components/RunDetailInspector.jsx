@@ -26,10 +26,9 @@ const collectIds = (step) => {
   const jobs = [];
   const artifacts = [];
 
-  if (data.job?.id) jobs.push(data.job.id);
-  if (data.transcript_job?.id) jobs.push(data.transcript_job.id);
+  if (data.scribeWork?.id || data.transcript_job?.id) jobs.push(data.scribeWork?.id || data.transcript_job?.id);
   if (data.artifact?.id) artifacts.push(data.artifact.id);
-  if (data.transcript_artifact?.id) artifacts.push(data.transcript_artifact.id);
+  if (data.scribeArtifact?.id || data.transcript_artifact?.id) artifacts.push(data.scribeArtifact?.id || data.transcript_artifact?.id);
   if (Array.isArray(data.assets)) {
     data.assets.forEach((asset) => {
       if (asset?.id) artifacts.push(asset.id);
@@ -105,7 +104,7 @@ const SummaryCard = ({ label, run, toneClass }) => (
     <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
       <div>
         <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Trigger</div>
-        <div className="mt-1 text-[var(--color-text-primary)]">{run?.triggerType || 'manual_trigger'}</div>
+        <div className="mt-1 text-[var(--color-text-primary)]">{run?.triggerType || 'manualTrigger'}</div>
       </div>
       <div>
         <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Timestamp</div>
@@ -234,7 +233,7 @@ const RunDetailInspector = ({ run, compareRun = null, onClearCompare = null }) =
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Trigger</div>
-                  <div className="mt-1 text-[var(--color-text-primary)]">{run.triggerType || 'manual_trigger'}</div>
+                  <div className="mt-1 text-[var(--color-text-primary)]">{run.triggerType || 'manualTrigger'}</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Started</div>

@@ -809,8 +809,7 @@ const FormBuilderModule = () => {
                 label: 'Create Form',
                 icon: Plus,
                 onClick: createNewForm,
-                variant: 'primary',
-                color: 'primary'
+                variant: 'secondary'
               },
               {
                 label: 'New Folder',

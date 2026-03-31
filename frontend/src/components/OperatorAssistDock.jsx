@@ -118,7 +118,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
   return (
     <div className="pointer-events-none fixed bottom-5 right-5 z-[80] flex max-w-[min(420px,calc(100vw-1.5rem))] flex-col items-end gap-3">
       {open ? (
-        <section className={`pointer-events-auto flex h-[min(70vh,680px)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden ${FLOATING_PANEL_CLASS}`}>
+        <section className={`pointer-events-auto flex h-[min(70vh,680px)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden bg-[#0A0A0C]/95 backdrop-blur-2xl border border-[#2A2D35] shadow-[0_20px_40px_rgba(0,0,0,0.8),_inset_0_1px_1px_rgba(255,255,255,0.05)] ${FLOATING_PANEL_CLASS}`}>
           <header className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-primary)]">

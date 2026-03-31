@@ -903,6 +903,29 @@
         "message": "Render job completed through the stub media provider.",
         "asset_count": 1
       }
+    },
+    {
+      "id": "render-job-de9c4ebbef89",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-render",
+      "title": "Video",
+      "status": "failed",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Video",
+        "mediaType": "video",
+        "script": "",
+        "metadata": {
+          "prompt": ""
+        }
+      },
+      "attachments": [],
+      "output_asset_ids": [],
+      "last_error": "build_media_asset() missing 1 required keyword-only argument: 'source'",
+      "created_at": "2026-03-31T18:41:40.747946+00:00",
+      "updated_at": "2026-03-31T18:41:52.804228+00:00",
+      "started_at": "2026-03-31T18:41:40.749874+00:00",
+      "completed_at": "2026-03-31T18:41:52.794458+00:00"
     }
   ],
   "transcript_jobs": [
@@ -1546,6 +1569,31 @@
         "message": "Script job completed through the stub script provider.",
         "section_count": 3
       }
+    },
+    {
+      "id": "script-job-9d24d4bbade4",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-script",
+      "title": "Script",
+      "status": "complete",
+      "input_payload": {
+        "provider": "stub-script",
+        "title": "Script",
+        "topic": "",
+        "tone": "",
+        "duration": ""
+      },
+      "attachments": [],
+      "artifact_id": "script-artifact-cfdc6110b9af",
+      "last_error": null,
+      "created_at": "2026-03-31T18:27:27.856521+00:00",
+      "updated_at": "2026-03-31T18:27:27.883257+00:00",
+      "started_at": "2026-03-31T18:27:27.858676+00:00",
+      "completed_at": "2026-03-31T18:27:27.876041+00:00",
+      "result": {
+        "message": "Script job completed through the stub script provider.",
+        "section_count": 3
+      }
     }
   ],
   "script_artifacts": [
@@ -1730,6 +1778,43 @@
       ],
       "created_at": "2026-03-28T18:28:49.039752+00:00",
       "updated_at": "2026-03-28T18:28:49.047309+00:00"
+    },
+    {
+      "id": "script-artifact-cfdc6110b9af",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-script",
+      "title": "Script",
+      "script_text": "Title: Script\nTopic: Untitled Topic\nTone: clear\nTarget Duration: 10 minutes\nContext: General audience\n\nOpening:\nToday we are covering Untitled Topic with a clear angle tailored for General audience.\n\nMain Segment:\nBreak the story into three beats, keep the pacing aligned to roughly 10 minutes, and keep each transition explicit.\n\nClosing:\nSummarize the key point, reinforce the takeaway, and direct the audience to the next step.",
+      "structured_script": {
+        "title": "Script",
+        "topic": "Untitled Topic",
+        "tone": "clear",
+        "duration": "10 minutes",
+        "context": "General audience",
+        "sections": [
+          {
+            "id": "intro",
+            "label": "Intro",
+            "summary": "Frame Untitled Topic in a clear voice.",
+            "estimated_seconds": 45
+          },
+          {
+            "id": "body",
+            "label": "Main Segment",
+            "summary": "Expand the core talking points for a 10 minutes segment.",
+            "estimated_seconds": 360
+          },
+          {
+            "id": "cta",
+            "label": "Close",
+            "summary": "Wrap with the next action or takeaway.",
+            "estimated_seconds": 45
+          }
+        ]
+      },
+      "attachments": [],
+      "created_at": "2026-03-31T18:27:27.868286+00:00",
+      "updated_at": "2026-03-31T18:27:27.875048+00:00"
     }
   ],
   "run_of_show_jobs": [

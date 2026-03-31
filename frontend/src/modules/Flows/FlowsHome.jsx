@@ -384,8 +384,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             label: 'Create Flow',
             icon: Plus,
             onClick: handleCreateBlank,
-            variant: 'primary',
-            color: 'primary',
+            variant: 'secondary',
             disabled: Boolean(busyAction)
           },
           {

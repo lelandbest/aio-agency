@@ -1912,23 +1912,20 @@ class MediaTranscriptRequest(BaseModel):
     speakerSegments: list[dict[str, Any]] | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
-    api_key: str | None = None
-    access_key_id: str | None = None
-    secret_access_key: str | None = None
 
 
 class MediaIngestRequest(BaseModel):
     provider: str | None = None
     source: str | None = None
-    meeting_id: str | None = None
-    meeting_title: str | None = None
-    recording_files: list[dict[str, Any]] | None = None
-    drive_files: list[dict[str, Any]] | None = None
+    meetingId: str | None = None
+    meetingTitle: str | None = None
+    recordingFiles: list[dict[str, Any]] | None = None
+    driveFiles: list[dict[str, Any]] | None = None
     transcript: dict[str, Any] | None = None
-    transcript_text: str | None = None
-    speaker_segments: list[dict[str, Any]] | None = None
-    transcription_provider: str | None = None
-    auto_transcribe: bool = True
+    transcriptText: str | None = None
+    speakerSegments: list[dict[str, Any]] | None = None
+    transcriptionProvider: str | None = None
+    autoTranscribe: bool = True
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
 
@@ -1960,17 +1957,17 @@ class MediaAudioRenderRequest(BaseModel):
     text: str | None = None
     voice: str | None = None
     style: str | None = None
-    output_url: str | None = None
+    outputUrl: str | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
+    runId: str | None = None
 
 
 class MediaPublishRequest(BaseModel):
     title: str | None = None
-    publish_target: str | None = None
     publishTarget: str | None = None
-    asset_ids: list[str] | None = None
-    artifact_ids: list[str] | None = None
+    assetIds: list[str] | None = None
+    artifactIds: list[str] | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
 
@@ -4691,11 +4688,27 @@ async def create_run_of_show_job(request: Request, payload: MediaRunOfShowReques
 async def create_audio_render_job(request: Request, payload: MediaAudioRenderRequest):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create audio render jobs.")
     tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
+    provider_key = clean_text(payload.provider) or "elevenlabs_tts"
+    provider_cfg = auth_store.get_media_provider_config_by_provider_key(tenant_id, provider_key)
+    if not provider_cfg:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Media provider '{provider_key}' is not configured or not enabled for this workspace. Add it under Settings → Integrations → Media.",
+        )
+    api_key = clean_text(provider_cfg.get("apiKey"))
+    if not api_key:
+        raise HTTPException(status_code=400, detail=f"Media provider '{provider_key}' is configured but has no API key saved.")
+    body = payload.model_dump(exclude_none=True)
+    internal_payload = {**body, "api_key": api_key}
+    context: dict[str, Any] = {}
+    if payload.runId:
+        context["run_id"] = payload.runId
     try:
         result = get_media_engine().render_audio(
-            payload.model_dump(exclude_none=True),
-            tenant_id=tenant.get("id"),
-            context={},
+            internal_payload,
+            tenant_id=tenant_id,
+            context=context,
         )
         return {"data": result}
     except (ValueError, NotImplementedError) as error:

@@ -1,5 +1,12 @@
 import React from 'react';
-import { ChevronRight, Brain, Crosshair } from 'lucide-react';
+import { 
+  ChevronRight, Brain, Crosshair, HelpCircle, 
+  Search, Bell, Settings, Info, Target, 
+  Trash2, Shield, User, Zap, Mail, Plus,
+  FileInput, Download, Tag, X, ChevronLeft,
+  RefreshCw
+} from 'lucide-react';
+import { useAIAssist } from '../contexts/AIAssistContext';
 import { normalizeDisplayText } from '../utils/text';
 
 const StatusBadge = ({ statusBadge }) => {
@@ -72,7 +79,7 @@ const Actions = ({ actions }) => {
 
         return (
           <React.Fragment key={idx}>
-            {action.groupStart && (
+            {action.groupStart && idx > 0 && (
               <div className="mx-1 hidden h-6 w-px self-center rounded-[var(--radius-pill)] bg-[var(--color-border)] opacity-30 xl:block" />
             )}
             <button
@@ -116,13 +123,16 @@ const ModuleHeader = ({
   executeSlot = null,
   hasSelection = false,
   className = '',
+  onModuleAi = null,
 }) => {
+  const { openAIAssist } = useAIAssist?.() || {};
+  
   // Industrial Island Standard: 48px height, rounded corners, floating background
   return (
     <div className={`h-12 shrink-0 flex items-center justify-between gap-4 px-5 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-hidden rounded-xl shadow-island-sm transition-all duration-300 ${className}`}>
       <div className="flex items-center gap-4 min-w-0 flex-1 h-full font-bold">
-        {toolbarLeftSlot}
         {leftActions.length > 0 && <Actions actions={leftActions} />}
+        {toolbarLeftSlot}
         {TitleIcon && <TitleIcon size={16} className="text-[var(--color-primary)] flex-shrink-0" />}
         {(title && showTitle) && (
           <h1 className="text-[10px] font-black text-[var(--color-text-primary)] truncate uppercase tracking-[0.24em] leading-none">
@@ -136,11 +146,37 @@ const ModuleHeader = ({
         <div className="hidden lg:flex flex-1 justify-center items-center h-full min-w-0">{toolbarCenterSlot}</div>
       )}
 
-      <div className="flex items-center gap-3 flex-shrink-0 h-full">
+      <div className="flex items-center gap-4 flex-shrink-0 h-full">
         <div className="flex items-center gap-2">
           {toolbarRightSlot}
           {showActions && <Actions actions={actions} />}
         </div>
+        
+        {/* Standardized AI Assistance Toolbar */}
+        <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+          {/* Brain - Global Knowledge */}
+          <button
+            onClick={() => {
+              if (openAIAssist) openAIAssist();
+              else console.warn('AIAssistContext not found');
+            }}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+            title="Brain (Global KB)"
+          >
+            <Brain size={15} className="group-hover:drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]" />
+          </button>
+          
+          {/* Target - Module Specific Assistance */}
+          <button
+            onClick={() => onModuleAi?.()}
+            disabled={!onModuleAi}
+            className="p-1.5 rounded-lg text-white hover:text-emerald-400 hover:bg-emerald-500/25 transition-all group disabled:opacity-20 disabled:cursor-not-allowed"
+            title="Target (Module AI)"
+          >
+            <Target size={15} className="group-hover:drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+          </button>
+        </div>
+
         {aiAssistSlot}
         {executeSlot && (
           <div className={hasSelection ? '' : 'opacity-40 pointer-events-none'}>
