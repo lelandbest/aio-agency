@@ -1047,40 +1047,6 @@ const AIOAgentsModule = () => {
                   </div>
                 )}
 
-                {/* Monitors grid */}
-                <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
-                   <div className="flex flex-col bg-[var(--color-bg-primary)] dark:bg-[#0a0a14] rounded-[var(--radius-card)] border border-blue-500/20 overflow-hidden shadow-[var(--shadow-monitor-inner)] relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #1e3a8a 1px, #1e3a8a 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-blue-900/40 border-b border-blue-500/20 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)] animate-pulse"></div>
-                      CHARLIE
-                    </div>
-                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
-                       {activeRun ? (
-                        <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-600 dark:text-blue-300 uppercase tracking-widest flex justify-between">
-                          <span>Intake</span>
-                          <span>{selectedRoute?.source || 'OPERATOR'}</span>
-                        </div>
-                       ) : <div className="text-[8px] font-mono text-blue-500/40 p-2 text-center">No active intake</div>}
-                    </div>
-                   </div>
-
-                  <div className="flex-1 flex flex-col bg-[var(--color-bg-primary)] dark:bg-[#0a140a] rounded-[var(--radius-card)] border border-green-500/20 overflow-hidden shadow-[var(--shadow-monitor-inner)] relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
-                      ALPHA
-                    </div>
-                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
-                       {activeRun ? (
-                        <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-600 dark:text-green-300 uppercase tracking-widest flex justify-between">
-                          <span>Stage</span>
-                          <span>{alphaStatus}</span>
-                        </div>
-                       ) : <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">No active execution</div>}
-                    </div>
-                  </div>
-                </div>
 
                 {/* Specialist Arena */}
                 <div className="h-[45%] rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 p-4 flex flex-col overflow-hidden shadow-inner">
