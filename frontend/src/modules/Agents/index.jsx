@@ -1049,7 +1049,7 @@ const AIOAgentsModule = () => {
 
 
                 {/* Specialist Arena */}
-                <div className="h-[45%] rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 p-4 flex flex-col overflow-hidden shadow-inner">
+                <div className="flex-1 rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 p-4 flex flex-col overflow-hidden shadow-inner">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Specialist Control</span>
                     <span className="text-[8px] font-mono text-[var(--color-text-tertiary)]">{regularAgents.length} Active</span>
@@ -1080,11 +1080,8 @@ const AIOAgentsModule = () => {
                         <div className="bg-[var(--color-bg-secondary)] rounded-t-lg px-2 py-1.5 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2">
-                              <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center shadow-[0_0_10px_${c.shadow}]`}>
-                                <svg className={`w-4 h-4 ${c.icon}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                  <circle cx="12" cy="7" r="4" />
-                                </svg>
+                              <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center shadow-[0_0_10px_${c.shadow}] text-[9px] font-bold tracking-tighter ${c.icon}`}>
+                                {(agentKey || agent.name || '').substring(0, 2).toUpperCase()}
                               </div>
                               <div>
                                 <h3 className="text-[10px] font-bold text-[var(--color-text-primary)] leading-tight">{agent.name}</h3>

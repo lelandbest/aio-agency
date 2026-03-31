@@ -569,20 +569,20 @@ const MediaModule = () => {
                     }
 
                     return (
-                      <button
-                        onClick={() => setSelectedAgent(key)}
-                        key={key}
-                        title={key}
-                        className={`flex flex-col items-center justify-center p-1 transition-all group outline-none hover:bg-white/5 hover:shadow-[0_0_12px_${c.shadow}] rounded-[var(--radius-card)] ${isSelected ? 'bg-white/5' : ''}`}
-                      >
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center mb-0.5 transition-all 
+                       <button 
+                          onClick={() => setSelectedAgent(key)} 
+                          key={key} 
+                          title={key}
+                          className={`flex flex-col items-center justify-center p-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                       >
+                          <div className={`w-8 h-8 rounded-full border flex items-center justify-center mb-0.5 transition-all duration-300 transform-gpu
                              ${isSelected 
-                                ? `${c.bg.replace('950', '600').replace('900', '500').replace('800', '400').replace('10', '80').replace('40', '90').replace('50', '90')} ${c.border.replace('600', '400').replace('500', '400')} text-white shadow-[0_0_15px_${c.shadow}] scale-110 ring-1 ring-white/20` 
-                                : `${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] opacity-60 group-hover:opacity-100 group-hover:border-white/20`
+                                ? `${c.bg.replace('950/50', '600/95').replace('950/45', '600/95').replace('900/50', '500/95').replace('900/45', '500/95').replace('800/45', '400/95').replace('500/10', '500/80')} ${c.border.replace('600/40', '400/95').replace('500/40', '400/95').replace('400/40', '300/95')} text-white shadow-[0_0_20px_${c.shadow.replace('0.2', '0.5')}] scale-110 ring-1 ring-white/20` 
+                                : `opacity-60 group-hover:opacity-100 ${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] group-hover:shadow-[0_0_15px_${c.shadow.replace('0.2', '0.4')}] group-hover:scale-105`
                              } text-[9px] font-black tracking-tighter shrink-0`}>
                              {key.substring(0, 2).toUpperCase()}
                           </div>
-                          <span className={`text-[6px] font-black uppercase tracking-tighter truncate w-full text-center transition-colors ${isSelected ? 'text-white' : 'text-slate-800'}`}>{key}</span>
+                          <span className={`text-[6px] font-black uppercase tracking-tighter truncate w-full text-center transition-all duration-300 ${isSelected ? 'text-white scale-110' : 'text-slate-800'}`}>{key}</span>
                        </button>
                     );
                  })}
