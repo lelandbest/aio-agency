@@ -562,6 +562,78 @@ export async function createMediaPublishJobApi(payload) {
   return response.data || null;
 }
 
+export async function deleteMediaAssetApi(assetId) {
+  const response = await request(`/api/media/assets/${encodeURIComponent(assetId)}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
+export async function deleteMediaJobApi(jobType, jobId) {
+  const response = await request(`/api/media/jobs/${encodeURIComponent(jobType)}/${encodeURIComponent(jobId)}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
+export async function deleteMediaArtifactApi(artifactType, artifactId) {
+  const response = await request(`/api/media/artifacts/${encodeURIComponent(artifactType)}/${encodeURIComponent(artifactId)}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
+export async function createOrderApi(payload) {
+  const response = await request('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function updateOrderApi(orderId, payload) {
+  const response = await request(`/api/orders/${encodeURIComponent(orderId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function deleteOrderApi(orderId) {
+  const response = await request(`/api/orders/${encodeURIComponent(orderId)}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
+export async function createFlowFolderApi(name) {
+  const response = await request('/api/flow-folders', {
+    method: 'POST',
+    body: JSON.stringify({ name })
+  });
+  return response.data || null;
+}
+
+export async function listFlowFoldersApi() {
+  const response = await request('/api/flow-folders');
+  return response.data || [];
+}
+
+export async function renameFlowFolderApi(folderId, name) {
+  const response = await request(`/api/flow-folders/${encodeURIComponent(folderId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name })
+  });
+  return response.data || null;
+}
+
+export async function deleteFlowFolderApi(folderId) {
+  const response = await request(`/api/flow-folders/${encodeURIComponent(folderId)}`, {
+    method: 'DELETE'
+  });
+  return response;
+}
+
 export async function addWorkspaceMemberApi(workspaceId, payload) {
   return request(`/api/workspaces/${encodeURIComponent(workspaceId)}/memberships`, {
     method: 'POST',

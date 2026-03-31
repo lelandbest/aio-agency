@@ -1406,15 +1406,17 @@ const CRMModule = ({ initialContactId = null }) => {
     };
 
     const getActivityTone = (activity) => {
-      if (activityType === 'meeting') return 'border-emerald-500/20 bg-emerald-500/10';
-      if (activityType === 'workflow') return 'border-sky-500/20 bg-sky-500/10';
-      if (activityType === 'note') return 'border-amber-500/20 bg-amber-500/10';
+      const type = activity.activityType;
+      if (type === 'meeting') return 'border-emerald-500/20 bg-emerald-500/10';
+      if (type === 'workflow') return 'border-sky-500/20 bg-sky-500/10';
+      if (type === 'note') return 'border-amber-500/20 bg-amber-500/10';
       return 'border-transparent bg-[color:var(--color-border)/0.3]';
     };
 
     const renderActivityMetadata = (activity) => {
       const metadata = activity.metadata || {};
-      if (activityType === 'email') {
+      const type = activity.activityType;
+      if (type === 'email') {
         return (
           <div className="mt-2 space-y-1 text-[11px] text-[var(--color-text-tertiary)] border-l-2 border-[var(--color-primary)]/30 pl-3 py-1 bg-[var(--color-bg-primary)]/40 rounded-r-lg">
             <div className="flex items-center gap-2">
@@ -1527,12 +1529,29 @@ const CRMModule = ({ initialContactId = null }) => {
     };
 
     const handleDeleteContact = async () => {
-      if (!confirm(`Delete ${currentContact.firstName} ${currentContact.lastName}?`)) {
+      const contactToDelete = selectedContact;
+      if (!contactToDelete) return;
+      if (!confirm(`Delete ${contactToDelete.firstName} ${contactToDelete.lastName}?`)) {
         return;
       }
-      await updateContactApi(currentContact.id, { deletedAt: new Date().toISOString() });
+      await updateContactApi(contactToDelete.id, { deletedAt: new Date().toISOString() });
       setSelectedContact(null);
       setIsEditingContact(false);
+      await loadData();
+    };
+
+    const handleAddTag = async (tag) => {
+      if (!selectedContact || !tag) return;
+      const currentTags = selectedContact.tags || [];
+      if (currentTags.includes(tag)) return;
+      await updateContactApi(selectedContact.id, { tags: [...currentTags, tag] });
+      await loadData();
+    };
+
+    const handleRemoveTag = async (tag) => {
+      if (!selectedContact || !tag) return;
+      const currentTags = selectedContact.tags || [];
+      await updateContactApi(selectedContact.id, { tags: currentTags.filter(t => t !== tag) });
       await loadData();
     };
 
@@ -1981,17 +2000,17 @@ const CRMModule = ({ initialContactId = null }) => {
                 filteredActivities.map(activity => (
                   <div key={activity.id} className={`flex gap-3 p-3 rounded-[var(--radius-panel)] border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
                     <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-                      {renderTimelineIcon(activityType)}
+                      {renderTimelineIcon(activity.activityType)}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between gap-3">
                         <h4 className="text-[var(--color-text-primary)] font-medium text-sm">{activity.title}</h4>
                         <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
-                          {activityType}
+                          {activity.activityType}
                         </span>
                       </div>
                       <div className="text-[var(--color-text-secondary)] text-xs mt-1 leading-relaxed">
-                        {activityType === 'email' 
+                        {activity.activityType === 'email' 
                           ? normalizeAiText(activity.description, 'No message body') 
                           : activity.description}
                       </div>

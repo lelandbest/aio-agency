@@ -3613,6 +3613,14 @@ class SQLiteProvider(BaseProvider):
                     lastEditedBy TEXT
                 );
 
+                CREATE TABLE IF NOT EXISTS flow_folders (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS flow_drafts (
                     id TEXT PRIMARY KEY,
                     tenantId TEXT NOT NULL,
@@ -6155,6 +6163,73 @@ class SQLiteProvider(BaseProvider):
             }
             entry.update(json_loads(row.get("submissionJson"), {}))
             data.append(entry)
+    
+    def create_order(self, order_data: dict[str, Any]) -> dict[str, Any]:
+        order_id = order_data.get("id") or f"order-{unique_suffix()}"
+        contact_id = order_data.get("contactId")
+        form_submission_id = order_data.get("formSubmissionId")
+        reference_code = order_data.get("referenceCode") or f"ORD-{unique_suffix().upper()}"
+        status = order_data.get("status", "active")
+        total_amount = float(order_data.get("totalAmount", 0.0))
+        currency = order_data.get("currency", "USD")
+        payment_status = order_data.get("paymentStatus", "pending")
+        payment_provider = order_data.get("paymentProvider", "unknown")
+        payment_id = order_data.get("paymentId")
+        items = order_data.get("items", [])
+        
+        conn = self._conn()
+        conn.execute(
+            """
+            INSERT INTO orders (
+                id, tenantId, contactId, formSubmissionId, referenceCode,
+                status, totalAmount, currency, paymentStatus, paymentProvider,
+                paymentId, itemsJson, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                order_id, self._tenantId(), contact_id, form_submission_id, reference_code,
+                status, total_amount, currency, payment_status, payment_provider,
+                payment_id, json_dumps(items), utcnow(), utcnow()
+            )
+        )
+        conn.commit()
+        return self.get_order_by_id(order_id)
+    
+    def get_order_by_id(self, order_id: str) -> dict[str, Any] | None:
+        rows = self._tenant_rows("SELECT * FROM orders WHERE id = ? AND tenantId = ?", (order_id, self._tenantId()))
+        if not rows:
+            return None
+        entry = dict(rows[0])
+        entry["items"] = json_loads(rows[0].get("itemsJson"), [])
+        return entry
+    
+    def update_order(self, order_id: str, order_data: dict[str, Any]) -> dict[str, Any]:
+        conn = self._conn()
+        updates = []
+        params = []
+        for field in ["status", "totalAmount", "currency", "paymentStatus", "paymentProvider", "paymentId"]:
+            if field in order_data:
+                updates.append(f"{field} = ?")
+                params.append(order_data[field])
+        if "items" in order_data:
+            updates.append("itemsJson = ?")
+            params.append(json_dumps(order_data["items"]))
+        if not updates:
+            return self.get_order_by_id(order_id)
+        updates.append("updatedAt = ?")
+        params.append(utcnow())
+        params.append(order_id)
+        params.append(self._tenantId())
+        conn.execute(f"UPDATE orders SET {', '.join(updates)} WHERE id = ? AND tenantId = ?", params)
+        conn.commit()
+        return self.get_order_by_id(order_id)
+    
+    def delete_order(self, order_id: str) -> bool:
+        conn = self._conn()
+        conn.execute("DELETE FROM orders WHERE id = ? AND tenantId = ?", (order_id, self._tenantId()))
+        conn.commit()
+        return True
+    
     def list_orders(self) -> list[dict[str, Any]]:
         rows = self._tenant_rows("SELECT * FROM orders WHERE tenantId = ? ORDER BY createdAt DESC")
         data = []
@@ -6589,6 +6664,37 @@ class SQLiteProvider(BaseProvider):
                 deleted += result.rowcount
             conn.commit()
         return {"deleted": deleted, "requested": len(flow_ids)}
+    
+    def create_flow_folder(self, name: str) -> dict[str, Any]:
+        folder_id = f"folder-{unique_suffix()}"
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO flow_folders (id, tenantId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
+                (folder_id, self._tenantId(), name, now, now)
+            )
+            conn.commit()
+        return {"id": folder_id, "name": name, "createdAt": now, "updatedAt": now}
+    
+    def list_flow_folders(self) -> list[dict[str, Any]]:
+        return self._tenant_rows("SELECT * FROM flow_folders ORDER BY name ASC")
+    
+    def rename_flow_folder(self, folder_id: str, new_name: str) -> dict[str, Any] | None:
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE flow_folders SET name = ?, updatedAt = ? WHERE id = ? AND tenantId = ?",
+                (new_name, now, folder_id, self._tenantId())
+            )
+            conn.commit()
+        rows = self._tenant_rows("SELECT * FROM flow_folders WHERE id = ?", (folder_id,))
+        return dict(rows[0]) if rows else None
+    
+    def delete_flow_folder(self, folder_id: str) -> bool:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM flow_folders WHERE id = ? AND tenantId = ?", (folder_id, self._tenantId()))
+            conn.commit()
+        return True
 
     def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM form_submissions WHERE tenantId = ?"

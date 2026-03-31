@@ -4633,6 +4633,61 @@ async def bulk_delete_flows(request: Request, payload: dict[str, Any] = Body(...
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+class FlowFolderCreateRequest(BaseModel):
+    name: str
+
+
+class FlowFolderRenameRequest(BaseModel):
+    name: str
+
+
+@app.post("/api/flow-folders")
+async def create_flow_folder(request: Request, payload: FlowFolderCreateRequest):
+    """Create a new flow folder."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to create folders.")
+    try:
+        folder = provider.create_flow_folder(payload.name)
+        return {"data": folder}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/flow-folders")
+async def list_flow_folders(request: Request):
+    """List all flow folders."""
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Need viewer role to view folders.")
+    try:
+        return {"data": provider.list_flow_folders()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.put("/api/flow-folders/{folderId}")
+async def rename_flow_folder(request: Request, folderId: str, payload: FlowFolderRenameRequest):
+    """Rename a flow folder."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to rename folders.")
+    try:
+        folder = provider.rename_flow_folder(folderId, payload.name)
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found")
+        return {"data": folder}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/api/flow-folders/{folderId}")
+async def delete_flow_folder(request: Request, folderId: str):
+    """Delete a flow folder."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to delete folders.")
+    try:
+        provider.delete_flow_folder(folderId)
+        return {"success": True, "deletedId": folderId}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.get("/api/media/assets")
 async def list_media_assets(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media assets.")
@@ -4697,6 +4752,33 @@ async def list_publish_jobs(request: Request):
 async def list_publish_artifacts(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view publish artifacts.")
     return {"data": get_media_engine().list_publish_artifacts()}
+
+
+@app.delete("/api/media/assets/{assetId}")
+async def delete_media_asset(request: Request, assetId: str):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can delete media assets.")
+    deleted = get_media_engine().delete_asset(assetId)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    return {"success": True, "deletedId": assetId}
+
+
+@app.delete("/api/media/jobs/{jobType}/{jobId}")
+async def delete_media_job(request: Request, jobType: str, jobId: str):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can delete media jobs.")
+    deleted = get_media_engine().delete_job(jobType, jobId)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"success": True, "deletedId": jobId}
+
+
+@app.delete("/api/media/artifacts/{artifactType}/{artifactId}")
+async def delete_media_artifact(request: Request, artifactType: str, artifactId: str):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can delete media artifacts.")
+    deleted = get_media_engine().delete_artifact(artifactType, artifactId)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return {"success": True, "deletedId": artifactId}
 
 
 @app.post("/api/media/script-jobs")
@@ -5857,6 +5939,67 @@ async def list_orders(request: Request):
         return {"data": provider.list_orders()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class OrderCreateRequest(BaseModel):
+    contactId: str | None = None
+    formSubmissionId: str | None = None
+    referenceCode: str | None = None
+    status: str = "active"
+    totalAmount: float = 0.0
+    currency: str = "USD"
+    paymentStatus: str = "pending"
+    paymentProvider: str = "unknown"
+    paymentId: str | None = None
+    items: list[dict[str, Any]] = []
+
+
+class OrderUpdateRequest(BaseModel):
+    status: str | None = None
+    totalAmount: float | None = None
+    currency: str | None = None
+    paymentStatus: str | None = None
+    paymentProvider: str | None = None
+    paymentId: str | None = None
+    items: list[dict[str, Any]] | None = None
+
+
+@app.post("/api/orders")
+async def create_order(request: Request, payload: OrderCreateRequest):
+    """Create a new order."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to create orders.")
+    try:
+        order = provider.create_order(payload.model_dump(exclude_none=True))
+        return {"data": order}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.put("/api/orders/{orderId}")
+async def update_order(request: Request, orderId: str, payload: OrderUpdateRequest):
+    """Update an existing order."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to update orders.")
+    try:
+        order = provider.update_order(orderId, payload.model_dump(exclude_none=True))
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return {"data": order}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/api/orders/{orderId}")
+async def delete_order(request: Request, orderId: str):
+    """Delete an order."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to delete orders.")
+    try:
+        provider.delete_order(orderId)
+        return {"success": True, "deletedId": orderId}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 # ============ PAYMENT PROVIDERS ============
 

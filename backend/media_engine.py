@@ -534,6 +534,46 @@ class MediaStateStore:
                 if clean_text(a.get("content_hash")) == content_hash
             ]
 
+    def delete(self, collection: str, record_id: str) -> bool:
+        with self._lock:
+            state = self._read_state()
+            rows = state.get(collection) or []
+            new_rows = [r for r in rows if clean_text(r.get("id")) != clean_text(record_id)]
+            if len(new_rows) == len(rows):
+                return False
+            state[collection] = new_rows
+            self._write_state(state)
+            return True
+
+    def delete_asset(self, asset_id: str) -> bool:
+        return self.delete("assets", asset_id)
+
+    def delete_job(self, job_type: str, job_id: str) -> bool:
+        collection_map = {
+            "render": "render_jobs",
+            "transcript": "transcript_jobs",
+            "script": "script_jobs",
+            "run_of_show": "run_of_show_jobs",
+            "audio": "audio_render_jobs",
+            "publish": "publish_jobs",
+        }
+        collection = collection_map.get(job_type)
+        if not collection:
+            return False
+        return self.delete(collection, job_id)
+
+    def delete_artifact(self, artifact_type: str, artifact_id: str) -> bool:
+        collection_map = {
+            "transcript": "transcript_artifacts",
+            "script": "script_artifacts",
+            "run_of_show": "run_of_show_artifacts",
+            "publish": "publish_artifacts",
+        }
+        collection = collection_map.get(artifact_type)
+        if not collection:
+            return False
+        return self.delete(collection, artifact_id)
+
 
 class BaseRenderProvider(ABC):
     provider_id = "stub-render"

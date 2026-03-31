@@ -6,7 +6,7 @@ import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import TemplateGallery from './components/TemplateGallery';
 import flowRepository from './utils/flowRepository';
-import { deleteFlowApi, bulkDeleteFlowsApi } from '../../services/backendApi';
+import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi } from '../../services/backendApi';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
@@ -144,13 +144,16 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }, [onCreateFlow]);
 
   const handleCreateFolder = useCallback(async () => {
-    // Flows folder system pending backend normalization.
-    // Stubbed to support industrial UI parity requirement.
     const name = prompt("Enter folder name:", "New Folder");
     if (name) {
-      console.log('Flow folder creation requested:', name);
+      try {
+        await createFlowFolderApi(name);
+        loadFlows();
+      } catch (err) {
+        alert('Failed to create folder: ' + err.message);
+      }
     }
-  }, []);
+  }, [loadFlows]);
 
   const toggleSelectAllFlows = useCallback(() => {
     setSelectedFlowIds((prev) => (prev.length === flows.length ? [] : flows.map((f) => f.id)));
