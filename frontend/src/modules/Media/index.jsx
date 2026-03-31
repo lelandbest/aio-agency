@@ -345,7 +345,9 @@ const MediaModule = () => {
                     </div>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="bg-black/90 px-6 py-2 border border-white/20 rounded shadow-[0_0_30px_rgba(0,0,0,0.8)] text-[10px] font-mono uppercase tracking-[0.6em] text-white backdrop-blur-sm animate-pulse">NO SIGNAL // STANDBY</div>
+                    {workspace.outputs.length === 0 ? (
+                      <div className="bg-black/90 px-6 py-2 border border-white/20 rounded shadow-[0_0_30px_rgba(0,0,0,0.8)] text-[10px] font-mono uppercase tracking-[0.6em] text-white backdrop-blur-sm animate-pulse">NO SIGNAL // STANDBY</div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -502,9 +504,19 @@ const MediaModule = () => {
             {/* LOWER STATUS BAR */}
             <div className="h-8 mt-2 border-t border-[#1E2024] flex items-center justify-between text-[7px] font-black uppercase tracking-[0.2em] px-2 text-slate-600">
               <div className="flex items-center gap-2">
-                <span className="text-emerald-500">PUBLISHARTIFACT</span>
-                <span className="h-2 w-px bg-slate-800"></span>
-                <span>STATUS: PUBLISHED</span>
+                {activeOutput ? (
+                  <>
+                    <span className="text-emerald-500">{activeOutput.type.toUpperCase()}</span>
+                    <span className="h-2 w-px bg-slate-800"></span>
+                    <span>STATUS: {activeOutput.status?.toUpperCase() || 'UNKNOWN'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-600">NO OUTPUT</span>
+                    <span className="h-2 w-px bg-slate-800"></span>
+                    <span>STATUS: --</span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></div>
