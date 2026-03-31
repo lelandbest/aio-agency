@@ -26,9 +26,11 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 from pydantic import BaseModel
 
-from request_validators import convert_to_camelcase, detect_snake_case_keys
+from request_validators import convert_to_camelcase, convert_to_snakecase, detect_snake_case_keys
 
 CURRENT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = CURRENT_DIR.parent
@@ -2377,6 +2379,49 @@ async def enforce_camelcase_response(request: Request, call_next):
 # Move CORSMiddleware to be the outermost middleware by adding it LAST.
 # This ensures it handles preflight before custom HTTP midleware runs its full logic.
 app.add_middleware(CORSMiddleware, **CORS_CONFIG)
+
+
+class RequestCasingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("POST", "PUT", "PATCH"):
+            body = await request.body()
+            if body:
+                try:
+                    import json
+                    data = json.loads(body)
+                    if isinstance(data, dict):
+                        converted = convert_to_snakecase(data)
+                        from starlette.datastructures import MutableHeaders
+                        from starlette.requests import _receive
+                        async def receive() -> dict:
+                            return {"type": "http.request", "body": json.dumps(converted).encode()}
+                        request._receive = receive
+                except Exception:
+                    pass
+        response = await call_next(request)
+        return response
+
+
+class ResponseCasingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if response.status_code < 400:
+            if response.headers.get("content-type", "").startswith("application/json"):
+                body = b""
+                async for chunk in response.body_iterator:
+                    body += chunk
+                try:
+                    data = json.loads(body)
+                    converted = convert_to_camelcase(data)
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(content=converted, status_code=response.status_code, headers=dict(response.headers))
+                except Exception:
+                    pass
+        return response
+
+
+app.add_middleware(RequestCasingMiddleware)
+app.add_middleware(ResponseCasingMiddleware)
 
 
 @app.exception_handler(Exception)

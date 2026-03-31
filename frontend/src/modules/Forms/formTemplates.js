@@ -9,8 +9,8 @@ export const formTemplates = [
     complexity: 'Basic',
     fields: [
       { type: 'text', label: 'Full Name', required: true },
-      { type: 'email', label: 'Email Address', required: true, map_to_contact: 'email', is_identifier: true },
-      { type: 'tel', label: 'Phone Number', map_to_contact: 'phone' },
+      { type: 'email', label: 'Email Address', required: true, mapToContact: 'email', isIdentifier: true },
+      { type: 'tel', label: 'Phone Number', mapToContact: 'phone' },
       { type: 'textarea', label: 'What do you need help with?' },
     ],
   },
@@ -22,7 +22,7 @@ export const formTemplates = [
     complexity: 'Intermediate',
     fields: [
       { type: 'text', label: 'Full Name', required: true },
-      { type: 'email', label: 'Work Email', required: true, map_to_contact: 'email', is_identifier: true },
+      { type: 'email', label: 'Work Email', required: true, mapToContact: 'email', isIdentifier: true },
       { type: 'text', label: 'Company', required: true },
       { type: 'select', label: 'Team Size', options: ['1-10', '11-50', '51-200', '200+'] },
       { type: 'textarea', label: 'Primary Goal' },
@@ -36,7 +36,7 @@ export const formTemplates = [
     complexity: 'Intermediate',
     fields: [
       { type: 'text', label: 'Full Name', required: true },
-      { type: 'email', label: 'Email Address', required: true, map_to_contact: 'email', is_identifier: true },
+      { type: 'email', label: 'Email Address', required: true, mapToContact: 'email', isIdentifier: true },
       { type: 'select', label: 'Urgency', options: ['Low', 'Normal', 'High', 'Critical'], required: true },
       { type: 'textarea', label: 'Issue Summary', required: true },
     ],
@@ -49,8 +49,8 @@ export const formTemplates = [
     complexity: 'Advanced',
     fields: [
       { type: 'text', label: 'Customer Name', required: true },
-      { type: 'email', label: 'Email Address', required: true, map_to_contact: 'email', is_identifier: true },
-      { type: 'tel', label: 'Phone Number', map_to_contact: 'phone' },
+      { type: 'email', label: 'Email Address', required: true, mapToContact: 'email', isIdentifier: true },
+      { type: 'tel', label: 'Phone Number', mapToContact: 'phone' },
       { type: 'address', label: 'Shipping Address', required: true },
       { type: 'textarea', label: 'Order Notes' },
     ],

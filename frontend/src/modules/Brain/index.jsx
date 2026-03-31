@@ -1082,9 +1082,9 @@ const Cortex = () => {
               if (p) {
                 try {
                   // Global activation
-                  await upsertAiProviderConfigApi(id, { ...p, providerKey: id, is_default: true, enabled: true });
+                  await upsertAiProviderConfigApi(id, { ...p, providerKey: id, isDefault: true, enabled: true });
                   // Brain specific update
-                  await updateBrainProfileApi({ ...profile, active_provider: id }); 
+                  await updateBrainProfileApi({ ...profile, activeProvider: id });
                   fetchProviders(); // Refresh to get updated is_default status
                 } catch (err) { console.error(err); }
               }
@@ -1098,7 +1098,7 @@ const Cortex = () => {
                   await upsertAiProviderConfigApi(activeProviderId, { ...p, providerKey: activeProviderId, model });
                 }
                 // Brain specific update
-                await updateBrainProfileApi({ ...profile, active_model: model });
+                await updateBrainProfileApi({ ...profile, activeModel: model });
                 fetchProviders();
               } catch (err) { console.error(err); }
             }}
@@ -1133,7 +1133,7 @@ const Cortex = () => {
             links={links} 
             interactionArmed={interactionArmed}
             setInteractionArmed={setInteractionArmed}
-            onMoveNode={(n, p) => setItems(items.map(i => i.id === n.id ? { ...i, graph_x: p.x, graph_y: p.y } : i))} 
+            onMoveNode={(n, p) => setItems(items.map(i => i.id === n.id ? { ...i, graphX: p.x, graphY: p.y } : i))} 
           />
         </main>
 

@@ -320,8 +320,8 @@ const FormBuilderModule = () => {
               ? field?.options?.join(', ') || ''
               : field?.[property] || '',
         context: {
-          form_name: currentForm?.name || '',
-          schema_labels: (currentForm?.schema || []).map((item) => item.label).filter(Boolean),
+          formName: currentForm?.name || '',
+          schemaLabels: (currentForm?.schema || []).map((item) => item.label).filter(Boolean),
           label: field?.label || '',
           type: field?.type || '',
           required: Boolean(field?.required),
@@ -743,7 +743,7 @@ const FormBuilderModule = () => {
       },
       {
         header: "Last Modified",
-        key: "last_modified_at",
+        key: "lastModifiedAt",
         width: "160px",
         render: (form) => (
           <div className="text-xs text-[var(--color-text-secondary)]">

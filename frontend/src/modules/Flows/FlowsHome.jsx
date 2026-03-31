@@ -504,7 +504,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               {tableActions}
             </div>
           }
-          folderProperty="flow_group"
+          folderProperty="flowGroup"
           showHeader={false}
           searchQuery={tableSearch}
           onSearchQueryChange={setTableSearch}

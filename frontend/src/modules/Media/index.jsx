@@ -143,11 +143,11 @@ const MediaModule = () => {
       ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
       const outputs = [
-        ...scriptArtifacts.map(a => ({ id: a.id, title: a.title || 'Script', type: 'script', createdAt: a.createdAt || a.created_at, previewText: a.scriptText || a.script_text || '', mediaType: 'text', status: 'complete' })),
-        ...runOfShowArtifacts.map(a => ({ id: a.id, title: a.title || 'Run of Show', type: 'runOfShow', createdAt: a.createdAt || a.created_at, previewText: a.runOfShowText || '', mediaType: 'text', status: 'complete' })),
-        ...transcriptArtifacts.map(a => ({ id: a.id, title: a.title || 'Transcript', type: 'transcript', createdAt: a.createdAt || a.created_at, previewText: a.transcriptText || a.transcript_text || '', mediaType: 'text', status: 'complete' })),
-        ...publishArtifacts.map(a => ({ id: a.id, title: a.title || 'Publish', type: 'publish', createdAt: a.createdAt || a.created_at, previewText: `Target: ${a.publishTarget}`, mediaType: 'text', status: a.publicationStatus || 'published' })),
-        ...assets.map(a => ({ id: a.id, title: a.title || 'Media', type: a.mediaType === 'audio' || a.media_type === 'audio' ? 'audio' : 'render', createdAt: a.createdAt || a.created_at, previewText: a.metadata?.scriptExcerpt || a.metadata?.script_excerpt || '', sourceUrl: a.sourceUrl || a.source_url || null, mediaType: a.mediaType || a.media_type || 'video', status: 'complete', metadata: a.metadata || {} })),
+        ...scriptArtifacts.map(a => ({ id: a.id, title: a.title || 'Script', type: 'script', createdAt: a.createdAt, previewText: a.scriptText || '', mediaType: 'text', status: 'complete' })),
+        ...runOfShowArtifacts.map(a => ({ id: a.id, title: a.title || 'Run of Show', type: 'runOfShow', createdAt: a.createdAt, previewText: a.runOfShowText || '', mediaType: 'text', status: 'complete' })),
+        ...transcriptArtifacts.map(a => ({ id: a.id, title: a.title || 'Transcript', type: 'transcript', createdAt: a.createdAt, previewText: a.transcriptText || '', mediaType: 'text', status: 'complete' })),
+        ...publishArtifacts.map(a => ({ id: a.id, title: a.title || 'Publish', type: 'publish', createdAt: a.createdAt, previewText: `Target: ${a.publishTarget}`, mediaType: 'text', status: a.publicationStatus || 'published' })),
+        ...assets.map(a => ({ id: a.id, title: a.title || 'Media', type: a.mediaType === 'audio' ? 'audio' : 'render', createdAt: a.createdAt, previewText: a.metadata?.scriptExcerpt || '', sourceUrl: a.sourceUrl || null, mediaType: a.mediaType || 'video', status: 'complete', metadata: a.metadata || {} })),
       ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
       setWorkspace({ jobs, outputs, counts: { jobs: jobs.length, outputs: outputs.length, ingestSources: INGESTION_SOURCES.length } });

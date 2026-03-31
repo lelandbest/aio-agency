@@ -1,4 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+const normalizeCsvHeader = (header) => {
+  return header
+    .toLowerCase()
+    .replace(/[-_\s]+/g, '_')
+    .split('_')
+    .filter(Boolean)
+    .map((part, i) => i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+};
+
 import {
   createEmailVerificationBulkTaskApi,
   createWorkspaceUserApi,
@@ -39,7 +50,7 @@ const CRMModule = ({ initialContactId = null }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContacts, setSelectedContacts] = useState(new Set());
-  const [sortField, setSortField] = useState('first_name');
+  const [sortField, setSortField] = useState('firstName');
   const [sortDirection, setSortDirection] = useState('asc');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalTab, setCreateModalTab] = useState('Contact');
@@ -784,34 +795,34 @@ const CRMModule = ({ initialContactId = null }) => {
         }
         break;
       
-      case 'add_tag':
+      case 'addTag':
         setBulkActionError('');
         setBulkActionModal({ open: true, action, value: '' });
         break;
       
-      case 'remove_tag':
+      case 'removeTag':
         setBulkActionError('');
         setBulkActionModal({ open: true, action, value: '' });
         break;
       
-      case 'set_owner':
+      case 'setOwner':
         setBulkActionError('');
         setBulkActionModal({ open: true, action, value: '' });
         break;
 
-      case 'set_department':
-      case 'assign_ai':
-      case 'add_flow':
-      case 'remove_flow':
+      case 'setDepartment':
+      case 'assignAi':
+      case 'addFlow':
+      case 'removeFlow':
         setBulkActionError('');
         setBulkActionModal({ open: true, action, value: '' });
         break;
       
-      case 'send_email':
+      case 'sendEmail':
         openSelectedThreads(selectedIds, 'email');
         break;
 
-      case 'send_sms':
+      case 'sendSms':
         openSelectedThreads(selectedIds, 'sms');
         break;
 
@@ -819,7 +830,7 @@ const CRMModule = ({ initialContactId = null }) => {
         // Export selected contacts as CSV
         const csvData = filteredAndSortedContacts
           .filter(c => selectedIds.includes(c.id))
-          .map(c => `${c.first_name},${c.last_name},${c.email},${c.phone},${c.company},${c.lead_score}`)
+          .map(c => `${c.firstName},${c.lastName},${c.email},${c.phone},${c.company},${c.leadScore}`)
           .join('\n');
         const blob = new Blob([`First Name,Last Name,Email,Phone,Company,Score\n${csvData}`], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
@@ -829,20 +840,20 @@ const CRMModule = ({ initialContactId = null }) => {
         a.click();
         break;
 
-      case 'send_api': {
+      case 'sendApi': {
         const payload = filteredAndSortedContacts
           .filter((contact) => selectedIds.includes(contact.id))
           .map((contact) => ({
             id: contact.id,
-            first_name: contact.first_name,
-            last_name: contact.last_name,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
             email: contact.email,
             phone: contact.phone,
             company: contact.company,
             owner: contact.owner,
             department: contact.department,
             tags: contact.tags || [],
-            custom_fields: contact.custom_fields || {}
+            customFields: contact.customFields || {}
           }));
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
@@ -863,10 +874,10 @@ const CRMModule = ({ initialContactId = null }) => {
   const handleCreateContact = async (formData) => {
     try {
       const newContact = {
-        contact_id: `CNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        organization_id: 'org-1',
-        first_name: formData.firstName,
-        last_name: formData.lastName,
+        contactId: `CNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        organizationId: 'org-1',
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
         company: formData.company,
@@ -882,24 +893,24 @@ const CRMModule = ({ initialContactId = null }) => {
           country: formData.country || 'United States'
         },
         dob: formData.dob || null,
-        owner_id: 'user-1',
+        ownerId: 'user-1',
         owner: 'AIO FlowΓäó',
         source: 'Manual Entry',
         status: 'contact',
-        lead_score: 50,
+        leadScore: 50,
         quality: 'warm',
         engagement: 'medium',
         tags: [],
-        custom_fields: {},
-        opt_in_email: true,
-        opt_in_sms: true,
-        opt_in_calls: true,
-        opt_in_flows: true,
-        last_contacted_at: null,
-        pipeline_stage: 'New',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        deleted_at: null
+        customFields: {},
+        optInEmail: true,
+        optInSms: true,
+        optInCalls: true,
+        optInFlows: true,
+        lastContactedAt: null,
+        pipelineStage: 'New',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null
       };
 
       await createContactApi(newContact);
@@ -915,14 +926,14 @@ const CRMModule = ({ initialContactId = null }) => {
   const buildUserFormData = (contact = null) => ({
     site: currentWorkspace?.name || 'Current Site',
     username: contact?.email ? contact.email.split('@')[0] : '',
-    firstName: contact?.first_name || '',
-    lastName: contact?.last_name || '',
+    firstName: contact?.firstName || '',
+    lastName: contact?.lastName || '',
     email: contact?.email || '',
     dob: contact?.dob || '',
     password: '',
     confirmPassword: '',
     system: 'Create New System',
-    systemName: contact?.company || `${[contact?.first_name, contact?.last_name].filter(Boolean).join(' ')} Workspace`.trim(),
+    systemName: contact?.company || `${[contact?.firstName, contact?.lastName].filter(Boolean).join(' ')} Workspace`.trim(),
     billing: 'complimentary',
     package: '',
     street: contact?.address?.street || '',
@@ -940,7 +951,7 @@ const CRMModule = ({ initialContactId = null }) => {
       surface,
       field,
       intent,
-      current_value: currentValue || '',
+      currentValue: currentValue || '',
       context: {
         workspaceName: currentWorkspace?.name || '',
         selectedContactId: selectedContact?.id || '',
@@ -1006,34 +1017,34 @@ const CRMModule = ({ initialContactId = null }) => {
     setBulkActionError('');
     try {
       switch (action) {
-        case 'add_tag':
+        case 'addTag':
           await patchContacts(selectedIds, (contact) => ({ tags: Array.from(new Set([...(contact.tags || []), value])) }));
           break;
-        case 'remove_tag':
+        case 'removeTag':
           await patchContacts(selectedIds, (contact) => ({ tags: (contact.tags || []).filter((tag) => tag !== value) }));
           break;
-        case 'set_owner':
+        case 'setOwner':
           await patchContacts(selectedIds, () => ({ owner: value }));
           break;
-        case 'set_department':
+        case 'setDepartment':
           await patchContacts(selectedIds, () => ({ department: value }));
           break;
-        case 'assign_ai':
+        case 'assignAi':
           await patchContacts(selectedIds, (contact) => ({
-            ai_employee: value,
-            custom_fields: { ...(contact.custom_fields || {}), assigned_ai: value }
+            aiEmployee: value,
+            customFields: { ...(contact.customFields || {}), assignedAi: value }
           }));
           break;
-        case 'add_flow':
+        case 'addFlow':
           await patchContacts(selectedIds, (contact) => {
-            const flows = Array.isArray(contact.custom_fields?.assigned_flows) ? contact.custom_fields.assigned_flows : [];
-            return { custom_fields: { ...(contact.custom_fields || {}), assigned_flows: Array.from(new Set([...flows, value])) } };
+            const flows = Array.isArray(contact.customFields?.assignedFlows) ? contact.customFields.assignedFlows : [];
+            return { customFields: { ...(contact.customFields || {}), assignedFlows: Array.from(new Set([...flows, value])) } };
           });
           break;
-        case 'remove_flow':
+        case 'removeFlow':
           await patchContacts(selectedIds, (contact) => {
-            const flows = Array.isArray(contact.custom_fields?.assigned_flows) ? contact.custom_fields.assigned_flows : [];
-            return { custom_fields: { ...(contact.custom_fields || {}), assigned_flows: flows.filter((flow) => flow !== value) } };
+            const flows = Array.isArray(contact.customFields?.assignedFlows) ? contact.customFields.assignedFlows : [];
+            return { customFields: { ...(contact.customFields || {}), assignedFlows: flows.filter((flow) => flow !== value) } };
           });
           break;
         default:
@@ -1052,16 +1063,16 @@ const CRMModule = ({ initialContactId = null }) => {
     try {
       const text = await file.text();
       const [headerLine, ...rows] = text.split(/\r?\n/).filter(Boolean);
-      const headers = (headerLine || '').split(',').map((value) => value.trim().toLowerCase());
+      const headers = (headerLine || '').split(',').map((value) => normalizeCsvHeader(value.trim()));
       const normalizedRows = rows.map((row) => row.split(','));
       for (const values of normalizedRows) {
         const record = Object.fromEntries(headers.map((header, index) => [header, (values[index] || '').trim()]));
-        if (!record.email && !record.first_name && !record.last_name) continue;
+        if (!record.email && !record.firstName && !record.lastName) continue;
         await createContactApi({
-          contact_id: `CNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          organization_id: 'org-1',
-          first_name: record.first_name || record.firstname || '',
-          last_name: record.last_name || record.lastname || '',
+          contactId: `CNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          organizationId: 'org-1',
+          firstName: record.firstName || '',
+          lastName: record.lastName || '',
           email: record.email || '',
           phone: record.phone || '',
           company: record.company || '',
@@ -1079,9 +1090,9 @@ const CRMModule = ({ initialContactId = null }) => {
           owner: record.owner || 'AIO Flow\u2122',
           source: 'CSV Import',
           status: 'contact',
-          lead_score: Number(record.lead_score || 50),
+          leadScore: Number(record.leadScore || 50),
           tags: record.tags ? record.tags.split('|').map((tag) => tag.trim()).filter(Boolean) : [],
-          custom_fields: {}
+          customFields: {}
         });
       }
       await loadData();
@@ -1096,7 +1107,7 @@ const CRMModule = ({ initialContactId = null }) => {
   const runCrmAssist = async () => {
     if (selectedContact) {
       await openContactThread(selectedContact, 'internal', {
-        subject: `CRM assist for ${selectedContact.first_name} ${selectedContact.last_name}`.trim(),
+        subject: `CRM assist for ${selectedContact.firstName} ${selectedContact.lastName}`.trim(),
         body: 'Review this contact and suggest the next best action.'
       });
       return;
@@ -1105,7 +1116,7 @@ const CRMModule = ({ initialContactId = null }) => {
       const contact = contacts.find((entry) => entry.id === Array.from(selectedContacts)[0]);
       if (contact) {
         await openContactThread(contact, 'internal', {
-          subject: `CRM assist for ${contact.first_name} ${contact.last_name}`.trim(),
+          subject: `CRM assist for ${contact.firstName} ${contact.lastName}`.trim(),
           body: 'Review this contact and suggest the next best action.'
         });
         return;
@@ -1395,20 +1406,20 @@ const CRMModule = ({ initialContactId = null }) => {
     };
 
     const getActivityTone = (activity) => {
-      if (activity.activity_type === 'meeting') return 'border-emerald-500/20 bg-emerald-500/10';
-      if (activity.activity_type === 'workflow') return 'border-sky-500/20 bg-sky-500/10';
-      if (activity.activity_type === 'note') return 'border-amber-500/20 bg-amber-500/10';
+      if (activityType === 'meeting') return 'border-emerald-500/20 bg-emerald-500/10';
+      if (activityType === 'workflow') return 'border-sky-500/20 bg-sky-500/10';
+      if (activityType === 'note') return 'border-amber-500/20 bg-amber-500/10';
       return 'border-transparent bg-[color:var(--color-border)/0.3]';
     };
 
     const renderActivityMetadata = (activity) => {
       const metadata = activity.metadata || {};
-      if (activity.activity_type === 'email') {
+      if (activityType === 'email') {
         return (
           <div className="mt-2 space-y-1 text-[11px] text-[var(--color-text-tertiary)] border-l-2 border-[var(--color-primary)]/30 pl-3 py-1 bg-[var(--color-bg-primary)]/40 rounded-r-lg">
             <div className="flex items-center gap-2">
               <span className="font-semibold uppercase tracking-wider opacity-60">From</span>
-              <span className="text-[var(--color-text-secondary)]">{metadata.sender_name || metadata.sender_email || 'Unknown Sender'}</span>
+              <span className="text-[var(--color-text-secondary)]">{metadata.senderName || metadata.senderEmail || 'Unknown Sender'}</span>
             </div>
             {metadata.subject && (
               <div className="flex items-center gap-2">
@@ -1434,9 +1445,9 @@ const CRMModule = ({ initialContactId = null }) => {
           {chips.slice(0, 3).map((chip) => (
             <span key={chip} className="px-2 py-1 rounded-full border border-[var(--color-border)]">{chip}</span>
           ))}
-          {metadata.meeting_url ? (
+          {metadata.meetingUrl ? (
             <a
-              href={metadata.meeting_url}
+              href={metadata.meetingUrl}
               target="_blank"
               rel="noreferrer"
               className="px-2 py-1 rounded-full border border-[var(--color-border)] text-sky-300 hover:text-sky-200"
@@ -1451,15 +1462,15 @@ const CRMModule = ({ initialContactId = null }) => {
     const filteredActivities = activityTab === 'Activity' 
       ? activities 
       : activities.filter(a => {
-          if (activityTab === 'Forms') return a.activity_type === 'form';
-          if (activityTab === 'Notes') return a.activity_type === 'note';
-          if (activityTab === 'Flow Emails') return a.activity_type === 'email' || a.activity_type === 'automation' || a.activity_type === 'flow';
-          if (activityTab === 'Flow SMS') return a.activity_type === 'sms';
-          if (activityTab === 'Flow Activity') return a.activity_type === 'workflow' || a.activity_type === 'automation' || a.activity_type === 'flow' || a.activity_type === 'meeting';
+          if (activityTab === 'Forms') return a.activityType === 'form';
+          if (activityTab === 'Notes') return a.activityType === 'note';
+          if (activityTab === 'Flow Emails') return a.activityType === 'email' || a.activityType === 'automation' || a.activityType === 'flow';
+          if (activityTab === 'Flow SMS') return a.activityType === 'sms';
+          if (activityTab === 'Flow Activity') return a.activityType === 'workflow' || a.activityType === 'automation' || a.activityType === 'flow' || a.activityType === 'meeting';
           return false;
         });
 
-    const flowEmailActivities = activities.filter((activity) => ['email', 'automation', 'flow'].includes(activity.activity_type));
+    const flowEmailActivities = activities.filter((activity) => ['email', 'automation', 'flow'].includes(activityType));
     const bookingActivities = meetingActivities;
     const billingItems = [];
 
@@ -1516,10 +1527,10 @@ const CRMModule = ({ initialContactId = null }) => {
     };
 
     const handleDeleteContact = async () => {
-      if (!confirm(`Delete ${currentContact.first_name} ${currentContact.last_name}?`)) {
+      if (!confirm(`Delete ${currentContact.firstName} ${currentContact.lastName}?`)) {
         return;
       }
-      await updateContactApi(currentContact.id, { deleted_at: new Date().toISOString() });
+      await updateContactApi(currentContact.id, { deletedAt: new Date().toISOString() });
       setSelectedContact(null);
       setIsEditingContact(false);
       await loadData();
@@ -1531,7 +1542,7 @@ const CRMModule = ({ initialContactId = null }) => {
       setNoteError('');
       try {
         await createContactActivityApi(selectedContact.id, {
-          activity_type: 'note',
+          activityType: 'note',
           title: 'Note',
           description: newNote.trim()
         });
@@ -1549,7 +1560,7 @@ const CRMModule = ({ initialContactId = null }) => {
       switch (label) {
         case 'Note':
           await openContactThread(currentContact, 'internal', {
-            subject: `Internal note for ${currentContact.first_name} ${currentContact.last_name}`.trim(),
+            subject: `Internal note for ${currentContact.firstName} ${currentContact.lastName}`.trim(),
             body: 'Capture an internal note for this contact.'
           });
           break;
@@ -1561,7 +1572,7 @@ const CRMModule = ({ initialContactId = null }) => {
           break;
         case 'Meet':
           await openContactThread(currentContact, 'email', {
-            subject: `Schedule meeting with ${currentContact.first_name} ${currentContact.last_name}`.trim(),
+            subject: `Schedule meeting with ${currentContact.firstName} ${currentContact.lastName}`.trim(),
             body: 'Share availability and confirm the next meeting.'
           });
           break;
@@ -1591,7 +1602,7 @@ const CRMModule = ({ initialContactId = null }) => {
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Relationship Dossier</div>
-                <h2 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{currentContact.first_name} {currentContact.last_name}</h2>
+                <h2 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{currentContact.firstName} {currentContact.lastName}</h2>
                 <button onClick={handleDeleteContact} className="mt-1 text-xs text-red-300 transition hover:text-red-200">Delete Contact</button>
               </div>
               {!isEditingContact ? (
@@ -1607,7 +1618,7 @@ const CRMModule = ({ initialContactId = null }) => {
             </div>
 
             {/* Editable Key Fields */}
-            {['quality', 'engagement', 'owner', 'company', 'dob', 'department', 'title', 'ai_employee'].map(field => (
+            {['quality', 'engagement', 'owner', 'company', 'dob', 'department', 'title', 'aiEmployee'].map(field => (
               <div key={field}>
                 <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.replace('_', ' ')}</label>
                 {isEditingContact ? (
@@ -1761,7 +1772,7 @@ const CRMModule = ({ initialContactId = null }) => {
               <div className={innerPanelClass + ' p-3'}>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Meetings</div>
                 <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{meetingActivities.length}</div>
-                <div className="text-[11px] text-[var(--color-text-secondary)]">{upcomingMeeting ? `Next ${new Date(upcomingMeeting.created_at).toLocaleDateString()}` : 'No upcoming'}</div>
+                <div className="text-[11px] text-[var(--color-text-secondary)]">{upcomingMeeting ? `Next ${new Date(upcomingMeeting.createdAt).toLocaleDateString()}` : 'No upcoming'}</div>
               </div>
               <div className={innerPanelClass + ' p-3'}>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Workflows</div>
@@ -1787,15 +1798,15 @@ const CRMModule = ({ initialContactId = null }) => {
             {showAdditionalDetails && (
               <div className={innerPanelClass + ' p-3 space-y-2 text-sm'}>
                 {[
-                  { label: 'External Reference ID', value: selectedContact.external_reference_id },
-                  { label: 'Validation Status', value: selectedContact.validation_status },
-                  { label: 'Click Id', value: selectedContact.click_id },
-                  { label: 'Source Code', value: selectedContact.source_code },
-                  { label: 'Sub Id 1', value: selectedContact.sub_id_1 },
-                  { label: 'Sub Id 2', value: selectedContact.sub_id_2 },
-                  { label: 'Sub Id 3', value: selectedContact.sub_id_3 },
-                  { label: 'Sub Id 4', value: selectedContact.sub_id_4 },
-                  { label: 'Sub Id 5', value: selectedContact.sub_id_5 }
+                  { label: 'External Reference ID', value: selectedContact.externalReferenceId },
+                  { label: 'Validation Status', value: selectedContact.validationStatus },
+                  { label: 'Click Id', value: selectedContact.clickId },
+                  { label: 'Source Code', value: selectedContact.sourceCode },
+                  { label: 'Sub Id 1', value: selectedContact.subId1 },
+                  { label: 'Sub Id 2', value: selectedContact.subId2 },
+                  { label: 'Sub Id 3', value: selectedContact.subId3 },
+                  { label: 'Sub Id 4', value: selectedContact.subId4 },
+                  { label: 'Sub Id 5', value: selectedContact.subId5 }
                 ].map(field => (
                   <div key={field.label}>
                     <p className="text-xs text-[var(--color-text-secondary)] uppercase">{field.label}</p>
@@ -1806,10 +1817,10 @@ const CRMModule = ({ initialContactId = null }) => {
                 {/* Opt-In Toggles */}
                 <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
                   {[
-                    { label: 'Opt-In Emails', field: 'opt_in_email' },
-                    { label: 'Opt-In SMS', field: 'opt_in_sms' },
-                    { label: 'Opt-In Calls', field: 'opt_in_calls' },
-                    { label: 'Opt-In Flows', field: 'opt_in_flows' }
+                    { label: 'Opt-In Emails', field: 'optInEmail' },
+                    { label: 'Opt-In SMS', field: 'optInSms' },
+                    { label: 'Opt-In Calls', field: 'optInCalls' },
+                    { label: 'Opt-In Flows', field: 'optInFlows' }
                   ].map(toggle => (
                     <div key={toggle.label} className="flex justify-between items-center">
                       <span className="text-xs">{toggle.label}</span>
@@ -1825,17 +1836,17 @@ const CRMModule = ({ initialContactId = null }) => {
 
                 <div className="border-t border-[var(--color-border)] pt-3">
                   <p className="text-xs text-[var(--color-text-secondary)] uppercase">Created Date</p>
-                  <p className="text-[var(--color-text-primary)]">{selectedContact.created_at ? new Date(selectedContact.created_at).toLocaleDateString() : '--'}</p>
+                  <p className="text-[var(--color-text-primary)]">{selectedContact.createdAt ? new Date(selectedContact.createdAt).toLocaleDateString() : '--'}</p>
                 </div>
                 
                 <div>
                   <p className="text-xs text-[var(--color-text-secondary)] uppercase">Updated Date</p>
-                  <p className="text-[var(--color-text-primary)]">{selectedContact.updated_at ? new Date(selectedContact.updated_at).toLocaleDateString() : '--'}</p>
+                  <p className="text-[var(--color-text-primary)]">{selectedContact.updatedAt ? new Date(selectedContact.updatedAt).toLocaleDateString() : '--'}</p>
                 </div>
                 
                 <div>
                   <p className="text-xs text-[var(--color-text-secondary)] uppercase">Last Contacted</p>
-                  <p className="text-[var(--color-text-primary)]">{selectedContact.last_contacted_at ? new Date(selectedContact.last_contacted_at).toLocaleDateString() : '--'}</p>
+                  <p className="text-[var(--color-text-primary)]">{selectedContact.lastContactedAt ? new Date(selectedContact.lastContactedAt).toLocaleDateString() : '--'}</p>
                 </div>
               </div>
             )}
@@ -1858,7 +1869,7 @@ const CRMModule = ({ initialContactId = null }) => {
                 <>
                   <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3 space-y-1 text-sm">
                     <div className="text-[var(--color-text-secondary)]">Role: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.role || userAccess.user.role || '--'}</span></div>
-                    <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.workspace_name || '--'}</span></div>
+                    <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{userAccess.memberships?.[0]?.workspaceName || '--'}</span></div>
                     <div className="text-[var(--color-text-secondary)]">Site: <span className="font-medium text-[var(--color-text-primary)]">{window.location.origin}</span></div>
                   </div>
                   <div className="grid gap-2">
@@ -1871,8 +1882,8 @@ const CRMModule = ({ initialContactId = null }) => {
                     <button
                       onClick={() => {
                         const preferredMembership = (userAccess.memberships || []).find((membership) => membership.can_switch_as_admin) || userAccess.memberships?.[0];
-                        if (preferredMembership?.tenant_id) {
-                          handleAdminWorkspaceSwitch(preferredMembership.tenant_id);
+                        if (preferredMembership?.tenantId) {
+                          handleAdminWorkspaceSwitch(preferredMembership.tenantId);
                         }
                       }}
                       className="w-full rounded-[var(--radius-panel)] border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20"
@@ -1970,17 +1981,17 @@ const CRMModule = ({ initialContactId = null }) => {
                 filteredActivities.map(activity => (
                   <div key={activity.id} className={`flex gap-3 p-3 rounded-[var(--radius-panel)] border hover:bg-[color:var(--color-border)/0.5] transition ${getActivityTone(activity)}`}>
                     <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-                      {renderTimelineIcon(activity.activity_type)}
+                      {renderTimelineIcon(activityType)}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between gap-3">
                         <h4 className="text-[var(--color-text-primary)] font-medium text-sm">{activity.title}</h4>
                         <span className="px-2 py-1 rounded-full border border-[var(--color-border)] text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
-                          {activity.activity_type}
+                          {activityType}
                         </span>
                       </div>
                       <div className="text-[var(--color-text-secondary)] text-xs mt-1 leading-relaxed">
-                        {activity.activity_type === 'email' 
+                        {activityType === 'email' 
                           ? normalizeAiText(activity.description, 'No message body') 
                           : activity.description}
                       </div>
@@ -2022,7 +2033,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     <div key={submission.id} className="p-2 bg-[var(--color-bg-primary)] rounded text-xs">
                       <p className="text-white font-medium">Form Submission</p>
                       <p className="text-[var(--color-text-secondary)] text-[10px] mt-1">
-                        {new Date(submission.submitted_at).toLocaleDateString()}
+                        {new Date(submission.submittedAt).toLocaleDateString()}
                       </p>
                     </div>
                   ))
@@ -2045,7 +2056,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     <div key={activity.id} className="p-2 bg-[var(--color-bg-primary)] rounded text-xs border border-[var(--color-border)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[var(--color-text-primary)] font-medium">{activity.title}</p>
-                        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activity.activity_type}</span>
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activityType}</span>
                       </div>
                       <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
                     </div>
@@ -2085,7 +2096,7 @@ const CRMModule = ({ initialContactId = null }) => {
               <ChevronDown size={14} className={detailPanels.pipelines ? 'rotate-180' : ''} />
             </button>
             {detailPanels.pipelines ? <div className="p-2 bg-[var(--color-primary)]/12 rounded text-xs">
-              <p className="text-[var(--color-primary)] font-medium">{selectedContact.pipeline_stage || 'New'}</p>
+              <p className="text-[var(--color-primary)] font-medium">{selectedContact.pipelineStage || 'New'}</p>
             </div> : null}
           </div>
 
@@ -2233,8 +2244,8 @@ const CRMModule = ({ initialContactId = null }) => {
           password: data.password,
           name: `${data.firstName.trim()} ${data.lastName.trim()}`.trim(),
           role: data.system === 'Create New System' ? 'owner' : 'staff',
-          create_workspace: data.system === 'Create New System',
-          workspace_name: data.system === 'Create New System' ? data.systemName.trim() : null
+          createWorkspace: data.system === 'Create New System',
+          workspaceName: data.system === 'Create New System' ? data.systemName.trim() : null
         });
         const refreshedAccess = await getUserAccessApi(data.email.trim());
         setUserAccess(refreshedAccess || null);
@@ -2733,7 +2744,7 @@ const CRMModule = ({ initialContactId = null }) => {
             <div>
               <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">User Access</div>
               <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">
-                {userAccess?.user?.name || selectedContact?.first_name || 'Contact'}
+                {userAccess?.user?.name || selectedContact?.firstName || 'Contact'}
               </h3>
               <p className="text-sm text-[var(--color-text-secondary)]">{userAccess?.user?.email || selectedContact?.email || '--'}</p>
             </div>
@@ -2771,17 +2782,17 @@ const CRMModule = ({ initialContactId = null }) => {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <Shield size={15} className="text-[var(--color-primary)]" />
-                            <span className="text-sm font-semibold text-[var(--color-text-primary)]">{membership.workspace_name}</span>
+                            <span className="text-sm font-semibold text-[var(--color-text-primary)]">{membership.workspaceName}</span>
                           </div>
                           <div className="space-y-1 text-sm">
                             <div className="text-[var(--color-text-secondary)]">Role: <span className="font-medium text-[var(--color-text-primary)]">{membership.role}</span></div>
-                            <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{membership.workspace_name}</span></div>
+                            <div className="text-[var(--color-text-secondary)]">System: <span className="font-medium text-[var(--color-text-primary)]">{membership.workspaceName}</span></div>
                             <div className="text-[var(--color-text-secondary)]">Site: <span className="font-medium text-[var(--color-text-primary)]">{window.location.origin}</span></div>
                           </div>
                         </div>
                         {membership.can_switch_as_admin ? (
                           <button
-                            onClick={() => handleAdminWorkspaceSwitch(membership.tenant_id)}
+                            onClick={() => handleAdminWorkspaceSwitch(membership.tenantId)}
                             className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)]"
                           >
                             Login As Admin
@@ -2805,26 +2816,26 @@ const CRMModule = ({ initialContactId = null }) => {
 
   const BulkActionModal = () => {
     const titles = {
-      add_tag: 'Add Tag',
-      remove_tag: 'Remove Tag',
-      set_owner: 'Set Owner',
-      set_department: 'Set Department',
-      assign_ai: 'Assign AI',
-      add_flow: 'Add Flow',
-      remove_flow: 'Remove Flow'
+      addTag: 'Add Tag',
+      removeTag: 'Remove Tag',
+      setOwner: 'Set Owner',
+      setDepartment: 'Set Department',
+      assignAi: 'Assign AI',
+      addFlow: 'Add Flow',
+      removeFlow: 'Remove Flow'
     };
     const placeholders = {
-      add_tag: 'VIP',
-      remove_tag: 'Prospect',
-      set_owner: 'Adam B.',
-      set_department: 'Sales',
-      assign_ai: 'STRIKER',
-      add_flow: 'Discovery Sequence',
-      remove_flow: 'Discovery Sequence'
+      addTag: 'VIP',
+      removeTag: 'Prospect',
+      setOwner: 'Adam B.',
+      setDepartment: 'Sales',
+      assignAi: 'STRIKER',
+      addFlow: 'Discovery Sequence',
+      removeFlow: 'Discovery Sequence'
     };
     const optionsMap = {
-      set_department: filterOptions.department,
-      assign_ai: ['ALPHA', 'GHOST', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
+      setDepartment: filterOptions.department,
+      assignAi: ['ALPHA', 'GHOST', 'ARCHER', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR']
     };
     const options = optionsMap[bulkActionModal.action] || null;
 
@@ -2922,9 +2933,9 @@ const CRMModule = ({ initialContactId = null }) => {
                 <ChevronLeft size={16} /> Back to Contacts
               </button>
               <div className="h-4 w-px bg-[var(--color-border)]" />
-              <span className="text-sm font-medium text-[var(--color-text-primary)]">{selectedContact.first_name} {selectedContact.last_name}</span>
+              <span className="text-sm font-medium text-[var(--color-text-primary)]">{selectedContact.firstName} {selectedContact.lastName}</span>
               <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
-                Stage {selectedContact.pipeline_stage || 'New'}
+                Stage {selectedContact.pipelineStage || 'New'}
               </span>
               <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
                 Owner {selectedContact.owner || 'Unassigned'}
@@ -2940,8 +2951,8 @@ const CRMModule = ({ initialContactId = null }) => {
           ) : null
         }
         actions={[
-          { label: 'JSON', icon: Zap, onClick: () => handleBulkAction('send_api'), variant: 'secondary', color: 'slate' },
-          { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('send_email'), variant: 'secondary', color: 'sky' },
+          { label: 'JSON', icon: Zap, onClick: () => handleBulkAction('sendApi'), variant: 'secondary', color: 'slate' },
+          { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('sendEmail'), variant: 'secondary', color: 'sky' },
         ]}
         toolbarRightSlot={
           <div className="flex items-center gap-2">
@@ -2973,8 +2984,8 @@ const CRMModule = ({ initialContactId = null }) => {
               </button>
               <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[120px]">
-                  <button onClick={() => handleBulkAction('add_tag')} className="w-full text-left px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/20 rounded">+ Add Tag</button>
-                  <button onClick={() => handleBulkAction('remove_tag')} className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/20 rounded">- Remove Tag</button>
+                  <button onClick={() => handleBulkAction('addTag')} className="w-full text-left px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/20 rounded">+ Add Tag</button>
+                  <button onClick={() => handleBulkAction('removeTag')} className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/20 rounded">- Remove Tag</button>
                 </div>
               </div>
             </div>
@@ -2985,8 +2996,8 @@ const CRMModule = ({ initialContactId = null }) => {
               </button>
               <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[120px]">
-                  <button onClick={() => handleBulkAction('add_flow')} className="w-full text-left px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/20 rounded">+ Add Flow</button>
-                  <button onClick={() => handleBulkAction('remove_flow')} className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/20 rounded">- Remove Flow</button>
+                  <button onClick={() => handleBulkAction('addFlow')} className="w-full text-left px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/20 rounded">+ Add Flow</button>
+                  <button onClick={() => handleBulkAction('removeFlow')} className="w-full text-left px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/20 rounded">- Remove Flow</button>
                 </div>
               </div>
             </div>
@@ -2997,8 +3008,8 @@ const CRMModule = ({ initialContactId = null }) => {
               </button>
               <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[120px]">
-                  <button onClick={() => handleBulkAction('set_owner')} className="w-full text-left px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20 rounded">Set Owner</button>
-                  <button onClick={() => handleBulkAction('set_department')} className="w-full text-left px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20 rounded">Set Dept</button>
+                  <button onClick={() => handleBulkAction('setOwner')} className="w-full text-left px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20 rounded">Set Owner</button>
+                  <button onClick={() => handleBulkAction('setDepartment')} className="w-full text-left px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20 rounded">Set Dept</button>
                 </div>
               </div>
             </div>

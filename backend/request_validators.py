@@ -3,6 +3,28 @@ import re
 from typing import Any
 
 
+def camel_to_snake(name: str) -> str:
+    """Convert camelCase to snake_case."""
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+
+
+def convert_to_snakecase(data: Any) -> Any:
+    """
+    Recursively convert all camelCase keys to snake_case.
+    
+    Args:
+        data: Any JSON-like structure
+        
+    Returns:
+        Same structure with all keys converted to snake_case
+    """
+    if isinstance(data, dict):
+        return {camel_to_snake(k): convert_to_snakecase(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_to_snakecase(item) for item in data]
+    return data
+
+
 def snake_to_camel(name: str) -> str:
     """Convert snake_case to camelCase."""
     components = name.split("_")
