@@ -380,7 +380,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                     {showProfileDropdown && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
-                            <div className={`${floatingPanelClass} w-72`}>
+                            <div className={`${floatingPanelClass} w-72 glass-panel`}>
                                 <div className="p-4 border-b border-[var(--color-border)]">
                                     <p className="text-sm font-medium text-[var(--color-text-primary)]">{currentUser.email}</p>
                                 </div>
@@ -390,7 +390,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                         onClick={() => {
                                             setShowProfileDropdown(false);
                                         }}
-                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] transition flex items-center gap-3"
+                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)] transition flex items-center gap-3"
                                     >
                                         <User size={16} /> My Account
                                     </button>
@@ -399,7 +399,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                             setShowProfileDropdown(false);
                                             onNavigate('terms');
                                         }}
-                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] transition flex items-center gap-3"
+                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)] transition flex items-center gap-3"
                                     >
                                         <FileText size={16} /> Terms of Service
                                     </button>
@@ -408,7 +408,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                             setShowProfileDropdown(false);
                                             onNavigate('privacy');
                                         }}
-                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] transition flex items-center gap-3"
+                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)] transition flex items-center gap-3"
                                     >
                                         <Lock size={16} /> Privacy Policy
                                     </button>
@@ -417,7 +417,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                             setShowProfileDropdown(false);
                                             onNavigate('acceptable-use');
                                         }}
-                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] transition flex items-center gap-3"
+                                        className="w-full text-left px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)] transition flex items-center gap-3"
                                     >
                                         <Rocket size={16} /> Acceptable Use Policy
                                     </button>
