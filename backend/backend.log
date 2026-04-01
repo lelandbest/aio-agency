@@ -1,0 +1,7 @@
+INFO:     Started server process [34204]
+INFO:     Waiting for application startup.
+2026-03-31 19:24:56,612 - __main__ - INFO - AIO CRM Backend starting up
+2026-03-31 19:24:56,612 - __main__ - INFO - Environment: development
+2026-03-31 19:24:56,612 - __main__ - INFO - Provider: {'provider': 'sqlite', 'status': 'ready', 'db_path': 'D:\\AIOCRM\\backend\\data\\aio_crm.db'}
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)

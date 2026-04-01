@@ -1412,9 +1412,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       <FlowBuilderHeader
         flowName={flow?.name}
         status={flow?.status}
+        onExit={onExit}
         onToggleDetails={() => setRightPanelOpen(!rightPanelOpen)}
         isDetailsOpen={rightPanelOpen}
-        breadcrumbs={[{ id: 'editor', label: 'Editor' }]}
         aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
         onSave={handleSaveFlow}
       />
@@ -1561,17 +1561,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 onSaveAsTemplate={handleSaveAsTemplate}
                 showDetails={true}
               />
-              <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
+              <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-primary)]">MiniMap</span>
-                <MiniMap nodeColor={(node) => {
-                  switch (node.data?.nodeColor) {
-                    case 'trigger': return '#22d3ee';
-                    case 'action': return '#a855f7';
-                    case 'logic': return '#facc15';
-                    case 'agent': return '#06b6d4';
-                    default: return '#94a3b8';
-                  }
-                }} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[180px] !bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl opacity-90 hover:opacity-100 transition-opacity !m-0" />
+                <div className="w-full overflow-hidden rounded-xl border border-[var(--color-border)]">
+                  <MiniMap nodeColor={(node) => {
+                    switch (node.data?.nodeColor) {
+                      case 'trigger': return '#22d3ee';
+                      case 'action': return '#a855f7';
+                      case 'logic': return '#facc15';
+                      case 'agent': return '#06b6d4';
+                      default: return '#94a3b8';
+                    }
+                  }} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[140px] !bg-[var(--color-bg-primary)] opacity-90 hover:opacity-100 transition-opacity !m-0" />
+                </div>
               </div>
             </div>
             

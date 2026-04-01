@@ -233,6 +233,7 @@ const App = () => {
   const [currentPage, setCurrentPage] = useState('app'); // 'app', 'terms', 'privacy', 'acceptable-use', 'form'
   const [formSlug, setFormSlug] = useState(null);
   const [lastNonFullscreen, setLastNonFullscreen] = useState('aio-brain');
+  const [lastActiveModule, setLastActiveModule] = useState(initialNavigation.activeModule || 'aio-brain');
   const [flowId, setFlowId] = useState(initialNavigation.flowId);
   const [flowAction, setFlowAction] = useState(initialNavigation.flowAction);
   const [flowIntent, setFlowIntent] = useState(initialNavigation.flowIntent);
@@ -265,6 +266,20 @@ const App = () => {
   const operatorMode = isOperatorRole(userRole);
   const renderedMenuStructure = clientMode ? filterMenuForClient(menuStructure) : menuStructure;
   const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(activeModule) ? DEFAULT_CLIENT_MODULE : activeModule;
+
+  const navigateToModule = useCallback((moduleId) => {
+    if (clientMode && !CLIENT_ALLOWED_MODULES.has(moduleId)) {
+      setActiveModule(DEFAULT_CLIENT_MODULE);
+      return;
+    }
+    setLastActiveModule(activeModule);
+    setActiveModule(moduleId);
+    if (moduleId === 'flows') {
+      setFlowId(null);
+      setFlowAction(null);
+      setFlowIntent(null);
+    }
+  }, [clientMode, activeModule]);
   const canonicalMenu = activeTenantSettings?.navigation?.menuStructure;
   const legacyMenu = activeTenantSettings?.menu_structure;
 
@@ -293,7 +308,6 @@ const App = () => {
     setFlowId(null);
     setFlowAction(null);
     setFlowIntent(null);
-    setCrmContactId(null);
   }, [activeModule, clientMode]);
 
   const findMenuItemById = (items, targetId, parent = null) => {
@@ -401,6 +415,7 @@ const App = () => {
     const handlePopState = () => {
       const state = readNavigationStateFromUrl();
       setActiveModule(state.activeModule);
+      setLastActiveModule(state.activeModule);
       setFlowId(state.flowId);
       setFlowAction(state.flowAction);
       setFlowIntent(state.flowIntent);
@@ -670,7 +685,7 @@ const App = () => {
           />
         );
       case 'crm':
-        return <CRMModule initialContactId={crmContactId} />;
+        return <CRMModule initialContactId={crmContactId} onSelectContact={setCrmContactId} />;
       case 'forms':
         return <FormBuilderModule />;
       case 'pipelines':
@@ -688,7 +703,7 @@ const App = () => {
       case 'integrations':
         return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':
-        return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onFlowContextChange={handleFlowContextChange} onExit={() => setActiveModule('aio-brain')} />;
+        return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onFlowContextChange={handleFlowContextChange} onExit={() => setActiveModule(lastActiveModule)} />;
       case 'chat':
         return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} clientMode={clientMode} />;
       case 'marketplace':
@@ -722,19 +737,7 @@ const App = () => {
                 {!isFullscreen && (
                   <Sidebar
                     activeModule={effectiveActiveModule}
-                    onSelectModule={(moduleId) => {
-                      if (clientMode && !CLIENT_ALLOWED_MODULES.has(moduleId)) {
-                        setActiveModule(DEFAULT_CLIENT_MODULE);
-                        return;
-                      }
-                      setActiveModule(moduleId);
-                      if (moduleId === 'flows') {
-                        handleFlowContextChange({ flowId: null, action: null, intent: null });
-                      }
-                      if (moduleId !== 'crm') {
-                        setCrmContactId(null);
-                      }
-                    }}
+                    onSelectModule={navigateToModule}
                     onLogout={handleLogout}
                     isMobileOpen={isMobileOpen}
                     setIsMobileOpen={setIsMobileOpen}

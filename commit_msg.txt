@@ -1,0 +1,12 @@
+feat: Media module truth pass + execution visibility loop
+- Real media playback wired (video/audio elements)
+- ffprobe metadata integration confirmed
+- Live oscilloscope + RMS metering (Web Audio)
+- Execution feedback loop added:
+  - RUNNING / SUCCESS / FAILED states
+  - TARGET context display
+  - Last Action summary + result buffer
+- Eliminated dead-button ambiguity in Media controls
+- Fixed canvasRef crash in oscilloscope
+
+System now provides truthful operator feedback and visible execution flow.

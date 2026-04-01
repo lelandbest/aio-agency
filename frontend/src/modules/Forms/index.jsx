@@ -24,7 +24,7 @@ import {
   Code, Columns, Layers, Table, GripVertical, Trash2, ExternalLink, Save,
   Bot, Settings, Bold, Italic, Underline, AlignCenter, AlignRight, GitMerge,
   Database, Download, Search, Filter, Edit2, Folder, FolderOpen, ChevronRight,
-  Eye, Crosshair
+  Eye, Crosshair, ArrowLeft
 } from 'lucide-react';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
@@ -1026,35 +1026,37 @@ const FormBuilderModule = () => {
       {/* Canvas */}
       <div className="min-h-0 min-w-0 flex-1 flex flex-col bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
         {/* Editor Header */}
-        <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-4 px-6 py-4 bg-[var(--color-bg-tertiary)]">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-[var(--color-text-secondary)]">Design and deploy your custom forms.</p>
-            <div className="relative group mt-2">
+        <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-4 px-6 h-14 bg-[var(--color-bg-tertiary)]">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => { setCurrentForm(null); setView('list'); }} className="flex-shrink-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1 transition-colors">
+              <ArrowLeft size={16} />
+            </button>
+            <div className="relative group min-w-0">
               <input
                 value={currentForm?.name || ''}
                 onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
-                className="bg-transparent text-[var(--color-text-primary)] text-lg font-bold focus:outline-none focus:border-b-2 border-[var(--color-primary)] pb-1 w-64 md:w-96 transition-all focus:bg-[var(--color-bg-primary)]/50 px-2 rounded-t"
+                className="bg-transparent text-[var(--color-text-primary)] text-sm font-bold focus:outline-none w-48 md:w-72 transition-all px-2 py-1 rounded"
                 placeholder="Enter form name..."
               />
-              <Edit2 size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none group-hover:text-[var(--color-primary)] transition-colors" />
+              <Edit2 size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none group-hover:text-[var(--color-primary)] transition-colors" />
             </div>
           </div>
-          <div className="flex gap-2 self-start">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <AIAssistButton
               onAssist={() => runFormAssist('form-name')}
               loading={assistTarget === 'form-name'}
               tooltip="Draft form name"
               iconType="crosshair"
             />
-            <button className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-2">
-              <ExternalLink size={16} />
+            <button className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1.5 transition-colors">
+              <ExternalLink size={14} />
             </button>
             <button
                onClick={handleSaveForm}
                disabled={isSaving}
-               className={`bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-5 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-[var(--color-primary)]/20 active:scale-95 disabled:opacity-50 ${saveAction === 'form-saved' ? 'bg-green-600' : ''}`}
+               className={`bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-[var(--color-primary)]/20 active:scale-95 disabled:opacity-50 ${saveAction === 'form-saved' ? 'bg-green-600' : ''}`}
              >
-               <Save size={14} /> {isSaving ? 'Saving...' : saveAction === 'form-saved' ? 'Saved!' : 'Save Form'}
+               <Save size={12} /> {isSaving ? 'Saving...' : saveAction === 'form-saved' ? 'Saved!' : 'Save Form'}
              </button>
           </div>
         </div>

@@ -926,6 +926,29 @@
       "updated_at": "2026-03-31T18:41:52.804228+00:00",
       "started_at": "2026-03-31T18:41:40.749874+00:00",
       "completed_at": "2026-03-31T18:41:52.794458+00:00"
+    },
+    {
+      "id": "render-job-316658bd6346",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-render",
+      "title": "Thumbnail",
+      "status": "failed",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "Thumbnail",
+        "mediaType": "image",
+        "script": "",
+        "metadata": {
+          "prompt": ""
+        }
+      },
+      "attachments": [],
+      "output_asset_ids": [],
+      "last_error": "build_media_asset() missing 1 required keyword-only argument: 'source'",
+      "created_at": "2026-04-01T14:25:26.407570+00:00",
+      "updated_at": "2026-04-01T14:25:38.048593+00:00",
+      "started_at": "2026-04-01T14:25:26.410203+00:00",
+      "completed_at": "2026-04-01T14:25:38.037797+00:00"
     }
   ],
   "transcript_jobs": [

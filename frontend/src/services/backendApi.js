@@ -583,6 +583,14 @@ export async function deleteMediaArtifactApi(artifactType, artifactId) {
   return response;
 }
 
+export async function probeMediaAssetApi(payload) {
+  const response = await request('/api/media/probe', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
 export async function createOrderApi(payload) {
   const response = await request('/api/orders', {
     method: 'POST',

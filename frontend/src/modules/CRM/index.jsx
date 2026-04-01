@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const normalizeCsvHeader = (header) => {
   return header
@@ -35,11 +35,11 @@ import { useAIAssist } from '../../contexts/AIAssistContext';
 import { 
   Brain, Crosshair, Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
   Trash2, X, Download, MessageCircle, Calendar, Zap,
-  AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft,
+  AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ArrowLeft,
   Edit, Clipboard, FileInput, User, Building2, KeyRound, Shield, ExternalLink
 } from 'lucide-react';
 
-const CRMModule = ({ initialContactId = null }) => {
+const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
   const { tenant, tenants = [], switchTenant } = useAuth();
   const { openAIAssist } = useAIAssist();
   const importInputRef = useRef(null);
@@ -156,8 +156,9 @@ const CRMModule = ({ initialContactId = null }) => {
     const contact = contacts.find((entry) => entry.id === initialContactId);
     if (contact) {
       setSelectedContact(contact);
+      if (onSelectContact) onSelectContact(contact.id);
     }
-  }, [initialContactId, contacts]);
+  }, [initialContactId, contacts, onSelectContact]);
 
   useEffect(() => {
     if (selectedContact && typeof window !== 'undefined') {
@@ -194,6 +195,13 @@ const CRMModule = ({ initialContactId = null }) => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [activeResizeSide]);
+
+  const selectContact = useCallback((contact) => {
+    setSelectedContact(contact);
+    if (onSelectContact) {
+      onSelectContact(contact ? contact.id : null);
+    }
+  }, [onSelectContact]);
 
   // Load data from database
   useEffect(() => {
@@ -964,7 +972,7 @@ const CRMModule = ({ initialContactId = null }) => {
 
   const openCreateUserModal = (contact = null) => {
     if (contact) {
-      setSelectedContact(contact);
+      selectContact(contact);
     }
     setCreateModalTab('Create User');
     setShowCreateModal(true);
@@ -1246,7 +1254,7 @@ const CRMModule = ({ initialContactId = null }) => {
                               className="w-4 h-4"
                             />
                           </td>
-                          <td className="px-4 py-3" onClick={() => setSelectedContact(contact)}>
+                          <td className="px-4 py-3" onClick={() => selectContact(contact)}>
                             <div className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)]">
                               {contact.firstName} {contact.lastName}
                             </div>
@@ -1517,6 +1525,7 @@ const CRMModule = ({ initialContactId = null }) => {
       const updated = await updateContactApi(selectedContact.id, editedContact);
       setSelectedContact(updated);
       setIsEditingContact(false);
+      setIsEditingContact(false);
       await loadData();
     };
 
@@ -1536,7 +1545,7 @@ const CRMModule = ({ initialContactId = null }) => {
         return;
       }
       await updateContactApi(contactToDelete.id, { deletedAt: new Date().toISOString() });
-      setSelectedContact(null);
+      selectContact(null);
       setIsEditingContact(false);
       await loadData();
     };
@@ -1611,11 +1620,11 @@ const CRMModule = ({ initialContactId = null }) => {
         <style>{`
           .crm-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
         `}</style>
-        <div ref={layoutRef} className="flex flex-1 overflow-hidden relative p-4 gap-3">
+        <div ref={layoutRef} className="flex flex-1 min-h-0 overflow-hidden relative p-4 gap-3">
         {/* LEFT PANEL: Detailed Contact Info */}
-        <div 
+        <div
           style={{ width: leftPanelWidth, ...hiddenScrollbarStyle }}
-          className="crm-scroll-hidden flex-none flex flex-col gap-2 overflow-y-auto transition-all duration-75"
+          className="crm-scroll-hidden flex-none flex flex-col gap-2 overflow-y-auto min-h-0 transition-all duration-75"
         >
           {/* Detail Card */}
           <div className={shellPanelClass + ' p-3 space-y-3'}>
@@ -1936,8 +1945,8 @@ const CRMModule = ({ initialContactId = null }) => {
         />
 
         {/* CENTER: Activity Timeline */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className={shellPanelClass + ' flex flex-col flex-1 overflow-hidden'}>
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className={shellPanelClass + ' flex flex-col flex-1 min-h-0 overflow-hidden'}>
             {/* Activity Tabs */}
             <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2">
               <div className="flex gap-2 overflow-x-auto crm-scroll-hidden">
@@ -2938,38 +2947,14 @@ const CRMModule = ({ initialContactId = null }) => {
       {/* Header with Actions - 48px Island Toolbar */}
       <ModuleHeader
         showTitle={false}
-        leftActions={[
-          { label: '+ ADD CONTACT', icon: Plus, onClick: () => setShowCreateModal(true), variant: 'primary' },
+        leftActions={selectedContact ? [
+          { label: 'BACK TO LIST', icon: ArrowLeft, onClick: () => selectContact(null), variant: 'secondary' },
+        ] : [
+          { label: '+ ADD CONTACT', onClick: () => setShowCreateModal(true), variant: 'primary' },
           { label: 'Import', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', groupStart: true },
           { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary' },
         ]}
-        toolbarLeftSlot={
-          selectedContact ? (
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setSelectedContact(null)}
-                className="inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
-              >
-                <ChevronLeft size={16} /> Back to Contacts
-              </button>
-              <div className="h-4 w-px bg-[var(--color-border)]" />
-              <span className="text-sm font-medium text-[var(--color-text-primary)]">{selectedContact.firstName} {selectedContact.lastName}</span>
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
-                Stage {selectedContact.pipelineStage || 'New'}
-              </span>
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-tertiary)]">
-                Owner {selectedContact.owner || 'Unassigned'}
-              </span>
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] ${getEmailVerificationMeta(selectedContact).className}`}>
-                Email {getEmailVerificationMeta(selectedContact).label}
-              </span>
-            </div>
-          ) : selectedContacts.size > 0 ? (
-            <div className="text-xs text-[var(--color-text-secondary)]">
-              {selectedContacts.size} selected
-            </div>
-          ) : null
-        }
+        toolbarLeftSlot={null}
         actions={[
           { label: 'JSON', icon: Zap, onClick: () => handleBulkAction('sendApi'), variant: 'secondary', color: 'slate' },
           { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('sendEmail'), variant: 'secondary', color: 'sky' },

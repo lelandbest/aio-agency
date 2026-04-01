@@ -318,3 +318,104 @@ html.dark .tag-system {
 .animate-float {
   animation: float 20s linear infinite;
 }
+
+/* --- AIO PREMIUM TOOLTIP SYSTEM --- */
+.aio-tooltip {
+  position: relative;
+}
+
+.aio-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 10px;
+  background-color: #070708;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #EDEDED;
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 200px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+  transform: translateX(-50%) translateY(6px);
+  z-index: 10000;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), 0 0 20px rgba(6, 182, 212, 0.05);
+  backdrop-filter: blur(12px);
+  text-align: left;
+}
+
+.aio-tooltip:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  border-color: rgba(6, 182, 212, 0.3);
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 1), 0 0 25px rgba(6, 182, 212, 0.15);
+}
+
+.aio-tooltip:hover {
+  z-index: 50;
+}
+
+.aio-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 5px;
+  width: 12px;
+  height: 12px;
+  background-color: #070708;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  transform: translateX(-50%) translateY(8px) rotate(45deg);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+  z-index: 10001;
+}
+
+.aio-tooltip:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) rotate(45deg);
+  border-color: rgba(6, 182, 212, 0.4);
+}
+
+/* --- COMPACT MEDIA SLIDERS --- */
+.media-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  height: 2px;
+  border-radius: 9999px;
+  outline: none;
+  margin: 0;
+}
+
+.media-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 6px;
+  height: 6px;
+  background: #06b6d4;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 5px rgba(6, 182, 212, 0.3);
+}
+
+.media-range::-moz-range-thumb {
+  width: 6px;
+  height: 6px;
+  background: #06b6d4;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 5px rgba(6, 182, 212, 0.3);
+}

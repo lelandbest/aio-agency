@@ -4902,6 +4902,114 @@ async def create_publish_job(request: Request, payload: MediaPublishRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.post("/api/media/probe")
+async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...)):
+    """Probe a media asset and return real metadata. Uses ffprobe if available; returns honest failure if not."""
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can probe media assets.")
+    source_url = clean_text(payload.get("sourceUrl") or payload.get("source_url") or "")
+    asset_id = clean_text(payload.get("assetId") or payload.get("asset_id") or "")
+
+    # If assetId given, resolve sourceUrl from store
+    if asset_id and not source_url:
+        assets = get_media_engine().list_assets()
+        match = next((a for a in assets if clean_text(a.get("id")) == asset_id), None)
+        if not match:
+            raise HTTPException(status_code=404, detail="Asset not found.")
+        source_url = clean_text(match.get("source_url") or "")
+
+    if not source_url:
+        raise HTTPException(status_code=400, detail="sourceUrl or assetId with a known URL is required.")
+
+    # Resolve a local file path if it looks like /api/media/...
+    local_path = None
+    from pathlib import Path
+    backend_root = Path(__file__).resolve().parent
+    if source_url.startswith("/api/media/video/"):
+        filename = source_url.split("/api/media/video/")[-1]
+        candidate = backend_root / "data" / "video" / filename
+        if candidate.exists():
+            local_path = str(candidate)
+    elif source_url.startswith("/api/media/audio/"):
+        filename = source_url.split("/api/media/audio/")[-1]
+        candidate = backend_root / "data" / "audio" / filename
+        if candidate.exists():
+            local_path = str(candidate)
+
+    # Attempt ffprobe
+    probe_result: dict[str, Any] = {
+        "sourceUrl": source_url,
+        "probeStatus": "unavailable",
+        "probeMethod": None,
+        "duration": None,
+        "mediaType": None,
+        "hasVideo": None,
+        "hasAudio": None,
+        "width": None,
+        "height": None,
+        "codecSummary": None,
+        "fileSize": None,
+        "waveformStatus": "unavailable",
+    }
+
+    target = local_path or source_url
+    if local_path:
+        import os
+        try:
+            probe_result["fileSize"] = os.path.getsize(local_path)
+        except OSError:
+            pass
+
+    try:
+        import subprocess, json as _json
+        cmd = [
+            "ffprobe", "-v", "quiet", "-print_format", "json",
+            "-show_streams", "-show_format", target
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if result.returncode == 0:
+            data = _json.loads(result.stdout)
+            streams = data.get("streams") or []
+            fmt = data.get("format") or {}
+            has_video = any(s.get("codec_type") == "video" for s in streams)
+            has_audio = any(s.get("codec_type") == "audio" for s in streams)
+            video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+            audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
+            duration_raw = fmt.get("duration") or (video_stream or audio_stream or {}).get("duration")
+            try:
+                duration_val = round(float(duration_raw), 3) if duration_raw else None
+            except (TypeError, ValueError):
+                duration_val = None
+            codecs = list({s.get("codec_name") for s in streams if s.get("codec_name")})
+            probe_result.update({
+                "probeStatus": "ok",
+                "probeMethod": "ffprobe",
+                "duration": duration_val,
+                "mediaType": "video" if has_video else ("audio" if has_audio else "unknown"),
+                "hasVideo": has_video,
+                "hasAudio": has_audio,
+                "width": video_stream.get("width") if video_stream else None,
+                "height": video_stream.get("height") if video_stream else None,
+                "codecSummary": ", ".join(codecs) if codecs else None,
+                "fileSize": probe_result["fileSize"] or (int(fmt["size"]) if fmt.get("size") else None),
+                "waveformStatus": "pending" if has_audio else "not_applicable",
+                "container": fmt.get("format_name"),
+            })
+        else:
+            probe_result["probeStatus"] = "ffprobe_error"
+            probe_result["probeMethod"] = "ffprobe"
+    except FileNotFoundError:
+        probe_result["probeStatus"] = "ffprobe_not_installed"
+        probe_result["probeMethod"] = None
+    except subprocess.TimeoutExpired:
+        probe_result["probeStatus"] = "ffprobe_timeout"
+        probe_result["probeMethod"] = "ffprobe"
+    except Exception as exc:
+        probe_result["probeStatus"] = "error"
+        probe_result["probeError"] = str(exc)
+
+    return {"data": probe_result}
+
+
 @app.get("/api/calendars")
 async def list_calendars():
     return {"data": provider.list_calendars()}
