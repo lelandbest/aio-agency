@@ -1386,8 +1386,9 @@ const CRMModule = ({ initialContactId = null }) => {
 
   // CONTACT DETAIL VIEW
   const renderContactDetailView = () => {
-    const meetingActivities = activities.filter((activity) => activity.activityType === 'meeting');
-    const workflowActivities = activities.filter((activity) => activity.activityType === 'workflow');
+    const safeActivities = activities || [];
+    const meetingActivities = safeActivities.filter((activity) => activity?.activityType === 'meeting');
+    const workflowActivities = safeActivities.filter((activity) => activity?.activityType === 'workflow');
     const upcomingMeeting = [...meetingActivities]
       .filter((activity) => new Date(activity.createdAt).getTime() >= Date.now())
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0] || null;
@@ -1462,17 +1463,17 @@ const CRMModule = ({ initialContactId = null }) => {
     };
 
     const filteredActivities = activityTab === 'Activity' 
-      ? activities 
-      : activities.filter(a => {
-          if (activityTab === 'Forms') return a.activityType === 'form';
-          if (activityTab === 'Notes') return a.activityType === 'note';
-          if (activityTab === 'Flow Emails') return a.activityType === 'email' || a.activityType === 'automation' || a.activityType === 'flow';
-          if (activityTab === 'Flow SMS') return a.activityType === 'sms';
-          if (activityTab === 'Flow Activity') return a.activityType === 'workflow' || a.activityType === 'automation' || a.activityType === 'flow' || a.activityType === 'meeting';
+      ? safeActivities 
+      : safeActivities.filter(a => {
+          if (activityTab === 'Forms') return a?.activityType === 'form';
+          if (activityTab === 'Notes') return a?.activityType === 'note';
+          if (activityTab === 'Flow Emails') return a?.activityType === 'email' || a?.activityType === 'automation' || a?.activityType === 'flow';
+          if (activityTab === 'Flow SMS') return a?.activityType === 'sms';
+          if (activityTab === 'Flow Activity') return a?.activityType === 'workflow' || a?.activityType === 'automation' || a?.activityType === 'flow' || a?.activityType === 'meeting';
           return false;
         });
 
-    const flowEmailActivities = activities.filter((activity) => ['email', 'automation', 'flow'].includes(activityType));
+    const flowEmailActivities = safeActivities.filter((activity) => ['email', 'automation', 'flow'].includes(activity?.activityType));
     const bookingActivities = meetingActivities;
     const billingItems = [];
 
@@ -2075,7 +2076,7 @@ const CRMModule = ({ initialContactId = null }) => {
                     <div key={activity.id} className="p-2 bg-[var(--color-bg-primary)] rounded text-xs border border-[var(--color-border)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[var(--color-text-primary)] font-medium">{activity.title}</p>
-                        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activityType}</span>
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{activity.activityType}</span>
                       </div>
                       <p className="text-[var(--color-text-secondary)] mt-1">{activity.description}</p>
                     </div>
