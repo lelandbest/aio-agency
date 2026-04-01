@@ -1603,6 +1603,67 @@ class MediaEngine:
             "transcript_artifact": transcript_artifact,
         }
 
+    def get_job(self, job_type: str, job_id: str) -> dict[str, Any] | None:
+        collection_map = {
+            "render": "render_jobs",
+            "transcript": "transcript_jobs",
+            "script": "script_jobs",
+            "run_of_show": "run_of_show_jobs",
+            "audio": "audio_render_jobs",
+            "publish": "publish_jobs",
+        }
+        collection = collection_map.get(job_type)
+        if not collection:
+            return None
+        with self._lock:
+            state = self._read_state()
+            rows = state.get(collection) or []
+            for row in rows:
+                if clean_text(row.get("id")) == clean_text(job_id):
+                    return clone_json(row)
+        return None
+
+    def process_job(self, job_type: str, job_id: str, payload: dict[str, Any], tenant_id: str | None = None) -> dict[str, Any]:
+        """Runs the actual processing logic for a job. Suitable for BackgroundTasks."""
+        job = self.get_job(job_type, job_id)
+        if not job:
+            return {"error": "Job not found"}
+
+        context = {} # Optional context if needed
+        attachments = normalize_attachment_links(payload, context)
+
+        if job_type == "script":
+            provider_id = job.get("provider") or StubScriptProvider.provider_id
+            provider = self.script_providers.get(provider_id)
+            if not provider: return {"error": f"Provider {provider_id} not found"}
+            return self._process_script_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+        if job_type == "run_of_show":
+            provider_id = job.get("provider") or StubRunOfShowProvider.provider_id
+            provider = self.run_of_show_providers.get(provider_id)
+            if not provider: return {"error": f"Provider {provider_id} not found"}
+            return self._process_run_of_show_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+        if job_type == "audio":
+            provider_id = job.get("provider") or ElevenLabsTTSProvider.provider_id
+            provider = self.audio_render_providers.get(provider_id)
+            if not provider: return {"error": f"Provider {provider_id} not found"}
+            return self._process_audio_render_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+        if job_type == "render":
+            provider_id = job.get("provider") or RemotionLocalRenderProvider.provider_id
+            provider = self.render_providers.get(provider_id)
+            if not provider: return {"error": f"Provider {provider_id} not found"}
+            return self._process_render_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+        if job_type == "transcript":
+            provider_id = job.get("provider") or ElevenLabsScribeTranscriptionProvider.provider_id
+            provider = self.transcription_providers.get(provider_id)
+            if not provider: return {"error": f"Provider {provider_id} not found"}
+            return self._process_transcript_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
+        return {"error": f"Unsupported job type {job_type}"}
+
 
 _MEDIA_ENGINE: MediaEngine | None = None
 

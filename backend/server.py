@@ -54,7 +54,11 @@ try:
     from backend.system_health import build_system_health
     from backend.tenant_deployment import DeploymentFailureError
     from backend.tools import AIOToolRegistry
-    from backend.media_engine import get_media_engine
+    from backend.media_engine import (
+        get_media_engine, build_script_job, build_run_of_show_job, 
+        build_audio_render_job, build_render_job, build_transcript_job,
+        normalize_attachment_links
+    )
 except ModuleNotFoundError:
     from planner import create_booking_execution_plan
     from agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
@@ -4781,93 +4785,130 @@ async def delete_media_artifact(request: Request, artifactType: str, artifactId:
     return {"success": True, "deletedId": artifactId}
 
 
+@app.get("/api/media/jobs/{jobType}/{jobId}")
+async def get_media_job_status(request: Request, jobType: str, jobId: str):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media job status.")
+    job = get_media_engine().get_job(jobType, jobId)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"data": job}
+
+
 @app.post("/api/media/script-jobs")
-async def create_script_job(request: Request, payload: MediaScriptRequest):
+async def create_script_job(request: Request, payload: MediaScriptRequest, background_tasks: BackgroundTasks):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create script jobs.")
     tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
     try:
-        result = get_media_engine().generate_script(
-            payload.model_dump(exclude_none=True),
-            tenant_id=tenant.get("id"),
-            context={},
+        engine = get_media_engine()
+        provider_id = clean_text(payload.provider) or "stub_script"
+        attachments = normalize_attachment_links(payload.model_dump(exclude_none=True), {})
+        job = build_script_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.title) or clean_text(payload.topic) or "Script Job",
+            input_payload=payload.model_dump(exclude_none=True),
+            attachments=attachments
         )
-        return {"data": result}
+        engine.store.upsert("script_jobs", job)
+        background_tasks.add_task(engine.process_job, "script", job["id"], payload.model_dump(exclude_none=True), tenant_id)
+        return {"data": {"job": job}}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/media/run-of-show-jobs")
-async def create_run_of_show_job(request: Request, payload: MediaRunOfShowRequest):
+async def create_run_of_show_job(request: Request, payload: MediaRunOfShowRequest, background_tasks: BackgroundTasks):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create run-of-show jobs.")
     tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
     try:
-        result = get_media_engine().generate_run_of_show(
-            payload.model_dump(exclude_none=True),
-            tenant_id=tenant.get("id"),
-            context={},
+        engine = get_media_engine()
+        provider_id = clean_text(payload.provider) or "stub_run_of_show"
+        attachments = normalize_attachment_links(payload.model_dump(exclude_none=True), {})
+        job = build_run_of_show_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.title) or clean_text(payload.topic) or "Run of Show Job",
+            input_payload=payload.model_dump(exclude_none=True),
+            attachments=attachments
         )
-        return {"data": result}
+        engine.store.upsert("run_of_show_jobs", job)
+        background_tasks.add_task(engine.process_job, "run_of_show", job["id"], payload.model_dump(exclude_none=True), tenant_id)
+        return {"data": {"job": job}}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/media/audio-render-jobs")
-async def create_audio_render_job(request: Request, payload: MediaAudioRenderRequest):
+async def create_audio_render_job(request: Request, payload: MediaAudioRenderRequest, background_tasks: BackgroundTasks):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create audio render jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     provider_key = clean_text(payload.provider) or "elevenlabs_tts"
     provider_cfg = auth_store.get_media_provider_config_by_provider_key(tenant_id, provider_key)
     if not provider_cfg:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Media provider '{provider_key}' is not configured or not enabled for this workspace. Add it under Settings → Integrations → Media.",
-        )
-    api_key = clean_text(provider_cfg.get("apiKey"))
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"Media provider '{provider_key}' is configured but has no API key saved.")
-    body = payload.model_dump(exclude_none=True)
-    internal_payload = {**body, "api_key": api_key}
-    context: dict[str, Any] = {}
-    if payload.runId:
-        context["run_id"] = payload.runId
+        raise HTTPException(status_code=400, detail=f"Media provider '{provider_key}' not configured.")
+    
     try:
-        result = get_media_engine().render_audio(
-            internal_payload,
+        engine = get_media_engine()
+        attachments = normalize_attachment_links(payload.model_dump(exclude_none=True), {})
+        job = build_audio_render_job(
             tenant_id=tenant_id,
-            context=context,
+            provider=provider_key,
+            title=clean_text(payload.title) or "Audio Render Job",
+            input_payload=payload.model_dump(exclude_none=True),
+            attachments=attachments
         )
-        return {"data": result}
+        engine.store.upsert("audio_render_jobs", job)
+        background_tasks.add_task(engine.process_job, "audio", job["id"], payload.model_dump(exclude_none=True), tenant_id)
+        return {"data": {"job": job}}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/media/render-jobs")
-async def create_render_job(request: Request, payload: MediaRenderRequest):
+async def create_render_job(request: Request, payload: MediaRenderRequest, background_tasks: BackgroundTasks):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create media jobs.")
     tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
     try:
-        result = get_media_engine().render_media(
-            payload.model_dump(exclude_none=True),
-            tenant_id=tenant.get("id"),
-            context={},
+        engine = get_media_engine()
+        provider_id = clean_text(payload.provider) or "remotion_local"
+        attachments = normalize_attachment_links(payload.model_dump(exclude_none=True), {})
+        job = build_render_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.title) or "Render Job",
+            input_payload=payload.model_dump(exclude_none=True),
+            attachments=attachments
         )
-        return {"data": result}
+        engine.store.upsert("render_jobs", job)
+        background_tasks.add_task(engine.process_job, "render", job["id"], payload.model_dump(exclude_none=True), tenant_id)
+        return {"data": {"job": job}}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/media/transcript-jobs")
-async def create_transcript_job(request: Request, payload: MediaTranscriptRequest):
+async def create_transcript_job(request: Request, payload: MediaTranscriptRequest, background_tasks: BackgroundTasks):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create transcript jobs.")
     tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
     try:
-        result = get_media_engine().transcribe_media(
-            payload.model_dump(exclude_none=True),
-            tenant_id=tenant.get("id"),
-            context={},
+        engine = get_media_engine()
+        provider_id = clean_text(payload.provider) or "elevenlabs_scribe"
+        attachments = normalize_attachment_links(payload.model_dump(exclude_none=True), {})
+        job = build_transcript_job(
+            tenant_id=tenant_id,
+            provider=provider_id,
+            title=clean_text(payload.title) or "Transcript Job",
+            input_payload=payload.model_dump(exclude_none=True),
+            attachments=attachments
         )
-        return {"data": result}
+        engine.store.upsert("transcript_jobs", job)
+        background_tasks.add_task(engine.process_job, "transcript", job["id"], payload.model_dump(exclude_none=True), tenant_id)
+        return {"data": {"job": job}}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
