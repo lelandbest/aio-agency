@@ -574,10 +574,10 @@ const MediaModule = () => {
                           <span className="text-[9px] font-bold text-slate-500 truncate uppercase">{j.title}</span>
                           <span className="text-[6px] font-mono text-slate-700 uppercase">{j.type}</span>
                         </div>
+                        <span className="text-[6px] font-black uppercase text-emerald-500">{j.status || 'COMPLETE'}</span>
                         <button onClick={(e) => handleDeleteJob(j, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
                           <Trash2 size={10} />
                         </button>
-                        <span className="text-[6px] font-black uppercase text-emerald-500">{j.status || 'COMPLETE'}</span>
                       </div>
                     ))}
                   </div>
@@ -589,11 +589,11 @@ const MediaModule = () => {
                       <div key={o.id} onClick={() => setActiveOutputId(o.id)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.id ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
                         <div className="flex justify-between items-start">
                           <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                          {idx === 0 && <span className="text-[5px] bg-emerald-500/20 text-emerald-500 px-1 rounded font-black border border-emerald-500/30 uppercase tracking-tighter">LATEST</span>}
+                          {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
                           <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
                             <Trash2 size={10} />
                           </button>
-                          {idx === 0 && <span className="text-[5px] bg-emerald-500/20 text-emerald-500 px-1 rounded font-black border border-emerald-500/30 uppercase tracking-tighter">LATEST</span>}
-                          {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
                         </div>
                         <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
                           <span>{o.type}</span>
