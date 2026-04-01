@@ -276,11 +276,10 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       width: '120px',
       render: (flow) => (
         <span
-          className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-            flow.status === 'Active'
+          className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${flow.status === 'Active'
               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
               : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'
-          }`}
+            }`}
         >
           {flow.status || 'Draft'}
         </span>
@@ -433,7 +432,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         )}
         aiAssistSlot={(
           <AIAssistButton
-            onAssist={() => {}} 
+            onAssist={() => { }}
             tooltip="Flows Intelligence"
             iconType="crosshair"
           />

@@ -641,7 +641,7 @@ class AuthStore:
         ).fetchall()
         records: list[dict[str, Any]] = []
         for row in rows:
-            config = self._json_loads(row["configJson"] if "configJson" in row.keys() else {})
+            config = self._json_loads(row["configJson"], {})
             records.append(
                 {
                     "id": row["id"],
@@ -650,6 +650,7 @@ class AuthStore:
                     "label": config.get("label") or row["key"],
                     "category": config.get("category") or ("system" if bool(row["isSystem"]) else "custom"),
                     "editableByClient": bool(config.get("editableByClient", not bool(row["isSystem"]))),
+                    "description": row["description"] if "description" in row.keys() else "",
                     "isSecret": bool(row["isSecret"]),
                     "isSystem": bool(row["isSystem"]),
                     "config": config,

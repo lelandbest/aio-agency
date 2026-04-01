@@ -2380,48 +2380,48 @@ async def enforce_camelcase_response(request: Request, call_next):
 # This ensures it handles preflight before custom HTTP midleware runs its full logic.
 app.add_middleware(CORSMiddleware, **CORS_CONFIG)
 
-
-class RequestCasingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.method in ("POST", "PUT", "PATCH"):
-            body = await request.body()
-            if body:
-                try:
-                    import json
-                    data = json.loads(body)
-                    if isinstance(data, dict):
-                        converted = convert_to_snakecase(data)
-                        from starlette.datastructures import MutableHeaders
-                        from starlette.requests import _receive
-                        async def receive() -> dict:
-                            return {"type": "http.request", "body": json.dumps(converted).encode()}
-                        request._receive = receive
-                except Exception:
-                    pass
-        response = await call_next(request)
-        return response
-
-
-class ResponseCasingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        if response.status_code < 400:
-            if response.headers.get("content-type", "").startswith("application/json"):
-                body = b""
-                async for chunk in response.body_iterator:
-                    body += chunk
-                try:
-                    data = json.loads(body)
-                    converted = convert_to_camelcase(data)
-                    from fastapi.responses import JSONResponse
-                    return JSONResponse(content=converted, status_code=response.status_code, headers=dict(response.headers))
-                except Exception:
-                    pass
-        return response
+# TEMPORARILY DISABLED FOR TESTING
+# class RequestCasingMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request: Request, call_next):
+#         if request.method in ("POST", "PUT", "PATCH"):
+#             body = await request.body()
+#             if body:
+#                 try:
+#                     import json
+#                     data = json.loads(body)
+#                     if isinstance(data, dict):
+#                         converted = convert_to_snakecase(data)
+#                         from starlette.datastructures import MutableHeaders
+#                         from starlette.requests import _receive
+#                         async def receive() -> dict:
+#                             return {"type": "http.request", "body": json.dumps(converted).encode()}
+#                         request._receive = receive
+#                 except Exception:
+#                     pass
+#         response = await call_next(request)
+#         return response
 
 
-app.add_middleware(RequestCasingMiddleware)
-app.add_middleware(ResponseCasingMiddleware)
+# class ResponseCasingMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request: Request, call_next):
+#         response = await call_next(request)
+#         if response.status_code < 400:
+#             if response.headers.get("content-type", "").startswith("application/json"):
+#                 body = b""
+#                 async for chunk in response.body_iterator:
+#                     body += chunk
+#                 try:
+#                     data = json.loads(body)
+#                     converted = convert_to_camelcase(data)
+#                     from fastapi.responses import JSONResponse
+#                     return JSONResponse(content=converted, status_code=response.status_code, headers=dict(response.headers))
+#                 except Exception:
+#                     pass
+#         return response
+
+
+# app.add_middleware(RequestCasingMiddleware)
+# app.add_middleware(ResponseCasingMiddleware)
 
 
 @app.exception_handler(Exception)

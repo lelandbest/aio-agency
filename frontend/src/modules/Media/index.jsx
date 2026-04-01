@@ -345,9 +345,7 @@ const MediaModule = () => {
                     </div>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {workspace.outputs.length === 0 ? (
-                      <div className="bg-black/90 px-6 py-2 border border-white/20 rounded shadow-[0_0_30px_rgba(0,0,0,0.8)] text-[10px] font-mono uppercase tracking-[0.6em] text-white backdrop-blur-sm animate-pulse">NO SIGNAL // STANDBY</div>
-                    ) : null}
+                    <div className="bg-black/90 px-6 py-2 border border-white/20 rounded shadow-[0_0_30px_rgba(0,0,0,0.8)] text-[10px] font-mono uppercase tracking-[0.6em] text-white backdrop-blur-sm animate-pulse">NO SIGNAL // STANDBY</div>
                   </div>
                 </div>
               )}

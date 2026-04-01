@@ -108,17 +108,17 @@ const FolderTable = ({
                             />
                         </div>
                         <div className="flex items-center justify-end gap-2 overflow-x-auto no-scrollbar">
-                        {actions}
-                        {headerActions.map((action, idx) => (
-                            <button
-                                key={idx}
-                                onClick={action.onClick}
-                                className={`${action.variant === 'primary' ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white' : 'bg-[var(--color-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-border)]'} px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2 transition`}
-                            >
-                                {action.icon && <action.icon size={16} />}
-                                {action.label}
-                            </button>
-                        ))}
+                            {actions}
+                            {headerActions.map((action, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={action.onClick}
+                                    className={`${action.variant === 'primary' ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white' : 'bg-[var(--color-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-border)]'} px-4 py-1.5 rounded text-sm font-medium flex items-center gap-2 transition`}
+                                >
+                                    {action.icon && <action.icon size={16} />}
+                                    {action.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -130,9 +130,9 @@ const FolderTable = ({
                     <thead className="rounded-lg mb-2">
                         <tr className="border-b border-[var(--color-border)]">
                             <th className="px-3 py-2 text-left w-12">
-                                <input 
-                                    type="checkbox" 
-                                    className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]" 
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]"
                                     checked={items.length > 0 && selectedItems.length === items.length}
                                     onChange={onSelectAll}
                                 />
