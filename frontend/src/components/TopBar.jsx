@@ -200,6 +200,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                             spellCheck="false"
                             inputMode="search"
                             className="w-full bg-transparent outline-none text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)]"
+                            form="nope"
                         />
                     </div>
                 )}

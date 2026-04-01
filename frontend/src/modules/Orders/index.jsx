@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Download, ShoppingCart, Brain, Crosshair } from 'lucide-react';
+import { Filter, Download, ShoppingCart, Brain, Crosshair, Plus, Pencil, Trash2 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
-import { draftAiApi, getOrdersApi } from '../../services/backendApi';
+import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
@@ -25,6 +25,28 @@ const OrdersModule = () => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleCreateOrder = async () => {
+    const contact = prompt('Contact ID or email:');
+    if (!contact) return;
+    try {
+      await createOrderApi({ contactId: contact, totalAmount: 0, items: [] });
+      fetchData('orders');
+    } catch (err) {
+      alert('Failed to create order: ' + err.message);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId, e) => {
+    e.stopPropagation();
+    if (!confirm('Delete this order?')) return;
+    try {
+      await deleteOrderApi(orderId);
+      fetchData('orders');
+    } catch (err) {
+      alert('Failed to delete order: ' + err.message);
     }
   };
 
@@ -94,6 +116,12 @@ const OrdersModule = () => {
         ]}
         actions={[
           {
+            label: 'Create',
+            icon: Plus,
+            onClick: handleCreateOrder,
+            variant: 'primary'
+          },
+          {
             label: 'Filter',
             icon: Filter,
             onClick: () => {},
@@ -145,6 +173,7 @@ const OrdersModule = () => {
                   <th className="p-4">Items</th>
                   <th className="p-4">Total</th>
                   <th className="p-4">Date</th>
+                  <th className="p-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
@@ -165,6 +194,11 @@ const OrdersModule = () => {
                     <td className="p-4 text-gray-400">{order.items || '-'}</td>
                     <td className="p-4 font-bold text-[var(--color-text-primary)]">${order.total || '0'}</td>
                     <td className="p-4 text-gray-500 text-xs">{order.date || 'N/A'}</td>
+                    <td className="p-4">
+                      <button onClick={(e) => handleDeleteOrder(order.id, e)} className="text-red-400 hover:text-red-300 p-1">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
                 )) : <tr><td colSpan="7" className="p-4 text-center text-gray-500">No orders found.</td></tr>}
               </tbody>

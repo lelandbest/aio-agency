@@ -24,6 +24,7 @@ import {
   RotateCcw,
   FastForward,
   Pause,
+  Trash2,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -48,6 +49,9 @@ import {
   ingestMeetingMediaApi,
   createMediaPublishJobApi,
   runAiCommandApi,
+  deleteMediaJobApi,
+  deleteMediaArtifactApi,
+  deleteMediaAssetApi,
 } from '../../services/backendApi';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import { templates } from '../Flows/data/templates';
@@ -112,6 +116,8 @@ const MediaModule = () => {
   const [isRunPending, setIsRunPending] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState('ALPHA');
   const [activeOutputId, setActiveOutputId] = useState(null);
+  const [mediaView, setMediaView] = useState('outputs');
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [workspace, setWorkspace] = useState({
     jobs: [],
     outputs: [],
@@ -193,6 +199,49 @@ const MediaModule = () => {
       setLaunchingAction('');
     }
   }, [activeAction, formState, loadWorkspace, resetActionForm, selectedAction]);
+
+  const handleDeleteOutput = useCallback(async (output, e) => {
+    e?.stopPropagation();
+    const artifactTypes = { runOfShow: 'run_of_show', transcript: 'transcript', script: 'script', publish: 'publish' };
+    const targetType = artifactTypes[output.type] || (output.type === 'audio' || output.type === 'render' ? 'asset' : output.type);
+    setPendingDelete({ id: output.id, type: targetType, subtype: output.type });
+  }, []);
+
+  const confirmDeleteOutput = useCallback(async () => {
+    if (!pendingDelete) return;
+    try {
+      if (pendingDelete.type === 'asset') {
+        await deleteMediaAssetApi(pendingDelete.id);
+      } else {
+        await deleteMediaArtifactApi(pendingDelete.type, pendingDelete.id);
+      }
+      if (activeOutputId === pendingDelete.id) setActiveOutputId(null);
+      await loadWorkspace('refresh');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPendingDelete(null);
+    }
+  }, [pendingDelete, loadWorkspace, activeOutputId]);
+
+  const handleDeleteJob = useCallback(async (job, e) => {
+    e?.stopPropagation();
+    const typeMap = { runOfShow: 'run_of_show', transcript: 'transcript', script: 'script', publish: 'publish', audio: 'audio', render: 'render' };
+    const jobType = typeMap[job.type] || job.type;
+    setPendingDelete({ id: job.id, type: jobType, isJob: true });
+  }, []);
+
+  const confirmDeleteJob = useCallback(async () => {
+    if (!pendingDelete) return;
+    try {
+      await deleteMediaJobApi(pendingDelete.type, pendingDelete.id);
+      await loadWorkspace('refresh');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPendingDelete(null);
+    }
+  }, [pendingDelete, loadWorkspace]);
 
   const handleConsult = useCallback(async () => {
     if (!chatInput.trim() || isRunPending) return;
@@ -316,7 +365,25 @@ const MediaModule = () => {
           <div className="w-full flex-1 flex items-center justify-center relative mt-8">
             <div className="w-full aspect-video bg-black rounded border-8 border-[#0A0A0C] shadow-[0_15px_30px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col justify-center items-center group">
               {activeOutput?.sourceUrl ? (
-                <video src={activeOutput.sourceUrl} className="w-full h-full object-contain" controls />
+                <>
+                  <div className="absolute top-2 left-2 right-2 flex items-center justify-center gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => window.open(activeOutput.sourceUrl, '_blank')} className="px-3 py-1.5 bg-black/70 hover:bg-black text-[8px] uppercase tracking-wider text-cyan-400 border border-cyan-500/30 rounded flex items-center gap-1">
+                      <ExternalLink size={10} /> OPEN
+                    </button>
+                    <a href={activeOutput.sourceUrl} download={activeOutput.title || 'download'} className="px-3 py-1.5 bg-black/70 hover:bg-black text-[8px] uppercase tracking-wider text-emerald-400 border border-emerald-500/30 rounded flex items-center gap-1">
+                      <Download size={10} /> DOWNLOAD
+                    </a>
+                    {(activeOutput.type === 'script' || activeOutput.type === 'transcript' || activeOutput.type === 'runOfShow') && (
+                      <button onClick={() => navigator.clipboard.writeText(activeOutput.previewText || '')} className="px-3 py-1.5 bg-black/70 hover:bg-black text-[8px] uppercase tracking-wider text-amber-400 border border-amber-500/30 rounded flex items-center gap-1">
+                        <Copy size={10} /> COPY
+                      </button>
+                    )}
+                    <button onClick={(e) => handleDeleteOutput(activeOutput, e)} className="px-3 py-1.5 bg-black/70 hover:bg-black text-[8px] uppercase tracking-wider text-red-400 border border-red-500/30 rounded flex items-center gap-1">
+                      <Trash2 size={10} /> DELETE
+                    </button>
+                  </div>
+                  <video src={activeOutput.sourceUrl} className="w-full h-full object-contain" controls />
+                </>
               ) : (
                 <div className="flex flex-col items-center gap-4">
                   <div className="flex flex-col w-full h-48 border border-white/5 overflow-hidden">
@@ -361,6 +428,32 @@ const MediaModule = () => {
               </div>
             </div>
             <div className="text-[8px] font-black text-slate-600 uppercase tracking-[0.4em]">STANDBY</div>
+          </div>
+
+          {/* AUDIO AREA */}
+          <div className="w-full h-20 bg-[#0A0A0C] rounded-md border border-[#1E2024] flex items-center px-4 gap-4 mt-2 overflow-hidden">
+            <div className="flex items-center gap-2">
+              <div className="w-12 h-12 bg-[#1E2024] rounded flex items-center justify-center">
+                <Play size={16} className="text-cyan-500 ml-0.5" />
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col gap-1">
+              <div className="flex items-center gap-1 h-2">
+                <div className="flex-1 h-full bg-[#1E2024] rounded-full overflow-hidden">
+                  <div className="h-full w-2/3 bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full"></div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 h-2">
+                <div className="flex-1 h-full bg-[#1E2024] rounded-full overflow-hidden">
+                  <div className="h-full w-1/2 bg-gradient-to-r from-cyan-500 to-sky-500 rounded-full"></div>
+                </div>
+              </div>
+              <div className="flex gap-0.5 h-6">
+                {[...Array(8)].map((_, i) => (
+                  <div key={`r-${i}`} className="w-1 bg-emerald-500/60 rounded-full" style={{ height: `${Math.random() * 100}%` }}></div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -462,15 +555,43 @@ const MediaModule = () => {
                 </div>
               </div>
 
+              {/* VIEW TOGGLE */}
+              <div className="flex gap-1 mb-2">
+                <button onClick={() => setMediaView('outputs')} className={`px-3 py-1 text-[8px] uppercase tracking-wider rounded ${mediaView === 'outputs' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 border border-transparent'}`}>OUTPUTS</button>
+                <button onClick={() => setMediaView('library')} className={`px-3 py-1 text-[8px] uppercase tracking-wider rounded ${mediaView === 'library' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 border border-transparent'}`}>LIBRARY</button>
+              </div>
+
               {/* ASSET CACHE + JOB QUEUE GRID */}
               <div className="flex-1 bg-black/40 border-x border-b border-[#1E2024] rounded-b-lg p-2 flex overflow-hidden gap-2">
-                <div className="flex-1 flex flex-col min-w-0">
+                {mediaView === 'outputs' ? (
+                  <>
+                    <div className="flex-1 flex flex-col min-w-0">
+                      <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">JOB QUEUE</span>
+                  <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
+                    {workspace.jobs.slice(0, 10).map(j => (
+                      <div key={j.id} className="p-2 rounded bg-black/40 border border-[#1E2024] flex items-center justify-between group">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[9px] font-bold text-slate-500 truncate uppercase">{j.title}</span>
+                          <span className="text-[6px] font-mono text-slate-700 uppercase">{j.type}</span>
+                        </div>
+                        <button onClick={(e) => handleDeleteJob(j, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                          <Trash2 size={10} />
+                        </button>
+                        <span className="text-[6px] font-black uppercase text-emerald-500">{j.status || 'COMPLETE'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col min-w-0 border-l border-[#1E2024] pl-2">
                   <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">ASSET CACHE</span>
                   <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
                     {workspace.outputs.slice(0, 10).map((o, idx) => (
-                      <div key={o.id} onClick={() => setActiveOutputId(o.id)} className={`p-2 rounded border transition-all cursor-pointer ${activeOutputId === o.id ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                      <div key={o.id} onClick={() => setActiveOutputId(o.id)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.id ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
                         <div className="flex justify-between items-start">
                           <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                          <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                            <Trash2 size={10} />
+                          </button>
                           {idx === 0 && <span className="text-[5px] bg-emerald-500/20 text-emerald-500 px-1 rounded font-black border border-emerald-500/30 uppercase tracking-tighter">LATEST</span>}
                           {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
                         </div>
@@ -482,22 +603,33 @@ const MediaModule = () => {
                     ))}
                   </div>
                 </div>
-                <div className="flex-1 flex flex-col min-w-0 border-l border-[#1E2024] pl-2">
-                  <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">JOB QUEUE</span>
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col min-w-0">
+                  <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">LIBRARY</span>
                   <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
-                    {workspace.jobs.slice(0, 10).map(j => (
-                      <div key={j.id} className="p-2 rounded bg-black/40 border border-[#1E2024] flex items-center justify-between">
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[9px] font-bold text-slate-500 truncate uppercase">{j.title}</span>
-                          <span className="text-[6px] font-mono text-slate-700 uppercase">{j.type}</span>
+                    {workspace.outputs.slice(0, 20).map((o) => (
+                      <div key={o.id} onClick={() => setActiveOutputId(o.id)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.id ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                        <div className="flex justify-between items-start">
+                          <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                          <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                            <Trash2 size={10} />
+                          </button>
                         </div>
-                        <span className="text-[6px] font-black uppercase text-emerald-500">{j.status || 'COMPLETE'}</span>
+                        <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
+                          <span>{o.type}</span>
+                          <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
+                        </div>
                       </div>
                     ))}
+                    {workspace.outputs.length === 0 && (
+                      <div className="text-[10px] text-slate-600 text-center py-8">No items in library</div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
+          </div>
 
             {/* LOWER STATUS BAR */}
             <div className="h-8 mt-2 border-t border-[#1E2024] flex items-center justify-between text-[7px] font-black uppercase tracking-[0.2em] px-2 text-slate-600">
@@ -621,6 +753,24 @@ const MediaModule = () => {
                 <input value={formState.publishTarget} onChange={e => updateField('publishTarget', e.target.value)} className="w-full rounded bg-black border border-[#2A2D35] px-3 py-2 text-[11px] text-white focus:outline-none font-mono" placeholder="GOOGLE DRIVE" />
               </div>
               <button onClick={async () => { setLaunchingAction('publish'); try { await createMediaPublishJobApi({ assetId: formState.assetId || activeOutput?.id, publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-black tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-[320px] bg-[#111318] border border-red-900/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-red-900/30 pb-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-red-400">CONFIRM DELETE</span>
+              <button onClick={() => setPendingDelete(null)} className="text-slate-500 hover:text-white transition-all"><X size={16} /></button>
+            </div>
+            <div className="text-[11px] text-slate-300 font-mono">
+              Delete {pendingDelete.isJob ? 'job' : 'output'}?
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setPendingDelete(null)} className="flex-1 h-10 rounded bg-black border border-[#2A2D35] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-[#1A1C21] transition-all">CANCEL</button>
+              <button onClick={() => pendingDelete.isJob ? confirmDeleteJob() : confirmDeleteOutput()} className="flex-1 h-10 rounded bg-red-900/50 border border-red-500/50 text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-900/70 transition-all">DELETE</button>
             </div>
           </div>
         </div>

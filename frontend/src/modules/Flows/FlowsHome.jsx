@@ -6,7 +6,7 @@ import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import TemplateGallery from './components/TemplateGallery';
 import flowRepository from './utils/flowRepository';
-import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi } from '../../services/backendApi';
+import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi } from '../../services/backendApi';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
@@ -86,16 +86,43 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
   const recentFlows = useMemo(() => flows.slice(0, 3), [flows]);
 
+  const [backendFolders, setBackendFolders] = useState([]);
+
+  useEffect(() => {
+    listFlowFoldersApi().then(setBackendFolders).catch(() => setBackendFolders([]));
+  }, []);
+
   const flowFolders = useMemo(
     () => [
+      ...backendFolders.map(f => ({ ...f, expanded: savedFlowsExpanded })),
       {
         id: SAVED_FLOWS_FOLDER_ID,
         name: 'Saved Flows',
         expanded: savedFlowsExpanded,
       },
     ],
-    [savedFlowsExpanded]
+    [backendFolders, savedFlowsExpanded]
   );
+
+  const handleFolderRename = async (folderId, newName) => {
+    try {
+      await renameFlowFolderApi(folderId, newName);
+      setBackendFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
+    } catch (err) {
+      alert('Rename failed: ' + err.message);
+    }
+  };
+
+  const handleFolderDelete = async (folderId, e) => {
+    e?.stopPropagation();
+    if (!confirm('Delete this folder?')) return;
+    try {
+      await deleteFlowFolderApi(folderId);
+      setBackendFolders(prev => prev.filter(f => f.id !== folderId));
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
 
   const startRename = useCallback((flow) => {
     setRenameFlowId(flow.id);
@@ -483,6 +510,8 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
           items={flows}
           columns={tableColumns}
           onFolderToggle={() => setSavedFlowsExpanded((current) => !current)}
+          onFolderRename={handleFolderRename}
+          onFolderDelete={handleFolderDelete}
           onItemSelect={(flowId) => {
             setSelectedFlowIds((current) =>
               current.includes(flowId) ? current.filter((item) => item !== flowId) : [...current, flowId]

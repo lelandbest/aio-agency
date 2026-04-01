@@ -1716,11 +1716,11 @@ const SecuritySettings = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Current Password</label>
-                <input type="password" value={passwordForm.current_password} onChange={(event) => setPasswordForm(current => ({ ...current, current_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <input type="password" autoComplete="new-password" value={passwordForm.current_password} onChange={(event) => setPasswordForm(current => ({ ...current, current_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">New Password</label>
-                <input type="password" value={passwordForm.new_password} onChange={(event) => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                <input type="password" autoComplete="new-password" value={passwordForm.new_password} onChange={(event) => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
               </div>
             </div>
             <div className="flex justify-end">
@@ -1936,6 +1936,7 @@ const OmegaSettings = () => {
                 <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Confirmation Code</label>
                 <input
                   type="password"
+                  autoComplete="off"
                   value={armCode}
                   onChange={(event) => setArmCode(event.target.value)}
                   placeholder="Enter arm code"
@@ -1946,6 +1947,7 @@ const OmegaSettings = () => {
                 <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Cancel Code</label>
                 <input
                   type="password"
+                  autoComplete="off"
                   value={cancelCode}
                   onChange={(event) => setCancelCode(event.target.value)}
                   placeholder="Enter separate cancel code"
