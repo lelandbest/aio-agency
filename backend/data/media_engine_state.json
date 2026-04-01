@@ -321,6 +321,81 @@
       ],
       "created_at": "2026-03-28T18:28:49.148880+00:00",
       "updated_at": "2026-03-28T18:28:49.156681+00:00"
+    },
+    {
+      "id": "media-asset-5fcc560479d4",
+      "tenant_id": "tenant-primary",
+      "provider": "zoom",
+      "asset_type": "meeting_recording",
+      "media_type": "video",
+      "title": "RecordingFiles Fix INGEST-FIX-1775062555",
+      "source": "meeting_ingest",
+      "stage": "final",
+      "linked_id": null,
+      "source_url": "https://example.com/INGEST-FIX-1775062555.mp4",
+      "metadata": {
+        "recording_id": "rec-INGEST-FIX-1775062555",
+        "duration_seconds": null,
+        "meeting": {
+          "meeting_id": "INGEST-FIX-1775062555",
+          "title": "RecordingFiles Fix INGEST-FIX-1775062555",
+          "started_at": null
+        }
+      },
+      "attachments": [],
+      "content_hash": "8323f8f70e7e385f",
+      "created_at": "2026-04-01T16:55:55.235935+00:00",
+      "updated_at": "2026-04-01T16:55:55.236720+00:00"
+    },
+    {
+      "id": "media-asset-65e74cbd4122",
+      "tenant_id": "tenant-primary",
+      "provider": "zoom",
+      "asset_type": "meeting_recording",
+      "media_type": "video",
+      "title": "Zoom Recording",
+      "source": "meeting_ingest",
+      "stage": "final",
+      "linked_id": null,
+      "source_url": null,
+      "metadata": {
+        "recording_id": "",
+        "duration_seconds": null,
+        "meeting": {
+          "meeting_id": "REAL-TEST-1",
+          "title": "Real Preview Test",
+          "started_at": null
+        }
+      },
+      "attachments": [],
+      "content_hash": null,
+      "created_at": "2026-04-01T17:01:27.331955+00:00",
+      "updated_at": "2026-04-01T17:01:27.332779+00:00"
+    },
+    {
+      "id": "media-asset-83b0b143125a",
+      "tenant_id": "tenant-primary",
+      "provider": "zoom",
+      "asset_type": "meeting_recording",
+      "media_type": "video",
+      "title": "Zoom Recording",
+      "source": "meeting_ingest",
+      "stage": "final",
+      "linked_id": null,
+      "source_url": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+      "metadata": {
+        "recording_id": "",
+        "duration_seconds": null,
+        "meeting": {
+          "meeting_id": "REAL-TEST-1",
+          "title": "Real Preview Test",
+          "started_at": null
+        }
+      },
+      "attachments": [],
+      "content_hash": "91201c3bfcbd5bac",
+      "created_at": "2026-04-01T17:55:40.515097+00:00",
+      "updated_at": "2026-04-01T17:55:40.515962+00:00"
     }
   ],
   "render_jobs": [
@@ -1283,6 +1358,196 @@
       "updated_at": "2026-04-01T15:43:52.711086+00:00",
       "started_at": null,
       "completed_at": null
+    },
+    {
+      "id": "transcript-job-2518dfa392e2",
+      "tenant_id": "tenant-primary",
+      "provider": "elevenlabs_scribe",
+      "title": "RecordingFiles Fix INGEST-FIX-1775062555",
+      "status": "failed",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "RecordingFiles Fix INGEST-FIX-1775062555",
+        "source_url": "https://example.com/INGEST-FIX-1775062555.mp4",
+        "attachments": []
+      },
+      "attachments": [],
+      "artifact_id": null,
+      "last_error": "ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.",
+      "created_at": "2026-04-01T16:55:55.237649+00:00",
+      "updated_at": "2026-04-01T16:55:55.264324+00:00",
+      "started_at": "2026-04-01T16:55:55.247452+00:00",
+      "completed_at": "2026-04-01T16:55:55.256040+00:00"
+    },
+    {
+      "id": "transcript-job-ba90d5bda415",
+      "tenant_id": "tenant-primary",
+      "provider": "elevenlabs_scribe",
+      "title": "Real Preview Test",
+      "status": "failed",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "Real Preview Test",
+        "source_url": null,
+        "attachments": []
+      },
+      "attachments": [],
+      "artifact_id": null,
+      "last_error": "ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.",
+      "created_at": "2026-04-01T17:01:27.334120+00:00",
+      "updated_at": "2026-04-01T17:01:27.363184+00:00",
+      "started_at": "2026-04-01T17:01:27.343232+00:00",
+      "completed_at": "2026-04-01T17:01:27.352909+00:00"
+    },
+    {
+      "id": "transcript-job-6edc4c104fbc",
+      "tenant_id": "tenant-primary",
+      "provider": "elevenlabs_scribe",
+      "title": "Real Preview Test",
+      "status": "failed",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "Real Preview Test",
+        "source_url": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+        "attachments": []
+      },
+      "attachments": [],
+      "artifact_id": null,
+      "last_error": "ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.",
+      "created_at": "2026-04-01T17:55:40.517222+00:00",
+      "updated_at": "2026-04-01T17:55:40.541822+00:00",
+      "started_at": "2026-04-01T17:55:40.526222+00:00",
+      "completed_at": "2026-04-01T17:55:40.534901+00:00"
+    },
+    {
+      "id": "transcript-job-c208bc58e9cb",
+      "tenant_id": "tenant-primary",
+      "provider": "elevenlabs_scribe",
+      "title": "Flow Transcription Validation",
+      "status": "failed",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "Flow Transcription Validation",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": "https://example.com/meeting.mp4",
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "asset_id": "media-asset-5c8c7a502b7f",
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-transcribe-media-validation",
+            "label": "Transcribe Media Validation"
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null,
+        "source_asset_ids": [
+          "media-asset-5c8c7a502b7f"
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-transcribe-media-validation",
+          "label": "Transcribe Media Validation"
+        }
+      ],
+      "artifact_id": null,
+      "last_error": "ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.",
+      "created_at": "2026-04-01T18:16:43.680733+00:00",
+      "updated_at": "2026-04-01T18:16:43.698653+00:00",
+      "started_at": "2026-04-01T18:16:43.682224+00:00",
+      "completed_at": "2026-04-01T18:16:43.690945+00:00"
+    },
+    {
+      "id": "transcript-job-4e025f3e2273",
+      "tenant_id": null,
+      "provider": "elevenlabs_scribe",
+      "title": "Flow Transcription Validation",
+      "status": "failed",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "Flow Transcription Validation",
+        "templateId": null,
+        "outputTarget": null,
+        "source_url": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+        "transcript_text": null,
+        "speaker_segments": null,
+        "recording_files": null,
+        "drive_files": null,
+        "meeting_id": null,
+        "meeting_title": null,
+        "media_type": "video",
+        "script": null,
+        "text": null,
+        "topic": null,
+        "tone": null,
+        "duration": null,
+        "context": null,
+        "subtitle": null,
+        "prompt": null,
+        "voice": null,
+        "style": null,
+        "image": null,
+        "assetRef": null,
+        "asset_id": "media-asset-83b0b143125a",
+        "artifactRef": null,
+        "publishTarget": null,
+        "attachTarget": null,
+        "metadata": {},
+        "attachments": [
+          {
+            "kind": "flow_run",
+            "id": "run-transcribe-media-validation",
+            "label": ""
+          }
+        ],
+        "auto_transcribe": true,
+        "api_key": null,
+        "access_key_id": null,
+        "secret_access_key": null,
+        "source_asset_ids": [
+          "media-asset-83b0b143125a"
+        ]
+      },
+      "attachments": [
+        {
+          "kind": "flow_run",
+          "id": "run-transcribe-media-validation",
+          "label": ""
+        }
+      ],
+      "artifact_id": null,
+      "last_error": "ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.",
+      "created_at": "2026-04-01T18:19:21.199710+00:00",
+      "updated_at": "2026-04-01T18:19:21.218698+00:00",
+      "started_at": "2026-04-01T18:19:21.201241+00:00",
+      "completed_at": "2026-04-01T18:19:21.211167+00:00"
     }
   ],
   "transcript_artifacts": [

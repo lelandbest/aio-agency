@@ -60,6 +60,7 @@ DIRECT_EXECUTION_INTENTS = {
     "generate_thumbnail",
     "generate_video",
     "transcribe_media",
+    "transcribe-media",
     "ingest_meeting_artifacts",
     "publish_asset",
 }
@@ -712,6 +713,7 @@ class StepExecutor:
             "generate_thumbnail": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "generate_video": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "transcribe_media": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "transcribe-media": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "ingest_meeting_artifacts": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "publish_asset": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
         }
@@ -745,6 +747,7 @@ class StepExecutor:
             "generate_thumbnail": self._generate_thumbnail,
             "generate_video": self._generate_video,
             "transcribe_media": self._transcribe_media,
+            "transcribe-media": self._transcribe_media,
             "ingest_meeting_artifacts": self._ingest_meeting_artifacts,
             "publish_asset": self._publish_asset,
         }
@@ -2109,7 +2112,7 @@ class StepExecutor:
 
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
-                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset"}:
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "transcribe-media", "ingest_meeting_artifacts", "publish_asset"}:
                     return finalize(handler(step, context, runtime))
                 return finalize(handler(step, context))
             except Exception as exc:
@@ -2647,6 +2650,7 @@ class StepExecutor:
         style_value = config.get("style") if "style" in config else raw_inputs.get("style")
         image_value = config.get("image") if "image" in config else raw_inputs.get("image")
         asset_ref_value = config.get("assetRef") if "assetRef" in config else config.get("asset_ref")
+        asset_id_value = config.get("assetId") if "assetId" in config else config.get("asset_id")
         artifact_ref_value = config.get("artifactRef") if "artifactRef" in config else config.get("artifact_ref")
         publish_target_value = config.get("publishTarget") if "publishTarget" in config else config.get("publish_target")
         resolved_topic = resolve_media_value(topic, "topic") if topic is not None else None
@@ -2661,6 +2665,7 @@ class StepExecutor:
         resolved_style_value = resolve_media_value(style_value, "style") if style_value is not None else None
         resolved_image_value = resolve_media_value(image_value, "image") if image_value is not None else None
         resolved_asset_ref_value = resolve_media_value(asset_ref_value, "assetRef") if asset_ref_value is not None else None
+        resolved_asset_id_value = resolve_media_value(asset_id_value, "assetId") if asset_id_value is not None else None
         resolved_artifact_ref_value = resolve_media_value(artifact_ref_value, "artifactRef") if artifact_ref_value is not None else None
         resolved_publish_target_value = resolve_media_value(publish_target_value, "publishTarget") if publish_target_value is not None else None
 
@@ -2689,6 +2694,7 @@ class StepExecutor:
             "style": resolved_style_value if resolved_style_value is not None else style_value,
             "image": resolved_image_value if resolved_image_value is not None else image_value,
             "assetRef": resolved_asset_ref_value if resolved_asset_ref_value is not None else asset_ref_value,
+            "asset_id": resolved_asset_id_value if resolved_asset_id_value is not None else asset_id_value,
             "artifactRef": resolved_artifact_ref_value if resolved_artifact_ref_value is not None else artifact_ref_value,
             "publishTarget": resolved_publish_target_value if resolved_publish_target_value is not None else publish_target_value,
             "attachTarget": config.get("attachTarget") or config.get("attach_target"),
@@ -2699,8 +2705,10 @@ class StepExecutor:
             "access_key_id": config.get("access_key_id"),
             "secret_access_key": config.get("secret_access_key"),
         }
-        if source_type == "source_url":
+        if source_type in {"source_url", "url"}:
             payload["source_url"] = clean_text(resolved_source_ref) or payload.get("source_url")
+        elif source_type in {"asset", "asset_id"}:
+            payload["asset_id"] = clean_text(resolved_source_ref) or clean_text(payload.get("asset_id")) or None
         elif source_type in {"transcript_text", "inline_transcript"}:
             payload["transcript_text"] = clean_text(resolved_source_ref) or payload.get("transcript_text")
         elif source_type == "speaker_segments":
@@ -2864,11 +2872,51 @@ class StepExecutor:
         payload, missing = self._resolved_media_payload(step, context, runtime)
         if missing:
             return self._service_error(step, "; ".join(missing), data={"job": None, "artifact": None})
-        source_type = clean_text(self._normalized_service_config(step).get("sourceType") or self._normalized_service_config(step).get("source_type"))
-        if not source_type:
+        config = self._normalized_service_config(step)
+        source_type = clean_text(config.get("sourceType") or config.get("source_type")).lower()
+        asset_id = clean_text(payload.get("asset_id") or payload.get("assetId"))
+        if not source_type and not asset_id:
             return self._service_error(step, "Transcribe Media requires a sourceType.", data={"job": None, "artifact": None})
+        asset = None
+        if source_type in {"asset", "asset_id"} or asset_id:
+            if not asset_id:
+                return self._service_error(step, "Transcribe Media requires an assetId when sourceType is asset.", data={"job": None, "artifact": None})
+            asset = get_media_engine().get_asset(asset_id)
+            if not asset:
+                data = {
+                    "status": "asset_not_found",
+                    "assetId": asset_id,
+                    "artifactId": None,
+                    "providerUsed": clean_text(payload.get("provider")) or "elevenlabs_scribe",
+                    "sourceUrl": None,
+                    "transcriptText": None,
+                    "transcriptExcerpt": None,
+                    "reason": "asset_not_found",
+                    "job": None,
+                    "artifact": None,
+                    "error": f"Media asset '{asset_id}' was not found.",
+                }
+                return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
+            if not clean_text(payload.get("source_url")):
+                payload["source_url"] = clean_text(asset.get("source_url")) or None
+            if not clean_text(payload.get("title")):
+                payload["title"] = clean_text(asset.get("title")) or "Transcript Job"
+            payload["source_asset_ids"] = [asset_id]
         if not clean_text(payload.get("source_url")) and not clean_text(payload.get("transcript_text")) and not payload.get("speaker_segments"):
-            return self._service_error(step, "Transcribe Media requires source_url, transcript_text, or speaker_segments.", data={"job": None, "artifact": None})
+            data = {
+                "status": "missing_source",
+                "assetId": asset_id or None,
+                "artifactId": None,
+                "providerUsed": clean_text(payload.get("provider")) or "elevenlabs_scribe",
+                "sourceUrl": clean_text(payload.get("source_url")) or None,
+                "transcriptText": None,
+                "transcriptExcerpt": None,
+                "reason": "missing_source",
+                "job": None,
+                "artifact": None,
+                "error": "Transcribe Media requires source_url, transcript_text, or speaker_segments.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         result = get_media_engine().transcribe_media(
             {
                 **payload,
@@ -2886,6 +2934,32 @@ class StepExecutor:
         job = result.get("job") or {}
         artifact = result.get("artifact")
         status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+        error_message = clean_text(job.get("last_error"))
+        failure_reason = None
+        lowered_error = error_message.lower()
+        if status != "success":
+            if "not configured" in lowered_error or "credentials are missing" in lowered_error:
+                failure_reason = "provider_not_configured"
+            elif "asset" in lowered_error and "not found" in lowered_error:
+                failure_reason = "asset_not_found"
+            elif "source_url" in lowered_error or "usable source" in lowered_error:
+                failure_reason = "missing_source"
+            else:
+                failure_reason = "transcription_failed"
+        transcript_text = clean_text((artifact or {}).get("transcript_text"))
+        node_data = {
+            "status": "complete" if status == "success" else failure_reason or (clean_text(job.get("status")) or "failed"),
+            "assetId": asset_id or None,
+            "artifactId": clean_text((artifact or {}).get("id")) or None,
+            "providerUsed": clean_text(job.get("provider")) or clean_text(payload.get("provider")) or "elevenlabs_scribe",
+            "sourceUrl": clean_text(payload.get("source_url")) or None,
+            "transcriptText": transcript_text or None,
+            "transcriptExcerpt": transcript_text[:280] if transcript_text else None,
+            "reason": failure_reason,
+            "job": job,
+            "artifact": artifact,
+            "error": error_message or None,
+        }
         
         brain_item_id = None
         if status == "success" and artifact:
@@ -2911,7 +2985,7 @@ class StepExecutor:
             "stepId": step.get("id"),
             "intent": step.get("intent"),
             "status": status,
-            "data": result,
+            "data": node_data,
             "error": job.get("last_error"),
             "brainItemId": brain_item_id,
             "tags": ["MTG:TRANSCRIPT"] if brain_item_id else [],
@@ -3510,10 +3584,10 @@ def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, l
         elif intent == "publish_asset":
             if not clean_text(config.get("publishTarget") or config.get("publish_target")):
                 blockers.append(f"{node_label}: Publish Asset requires a publishTarget.")
-        elif intent == "transcribe_media":
-            if not clean_text(config.get("sourceType") or config.get("source_type")):
+        elif intent in {"transcribe_media", "transcribe-media"}:
+            if not clean_text(config.get("sourceType") or config.get("source_type")) and not clean_text(config.get("assetId") or config.get("asset_id")):
                 blockers.append(f"{node_label}: Transcribe Media requires a sourceType.")
-            if not clean_text(config.get("sourceRef") or config.get("source_ref")):
+            if not clean_text(config.get("sourceRef") or config.get("source_ref")) and not clean_text(config.get("assetId") or config.get("asset_id")):
                 blockers.append(f"{node_label}: Transcribe Media requires a sourceRef.")
         elif intent == "ingest_meeting_artifacts":
             if not clean_text(config.get("meetingProvider") or config.get("meeting_provider")):
@@ -3521,7 +3595,7 @@ def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, l
             if not clean_text(config.get("meetingRef") or config.get("meeting_ref")):
                 blockers.append(f"{node_label}: Ingest Meeting requires a meetingRef.")
 
-        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
+        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "transcribe-media", "ingest_meeting_artifacts", "publish_asset", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
             warnings.append(f"{node_label}: no downstream node is connected.")
 
     return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}

@@ -499,8 +499,8 @@ export const utilityNodes = [
     actionType: 'transcribe_media',
     config: {
       actionType: 'transcribe_media',
-      sourceType: 'transcript_text',
-      sourceRef: '',
+      sourceType: 'asset',
+      sourceRef: '{{previous.assetId}}',
       provider: 'elevenlabs_scribe',
       diarization: true,
       timestamps: true,

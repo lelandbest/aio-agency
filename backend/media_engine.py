@@ -471,6 +471,14 @@ class MediaStateStore:
             state = self._read_state()
             return clone_json(state.get(collection) or [])
 
+    def get(self, collection: str, record_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            state = self._read_state()
+            for record in state.get(collection) or []:
+                if clean_text(record.get("id")) == clean_text(record_id):
+                    return clone_json(record)
+        return None
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return self._read_state()
@@ -829,15 +837,15 @@ class ZoomMeetingIngestionProvider(BaseMeetingIngestionProvider):
     provider_id = "zoom"
 
     def ingestMeetingArtifacts(self, payload: dict[str, Any]) -> dict[str, Any]:
-        recordings = payload.get("recording_files") or payload.get("recordings") or []
+        recordings = payload.get("recordingFiles") or payload.get("recording_files") or payload.get("recordings") or []
         transcript = payload.get("transcript") if isinstance(payload.get("transcript"), dict) else {}
         transcript_text = clean_text(payload.get("transcript_text") or transcript.get("text") or transcript.get("transcript_text"))
         speaker_segments = normalize_speaker_segments(payload.get("speaker_segments") or transcript.get("speaker_segments") or transcript.get("segments"))
         return {
             "provider": self.provider_id,
             "meeting": {
-                "meeting_id": clean_text(payload.get("meeting_id") or payload.get("id")),
-                "title": clean_text(payload.get("meeting_title") or payload.get("title") or "Zoom Meeting"),
+                "meeting_id": clean_text(payload.get("meetingId") or payload.get("meeting_id") or payload.get("id")),
+                "title": clean_text(payload.get("meetingTitle") or payload.get("meeting_title") or payload.get("title") or "Zoom Meeting"),
                 "started_at": payload.get("started_at") or payload.get("start_time"),
             },
             "assets": [
@@ -845,7 +853,7 @@ class ZoomMeetingIngestionProvider(BaseMeetingIngestionProvider):
                     "asset_type": "meeting_recording",
                     "media_type": clean_text(item.get("media_type") or item.get("file_type") or "video").lower(),
                     "title": clean_text(item.get("title") or item.get("file_name") or "Zoom Recording"),
-                    "source_url": clean_text(item.get("url") or item.get("download_url")),
+                    "source_url": clean_text(item.get("url") or item.get("downloadUrl") or item.get("download_url")),
                     "metadata": {
                         "recording_id": clean_text(item.get("id")),
                         "duration_seconds": item.get("duration_seconds") or item.get("recording_duration"),
@@ -1155,6 +1163,9 @@ class MediaEngine:
 
     def list_publish_artifacts(self) -> list[dict[str, Any]]:
         return self.store.list("publish_artifacts")
+
+    def get_asset(self, asset_id: str) -> dict[str, Any] | None:
+        return self.store.get("assets", asset_id)
 
     def get_assets_by_pipeline(self, pipeline_type: str, pipeline_id: str) -> list[dict[str, Any]]:
         return self.store.get_assets_by_linked_id(f"{pipeline_type}-{pipeline_id}")
@@ -1486,6 +1497,10 @@ class MediaEngine:
         provider = self.transcription_providers.get(provider_id)
         if not provider:
             raise ValueError(f"Unknown transcription provider '{provider_id}'.")
+        source_asset_ids = [clean_text(item) for item in (payload.get("source_asset_ids") or payload.get("sourceAssetIds") or []) if clean_text(item)]
+        single_asset_id = clean_text(payload.get("asset_id") or payload.get("assetId"))
+        if single_asset_id and single_asset_id not in source_asset_ids:
+            source_asset_ids.append(single_asset_id)
         attachments = normalize_attachment_links(payload, context)
         job = build_transcript_job(
             tenant_id=tenant_id,
@@ -1495,7 +1510,14 @@ class MediaEngine:
             attachments=attachments,
         )
         self.store.upsert("transcript_jobs", job)
-        return self._process_transcript_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+        return self._process_transcript_job(
+            provider,
+            job,
+            payload,
+            tenant_id=tenant_id,
+            attachments=attachments,
+            source_asset_ids=source_asset_ids or None,
+        )
 
     def _process_transcript_job(
         self,

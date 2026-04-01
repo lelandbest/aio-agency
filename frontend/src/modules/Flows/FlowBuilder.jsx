@@ -317,7 +317,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           text_to_speech: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
           generate_thumbnail: { title: '{{trigger.payload.title}}', subtitle: 'Campaign cut', image: 'Bold studio backdrop', prompt: 'Create a bold thumbnail for the launch episode.', provider: 'stub-render' },
           generate_video: { templateId: 'promo-clip-v1', outputTarget: 'crm.contact', provider: 'stub-render', script: 'Create a short follow-up recap video for {{contact.name}}.' },
-          transcribe_media: { sourceType: 'transcript_text', sourceRef: '{{previous.assetId}}', provider: 'elevenlabs_scribe', transcriptText: 'Speaker 1: Welcome to the meeting.', diarization: true, timestamps: true },
+          transcribe_media: { sourceType: 'asset', sourceRef: '{{previous.assetId}}', provider: 'elevenlabs_scribe', diarization: true, timestamps: true },
           ingest_meeting_artifacts: { meetingProvider: 'zoom', meetingRef: '{{booking.meeting_id}}', attachTarget: 'crm.contact', transcriptText: 'Speaker 1: Meeting summary goes here.' },
           publish_asset: { publishTarget: 'internal.media', assetRef: '' },
         };
