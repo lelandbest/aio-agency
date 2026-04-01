@@ -17,6 +17,29 @@ export function getApiBaseUrl() {
   return API_BASE_URL;
 }
 
+function snakeToCamel(str) {
+  return str.replace(/([-_][a-z])/g, (group) =>
+    group.toUpperCase().replace('-', '').replace('_', '')
+  );
+}
+
+function toCamelCase(obj) {
+  if (obj === null || typeof obj !== 'object' || obj instanceof Date || obj instanceof RegExp) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(toCamelCase);
+  }
+
+  const newObj = {};
+  Object.keys(obj).forEach((key) => {
+    const newKey = snakeToCamel(key);
+    newObj[newKey] = toCamelCase(obj[key]);
+  });
+  return newObj;
+}
+
 async function request(path, options = {}) {
   if (!BACKEND_ENABLED) {
     throw new Error('Backend disabled');
@@ -453,57 +476,57 @@ export async function bulkDeleteFlowsApi(ids = null) {
 
 export async function getMediaAssetsApi() {
   const response = await request('/api/media/assets');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaRenderJobsApi() {
   const response = await request('/api/media/render-jobs');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaTranscriptJobsApi() {
   const response = await request('/api/media/transcript-jobs');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaTranscriptArtifactsApi() {
   const response = await request('/api/media/transcript-artifacts');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaScriptJobsApi() {
   const response = await request('/api/media/script-jobs');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaScriptArtifactsApi() {
   const response = await request('/api/media/script-artifacts');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaRunOfShowJobsApi() {
   const response = await request('/api/media/run-of-show-jobs');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaRunOfShowArtifactsApi() {
   const response = await request('/api/media/run-of-show-artifacts');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaAudioRenderJobsApi() {
   const response = await request('/api/media/audio-render-jobs');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaPublishJobsApi() {
   const response = await request('/api/media/publish-jobs');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function getMediaPublishArtifactsApi() {
   const response = await request('/api/media/publish-artifacts');
-  return response.data || [];
+  return toCamelCase(response.data || []);
 }
 
 export async function createMediaScriptJobApi(payload) {
@@ -511,7 +534,7 @@ export async function createMediaScriptJobApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function createMediaRunOfShowJobApi(payload) {
@@ -519,7 +542,7 @@ export async function createMediaRunOfShowJobApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function createMediaAudioRenderJobApi(payload) {
@@ -527,7 +550,7 @@ export async function createMediaAudioRenderJobApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function createMediaRenderJobApi(payload) {
@@ -535,7 +558,7 @@ export async function createMediaRenderJobApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function createMediaTranscriptJobApi(payload) {
@@ -543,7 +566,7 @@ export async function createMediaTranscriptJobApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function ingestMeetingMediaApi(payload) {
@@ -551,7 +574,7 @@ export async function ingestMeetingMediaApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function createMediaPublishJobApi(payload) {
@@ -559,7 +582,7 @@ export async function createMediaPublishJobApi(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function deleteMediaAssetApi(assetId) {
@@ -583,12 +606,17 @@ export async function deleteMediaArtifactApi(artifactType, artifactId) {
   return response;
 }
 
+export async function getMediaJobStatusApi(jobType, jobId) {
+  const response = await request(`/api/media/jobs/${encodeURIComponent(jobType)}/${encodeURIComponent(jobId)}`);
+  return toCamelCase(response.data || null);
+}
+
 export async function probeMediaAssetApi(payload) {
   const response = await request('/api/media/probe', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
-  return response.data || null;
+  return toCamelCase(response.data || null);
 }
 
 export async function createOrderApi(payload) {

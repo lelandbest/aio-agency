@@ -170,6 +170,7 @@ const MediaModule = () => {
 
   // --- IMAGE ADJUSTMENTS (applied as CSS filter to the preview) ---
   const [imgAdj, setImgAdj] = useState({ brightness: 100, contrast: 100, saturation: 100, hue: 0, opacity: 100 });
+  const [activeJob, setActiveJob] = useState(null); // { id: string, type: string }
 
   const loadWorkspace = useCallback(async (mode = 'initial') => {
     const setBusy = mode === 'initial' ? setLoading : setRefreshing;
@@ -236,10 +237,49 @@ const MediaModule = () => {
     } catch (e) {
       setProbeData({ probeStatus: 'error' });
       setLastAction(prev => ({ ...prev, status: 'failed', error: e.message || 'PROBE FAILED' }));
+      setLoading(false);
+      setRefreshing(false);
     } finally {
       setProbePending(false);
     }
   }, []);
+
+  // --- JOB POLLING LOOP ---
+  useEffect(() => {
+    let timer = null;
+    if (activeJob) {
+      const poll = async () => {
+        try {
+          const job = await getMediaJobStatusApi(activeJob.type, activeJob.id);
+          if (!job) return;
+
+          const stateMap = { queued: 'ACCEPTED', accepted: 'ACCEPTED', processing: 'RUNNING', complete: 'COMPLETE', failed: 'FAILED' };
+          const displayStatus = stateMap[job.status] || job.status.toUpperCase();
+          
+          setLastAction(prev => ({
+            ...prev,
+            status: displayStatus === 'FAILED' ? 'failed' : (displayStatus === 'COMPLETE' ? 'success' : 'running'),
+            result: displayStatus === 'FAILED' 
+              ? `ERROR: ${job.lastError}` 
+              : (job.result?.message || job.result || `JOB ID [${job.id.slice(-8)}] — ${displayStatus}`),
+            error: job.lastError
+          }));
+
+          if (job.status === 'complete' || job.status === 'failed') {
+            setActiveJob(null);
+            await loadWorkspace('refresh');
+          } else {
+            timer = setTimeout(poll, 1500);
+          }
+        } catch (err) {
+          console.error("Polling error", err);
+          setActiveJob(null);
+        }
+      };
+      timer = setTimeout(poll, 1500);
+    }
+    return () => clearTimeout(timer);
+  }, [activeJob, loadWorkspace]);
 
   // --- REAL OSCILLOSCOPE DRAWING ---
   const drawOscilloscope = useCallback(() => {
@@ -391,8 +431,16 @@ const MediaModule = () => {
       else if (selectedAction === 'scribeMedia') r = await createMediaTranscriptJobApi({ provider: activeAction.provider, title: formState.title || 'Transcript', sourceUrl: formState.sourceUrl, transcriptText: formState.transcriptText });
       else if (selectedAction === 'ingestMeetingArtifacts') r = await ingestMeetingMediaApi({ provider: formState.meetingProvider, meetingId: formState.meetingId, meetingTitle: formState.meetingTitle });
 
-      setLastAction(prev => ({ ...prev, status: 'success', result: `JOB INITIALIZED [${r?.job?.id || 'OK'}]` }));
-      await loadWorkspace('refresh');
+      const job = r?.job || (r?.transcriptJob); // fallback for meeting ingestion
+      if (job) {
+        const typeMap = { 'script-job': 'script', 'run-of-show-job': 'run_of_show', 'audio-render-job': 'audio', 'render-job': 'render', 'transcript-job': 'transcript' };
+        const jobType = typeMap[job.id.split('-')[0] + '-job'] || job.id.split('-')[0];
+        setActiveJob({ id: job.id, type: jobType });
+        setLastAction(prev => ({ ...prev, status: 'running', result: `JOB ACCEPTED [${job.id.slice(-8)}]` }));
+      } else {
+        setLastAction(prev => ({ ...prev, status: 'success', result: `ACTION SUCCESSFUL` }));
+        await loadWorkspace('refresh');
+      }
       resetActionForm();
     } catch (e) {
       setError(e.message);
