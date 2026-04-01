@@ -35,18 +35,13 @@ import {
   createMediaRunOfShowJobApi,
   createMediaScriptJobApi,
   createMediaTranscriptJobApi,
-  getMediaAssetsApi,
+  getMediaLibraryApi,
   getMediaAudioRenderJobsApi,
-  getMediaPublishArtifactsApi,
   getMediaPublishJobsApi,
   getMediaRenderJobsApi,
-  getMediaRunOfShowArtifactsApi,
   getMediaRunOfShowJobsApi,
-  getMediaScriptArtifactsApi,
   getMediaScriptJobsApi,
-  getMediaTranscriptArtifactsApi,
   getMediaTranscriptJobsApi,
-  getMediaProviderConfigsApi,
   ingestMeetingMediaApi,
   createMediaPublishJobApi,
   runAiCommandApi,
@@ -178,13 +173,13 @@ const MediaModule = () => {
     setError('');
     try {
       const [
-        assets, renderJobs, transcriptJobs, transcriptArtifacts,
-        scriptJobs, scriptArtifacts, runOfShowJobs, runOfShowArtifacts,
-        audioRenderJobs, publishJobs, publishArtifacts
+        outputs, renderJobs, transcriptJobs,
+        scriptJobs, runOfShowJobs,
+        audioRenderJobs, publishJobs
       ] = await Promise.all([
-        getMediaAssetsApi(), getMediaRenderJobsApi(), getMediaTranscriptJobsApi(), getMediaTranscriptArtifactsApi(),
-        getMediaScriptJobsApi(), getMediaScriptArtifactsApi(), getMediaRunOfShowJobsApi(), getMediaRunOfShowArtifactsApi(),
-        getMediaAudioRenderJobsApi(), getMediaPublishJobsApi(), getMediaPublishArtifactsApi()
+        getMediaLibraryApi(), getMediaRenderJobsApi(), getMediaTranscriptJobsApi(),
+        getMediaScriptJobsApi(), getMediaRunOfShowJobsApi(),
+        getMediaAudioRenderJobsApi(), getMediaPublishJobsApi()
       ]);
 
       const jobs = [
@@ -196,15 +191,11 @@ const MediaModule = () => {
         ...publishJobs.map(j => ({ id: j.id, title: j.title || 'Publish', type: 'publish', status: j.status || 'queued', createdAt: j.createdAt })),
       ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-      const outputs = [
-        ...scriptArtifacts.map(a => ({ id: a.id, title: a.title || 'Script', type: 'script', createdAt: a.createdAt, previewText: a.scriptText || '', mediaType: 'text', status: 'complete' })),
-        ...runOfShowArtifacts.map(a => ({ id: a.id, title: a.title || 'Run of Show', type: 'runOfShow', createdAt: a.createdAt, previewText: a.runOfShowText || '', mediaType: 'text', status: 'complete' })),
-        ...transcriptArtifacts.map(a => ({ id: a.id, title: a.title || 'Transcript', type: 'transcript', createdAt: a.createdAt, previewText: a.transcriptText || '', mediaType: 'text', status: 'complete' })),
-        ...publishArtifacts.map(a => ({ id: a.id, title: a.title || 'Publish', type: 'publish', createdAt: a.createdAt, previewText: `Target: ${a.publishTarget}`, mediaType: 'text', status: a.publicationStatus || 'published' })),
-        ...assets.map(a => ({ id: a.id, title: a.title || 'Media', type: a.mediaType === 'audio' ? 'audio' : 'render', createdAt: a.createdAt, previewText: a.metadata?.scriptExcerpt || '', sourceUrl: a.sourceUrl || null, mediaType: a.mediaType || 'video', status: 'complete', metadata: a.metadata || {} })),
-      ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-
-      setWorkspace({ jobs, outputs, counts: { jobs: jobs.length, outputs: outputs.length, ingestSources: INGESTION_SOURCES.length } });
+      setWorkspace({
+        jobs,
+        outputs: [...outputs].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
+        counts: { jobs: jobs.length, outputs: outputs.length, ingestSources: INGESTION_SOURCES.length },
+      });
     } catch (e) {
       setError(e.message || 'Unable to load workspace.');
     } finally {
@@ -231,7 +222,7 @@ const MediaModule = () => {
     setProbePending(true);
     setLastAction({ type: 'PROBE', status: 'running', timestamp: Date.now() });
     try {
-      const result = await probeMediaAssetApi({ sourceUrl: output.sourceUrl, assetId: output.id });
+      const result = await probeMediaAssetApi({ sourceUrl: output.sourceUrl, assetId: output.assetId });
       setProbeData(result);
       setLastAction(prev => ({ ...prev, status: 'success', result: `METADATA RETRIEVED [${result.duration || '??'}s]` }));
     } catch (e) {
@@ -414,7 +405,7 @@ const MediaModule = () => {
     setFormState({ ...DEFAULT_FORM_STATE, meetingProvider: next === 'ingestMeetingArtifacts' ? 'zoom' : DEFAULT_FORM_STATE.meetingProvider });
   }, [selectedAction]);
 
-  const activeOutput = useMemo(() => workspace.outputs.find(o => o.id === activeOutputId) || workspace.outputs[0], [workspace.outputs, activeOutputId]);
+  const activeOutput = useMemo(() => workspace.outputs.find(o => o.assetId === activeOutputId) || workspace.outputs[0], [workspace.outputs, activeOutputId]);
 
   const handleSubmitQuickAction = useCallback(async () => {
     if (selectedAction === 'publishMedia') { setIsPublishModalOpen(true); return; }
@@ -452,9 +443,8 @@ const MediaModule = () => {
 
   const handleDeleteOutput = useCallback(async (output, e) => {
     e?.stopPropagation();
-    const artifactTypes = { runOfShow: 'run_of_show', transcript: 'transcript', script: 'script', publish: 'publish' };
-    const targetType = artifactTypes[output.type] || (output.type === 'audio' || output.type === 'render' ? 'asset' : output.type);
-    setPendingDelete({ id: output.id, type: targetType, subtype: output.type });
+    const targetType = output.deleteType || (output.recordKind === 'asset' ? 'asset' : output.artifactType || output.type);
+    setPendingDelete({ id: output.assetId, type: targetType, subtype: output.type });
   }, []);
 
   const confirmDeleteOutput = useCallback(async () => {
@@ -501,7 +491,7 @@ const MediaModule = () => {
       await runAiCommandApi({
         command: chatInput.trim(),
         agent: selectedAgent,
-        context: { module: 'media', surface: 'consult_terminal', activeAssetId: activeOutput?.id || null }
+        context: { module: 'media', surface: 'consult_terminal', activeAssetId: activeOutput?.assetId || null }
       });
       setChatInput('');
       await loadWorkspace('refresh');
@@ -1005,7 +995,7 @@ const MediaModule = () => {
                   <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">ASSET CACHE</span>
                   <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
                     {workspace.outputs.slice(0, 10).map((o, idx) => (
-                      <div key={o.id} onClick={() => setActiveOutputId(o.id)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.id ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                      <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
                         <div className="flex justify-between items-start">
                           <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
                           {idx === 0 && <span className="text-[5px] bg-emerald-500/20 text-emerald-500 px-1 rounded font-black border border-emerald-500/30 uppercase tracking-tighter">LATEST</span>}
@@ -1028,7 +1018,7 @@ const MediaModule = () => {
                   <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">LIBRARY</span>
                   <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
                     {workspace.outputs.slice(0, 20).map((o) => (
-                      <div key={o.id} onClick={() => setActiveOutputId(o.id)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.id ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                      <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
                         <div className="flex justify-between items-start">
                           <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
                           <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
@@ -1196,14 +1186,14 @@ const MediaModule = () => {
                 <label className="text-[7px] font-black text-slate-500 uppercase tracking-widest block ml-0.5">TARGET ASSET</label>
                 <select value={formState.assetId} onChange={e => updateField('assetId', e.target.value)} className="w-full rounded bg-black border border-[#2A2D35] px-3 py-2 text-[11px] text-white focus:outline-none font-mono">
                   <option value="">SELECT ARTIFACT</option>
-                  {workspace.outputs.filter(o => o.type === 'render' || o.type === 'audio').map(o => (<option key={o.id} value={o.id}>{o.title}</option>))}
+                  {workspace.outputs.filter(o => o.recordKind === 'asset' && (o.type === 'render' || o.type === 'audio')).map(o => (<option key={o.assetId} value={o.assetId}>{o.title}</option>))}
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-[7px] font-black text-slate-500 uppercase tracking-widest block ml-0.5">DESTINATION ID</label>
                 <input value={formState.publishTarget} onChange={e => updateField('publishTarget', e.target.value)} className="w-full rounded bg-black border border-[#2A2D35] px-3 py-2 text-[11px] text-white focus:outline-none font-mono" placeholder="GOOGLE DRIVE" />
               </div>
-              <button onClick={async () => { setLaunchingAction('publish'); try { await createMediaPublishJobApi({ assetId: formState.assetId || activeOutput?.id, publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-black tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
+              <button onClick={async () => { const selectedAssetId = formState.assetId || (activeOutput?.recordKind === 'asset' ? activeOutput.assetId : ''); setLaunchingAction('publish'); try { await createMediaPublishJobApi({ assetIds: selectedAssetId ? [selectedAssetId] : [], publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-black tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
             </div>
           </div>
         </div>

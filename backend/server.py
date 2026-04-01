@@ -59,6 +59,8 @@ try:
         build_audio_render_job, build_render_job, build_transcript_job,
         normalize_attachment_links
     )
+    from backend.media_library_models import MediaLibraryResponse
+    from backend.media_library_service import list_media_library_items
 except ModuleNotFoundError:
     from planner import create_booking_execution_plan
     from agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
@@ -70,7 +72,13 @@ except ModuleNotFoundError:
     from system_health import build_system_health
     from tenant_deployment import DeploymentFailureError
     from tools import AIOToolRegistry
-    from media_engine import get_media_engine
+    from media_engine import (
+        get_media_engine, build_script_job, build_run_of_show_job,
+        build_audio_render_job, build_render_job, build_transcript_job,
+        normalize_attachment_links
+    )
+    from media_library_models import MediaLibraryResponse
+    from media_library_service import list_media_library_items
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -4696,6 +4704,12 @@ async def delete_flow_folder(request: Request, folderId: str):
 async def list_media_assets(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media assets.")
     return {"data": get_media_engine().list_assets()}
+
+
+@app.get("/api/media/library", response_model=MediaLibraryResponse)
+async def list_media_library(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view the media library.")
+    return MediaLibraryResponse(data=list_media_library_items())
 
 
 @app.get("/api/media/render-jobs")

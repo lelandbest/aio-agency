@@ -1455,6 +1455,7 @@ class MediaEngine:
                     asset_type=clean_text(asset_payload.get("asset_type")) or "render_output",
                     media_type=clean_text(asset_payload.get("media_type")) or "video",
                     title=clean_text(asset_payload.get("title")) or clean_text(started.get("title")) or "Rendered Asset",
+                    source="render",
                     source_url=clean_text(asset_payload.get("source_url")) or None,
                     metadata=asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {},
                     attachments=attachments,
@@ -1556,6 +1557,7 @@ class MediaEngine:
                 asset_type=clean_text(asset_payload.get("asset_type")) or "meeting_recording",
                 media_type=clean_text(asset_payload.get("media_type")) or "video",
                 title=clean_text(asset_payload.get("title")) or clean_text(normalized.get("meeting", {}).get("title")) or "Meeting Artifact",
+                source="meeting_ingest",
                 source_url=clean_text(asset_payload.get("source_url")) or None,
                 metadata={
                     **(asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {}),

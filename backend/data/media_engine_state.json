@@ -949,6 +949,75 @@
       "updated_at": "2026-04-01T14:25:38.048593+00:00",
       "started_at": "2026-04-01T14:25:26.410203+00:00",
       "completed_at": "2026-04-01T14:25:38.037797+00:00"
+    },
+    {
+      "id": "render-job-9035ba9b278b",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-render",
+      "title": "VAL_RENDER_1775058120197",
+      "status": "queued",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "VAL_RENDER_1775058120197",
+        "mediaType": "image",
+        "script": "Validation render output for canonical media library test.",
+        "metadata": {
+          "prompt": "Validation render output for canonical media library test."
+        }
+      },
+      "attachments": [],
+      "output_asset_ids": [],
+      "last_error": null,
+      "created_at": "2026-04-01T15:42:00.430025+00:00",
+      "updated_at": "2026-04-01T15:42:00.430764+00:00",
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "render-job-a1c9fd6d235f",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-render",
+      "title": "VAL_RENDER_TEST",
+      "status": "queued",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "VAL_RENDER_TEST",
+        "mediaType": "image",
+        "script": "Validation render output for canonical media library test.",
+        "metadata": {
+          "prompt": "Validation render output for canonical media library test."
+        }
+      },
+      "attachments": [],
+      "output_asset_ids": [],
+      "last_error": null,
+      "created_at": "2026-04-01T15:46:03.223116+00:00",
+      "updated_at": "2026-04-01T15:46:03.223750+00:00",
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "render-job-13515d9e46dd",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-render",
+      "title": "BMP_RENDER_SANITY",
+      "status": "queued",
+      "input_payload": {
+        "provider": "stub-render",
+        "title": "BMP_RENDER_SANITY",
+        "mediaType": "image",
+        "script": "Boundary rebuild sanity render.",
+        "metadata": {
+          "prompt": "Boundary rebuild sanity render."
+        }
+      },
+      "attachments": [],
+      "output_asset_ids": [],
+      "last_error": null,
+      "created_at": "2026-04-01T16:29:07.919132+00:00",
+      "updated_at": "2026-04-01T16:29:07.919949+00:00",
+      "started_at": null,
+      "completed_at": null
     }
   ],
   "transcript_jobs": [
@@ -1195,6 +1264,25 @@
         "message": "Transcript normalized from provided text.",
         "segment_count": 0
       }
+    },
+    {
+      "id": "transcript-job-04327e9a1703",
+      "tenant_id": "tenant-primary",
+      "provider": "elevenlabs_scribe",
+      "title": "VAL_TRANSCRIPT_1775058232695",
+      "status": "queued",
+      "input_payload": {
+        "provider": "elevenlabs_scribe",
+        "title": "VAL_TRANSCRIPT_1775058232695",
+        "transcriptText": "Speaker 1: Validation transcript path confirmed."
+      },
+      "attachments": [],
+      "artifact_id": null,
+      "last_error": null,
+      "created_at": "2026-04-01T15:43:52.709619+00:00",
+      "updated_at": "2026-04-01T15:43:52.711086+00:00",
+      "started_at": null,
+      "completed_at": null
     }
   ],
   "transcript_artifacts": [
@@ -1617,6 +1705,27 @@
         "message": "Script job completed through the stub script provider.",
         "section_count": 3
       }
+    },
+    {
+      "id": "script-job-5ed5af376ef2",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-script",
+      "title": "VAL_SCRIPT_1775058168807",
+      "status": "queued",
+      "input_payload": {
+        "provider": "stub-script",
+        "title": "VAL_SCRIPT_1775058168807",
+        "topic": "Canonical media validation topic",
+        "tone": "direct",
+        "duration": "120S"
+      },
+      "attachments": [],
+      "artifact_id": null,
+      "last_error": null,
+      "created_at": "2026-04-01T15:42:49.160697+00:00",
+      "updated_at": "2026-04-01T15:42:49.161368+00:00",
+      "started_at": null,
+      "completed_at": null
     }
   ],
   "script_artifacts": [
@@ -1921,6 +2030,26 @@
         "message": "Run-of-show job completed through the stub planner provider.",
         "segment_count": 3
       }
+    },
+    {
+      "id": "run-of-show-job-fb81d6ecf4c2",
+      "tenant_id": "tenant-primary",
+      "provider": "stub-run-of-show",
+      "title": "VAL_RUNSHOW_1775058202145",
+      "status": "queued",
+      "input_payload": {
+        "provider": "stub-run-of-show",
+        "title": "VAL_RUNSHOW_1775058202145",
+        "topic": "Validation run-of-show topic",
+        "duration": "15 minutes"
+      },
+      "attachments": [],
+      "artifact_id": null,
+      "last_error": null,
+      "created_at": "2026-04-01T15:43:22.159597+00:00",
+      "updated_at": "2026-04-01T15:43:22.160276+00:00",
+      "started_at": null,
+      "completed_at": null
     }
   ],
   "run_of_show_artifacts": [

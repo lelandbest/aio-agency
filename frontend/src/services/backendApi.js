@@ -479,6 +479,11 @@ export async function getMediaAssetsApi() {
   return toCamelCase(response.data || []);
 }
 
+export async function getMediaLibraryApi() {
+  const response = await request('/api/media/library');
+  return toCamelCase(response.data || []);
+}
+
 export async function getMediaRenderJobsApi() {
   const response = await request('/api/media/render-jobs');
   return toCamelCase(response.data || []);
