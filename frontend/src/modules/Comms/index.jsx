@@ -1066,7 +1066,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   }, [latestAgentAction, latestAgentMessage, selectedThread?.activeAgentIdentity, selectedThread?.assignee]);
 
   const agentRailAgents = useMemo(
-    () => VISIBLE_SPECIALIST_KEYS.filter((agentName) => availableAgents.includes(agentName)).slice(0, 12),
+    () => VISIBLE_SPECIALIST_KEYS.filter((agentName) => availableAgents.includes(agentName)).slice(0, 13),
     [availableAgents]
   );
 
@@ -1967,8 +1967,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
               <div className="py-2 flex items-center justify-center shrink-0">
                 <span className="text-[7.5px] uppercase tracking-[0.4em] text-slate-700 font-bold">AGENTS</span>
               </div>
-              <div className="flex-1 overflow-y-auto no-scrollbar pt-1" style={hiddenScrollbarStyle}>
-                <div className="flex flex-col gap-1">
+              <div className="flex-1 overflow-hidden pt-1" style={hiddenScrollbarStyle}>
+                <div className="flex flex-col gap-0.5">
                   {agentRailAgents.map((agentName) => {
                     const isSelectedAgent = selectedThread.assignee === agentName;
                     let c;
@@ -1987,16 +1987,15 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         key={agentName}
                         onClick={() => handleAssignThread(agentName)}
                         title={agentName}
-                        className={`pointer-events-auto flex flex-col items-center justify-center p-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelectedAgent ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                        className={`pointer-events-auto flex items-center justify-center p-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelectedAgent ? 'bg-white/5' : 'hover:bg-white/5'}`}
                       >
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center mb-0.5 transition-all duration-300 transform-gpu
+                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
                           ${isSelectedAgent
                             ? `${c.bg.replace('950/50', '600/95').replace('950/45', '600/95').replace('900/50', '500/95').replace('900/45', '500/95').replace('800/45', '400/95').replace('500/10', '500/80')} ${c.border.replace('600/40', '400/95').replace('500/40', '400/95').replace('400/40', '300/95')} text-white shadow-[0_0_20px_${c.shadow.replace('0.2', '0.5')}] scale-110 ring-1 ring-white/20`
                             : `opacity-60 group-hover:opacity-100 ${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] group-hover:shadow-[0_0_15px_${c.shadow.replace('0.2', '0.4')}] group-hover:scale-105`
                           } text-[9px] font-black tracking-tighter shrink-0`}>
                           {agentName.substring(0, 2).toUpperCase()}
                         </div>
-                        <span className={`text-[6px] font-black uppercase tracking-tighter truncate w-full text-center transition-all duration-300 ${isSelectedAgent ? 'text-white scale-110' : 'text-slate-800'}`}>{agentName}</span>
                       </button>
                     );
                   })}

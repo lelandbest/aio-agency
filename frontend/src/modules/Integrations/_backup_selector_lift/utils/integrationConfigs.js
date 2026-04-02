@@ -36,8 +36,8 @@ export const integrationConfigs = {
         description: 'Self-hosted workflow automation tool.',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'n8n Instance' },
-          { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://n8n.your-instance.com' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://n8n.your-instance.com' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
         ],
         config: { mode: 'webhook' },
         logo: 'https://cdn.worldvectorlogo.com/logos/n8n.svg',
@@ -49,8 +49,8 @@ export const integrationConfigs = {
         description: 'Visual automation platform (formerly Integromat).',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Make.com' },
-          { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://hook.make.com/...' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://hook.make.com/...' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
         ],
         logo: null,
       },
@@ -61,46 +61,10 @@ export const integrationConfigs = {
         description: 'Connect your apps and automate workflows.',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Zapier' },
-          { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Webhook URL', type: 'text', required: true },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/zapier-1.svg',
-      },
-      {
-        id: 'activepieces',
-        name: 'Active Pieces',
-        icon: 'zap',
-        description: 'Open source automation flows with piece-based connectors.',
-        fields: [
-          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Active Pieces' },
-          { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://activepieces.your-instance.com' },
-          { name: 'apiKey', label: 'API Key', type: 'password' },
-        ],
-        logo: null,
-      },
-      {
-        id: 'latenode',
-        name: 'Latenode',
-        icon: 'zap',
-        description: 'Visual workflow automation with hosted and self-managed execution.',
-        fields: [
-          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Latenode' },
-          { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://app.latenode.com' },
-          { name: 'apiKey', label: 'API Key', type: 'password' },
-        ],
-        logo: null,
-      },
-      {
-        id: 'pabbly',
-        name: 'Pabbly Connect',
-        icon: 'zap',
-        description: 'Automation and webhook orchestration through Pabbly Connect.',
-        fields: [
-          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Pabbly Connect' },
-          { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://connect.pabbly.com' },
-          { name: 'apiKey', label: 'API Key', type: 'password' },
-        ],
-        logo: null,
       },
     ]
   },
@@ -135,10 +99,10 @@ export const integrationConfigs = {
         icon: 'mail',
         description: 'Connect any standard email hosting provider.',
         fields: [
-          { name: 'incomingHost', label: 'IMAP Host', type: 'text', required: true },
-          { name: 'incomingPort', label: 'IMAP Port', type: 'text', required: true, default: '993' },
-          { name: 'outgoingHost', label: 'SMTP Host', type: 'text', required: true },
-          { name: 'outgoingPort', label: 'SMTP Port', type: 'text', required: true, default: '465' },
+          { name: 'imap_host', label: 'IMAP Host', type: 'text', required: true },
+          { name: 'imap_port', label: 'IMAP Port', type: 'text', required: true, default: '993' },
+          { name: 'smtp_host', label: 'SMTP Host', type: 'text', required: true },
+          { name: 'smtp_port', label: 'SMTP Port', type: 'text', required: true, default: '465' },
           { name: 'username', label: 'Username', type: 'text', required: true },
           { name: 'password', label: 'Password', type: 'password', required: true },
         ],
@@ -153,9 +117,9 @@ export const integrationConfigs = {
         subtypeLabel: 'Email Verification Provider',
         description: 'Verify contact email deliverability inside CRM and flows using Reoon.',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
           {
-            name: 'defaultMode',
+            name: 'default_mode',
             label: 'Default Mode',
             type: 'select',
             required: true,
@@ -163,7 +127,7 @@ export const integrationConfigs = {
             options: ['quick', 'power']
           },
           {
-            name: 'autoVerifyContacts',
+            name: 'auto_verify_contacts',
             label: 'Auto-verify contacts',
             type: 'checkbox',
             default: true
@@ -198,6 +162,16 @@ export const integrationConfigs = {
         oauth: true,
         logo: 'https://cdn.worldvectorlogo.com/logos/microsoft-outlook-1.svg',
       },
+      {
+        id: 'calcom',
+        name: 'Cal.com',
+        icon: 'calendar',
+        description: 'Open source scheduling infrastructure.',
+        fields: [
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+        ],
+        logo: null,
+      },
     ]
   },
 
@@ -213,10 +187,10 @@ export const integrationConfigs = {
         icon: 'zoom-api',
         description: 'Zoom API-backed meeting and recording connectivity.',
         fields: [
-          { name: 'accountId', label: 'Account ID', type: 'text', required: true },
-          { name: 'clientId', label: 'Client ID', type: 'text', required: true },
-          { name: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
-          { name: 'userId', label: 'User ID', type: 'text' },
+          { name: 'account_id', label: 'Account ID', type: 'text', required: true },
+          { name: 'client_id', label: 'Client ID', type: 'text', required: true },
+          { name: 'client_secret', label: 'Client Secret', type: 'password', required: true },
+          { name: 'user_id', label: 'User ID', type: 'text' },
         ],
         logo: null,
       },
@@ -235,9 +209,9 @@ export const integrationConfigs = {
         icon: 'jitsi-stub',
         description: 'Placeholder only for now. Live backend connectivity is not implemented yet.',
         fields: [
-          { name: 'serverUrl', label: 'Server URL', type: 'text' },
-          { name: 'roomPrefix', label: 'Room Prefix', type: 'text' },
-          { name: 'apiKey', label: 'API Key', type: 'password' },
+          { name: 'server_url', label: 'Server URL', type: 'text' },
+          { name: 'room_prefix', label: 'Room Prefix', type: 'text' },
+          { name: 'api_key', label: 'API Key', type: 'password' },
         ],
         logo: null,
       },
@@ -256,14 +230,14 @@ export const integrationConfigs = {
         icon: 'ollama',
         description: 'Connect a local or networked Ollama runtime.',
         fields: [
-          { name: 'baseUrl', label: 'Base URL', type: 'text', required: true, default: 'http://192.168.4.28:11434', placeholder: 'http://192.168.4.28:11434' },
-          { name: 'apiKey', label: 'API Key', type: 'password' },
+          { name: 'base_url', label: 'Base URL', type: 'text', required: true, default: 'http://192.168.4.28:11434', placeholder: 'http://192.168.4.28:11434' },
+          { name: 'api_key', label: 'API Key', type: 'password' },
           { name: 'username', label: 'Username', type: 'text' },
           { name: 'password', label: 'Password', type: 'password' },
           { name: 'model', label: 'Model', type: 'text', required: true, default: 'minimax-m2.5:cloud' },
           { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
-          { name: 'systemGuardrails', label: 'System Guardrails', type: 'textarea', placeholder: 'Persistent instructions applied to all requests.' },
-          { name: 'taskGuardrails', label: 'Task Guardrails', type: 'textarea', placeholder: 'Task-level guidance applied alongside system guardrails.' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea', placeholder: 'Persistent instructions applied to all requests.' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea', placeholder: 'Task-level guidance applied alongside system guardrails.' },
         ],
         logo: null,
       },
@@ -273,12 +247,12 @@ export const integrationConfigs = {
         icon: 'openai',
         description: 'GPT-4, GPT-3.5, and other OpenAI models',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://api.openai.com' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.openai.com' },
           { name: 'model', label: 'Model', type: 'text', default: 'gpt-4.1-mini' },
           { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
-          { name: 'systemGuardrails', label: 'System Guardrails', type: 'textarea' },
-          { name: 'taskGuardrails', label: 'Task Guardrails', type: 'textarea' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/openai-2.svg',
       },
@@ -288,14 +262,14 @@ export const integrationConfigs = {
         icon: 'openrouter',
         description: 'Route AI traffic through OpenRouter-managed models.',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://openrouter.ai/api' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://openrouter.ai/api' },
           { name: 'model', label: 'Model', type: 'text', default: 'openai/gpt-4.1-mini' },
-          { name: 'siteUrl', label: 'Site URL', type: 'text' },
-          { name: 'appName', label: 'App Name', type: 'text', default: 'AIO CRM' },
+          { name: 'site_url', label: 'Site URL', type: 'text' },
+          { name: 'app_name', label: 'App Name', type: 'text', default: 'AIO CRM' },
           { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
-          { name: 'systemGuardrails', label: 'System Guardrails', type: 'textarea' },
-          { name: 'taskGuardrails', label: 'Task Guardrails', type: 'textarea' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: null,
       },
@@ -305,12 +279,12 @@ export const integrationConfigs = {
         icon: 'anthropic',
         description: 'Claude language models by Anthropic',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://api.anthropic.com' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.anthropic.com' },
           { name: 'model', label: 'Model', type: 'text', default: 'claude-sonnet-4-20250514' },
           { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
-          { name: 'systemGuardrails', label: 'System Guardrails', type: 'textarea' },
-          { name: 'taskGuardrails', label: 'Task Guardrails', type: 'textarea' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/anthropic.svg',
       },
@@ -320,12 +294,12 @@ export const integrationConfigs = {
         icon: 'google',
         description: 'Google Gemini and other Google AI models',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://generativelanguage.googleapis.com' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://generativelanguage.googleapis.com' },
           { name: 'model', label: 'Model', type: 'text', default: 'gemini-2.5-flash' },
           { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
-          { name: 'systemGuardrails', label: 'System Guardrails', type: 'textarea' },
-          { name: 'taskGuardrails', label: 'Task Guardrails', type: 'textarea' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: 'https://cdn.worldvectorlogo.com/logos/google-2015.svg',
       },
@@ -335,12 +309,12 @@ export const integrationConfigs = {
         icon: 'perplexity',
         description: 'Perplexity language models and API',
         fields: [
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://api.perplexity.ai' },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'base_url', label: 'Base URL', type: 'text', default: 'https://api.perplexity.ai' },
           { name: 'model', label: 'Model', type: 'text', default: 'sonar' },
           { name: 'temperature', label: 'Temperature', type: 'text', default: '0.2' },
-          { name: 'systemGuardrails', label: 'System Guardrails', type: 'textarea' },
-          { name: 'taskGuardrails', label: 'Task Guardrails', type: 'textarea' },
+          { name: 'system_guardrails', label: 'System Guardrails', type: 'textarea' },
+          { name: 'task_guardrails', label: 'Task Guardrails', type: 'textarea' },
         ],
         logo: null,
       },
@@ -371,27 +345,11 @@ export const integrationConfigs = {
     description: 'External event tracking and performance systems.',
     providers: [
       {
-        id: 'googleAnalytics',
-        name: 'Google Analytics',
+        id: 'placeholder-tracking',
+        name: 'Tracking Placeholder',
         icon: 'activity',
-        description: 'Measurement and event tracking through Google Analytics.',
-        fields: [
-          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Google Analytics' },
-          { name: 'measurementId', label: 'Measurement ID', type: 'text', required: true },
-          { name: 'apiSecret', label: 'API Secret', type: 'password' },
-        ],
-        logo: null,
-      },
-      {
-        id: 'facebookPixel',
-        name: 'Facebook Pixel',
-        icon: 'activity',
-        description: 'Meta Pixel event tracking and attribution.',
-        fields: [
-          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Facebook Pixel' },
-          { name: 'pixelId', label: 'Pixel ID', type: 'text', required: true },
-          { name: 'accessToken', label: 'Access Token', type: 'password' },
-        ],
+        description: 'Tracking functionality is coming soon.',
+        fields: [],
         logo: null,
       },
     ],
@@ -463,8 +421,8 @@ export const integrationConfigs = {
         description: 'Online payment processing for internet businesses.',
         fields: [
           { name: 'label', label: 'Provider Label', type: 'text', required: true, default: 'Stripe' },
-          { name: 'publishableKey', label: 'Publishable Key', type: 'text', required: true },
-          { name: 'secretKey', label: 'Secret Key', type: 'password', required: true },
+          { name: 'publishable_key', label: 'Publishable Key', type: 'text', required: true },
+          { name: 'secret_key', label: 'Secret Key', type: 'password', required: true },
           { 
             name: 'mode', 
             label: 'Mode', 
@@ -491,8 +449,8 @@ export const integrationConfigs = {
         description: 'Digital payments and commerce platform.',
         fields: [
           { name: 'label', label: 'Provider Label', type: 'text', required: true, default: 'PayPal' },
-          { name: 'clientId', label: 'Client ID', type: 'text', required: true },
-          { name: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
+          { name: 'client_id', label: 'Client ID', type: 'text', required: true },
+          { name: 'client_secret', label: 'Client Secret', type: 'password', required: true },
           { 
             name: 'mode', 
             label: 'Mode', 
@@ -511,33 +469,29 @@ export const integrationConfigs = {
     id: INTEGRATION_CATEGORIES.MEDIA,
     name: 'Media & Transcription',
     icon: 'mic',
-    description: 'Transcription and voice-render providers for media operations.',
+    description: 'Audio transcription and media processing providers.',
     providers: [
       {
-        id: 'elevenlabsScribe',
+        id: 'elevenlabs-scribe',
         name: 'ElevenLabs Scribe',
         icon: 'mic',
         description: 'Transcription service for audio and video content.',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'ElevenLabs Scribe' },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://api.elevenlabs.io' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
         ],
         logo: null,
       },
       {
-        id: 'elevenlabsTts',
-        name: 'ElevenLabs Voice',
-        icon: 'mic',
-        description: 'Voice render and speech output through ElevenLabs.',
+        id: 'aws-transcribe',
+        name: 'AWS Transcribe',
+        icon: 'cloud',
+        description: 'AWS-powered speech-to-text service.',
         fields: [
-          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'ElevenLabs Voice' },
-          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://api.elevenlabs.io' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'voice', label: 'Default Voice', type: 'text', default: 'Rachel' },
-          { name: 'voiceId', label: 'Voice ID', type: 'text' },
-          { name: 'charlieVoice', label: 'Charlie Voice', type: 'text', default: 'Rachel' },
-          { name: 'futureVoicePool', label: 'Future Voice Pool Notes', type: 'textarea', default: 'Reserve future multi-agent voice assignments here.' },
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'AWS Transcribe' },
+          { name: 'access_key_id', label: 'Access Key ID', type: 'text', required: true },
+          { name: 'secret_access_key', label: 'Secret Access Key', type: 'password', required: true },
+          { name: 'region', label: 'AWS Region', type: 'text', required: true, default: 'us-east-1' },
         ],
         logo: null,
       },
@@ -557,8 +511,8 @@ export const integrationConfigs = {
         description: 'Ready for future estimate/proposal/invoice API access. No workflow features enabled yet.',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'WaveApps' },
-          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
-          { name: 'apiSecret', label: 'API Secret', type: 'password', required: true },
+          { name: 'api_key', label: 'API Key', type: 'password', required: true },
+          { name: 'api_secret', label: 'API Secret', type: 'password', required: true },
         ],
         logo: null,
       },
@@ -592,6 +546,21 @@ export const getAllCategories = () => {
   })).sort((a, b) => a.name.localeCompare(b.name));
 };
 
+/**
+ * Normalizes field names between frontend (camelCase) and backend (snake_case).
+ * Handles: apiKey -> api_key, baseUrl -> base_url, 
+ * systemGuardrails -> system_guardrails, taskGuardrails -> task_guardrails
+ */
 export const normalizeAiField = (name) => {
-  return String(name || '').replace(/[-_]+([a-zA-Z0-9])/g, (_, character) => character.toUpperCase());
+  const mapping = {
+    'apiKey': 'api_key',
+    'baseUrl': 'base_url',
+    'systemGuardrails': 'system_guardrails',
+    'taskGuardrails': 'task_guardrails',
+    'system_guardrails': 'system_guardrails',
+    'task_guardrails': 'task_guardrails',
+    'base_url': 'base_url',
+    'api_key': 'api_key'
+  };
+  return mapping[name] || name;
 };
