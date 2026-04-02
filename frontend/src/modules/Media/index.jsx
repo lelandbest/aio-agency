@@ -2125,8 +2125,8 @@ const MediaModule = () => {
               <div className="py-2 flex items-center justify-center shrink-0">
                 <span className="text-[7.5px] uppercase tracking-[0.4em] text-slate-700 font-bold">AGENTS</span>
               </div>
-              <div className="flex-1 overflow-hidden pt-1">
-                <div className="flex flex-col gap-0.5">
+              <div className="flex-1 overflow-y-auto no-scrollbar pt-0.5">
+                <div className="flex flex-col gap-0">
                   {VISIBLE_SPECIALIST_KEYS.slice(0, 13).map((key) => {
                     const isSelected = selectedAgent === key;
                     let c;
@@ -2146,7 +2146,7 @@ const MediaModule = () => {
                           onClick={() => setSelectedAgent(key)} 
                           key={key} 
                           title={key}
-                          className={`flex items-center justify-center p-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                          className={`flex flex-col items-center justify-center px-0.5 py-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}
                        >
                           <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
                              ${isSelected 
@@ -2155,6 +2155,9 @@ const MediaModule = () => {
                              } text-[9px] font-black tracking-tighter shrink-0`}>
                              {key.substring(0, 2).toUpperCase()}
                           </div>
+                          <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelected ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
+                            {key}
+                          </span>
                        </button>
                     );
                  })}
