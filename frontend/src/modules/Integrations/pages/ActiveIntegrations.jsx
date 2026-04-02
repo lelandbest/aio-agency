@@ -166,8 +166,8 @@ const createAiProviderDraft = (provider) => {
   const isOllama = provider?.id === 'ollama' || provider?.key === 'ollama';
 
   return {
-    baseUrl: provider?.defaultBaseUrl || findField('base_url')?.default || '',
-    model: provider?.defaultModel || findField('model')?.default || '',
+    baseUrl: provider?.defaultBaseUrl || provider?.default_base_url || findField('base_url')?.default || '',
+    model: provider?.defaultModel || provider?.default_model || findField('model')?.default || '',
     apiKey: '',
     temperature: findField('temperature')?.default || (isOllama ? '0.2' : ''),
     username: '',
@@ -202,6 +202,23 @@ const sanitizeAiProviderConfig = (rawConfig = {}) => {
     }
   });
   return cleaned;
+};
+
+const normalizeAiProviderConfigRecord = (provider = {}) => {
+  const config = provider.config || {};
+  return {
+    ...provider,
+    providerKey: provider.providerKey || provider.provider_key || '',
+    provider_key: provider.provider_key || provider.providerKey || '',
+    isDefault: Boolean(provider.isDefault ?? provider.is_default),
+    is_default: Boolean(provider.is_default ?? provider.isDefault),
+    apiKeyPresent: Boolean(provider.apiKeyPresent ?? provider.apiKey_present),
+    apiKey_present: Boolean(provider.apiKey_present ?? provider.apiKeyPresent),
+    systemGuardrails: provider.systemGuardrails || provider.system_guardrails || config.systemGuardrails || config.system_guardrails || '',
+    system_guardrails: provider.system_guardrails || provider.systemGuardrails || config.system_guardrails || config.systemGuardrails || '',
+    taskGuardrails: provider.taskGuardrails || provider.task_guardrails || config.taskGuardrails || config.task_guardrails || '',
+    task_guardrails: provider.task_guardrails || provider.taskGuardrails || config.task_guardrails || config.taskGuardrails || '',
+  };
 };
 
 
@@ -788,7 +805,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     }
 
     try {
-      setAiProviderConfigs(await getAiProviderConfigsApi());
+      setAiProviderConfigs((await getAiProviderConfigsApi()).map(normalizeAiProviderConfigRecord));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
       setAiProviderConfigs([]);

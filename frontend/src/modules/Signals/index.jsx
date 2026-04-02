@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, Users, MessageSquare, AlertTriangle,
-  Activity, Brain, Crosshair, Send,
+  Activity, Brain, Plus, Send,
   RefreshCw, AlertCircle, Target,
-  ChevronRight, Play, Clock, Plus, Loader2, Zap
+  ChevronRight, Play, Clock, Loader2, Zap
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -598,7 +598,7 @@ const SignalsModule = () => {
           },
           { 
             label: '+ ADD DEAL', 
-            icon: Crosshair, 
+            icon: Plus, 
             onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'pipelines' } }),
             variant: 'secondary' 
           },

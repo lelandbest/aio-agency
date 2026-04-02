@@ -206,6 +206,47 @@ html.dark .btn-primary-skeuo {
   filter: brightness(1.2) contrast(1.1);
 }
 
+.btn-toolbar-lead {
+  background: linear-gradient(180deg, #2a2d31 0%, #14171b 55%, #08090b 100%);
+  border: 1px solid rgba(0, 0, 0, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 2px solid rgba(0, 0, 0, 1);
+  color: #f5f7fa;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 0.5rem 1.15rem;
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+html.dark .btn-toolbar-lead {
+  background: linear-gradient(180deg, #26282c 0%, #121417 50%, #060709 100%);
+  color: #f8fafc;
+}
+
+.btn-toolbar-lead:hover {
+  background: linear-gradient(180deg, #34383d 0%, #191c20 55%, #0b0d10 100%);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  filter: brightness(1.06) contrast(1.04);
+}
+
+.btn-toolbar-lead:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7);
+}
+
 .btn-secondary {
   background: linear-gradient(180deg, #F8FAFC 0%, #E2E8F0 100%);
   border: 1px solid rgba(0, 0, 0, 0.1);

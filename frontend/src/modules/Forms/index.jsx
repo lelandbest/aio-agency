@@ -850,13 +850,6 @@ const FormBuilderModule = () => {
                 </button>
               </div>
             )}
-            aiAssistSlot={(
-              <AIAssistButton
-                onAssist={() => {}} 
-                tooltip="Forms Intelligence"
-                iconType="crosshair"
-              />
-            )}
           />
 
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">

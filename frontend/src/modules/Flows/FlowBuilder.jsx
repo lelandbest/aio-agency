@@ -1416,7 +1416,6 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onExit={onExit}
         onToggleDetails={() => setRightPanelOpen(!rightPanelOpen)}
         isDetailsOpen={rightPanelOpen}
-        aiAssistSlot={<AIAssistButton onAssist={applyFlowHelper} loading={assistTarget === 'header'} tooltip="Flow AI Assist" iconType="crosshair" />}
         onSave={handleSaveFlow}
       />
 

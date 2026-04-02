@@ -457,13 +457,6 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             </button>
           </div>
         )}
-        aiAssistSlot={(
-          <AIAssistButton
-            onAssist={() => { }}
-            tooltip="Flows Intelligence"
-            iconType="crosshair"
-          />
-        )}
       />
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">

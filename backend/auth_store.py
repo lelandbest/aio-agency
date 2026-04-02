@@ -74,6 +74,8 @@ def slugify(value: str) -> str:
 
 USER_ROLES = {"operator", "client"}
 WORKSPACE_MEMBERSHIP_ROLES = {"owner", "admin", "staff", "viewer", "member"}
+DEFAULT_OLLAMA_PROVIDER_BASE_URL = "http://192.168.4.28:11434"
+DEFAULT_OLLAMA_PROVIDER_MODEL = "minimax-m2.5:cloud"
 
 
 def normalize_user_role(value: Any) -> str:
@@ -263,6 +265,23 @@ class AuthStore:
                     UNIQUE(tenantId, providerKey)
                 );
 
+                CREATE TABLE IF NOT EXISTS data_store_provider_configs (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    providerKey TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    baseUrl TEXT,
+                    apiKey TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'disconnected',
+                    configJson TEXT,
+                    lastTestedAt TEXT,
+                    lastError TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, providerKey)
+                );
+
                 CREATE TABLE IF NOT EXISTS omega_protocols (
                     tenantId TEXT PRIMARY KEY,
                     status TEXT NOT NULL DEFAULT 'idle',
@@ -406,6 +425,7 @@ class AuthStore:
             self._backfill_default_workspace(conn)
             self._seed_system_settings(conn)
             self._backfill_canonical_tenant_settings(conn)
+            self._seed_default_ai_provider_configs(conn)
             self._seed_default_system_email_templates(conn)
             conn.commit()
 
@@ -487,6 +507,101 @@ class AuthStore:
             "INSERT INTO app_settings (id, systemSettingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
             ("system-primary", json.dumps(DEFAULT_SYSTEM_SETTINGS), now, now),
         )
+
+    def _seed_default_ai_provider_configs(self, conn: sqlite3.Connection) -> None:
+        tenants = conn.execute("SELECT id FROM tenants WHERE archivedAt IS NULL").fetchall()
+        if not tenants:
+            return
+        now = utcnow_iso()
+        default_config_json = json.dumps(
+            {
+                "temperature": "0.2",
+                "username": "",
+                "password": "",
+            }
+        )
+        for tenant in tenants:
+            tenant_id = tenant["id"]
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM ai_provider_configs
+                WHERE tenantId = ?
+                ORDER BY isDefault DESC, updatedAt DESC
+                """,
+                (tenant_id,),
+            ).fetchall()
+            has_enabled_default = any(bool(row["enabled"]) and bool(row["isDefault"]) for row in rows)
+            ollama_row = next((row for row in rows if (row["providerKey"] or "").strip().lower() == "ollama"), None)
+
+            if not ollama_row:
+                config_id = f"ai-provider-{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO ai_provider_configs (
+                        id, tenantId, providerKey, label, baseUrl, model, apiKey, enabled, isDefault, status,
+                        configJson, lastTestedAt, lastError, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        config_id,
+                        tenant_id,
+                        "ollama",
+                        "Ollama",
+                        DEFAULT_OLLAMA_PROVIDER_BASE_URL,
+                        DEFAULT_OLLAMA_PROVIDER_MODEL,
+                        None,
+                        1,
+                        1 if not has_enabled_default else 0,
+                        "configured",
+                        default_config_json,
+                        None,
+                        None,
+                        now,
+                        now,
+                    ),
+                )
+                continue
+
+            next_base_url = (ollama_row["baseUrl"] or "").strip() or DEFAULT_OLLAMA_PROVIDER_BASE_URL
+            next_model = (ollama_row["model"] or "").strip() or DEFAULT_OLLAMA_PROVIDER_MODEL
+            next_enabled = 1 if bool(ollama_row["enabled"]) or not has_enabled_default else 0
+            next_is_default = 1 if bool(ollama_row["isDefault"]) or not has_enabled_default else 0
+            next_status = (ollama_row["status"] or "").strip() or ("configured" if next_enabled else "disconnected")
+            next_config_json = ollama_row["configJson"] or default_config_json
+
+            if (
+                next_base_url == (ollama_row["baseUrl"] or "").strip()
+                and next_model == (ollama_row["model"] or "").strip()
+                and next_enabled == int(bool(ollama_row["enabled"]))
+                and next_is_default == int(bool(ollama_row["isDefault"]))
+                and next_status == (ollama_row["status"] or "").strip()
+                and next_config_json == (ollama_row["configJson"] or "")
+            ):
+                continue
+
+            conn.execute(
+                """
+                UPDATE ai_provider_configs
+                SET baseUrl = ?, model = ?, enabled = ?, isDefault = ?, status = ?, configJson = ?, updatedAt = ?
+                WHERE id = ?
+                """,
+                (
+                    next_base_url,
+                    next_model,
+                    next_enabled,
+                    next_is_default,
+                    next_status,
+                    next_config_json,
+                    now,
+                    ollama_row["id"],
+                ),
+            )
+            if next_is_default:
+                conn.execute(
+                    "UPDATE ai_provider_configs SET isDefault = 0 WHERE tenantId = ? AND id != ?",
+                    (tenant_id, ollama_row["id"]),
+                )
 
     def _backfill_canonical_tenant_settings(self, conn: sqlite3.Connection) -> None:
         rows = conn.execute("SELECT id, settingsJson FROM tenants").fetchall()
@@ -3540,6 +3655,213 @@ class AuthStore:
             )
             conn.commit()
         return self.get_media_provider_config_for_tenant(tenant_id, config_id)
+
+    def _data_store_provider_record(self, row: sqlite3.Row | None, include_secret: bool = False) -> dict[str, Any] | None:
+        if not row:
+            return None
+        config = json.loads(row["configJson"]) if row["configJson"] else {}
+        return {
+            "id": row["id"],
+            "tenantId": row["tenantId"],
+            "providerKey": row["providerKey"],
+            "label": row["label"],
+            "baseUrl": row["baseUrl"],
+            "apiKey": row["apiKey"] if include_secret else None,
+            "apiKeyPresent": bool(row["apiKey"]),
+            "enabled": bool(row["enabled"]),
+            "status": row["status"],
+            "config": config,
+            "lastTestedAt": row["lastTestedAt"],
+            "lastError": row["lastError"],
+            "createdAt": row["createdAt"],
+            "updatedAt": row["updatedAt"],
+        }
+
+    def list_data_store_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM data_store_provider_configs
+                WHERE tenantId = ?
+                ORDER BY updatedAt DESC, createdAt DESC
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [self._data_store_provider_record(row) for row in rows]
+
+    def get_data_store_provider_config_for_tenant(self, tenant_id: str, config_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM data_store_provider_configs WHERE tenantId = ? AND id = ? LIMIT 1",
+                (tenant_id, config_id),
+            ).fetchone()
+        return self._data_store_provider_record(row, include_secret=True) if row else None
+
+    def get_data_store_provider_config_by_provider_key(self, tenant_id: str, provider_key: str) -> dict[str, Any] | None:
+        normalized = (provider_key or "").strip()
+        if not normalized:
+            return None
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM data_store_provider_configs WHERE tenantId = ? AND providerKey = ? LIMIT 1",
+                (tenant_id, normalized),
+            ).fetchone()
+        return self._data_store_provider_record(row, include_secret=True) if row else None
+
+    def list_data_store_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
+        return self.list_data_store_provider_configs_for_tenant(tenant_id)
+
+    def upsert_data_store_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        normalized_provider = (provider_key or "").strip()
+        if not normalized_provider:
+            raise ValueError("Provider key is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            existing = conn.execute(
+                "SELECT * FROM data_store_provider_configs WHERE tenantId = ? AND providerKey = ? LIMIT 1",
+                (tenant_id, normalized_provider),
+            ).fetchone()
+            now = utcnow_iso()
+            label = (payload.get("label") or normalized_provider).strip()
+            config = payload.get("config") or {}
+            base_url = (payload.get("baseUrl") or "").strip() or None
+            api_key = payload.get("apiKey")
+            if api_key is not None:
+                api_key = api_key.strip() or None
+            enabled = 1 if payload.get("enabled") else 0
+            status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
+            last_error = payload.get("lastError")
+            if existing:
+                resolved_api_key = api_key if api_key is not None else existing["apiKey"]
+                resolved_last_tested_at = payload.get("lastTestedAt", existing["lastTestedAt"])
+                conn.execute(
+                    """
+                    UPDATE data_store_provider_configs
+                    SET label = ?, baseUrl = ?, apiKey = ?, enabled = ?, status = ?, configJson = ?,
+                        lastTestedAt = ?, lastError = ?, updatedAt = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        label,
+                        base_url,
+                        resolved_api_key,
+                        enabled,
+                        status,
+                        json.dumps(config),
+                        resolved_last_tested_at,
+                        last_error,
+                        now,
+                        existing["id"],
+                    ),
+                )
+                config_id = existing["id"]
+            else:
+                config_id = f"data-store-provider-{secrets.token_hex(8)}"
+                conn.execute(
+                    """
+                    INSERT INTO data_store_provider_configs (
+                        id, tenantId, providerKey, label, baseUrl, apiKey, enabled, status, configJson, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        config_id,
+                        tenant_id,
+                        normalized_provider,
+                        label,
+                        base_url,
+                        api_key,
+                        enabled,
+                        status,
+                        json.dumps(config),
+                        now,
+                        now,
+                    ),
+                )
+            conn.commit()
+        return next((item for item in self.list_data_store_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def delete_data_store_provider_config(self, token: str | None, tenant_id: str, config_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            row = conn.execute(
+                "SELECT * FROM data_store_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Data store provider config not found.")
+            conn.execute("DELETE FROM data_store_provider_configs WHERE id = ?", (config_id,))
+            conn.commit()
+        return {"deletedId": config_id, "providerKey": row["providerKey"]}
+
+    def delete_data_store_provider_config_by_provider_key(self, token: str | None, tenant_id: str, provider_key: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        normalized = (provider_key or "").strip()
+        if not normalized:
+            raise ValueError("Provider key is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            row = conn.execute(
+                "SELECT * FROM data_store_provider_configs WHERE providerKey = ? AND tenantId = ? LIMIT 1",
+                (normalized, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Data store provider config not found.")
+            conn.execute("DELETE FROM data_store_provider_configs WHERE id = ?", (row["id"],))
+            conn.commit()
+        return {"providerKey": row["providerKey"]}
+
+    def save_data_store_provider_test_result(
+        self,
+        tenant_id: str,
+        config_id: str,
+        *,
+        status: str,
+        last_error: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM data_store_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Data store provider config not found.")
+            config = json.loads(row["configJson"]) if row["configJson"] else {}
+            if details:
+                config.update(details)
+            now = utcnow_iso()
+            conn.execute(
+                """
+                UPDATE data_store_provider_configs
+                SET status = ?, lastTestedAt = ?, lastError = ?, configJson = ?, updatedAt = ?
+                WHERE id = ? AND tenantId = ?
+                """,
+                (status, now, last_error, json.dumps(config), now, config_id, tenant_id),
+            )
+            conn.commit()
+        return self.get_data_store_provider_config_for_tenant(tenant_id, config_id)
 
     def list_payment_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:

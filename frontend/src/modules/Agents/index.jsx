@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Target, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
+import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
 import { getAiAgentsApi, getAiRunApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
@@ -866,18 +866,19 @@ const AIOAgentsModule = () => {
       <ModuleHeader
         showTitle={false}
         leftActions={[
-          {
-            label: 'OPEN BARRACKS',
-            icon: Target,
-            onClick: () => setView('barracks'),
-            variant: view === 'barracks' ? 'primary' : 'secondary'
-          },
-          {
-            label: 'OPEN COMMAND',
-            icon: Terminal,
-            onClick: () => setView('command'),
-            variant: view === 'command' ? 'primary' : 'secondary'
-          }
+          view === 'command'
+            ? {
+                label: 'OPEN BARRACKS',
+                icon: Users,
+                onClick: () => setView('barracks'),
+                variant: 'primary'
+              }
+            : {
+                label: 'OPEN COMMAND',
+                icon: Terminal,
+                onClick: () => setView('command'),
+                variant: 'primary'
+              }
         ]}
         showActions={true}
       />
@@ -1056,7 +1057,7 @@ const AIOAgentsModule = () => {
                   </div>
                   <div className="mb-2 flex items-center justify-between gap-2 shrink-0">
                     <div className="flex items-center gap-2">
-                    <Target size={10} className="text-[var(--color-primary)]" />
+                    <Users size={10} className="text-[var(--color-primary)]" />
                     <span className="text-[9px] font-black uppercase tracking-[0.28em] text-[var(--color-text-tertiary)]">
                         Specialist Arena: {regularAgents.length} Agents
                     </span>
@@ -1092,7 +1093,7 @@ const AIOAgentsModule = () => {
                         </div>
                         <div className="px-2 py-1 flex-1">
                             <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                            <Target size={9} className={`${c.icon} shrink-0`} />
+                            <Bot size={9} className={`${c.icon} shrink-0`} />
                             <span className="truncate">{agent.specialization}</span>
                           </div>
                         </div>

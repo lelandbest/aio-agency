@@ -1,9 +1,9 @@
 import React from 'react';
-import { Crosshair, Wand2, Sparkles } from 'lucide-react';
+import { Target, Wand2, Sparkles } from 'lucide-react';
 
 /**
  * AIAssistButton
- * Premium "rifle sight" button for AI assistance throughout the app
+ * Premium assist button for AI assistance throughout the app
  * 
  * Strategic placement:
  * - Contact name fields (AI naming suggestions)
@@ -38,7 +38,7 @@ const AIAssistButton = ({
         return <Sparkles size={variant === 'inline' ? 14 : 16} />;
       case 'crosshair':
       default:
-        return <Crosshair size={variant === 'inline' ? 14 : 16} />;
+        return <Target size={variant === 'inline' ? 14 : 16} />;
     }
   };
 

@@ -17,6 +17,72 @@ export function getApiBaseUrl() {
   return API_BASE_URL;
 }
 
+const DATA_STORE_PROVIDER_ALLOWED_KEYS = new Set([
+  'providerKey',
+  'baseUrl',
+  'apiKeyPresent',
+  'lastTestedAt',
+  'lastError',
+]);
+
+function isDevRuntime() {
+  return Boolean(import.meta?.env?.DEV);
+}
+
+function hasBlockedProviderKey(key) {
+  return /_configs$/i.test(String(key || '')) || /data[_-]?center[_-]?store[_-]?provider[_-]?configs/i.test(String(key || '')) || /data[_-]?store[_-]?provider[_-]?configs/i.test(String(key || ''));
+}
+
+function isSnakeCaseKey(key) {
+  return /[a-z0-9]+_[a-z0-9_]+/.test(String(key || ''));
+}
+
+function warnDataStoreContract(message, details) {
+  if (!isDevRuntime()) return;
+  console.warn(`[DataStoresContract] ${message}`, details);
+}
+
+function sanitizeDataStoreProviderRecord(record) {
+  const source = record && typeof record === 'object' ? record : {};
+  const blockedKeys = Object.keys(source).filter((key) => hasBlockedProviderKey(key) || isSnakeCaseKey(key) || !DATA_STORE_PROVIDER_ALLOWED_KEYS.has(key));
+  if (blockedKeys.length) {
+    warnDataStoreContract('Dropped blocked/unknown provider fields.', blockedKeys);
+  }
+  return {
+    providerKey: typeof source.providerKey === 'string' ? source.providerKey : '',
+    baseUrl: typeof source.baseUrl === 'string' ? source.baseUrl : '',
+    apiKeyPresent: Boolean(source.apiKeyPresent),
+    lastTestedAt: source.lastTestedAt ?? null,
+    lastError: source.lastError ?? null,
+  };
+}
+
+function sanitizeDataStoreRowsEnvelope(payload) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const blockedKeys = Object.keys(source).filter((key) => hasBlockedProviderKey(key) || isSnakeCaseKey(key) || !['rows', 'count'].includes(key));
+  if (blockedKeys.length) {
+    warnDataStoreContract('Dropped blocked/unknown rows envelope fields.', blockedKeys);
+  }
+  const rows = Array.isArray(source.rows) ? source.rows.map((row) => {
+    if (!row || typeof row !== 'object') {
+      return {};
+    }
+    const cleaned = {};
+    Object.entries(row).forEach(([key, value]) => {
+      if (hasBlockedProviderKey(key) || isSnakeCaseKey(key)) {
+        warnDataStoreContract('Dropped blocked/snake_case row field.', key);
+        return;
+      }
+      cleaned[key] = value;
+    });
+    return cleaned;
+  }) : [];
+  return {
+    rows,
+    count: typeof source.count === 'number' ? source.count : rows.length,
+  };
+}
+
 function snakeToCamel(str) {
   return str.replace(/([-_][a-z])/g, (group) =>
     group.toUpperCase().replace('-', '').replace('_', '')
@@ -375,6 +441,64 @@ export async function testMediaProviderConfigApi(configId) {
   return request(`/api/media/providers/${encodeURIComponent(configId)}/test`, {
     method: 'POST'
   });
+}
+
+export async function getDataStoreProviderConfigsApi() {
+  const response = await request('/api/data-stores/providers');
+  return Array.isArray(response.data) ? response.data.map(sanitizeDataStoreProviderRecord) : [];
+}
+
+export async function upsertDataStoreProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data ? sanitizeDataStoreProviderRecord(response.data) : null;
+}
+
+export async function deleteDataStoreProviderConfigApi(providerKey) {
+  return request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function testDataStoreProviderConfigApi(providerKey) {
+  const response = await request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}/test`, {
+    method: 'POST'
+  });
+  return response.data ? sanitizeDataStoreProviderRecord(response.data) : null;
+}
+
+export async function readDataStoreRecordsApi(providerKey, payload = {}) {
+  const response = await request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}/read-records`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return sanitizeDataStoreRowsEnvelope(response.data);
+}
+
+export async function createDataStoreRecordApi(providerKey, payload) {
+  const response = await request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}/create-record`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return sanitizeDataStoreRowsEnvelope(response.data);
+}
+
+export async function updateDataStoreRecordApi(providerKey, payload) {
+  const response = await request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}/update-record`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return sanitizeDataStoreRowsEnvelope(response.data);
+}
+
+export async function upsertDataStoreRecordApi(providerKey, payload) {
+  const response = await request(`/api/data-stores/providers/${encodeURIComponent(providerKey)}/upsert-record`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return sanitizeDataStoreRowsEnvelope(response.data);
 }
 
 export async function getWorkspacesApi() {

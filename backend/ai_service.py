@@ -12,11 +12,16 @@ from typing import Any
 # Lazy import to avoid circular dependency
 _auth_store = None
 logger = logging.getLogger(__name__)
+DEFAULT_OLLAMA_BASE_URL = "http://192.168.4.28:11434"
+DEFAULT_OLLAMA_MODEL = "minimax-m2.5:cloud"
 
 def _get_auth_store():
     global _auth_store
     if _auth_store is None:
-        from auth_store import AuthStore, default_auth_db_path
+        try:
+            from backend.auth_store import AuthStore, default_auth_db_path
+        except ModuleNotFoundError:
+            from auth_store import AuthStore, default_auth_db_path
         _auth_store = AuthStore(default_auth_db_path())
     return _auth_store
 
@@ -35,10 +40,12 @@ def get_configured_ollama_url(tenant_id: str | None) -> str:
     if not provider_config:
         raise ValueError("No AI provider configured. Please configure an Ollama provider in Settings.")
     
-    if provider_config.get("provider_key") != "ollama":
-        raise ValueError(f"Default provider is not Ollama (found: {provider_config.get('provider_key')}).")
+    provider_key = _clean(_provider_field(provider_config, "providerKey", "provider_key")).lower()
+    if provider_key != "ollama":
+        raise ValueError(f"Default provider is not Ollama (found: {provider_key or 'unknown'}).")
     
-    base_url = provider_config.get("base_url") or provider_config.get("config", {}).get("base_url")
+    config = provider_config.get("config") or {}
+    base_url = _provider_field(provider_config, "baseUrl", "base_url") or _provider_field(config, "baseUrl", "base_url")
     
     if not base_url:
         raise ValueError("Ollama provider has no base URL configured. Please set the Ollama server URL.")
@@ -89,6 +96,15 @@ def _provider_base_url(value: Any, fallback: str) -> str:
     return raw.rstrip("/")
 
 
+def _provider_field(provider_config: dict[str, Any] | None, *keys: str) -> Any:
+    if not isinstance(provider_config, dict):
+        return None
+    for key in keys:
+        if key in provider_config and provider_config.get(key) not in (None, ""):
+            return provider_config.get(key)
+    return None
+
+
 def _ollama_auth_headers(api_key: Any = None, username: Any = None, password: Any = None) -> dict[str, str]:
     headers: dict[str, str] = {}
     if _clean(api_key):
@@ -122,13 +138,14 @@ def get_ai_provider_catalog() -> list[dict[str, Any]]:
             "key": "ollama",
             "label": "Ollama",
             "description": "Local or networked Ollama runtime for private workspace AI.",
-            "default_model": "",
+            "default_base_url": DEFAULT_OLLAMA_BASE_URL,
+            "default_model": DEFAULT_OLLAMA_MODEL,
             "fields": [
-                {"key": "base_url", "label": "Base URL"},
+                {"key": "base_url", "label": "Base URL", "default": DEFAULT_OLLAMA_BASE_URL},
                 {"key": "api_key", "label": "API Key", "type": "password"},
                 {"key": "username", "label": "Username"},
                 {"key": "password", "label": "Password", "type": "password"},
-                {"key": "model", "label": "Model"},
+                {"key": "model", "label": "Model", "default": DEFAULT_OLLAMA_MODEL},
                 {"key": "temperature", "label": "Temperature"},
                 {"key": "system_guardrails", "label": "System Guardrails", "type": "textarea"},
                 {"key": "task_guardrails", "label": "Task Guardrails", "type": "textarea"},
@@ -421,7 +438,7 @@ class AIAssistService:
         raise Exception("AI response missing suggestion field")
 
     def test_provider(self, provider_config: dict[str, Any]) -> dict[str, Any]:
-        provider_key = _clean(provider_config.get("provider_key")).lower()
+        provider_key = _clean(_provider_field(provider_config, "providerKey", "provider_key")).lower()
         label = _clean(provider_config.get("label")) or provider_key
         if provider_key == "ollama":
             return self._test_ollama_provider(provider_config, label)
@@ -446,7 +463,7 @@ class AIAssistService:
             raise ValueError("Select an Ollama model before testing.")
         
         # Use configured base_url, not localhost fallback
-        base_url = _provider_base_url(provider_config.get("base_url"), "")
+        base_url = _provider_base_url(_provider_field(provider_config, "baseUrl", "base_url"), "")
         if not base_url:
             raise ValueError("Ollama base URL not configured. Please set the Ollama server URL in provider settings.")
         
@@ -461,7 +478,7 @@ class AIAssistService:
                 "options": {"temperature": float(config.get("temperature") or 0.2)},
             },
             headers=_ollama_auth_headers(
-                provider_config.get("api_key"),
+                _provider_field(provider_config, "apiKey", "api_key"),
                 config.get("username"),
                 config.get("password"),
             ),
@@ -1227,15 +1244,15 @@ class AIAssistService:
         if not provider_config:
             return None
         
-        provider_key = _clean(provider_config.get("provider_key")).lower()
+        provider_key = _clean(_provider_field(provider_config, "providerKey", "provider_key")).lower()
         if not provider_key:
             return None
             
         config = provider_config.get("config") or {}
         
         # Globally extract and inject guardrails for ALL providers
-        system_guardrails = (config.get("system_guardrails") or provider_config.get("system_guardrails") or "").strip()
-        task_guardrails = (config.get("task_guardrails") or provider_config.get("task_guardrails") or "").strip()
+        system_guardrails = (config.get("system_guardrails") or config.get("systemGuardrails") or _provider_field(provider_config, "systemGuardrails", "system_guardrails") or "").strip()
+        task_guardrails = (config.get("task_guardrails") or config.get("taskGuardrails") or _provider_field(provider_config, "taskGuardrails", "task_guardrails") or "").strip()
         
         if system_guardrails:
             system_prompt = f"{system_prompt}\n\nAdditional instructions:\n{system_guardrails}".strip()
@@ -1244,8 +1261,8 @@ class AIAssistService:
             prompt = f"{prompt}\n\nTask guidance:\n{task_guardrails}".strip()
             
         model = _clean(provider_config.get("model"))
-        api_key = _clean(provider_config.get("api_key"))
-        base_url = _provider_base_url(provider_config.get("base_url"), "")
+        api_key = _clean(_provider_field(provider_config, "apiKey", "api_key"))
+        base_url = _provider_base_url(_provider_field(provider_config, "baseUrl", "base_url"), "")
 
         temperature = None
         if provider_key in {"ollama", "openai", "openrouter", "perplexity", "google-ai"}:
@@ -1426,7 +1443,7 @@ class AIAssistService:
         tenant: dict[str, Any],
         fallback: AssistResult,
     ) -> AssistResult | None:
-        if not provider_config or not _clean(provider_config.get("provider_key")):
+        if not provider_config or not _clean(_provider_field(provider_config, "providerKey", "provider_key")):
             return None
         system_prompt = (
             "You are an AI assistant for AIO CRM. Return compact JSON only with these exact keys: "

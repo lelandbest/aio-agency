@@ -10,7 +10,6 @@ import {
   Mic,
   Play,
   RefreshCw,
-  Target,
   Video,
   Waves,
   Volume2,
@@ -90,7 +89,7 @@ const QUICK_ACTIONS = [
   { key: 'generateVideo', label: 'Generate Video', icon: Video, provider: 'stub-render' },
   { key: 'scribeMedia', label: 'Transcribe Media', icon: Waves, provider: 'elevenlabs_scribe' },
   { key: 'ingestMeetingArtifacts', label: 'Ingest Meeting Artifacts', icon: Mic, provider: 'zoom' },
-  { key: 'publishMedia', label: 'Publish Media', icon: Target, provider: 'internal-publish' },
+  { key: 'publishMedia', label: 'Publish Media', icon: Send, provider: 'internal-publish' },
 ];
 
 const QUICK_ACTION_MAP = QUICK_ACTIONS.reduce((accumulator, action) => {

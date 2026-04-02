@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Save, Shield, Target, Rocket, Zap, User, Briefcase } from 'lucide-react';
+import { X, Save, Shield, Users, Rocket, Zap, User, Briefcase } from 'lucide-react';
 import { processFormSubmission } from '../../services/formProcessor';
 
 const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
@@ -11,7 +11,7 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
     const tabs = [
         { id: 'identity', label: 'Identity', icon: Shield },
         { id: 'mission', label: 'Mission', icon: Rocket },
-        { id: 'audience', label: 'Targeting', icon: Target },
+        { id: 'audience', label: 'Targeting', icon: Users },
         { id: 'market', label: 'Market', icon: Zap },
     ];
 

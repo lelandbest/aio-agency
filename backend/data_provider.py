@@ -714,7 +714,7 @@ class BaseProvider(ABC):
         body: str,
         channel_type: str | None = None,
         sender_name: str = "AIO Flow",
-        sender_email: str = "mission@aiocrm.local",
+        sender_email: str = "mail@aiocrm.org",
         recipients: list[str] | None = None,
         direction: str = "outbound",
     ) -> dict[str, Any]:
@@ -1241,8 +1241,25 @@ class MockProvider(BaseProvider):
         self.flows: dict[str, dict[str, Any]] = {}
         self.flow_drafts: dict[str, dict[str, Any]] = {}
         self.mailboxes = [
-            {"id": "mailbox-primary", "name": "Relationship HQ", "address": "mission@aiocrm.local", "provider": "local-stub", "status": "connected", "inbound_enabled": True, "outbound_enabled": True, "last_synced_at": now, "config": {"adapter": "local-stub"}},
-            {"id": "mailbox-growth", "name": "Growth Desk", "address": "growth@aiocrm.local", "provider": "local-stub", "status": "connected", "inbound_enabled": True, "outbound_enabled": True, "last_synced_at": now, "config": {"adapter": "local-stub"}},
+            {
+                "id": "mailbox-default-smtp",
+                "name": "AIO CRM Mail",
+                "address": "mail@aiocrm.org",
+                "provider": "smtp-imap",
+                "status": "ready",
+                "inbound_enabled": True,
+                "outbound_enabled": True,
+                "last_synced_at": None,
+                "config": {
+                    "email": "mail@aiocrm.org",
+                    "username": "mail@aiocrm.org",
+                    "password": "#Test123!",
+                    "incoming_host": "aiocrm.org",
+                    "incoming_port": 993,
+                    "outgoing_host": "aiocrm.org",
+                    "outgoing_port": 465,
+                },
+            },
         ]
         self.mail_events: list[dict[str, Any]] = []
         self.calendar_sources = [
@@ -1256,123 +1273,974 @@ class MockProvider(BaseProvider):
         self.booking_types = [
             {"id": "booking-type-demo", "userId": "1", "name": "Discovery Call", "slug": "discovery-call", "duration_minutes": 30, "location": "Google Meet", "description": "Introductory discovery meeting.", "color": "#10b981", "is_active": True},
         ]
-        follow_up_start = next_meeting_slot()
-        self.calendar_events = [
+        self.calendar_events = []
+        self.threads = []
+        self.messages = []
+        self.thread_ai_briefs = {}
+        self.thread_actions = {}
+        self.thread_artifacts = {}
+        self.thread_links = {}
+
+    def health(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_contacts(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_contact(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_contact(self, contact_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_contact(self, contact_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def bulk_delete_contacts(self, contact_ids: list[str]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_companies(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_tags(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_brain_profile(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_brain_profile(self, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_sources(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_brain_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_brain_source(self, source_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_items(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_brain_item(self, item_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_brain_item(self, item_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_links(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_brain_link(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_brain_link(self, link_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_brain_ingests(self, source_id: str | None = None, limit: int = 25) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ingest_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_brain_memory(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_form_by_slug(self, slug: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_form_by_id(self, form_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_form_folders(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_form_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_form_folder(self, folder_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_forms(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_form(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_form(self, form_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_form(self, form_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def bulk_delete_forms(self, form_ids: list[str]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_cms_tables(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_cms_table_data(self, slug: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def submit_form(self, form_id: str, form_data: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_contact_activities(self, contact_id: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_contact_activity(self, contact_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_flows(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_flow(self, flow_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_flow(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_flow_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_flow_draft(self, draft_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_flow_draft(self, draft_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_flow(self, flow_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def bulk_delete_flows(self, flow_ids: list[str]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_form_submissions(self, contact_id: str | None = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_orders(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_mailboxes(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_mailbox(
+        self,
+        name: str,
+        address: str,
+        provider: str = "local-stub",
+        inbound_enabled: bool = True,
+        outbound_enabled: bool = True,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_mailbox(
+        self,
+        mailbox_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_mailbox(self, mailbox_id: str, fallback_mailbox_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def disconnect_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_mail_events(self, mailbox_id: str | None = None, thread_id: str | None = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendar_events(self, thread_id: str | None = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_calendar_event(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_calendar_event(self, event_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_calendar_event(self, event_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendars(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_booking_types(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_booking_type(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_booking_type(self, booking_type_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_booking_type(self, booking_type_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendar_sources(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_calendar_provider_catalog(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_calendar_source(
+        self,
+        name: str,
+        provider: str = "local-stub",
+        sync_direction: str = "two-way",
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_calendar_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_calendar_source(self, source_id: str, fallback_source_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def disconnect_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def test_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_calendar_source_calendars(self, source_id: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sync_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def push_calendar_event(self, event_id: str, source_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def import_calendar_source(self, source_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def reconcile_calendar_event(self, event_id: str, strategy: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_mail_provider_catalog(self) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def test_mailbox_connection(self, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sync_mailbox(self, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ingest_mail_message(
+        self,
+        mailbox_id: str,
+        subject: str,
+        body: str,
+        sender_name: str,
+        sender_email: str,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_thread_via_mailbox(
+        self,
+        thread_id: str,
+        body: str,
+        mailbox_id: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str | None = None,
+        recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_comms_snapshot(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_thread(
+        self,
+        subject: str,
+        channel_type: str = "email",
+        contact_id: str | None = None,
+        company_id: str | None = None,
+        body: str = "",
+        status: str = "new",
+        assignee: str = "ECHO",
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def open_thread_for_contact(
+        self,
+        contact_id: str,
+        channel_type: str = "email",
+        subject: str | None = None,
+        body: str = "",
+        force_new: bool = False,
+        mailbox_id: str | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_thread_message(
+        self,
+        thread_id: str,
+        body: str,
+        channel_type: str | None = None,
+        sender_name: str = "AIO Flow",
+        sender_email: str = "mail@aiocrm.org",
+        recipients: list[str] | None = None,
+        direction: str = "outbound",
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_thread_status(self, thread_id: str, status: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def assign_thread(self, thread_id: str, assignee_name: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_thread_mailbox(self, thread_id: str, mailbox_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def _mailbox_health_summary(self, mailbox: dict[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
+        latest_event = events[0] if events else None
+        latest_test = next((event for event in events if event["eventType"] == "mailbox.tested"), None)
+        latest_failure = next((event for event in events if event["eventType"] == "mail.failed"), None)
+        synced_at = parse_utc(mailbox.get("lastSyncedAt"))
+        state = "healthy"
+        label = "Healthy"
+        detail = "Inbound and outbound flows look ready."
+
+        if mailbox.get("status") in {"disconnected"}:
+            state = "limited"
+            label = "Not Connected"
+            detail = "No live mailbox is connected for this workspace."
+        elif mailbox.get("status") in {"needs_config", "error"}:
+            state = "attention"
+            label = "Needs Config"
+            detail = latest_test.get("payload", {}).get("message") if latest_test else "Mailbox configuration needs attention."
+        elif not mailbox.get("inboundEnabled") and not mailbox.get("outboundEnabled"):
+            state = "limited"
+            label = "Paused"
+            detail = "Inbound and outbound are disabled."
+        elif not mailbox.get("inboundEnabled") or not mailbox.get("outboundEnabled"):
+            state = "limited"
+            label = "Partial"
+            detail = "Only part of this mailbox is enabled."
+        elif mailbox.get("status") == "ready":
+            state = "limited"
+            label = "Ready to Test"
+            detail = "Configuration is present, but no connection test has completed yet."
+        elif latest_failure:
+            state = "attention"
+            label = "Delivery Risk"
+            detail = latest_failure.get("payload", {}).get("message") or "A recent outbound delivery failed."
+        elif synced_at and (datetime.now(UTC) - synced_at).total_seconds() > 172800:
+            state = "attention"
+            label = "Sync Stale"
+            detail = "No mailbox sync has completed in the last 48 hours."
+        elif latest_test:
+            detail = latest_test.get("payload", {}).get("message") or detail
+
+        return {
+            "state": state,
+            "label": label,
+            "detail": detail,
+            "lastEventAt": latest_event.get("createdAt") if latest_event else None,
+            "lastTestedAt": latest_test.get("createdAt") if latest_test else None,
+        }
+
+    @staticmethod
+    def _has_config_value(config: dict[str, Any] | None, key: str) -> bool:
+        return bool(str((config or {}).get(key) or "").strip())
+
+    @staticmethod
+    def _last_error_text(record: dict[str, Any]) -> str:
+        config = record.get("config") or {}
+        return str(config.get("lastError") or record.get("lastError") or "").strip()
+
+    def _is_auth_failure_error(self, message: str | None) -> bool:
+        lowered = str(message or "").strip().lower()
+        return bool(lowered) and any(marker in lowered for marker in AUTH_FAILURE_MARKERS)
+
+    def _canonical_mailbox_status(self, mailbox: dict[str, Any]) -> str:
+        provider = str(mailbox.get("provider") or "").strip()
+        raw_status = str(mailbox.get("status") or "").strip().lower()
+        config = mailbox.get("config") or {}
+
+        if provider in {"", "local-stub", "not-connected"} or raw_status == "disconnected":
+            return "disconnected"
+        if raw_status == "unauthorized":
+            return "unauthorized"
+        if provider in MAIL_OAUTH_PROVIDERS and not self._has_config_value(config, "refreshToken"):
+            return "reconnect_required"
+        if self._is_auth_failure_error(self._last_error_text(mailbox)):
+            return "unauthorized"
+
+        validation = get_mail_adapter(provider).validate_mailbox(
             {
-                "id": "calendar-event-emily-followup",
-                "calendar_id": "calendar-comms",
-                "source_id": "calendar-source-local",
-                "thread_id": "thread-emily-internal",
-                "contact_id": "contact-emily",
-                "company_id": "company-edulearn",
-                "title": "EduLearn conversion strategy review",
-                "description": "Internal follow-up generated from Comms scheduling.",
-                "start_time": follow_up_start,
-                "end_time": (parse_utc(follow_up_start) + timedelta(minutes=30)).isoformat(),
-                "status": "scheduled",
-                "location_type": "other",
-                "location": "Comms command room",
-                "meeting_url": "",
-                "sync_status": "local",
-                "external_event_ref": "",
-                "last_synced_at": now,
-                "authority_mode": "local-first",
-                "conflict_state": "clear",
-                "sync_note": "Created locally from the Comms workspace.",
-                "imported_at": None,
-                "source_payload": {},
-                "source": "comms",
+                "provider": provider,
+                "config": config,
+                "address": mailbox.get("address"),
+                "inboundEnabled": mailbox.get("inboundEnabled", True),
+                "outboundEnabled": mailbox.get("outboundEnabled", True),
+            }
+        )
+        if not validation["ok"] or raw_status in {"needs_config", "error", "invalid"}:
+            return "needs_config"
+        return "connected"
+
+    def _canonical_calendar_source_status(self, source: dict[str, Any]) -> str:
+        provider = str(source.get("provider") or "").strip()
+        raw_status = str(source.get("status") or "").strip().lower()
+        config = source.get("config") or {}
+
+        if provider in {"", "local-stub", "not-connected"} or raw_status == "disconnected":
+            return "disconnected"
+        if raw_status == "unauthorized":
+            return "unauthorized"
+        if provider in CALENDAR_OAUTH_PROVIDERS and not self._has_config_value(config, "refreshToken"):
+            return "reconnect_required"
+        if self._is_auth_failure_error(self._last_error_text(source)):
+            return "unauthorized"
+
+        validation = get_calendar_adapter(provider).validate_source(
+            {
+                "provider": provider,
+                "config": config,
+                "name": source.get("name"),
+                "syncDirection": source.get("syncDirection"),
+            }
+        )
+        if not validation["ok"] or raw_status in {"needs_config", "error", "invalid"}:
+            return "needs_config"
+        return "connected"
+
+    def _annotate_mailbox_status_canonical(self, mailbox: dict[str, Any]) -> dict[str, Any]:
+        return {**mailbox, "status_canonical": self._canonical_mailbox_status(mailbox)}
+
+    def _annotate_calendar_source_status_canonical(self, source: dict[str, Any]) -> dict[str, Any]:
+        return {**source, "status_canonical": self._canonical_calendar_source_status(source)}
+
+    def _summarize_mailboxes(
+        self,
+        mailboxes: list[dict[str, Any]],
+        threads: list[dict[str, Any]],
+        events: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        queue_ids = [queue["id"] for queue in default_queue_definitions()]
+        threads_by_mailbox: dict[str, list[dict[str, Any]]] = {}
+        events_by_mailbox: dict[str, list[dict[str, Any]]] = {}
+
+        for thread in threads:
+            threads_by_mailbox.setdefault(thread["mailboxId"], []).append(thread)
+        for event in events:
+            events_by_mailbox.setdefault(event["mailbox_id"], []).append(event)
+
+        summaries: list[dict[str, Any]] = []
+        for mailbox in sorted(mailboxes, key=lambda item: (item.get("name") or "").lower()):
+            effective_mailbox = dict(mailbox)
+            if effective_mailbox.get("provider") == "local-stub":
+                effective_mailbox["provider"] = "not-connected"
+                effective_mailbox["status"] = "disconnected"
+            mailbox_threads = threads_by_mailbox.get(mailbox["id"], [])
+            queue_counts = {
+                queue_id: sum(1 for thread in mailbox_threads if queue_id in (thread.get("queueIds") or []))
+                for queue_id in queue_ids
+            }
+            stats = {
+                "threadCount": len(mailbox_threads),
+                "activeCount": sum(1 for thread in mailbox_threads if thread.get("status") != "closed"),
+                "newCount": sum(1 for thread in mailbox_threads if thread.get("status") == "new"),
+                "actionRequiredCount": queue_counts.get("now", 0),
+                "needsReplyCount": queue_counts.get("needs-reply", 0),
+                "waitingCount": queue_counts.get("waiting", 0),
+                "hotLeadCount": queue_counts.get("hot-leads", 0),
+                "atRiskCount": queue_counts.get("at-risk", 0),
+                "scheduledCount": queue_counts.get("scheduled", 0),
+                "automatedCount": queue_counts.get("automated", 0),
+                "closedCount": queue_counts.get("closed", 0),
+            }
+            latest_thread = max(mailbox_threads, key=lambda item: item.get("lastActivityAt") or "", default=None)
+            summaries.append(
+                self._annotate_mailbox_status_canonical(
+                    self.mail_adapter.describe_mailbox(
+                        {
+                            **effective_mailbox,
+                            "stats": stats,
+                            "queueCounts": queue_counts,
+                            "health": self._mailbox_health_summary(effective_mailbox, events_by_mailbox.get(mailbox["id"], [])),
+                            "latestThreadAt": latest_thread.get("lastActivityAt") if latest_thread else None,
+                        }
+                    )
+                )
+            )
+        return summaries
+
+    def _summarize_calendar_sources(
+        self,
+        sources: list[dict[str, Any]],
+        events: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        summaries: list[dict[str, Any]] = []
+        for source in sorted(sources, key=lambda item: (item.get("name") or "").lower()):
+            effective_source = dict(source)
+            if effective_source.get("provider") == "local-stub":
+                effective_source["provider"] = "not-connected"
+                effective_source["status"] = "disconnected"
+            source_events = [event for event in events if (event.get("sourceId") or "calendar-source-local") == source["id"]]
+            synced_count = sum(1 for event in source_events if event.get("syncStatus") in {"synced", "local"})
+            imported_count = sum(1 for event in source_events if event.get("syncStatus") == "imported")
+            conflict_count = sum(1 for event in source_events if event.get("conflictState") == "review")
+            authority_mode = source_config_value(source, "authorityMode", "local-first")
+            import_policy = source_config_value(source, "importPolicy", "review")
+            summaries.append(
+                self._annotate_calendar_source_status_canonical(
+                    {
+                        **get_calendar_adapter(source.get("provider")).describe_source(source),
+                        **({"provider": "not-connected"} if source.get("provider") == "local-stub" else {}),
+                        "authorityMode": authority_mode,
+                        "importPolicy": import_policy,
+                        "eventCounts": {
+                            "total": len(source_events),
+                            "synced": synced_count,
+                            "imported": imported_count,
+                            "conflicts": conflict_count,
+                            "pending": max(len(source_events) - synced_count, 0),
+                        },
+                        "health": {
+                            "state": "healthy" if effective_source.get("status") == "connected" else "attention" if effective_source.get("status") == "needs_config" else "limited",
+                            "label": "Connected" if effective_source.get("status") == "connected" else "Needs Config" if effective_source.get("status") == "needs_config" else "Not Connected",
+                            "detail": (
+                                f"Authority {authority_mode}. Import policy {import_policy}. {conflict_count} conflicts awaiting review."
+                                if conflict_count
+                                else f"Authority {authority_mode}. Import policy {import_policy}. Calendar source is ready for export."
+                                if effective_source.get("status") == "connected"
+                                else "Complete configuration and run a test."
+                                if effective_source.get("status") == "needs_config"
+                                else "No calendar source is connected yet."
+                            ),
+                        },
+                    }
+                )
+            )
+        return summaries
+
+    def _calendar_import_metadata(
+        self,
+        source: dict[str, Any],
+        imported_event: dict[str, Any],
+        existing_events: list[dict[str, Any]],
+        *,
+        event_id: str | None = None,
+    ) -> dict[str, Any]:
+        authority_mode = source_config_value(source, "authorityMode", "local-first")
+        import_policy = source_config_value(source, "importPolicy", "review")
+        has_overlap = any(
+            candidate.get("id") != event_id
+            and candidate.get("status") not in {"cancelled", "completed"}
+            and events_overlap(
+                imported_event.get("startTime"),
+                imported_event.get("endTime"),
+                candidate.get("startTime"),
+                candidate.get("endTime"),
+            )
+            for candidate in existing_events
+        )
+        if authority_mode == "mirror":
+            return {
+                "authorityMode": authority_mode,
+                "conflictState": "mirrored",
+                "syncStatus": "imported",
+                "syncNote": "Imported as a mirrored external hold; local schedule stays authoritative.",
+            }
+        if has_overlap or import_policy == "review":
+            return {
+                "authorityMode": authority_mode,
+                "conflictState": "review",
+                "syncStatus": "conflict",
+                "syncNote": "Imported event needs review before it can influence the local schedule.",
+            }
+        return {
+            "authorityMode": authority_mode,
+            "conflictState": "clear",
+            "syncStatus": "imported",
+            "syncNote": "Imported event is staged locally with no active conflicts.",
+        }
+
+    @abstractmethod
+    def summarize_thread(self, thread_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_thread_draft(self, thread_id: str, mode: str = "reply") -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply_thread_ai_result(
+        self,
+        thread_id: str,
+        mode: str,
+        suggestion: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_deal_from_thread(self, thread_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def advance_thread_stage(self, thread_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def schedule_thread_meeting(self, thread_id: str, scheduled_at: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_ai_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_ai_run(self, run_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_ai_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_ai_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def claim_due_ai_runs(self, pause_reason: str = "delay", limit: int = 10, lock_seconds: int = 60) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+
+
+class MockProvider(BaseProvider):
+    provider_name = "mock"
+
+    def __init__(self) -> None:
+        self.mail_adapter = get_mail_adapter(self.provider_name)
+        self.calendar_adapter = get_calendar_adapter("local-stub")
+        now = utcnow()
+        self.tags = [
+            {"id": "tag-vip", "name": "VIP", "color": "#8b5cf6", "type": "contact", "usage_count": 5, "createdAt": now},
+            {"id": "tag-hot", "name": "Hot Lead", "color": "#ef4444", "type": "contact", "usage_count": 8, "createdAt": now},
+            {"id": "tag-customer", "name": "Customer", "color": "#10b981", "type": "contact", "usage_count": 12, "createdAt": now},
+        ]
+        self.companies = [
+            {"id": "company-techcorp", "name": "TechCorp Solutions", "industry": "Technology", "size": "51-200", "website": "https://techcorp.com", "owner": "AIO Flow"},
+            {"id": "company-finserve", "name": "FinServe Inc", "industry": "Finance", "size": "201-500", "website": "https://finserve.com", "owner": "AIO Flow"},
+            {"id": "company-edulearn", "name": "EduLearn Platform", "industry": "Education", "size": "51-200", "website": "https://edulearn.com", "owner": "Adam B."},
+        ]
+        self.contacts = [
+            {
+                "id": "contact-jenna",
+                "contact_id": "CNT-001",
+                "organization_id": "org-1",
+                "first_name": "Jenna",
+                "last_name": "Best",
+                "email": "jennalarinbest@gmail.com",
+                "phone": "+1 (555) 123-4567",
+                "company": "TechCorp Solutions",
+                "company_id": "company-techcorp",
+                "title": "Marketing Director",
+                "department": "Marketing",
+                "owner": "AIO Flow",
+                "source": "Website Form",
+                "status": "customer",
+                "lead_score": 92,
+                "quality": "hot",
+                "engagement": "high",
+                "tags": ["VIP", "Customer"],
+                "last_contacted_at": now,
+                "pipeline_stage": "Closed Won",
+                "createdAt": now,
+                "updatedAt": now,
+                "deleted_at": None,
+            },
+            {
+                "id": "contact-sarah",
+                "contact_id": "CNT-002",
+                "organization_id": "org-1",
+                "first_name": "Sarah",
+                "last_name": "Chen",
+                "email": "sarah.chen@finserve.com",
+                "phone": "+1 (555) 111-2222",
+                "company": "FinServe Inc",
+                "company_id": "company-finserve",
+                "title": "VP of Operations",
+                "department": "Operations",
+                "owner": "AIO Flow",
+                "source": "Conference",
+                "status": "customer",
+                "lead_score": 95,
+                "quality": "hot",
+                "engagement": "high",
+                "tags": ["VIP", "Customer"],
+                "last_contacted_at": now,
+                "pipeline_stage": "Closed Won",
+                "createdAt": now,
+                "updatedAt": now,
+                "deleted_at": None,
+            },
+        ]
+        self.forms = [
+            {
+                "id": "form-contact",
+                "name": "Contact Form",
+                "folder_id": "form-folder-default",
+                "slug": "contact_form",
+                "description": "Get in touch with us for any questions or inquiries",
+                "schema": [
+                    {"id": "f1", "name": "full_name", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "map_to_contact": "first_name", "is_identifier": False},
+                    {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "map_to_contact": "email", "is_identifier": True},
+                    {"id": "f3", "name": "phone", "label": "Phone Number", "type": "phone", "required": False, "placeholder": "+1 (555) 000-0000", "map_to_contact": "phone", "is_identifier": False},
+                    {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "map_to_contact": None, "is_identifier": False},
+                ],
+                "settings": {
+                    "create_contact": True,
+                    "update_contact": True,
+                    "webhook_url": "",
+                    "notification_email": "contact@aioagency.com",
+                    "redirect_url": "",
+                    "thank_you_message": "Thank you for contacting us! We'll get back to you within 24 hours.",
+                },
+                "is_active": True,
+                "responses_count": 0,
+                "last_response_at": None,
                 "createdAt": now,
                 "updatedAt": now,
             }
         ]
-        self.threads = [
+        self.brain_profile = {
+            "id": "brain-profile-primary",
+            "tenantId": DEFAULT_TENANT_ID,
+            "company_name": "AIO CRM Workspace",
+            "website": "https://aiocrm.local",
+            "industry": "AI operations",
+            "overview": "Central memory layer for company context, operating procedures, and AI-ready knowledge.",
+            "mission": "Turn daily operations into a reusable intelligence system.",
+            "brand_voice": "Direct, pragmatic, and operator-friendly.",
+            "ideal_customer": "Owner-operators and lean teams using AI to run service businesses.",
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        self.brain_sources = [
             {
-                "id": "thread-jenna-launch",
-                "mailbox_id": "mailbox-primary",
-                "channel_type": "email",
-                "subject": "Launch sequencing and executive narrative",
-                "generated_title": "Jenna wants a tighter launch story.",
-                "status": "waiting_on_us",
-                "ai_flags": {"high_intent": True, "hot_lead": True, "needs_human": True},
-                "ai_priority": "critical",
-                "priority_score": 96,
-                "owner": "ECHO",
-                "assignee": "STRIKER",
-                "contact_id": "contact-jenna",
-                "company_id": "company-techcorp",
-                "automation_state": "manual",
-                "last_activity_at": now,
-                "next_follow_up_at": now,
+                "id": "brain-source-profile",
+                "tenantId": DEFAULT_TENANT_ID,
+                "label": "Company Profile Intake",
+                "source_type": "profile",
+                "status": "ready",
+                "location": "Internal workspace memory",
+                "notes": "Core business identity and positioning.",
+                "graph_x": 28.0,
+                "graph_y": 24.0,
                 "createdAt": now,
                 "updatedAt": now,
             },
             {
-                "id": "thread-sarah-demo",
-                "mailbox_id": "mailbox-growth",
-                "channel_type": "email",
-                "subject": "Enterprise demo follow-up",
-                "generated_title": "Sarah is aligned on value but waiting on procurement.",
-                "status": "waiting_on_them",
-                "ai_flags": {"high_intent": True, "hot_lead": True, "follow_up_due": True},
-                "ai_priority": "high",
-                "priority_score": 84,
-                "owner": "STRIKER",
-                "assignee": "STRIKER",
-                "contact_id": "contact-sarah",
-                "company_id": "company-finserve",
-                "automation_state": "automated",
-                "last_activity_at": now,
-                "next_follow_up_at": now,
-                "createdAt": now,
-                "updatedAt": now,
-            },
-            {
-                "id": "thread-emily-internal",
-                "mailbox_id": "mailbox-primary",
-                "channel_type": "internal",
-                "subject": "Trial expansion plan",
-                "generated_title": "Internal planning around Emily’s conversion path.",
-                "status": "scheduled",
-                "ai_flags": {"follow_up_due": True},
-                "ai_priority": "medium",
-                "priority_score": 68,
-                "owner": "ALPHA",
-                "assignee": "ECHO",
-                "contact_id": "contact-emily",
-                "company_id": "company-edulearn",
-                "automation_state": "automated",
-                "last_activity_at": now,
-                "next_follow_up_at": now,
+                "id": "brain-source-ops",
+                "tenantId": DEFAULT_TENANT_ID,
+                "label": "Ops Playbook",
+                "source_type": "document",
+                "status": "draft",
+                "location": "Upload or author internally",
+                "notes": "Planned SOP source for agents and flows.",
+                "graph_x": 24.0,
+                "graph_y": 58.0,
                 "createdAt": now,
                 "updatedAt": now,
             },
         ]
-        self.messages = [
-            {"id": "msg-jenna-1", "thread_id": "thread-jenna-launch", "channel_type": "email", "direction": "inbound", "sender_name": "Jenna Best", "sender_email": "jennalarinbest@gmail.com", "recipients": ["mission@aiocrm.local"], "body": "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "plain_text": "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "delivery_status": "received", "createdAt": now, "updatedAt": now},
-            {"id": "msg-sarah-1", "thread_id": "thread-sarah-demo", "channel_type": "email", "direction": "inbound", "sender_name": "Sarah Chen", "sender_email": "sarah.chen@finserve.com", "recipients": ["growth@aiocrm.local"], "body": "This looks solid. I need to line up procurement and security review timing.", "plain_text": "This looks solid. I need to line up procurement and security review timing.", "delivery_status": "received", "createdAt": now, "updatedAt": now},
-            {"id": "msg-emily-1", "thread_id": "thread-emily-internal", "channel_type": "internal", "direction": "system", "sender_name": "ALPHA", "sender_email": "system@aiocrm.local", "recipients": ["Internal"], "body": "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "plain_text": "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "delivery_status": "logged", "createdAt": now, "updatedAt": now},
+        self.brain_items = [
+            {
+                "id": "brain-item-positioning",
+                "tenantId": DEFAULT_TENANT_ID,
+                "title": "Core positioning",
+                "category": "strategy",
+                "content": "AIO CRM is the local-first operator console where CRM, Comms, workflows, and AI agents share one memory layer.",
+                "source_id": "brain-source-profile",
+                "status": "active",
+                "tags": ["positioning", "ai", "local-first"],
+                "graph_x": 72.0,
+                "graph_y": 26.0,
+                "createdAt": now,
+                "updatedAt": now,
+            },
+            {
+                "id": "brain-item-agent-rule",
+                "tenantId": DEFAULT_TENANT_ID,
+                "title": "Agent guidance",
+                "category": "operations",
+                "content": "Named agents should pull from workspace memory before drafting, summarizing, or recommending next steps.",
+                "source_id": "brain-source-ops",
+                "status": "draft",
+                "tags": ["agents", "memory", "rules"],
+                "graph_x": 76.0,
+                "graph_y": 58.0,
+                "createdAt": now,
+                "updatedAt": now,
+            },
         ]
-        self.thread_ai_briefs = {
-            "thread-jenna-launch": {"summary": "Jenna is close to approving the next phase but wants a sharper launch plan.", "disposition": "Active relationship signal", "recommended_next_step": "Send a milestone-based rollout and leadership summary.", "confidence": 0.94, "unresolved_questions": ["Confirm launch date", "Confirm approvers"], "crm_implications": ["Enterprise upsell potential"], "reasoning_cues": ["High intent signal", "Human intervention advised"]},
-            "thread-sarah-demo": {"summary": "The demo landed. Procurement timing is the only blocker.", "disposition": "Active relationship signal", "recommended_next_step": "Send a concise procurement-forward follow-up with booking option.", "confidence": 0.88, "unresolved_questions": ["Security review owner"], "crm_implications": ["Possible flagship finance account"], "reasoning_cues": ["High intent signal", "AI-assisted response is viable"]},
-            "thread-emily-internal": {"summary": "The trial is healthy but the buying trigger is still vague.", "disposition": "Active relationship signal", "recommended_next_step": "Prepare a tailored follow-up tied to active usage.", "confidence": 0.78, "unresolved_questions": ["Decision timeline"], "crm_implications": ["Could become an education playbook"], "reasoning_cues": ["Stable thread", "Follow-up due"]},
-        }
-        self.thread_actions = {
-            "thread-jenna-launch": [{"label": "Summarize"}, {"label": "Reply with AI"}, {"label": "Schedule follow-up"}],
-            "thread-sarah-demo": [{"label": "Summarize"}, {"label": "Reply with AI"}],
-            "thread-emily-internal": [{"label": "Summarize"}, {"label": "Run workflow"}],
-        }
-        self.thread_artifacts = {
-            "thread-jenna-launch": [],
-            "thread-sarah-demo": [],
-            "thread-emily-internal": [],
-        }
-        self.thread_links = {
-            "thread-jenna-launch": [{"source_type": "contact", "source_id": "contact-jenna", "label": "Jenna Best"}, {"source_type": "company", "source_id": "company-techcorp", "label": "TechCorp Solutions"}],
-            "thread-sarah-demo": [{"source_type": "contact", "source_id": "contact-sarah", "label": "Sarah Chen"}, {"source_type": "company", "source_id": "company-finserve", "label": "FinServe Inc"}],
-            "thread-emily-internal": [{"source_type": "contact", "source_id": "contact-emily", "label": "Emily Watson"}, {"source_type": "company", "source_id": "company-edulearn", "label": "EduLearn Platform"}],
-        }
+        self.brain_links = [
+            {
+                "id": "brain-link-positioning-agents",
+                "tenantId": DEFAULT_TENANT_ID,
+                "from_type": "item",
+                "from_id": "brain-item-positioning",
+                "to_type": "item",
+                "to_id": "brain-item-agent-rule",
+                "relationship_type": "supports",
+                "createdAt": now,
+                "updatedAt": now,
+            },
+        ]
+        self.brain_ingests: list[dict[str, Any]] = []
+        self.brain_chunks: list[dict[str, Any]] = []
+        self.form_folders = [
+            {"id": "form-folder-default", "name": "My Forms", "userId": "1", "createdAt": now, "expanded": True}
+        ]
+        self.form_submissions: list[dict[str, Any]] = []
+        self.contact_activities: list[dict[str, Any]] = []
+        self.flows: dict[str, dict[str, Any]] = {}
+        self.flow_drafts: dict[str, dict[str, Any]] = {}
+        self.mailboxes = [
+            {
+                "id": "mailbox-default-smtp",
+                "name": "AIO CRM Mail",
+                "address": "mail@aiocrm.org",
+                "provider": "smtp-imap",
+                "status": "ready",
+                "inbound_enabled": True,
+                "outbound_enabled": True,
+                "last_synced_at": None,
+                "config": {
+                    "email": "mail@aiocrm.org",
+                    "username": "mail@aiocrm.org",
+                    "password": "#Test123!",
+                    "incoming_host": "aiocrm.org",
+                    "incoming_port": 993,
+                    "outgoing_host": "aiocrm.org",
+                    "outgoing_port": 465,
+                },
+            },
+        ]
+        self.mail_events: list[dict[str, Any]] = []
+        self.calendar_sources = [
+            {"id": "calendar-source-local", "name": "Local Command Calendar", "provider": "local-stub", "status": "connected", "sync_direction": "two-way", "config": {"adapter": "local-stub", "authority_mode": "local-first", "import_policy": "review"}, "last_synced_at": now},
+            {"id": "calendar-source-google", "name": "Google Calendar", "provider": "google-calendar-oauth", "status": "needs_config", "sync_direction": "two-way", "config": {"authority_mode": "local-first", "import_policy": "review"}, "last_synced_at": None},
+        ]
+        self.calendars = [
+            {"id": "calendar-primary", "userId": "1", "name": "AIO Calendar", "color": "#3b82f6", "is_default": True, "is_visible": True},
+            {"id": "calendar-booking", "userId": "1", "name": "AIO Booking", "color": "#10b981", "is_default": False, "is_visible": True},
+        ]
+        self.booking_types = [
+            {"id": "booking-type-demo", "userId": "1", "name": "Discovery Call", "slug": "discovery-call", "duration_minutes": 30, "location": "Google Meet", "description": "Introductory discovery meeting.", "color": "#10b981", "is_active": True},
+        ]
+        self.calendar_events = []
+        self.threads = []
+        self.messages = []
+        self.thread_ai_briefs = {}
+        self.thread_actions = {}
+        self.thread_artifacts = {}
+        self.thread_links = {}
 
     def health(self) -> dict[str, Any]:
         return {"provider": self.provider_name, "status": "ready"}
@@ -2692,7 +3560,7 @@ class MockProvider(BaseProvider):
                 thread,
                 body=body,
                 sender_name=sender_name,
-                sender_email=sender_email or mailbox.get("address") or "mission@aiocrm.local",
+                sender_email=sender_email or mailbox.get("address") or "mail@aiocrm.org",
                 recipients=[recipient for recipient in resolved_recipients if recipient],
             )
         except ValueError as error:
@@ -2835,7 +3703,7 @@ class MockProvider(BaseProvider):
         contact = next((item for item in self.contacts if item["id"] == contact_id), None)
         thread = {
             "id": thread_id,
-            "mailbox_id": mailbox_id or "mailbox-primary",
+            "mailbox_id": mailbox_id or "mailbox-default-smtp",
             "channel_type": channel_type,
             "subject": subject,
             "generated_title": subject,
@@ -2894,7 +3762,7 @@ class MockProvider(BaseProvider):
         body: str,
         channel_type: str | None = None,
         sender_name: str = "AIO Flow",
-        sender_email: str = "mission@aiocrm.local",
+        sender_email: str = "mail@aiocrm.org",
         recipients: list[str] | None = None,
         direction: str = "outbound",
     ) -> dict[str, Any]:
@@ -4257,78 +5125,34 @@ class SQLiteProvider(BaseProvider):
                 )
             ]
             mailboxes = [
-                ("mailbox-primary", "Relationship HQ", "mission@aiocrm.local", "local-stub", "connected", 1, 1, now, json.dumps({"adapter": "local-stub"})),
-                ("mailbox-growth", "Growth Desk", "growth@aiocrm.local", "local-stub", "connected", 1, 1, now, json.dumps({"adapter": "local-stub"})),
-            ]
-            threads = [
                 (
-                    "thread-jenna-launch", "mailbox-primary", "email", "Launch sequencing and executive narrative",
-                    "Jenna wants a tighter launch story.", "waiting_on_us", json.dumps({"high_intent": True, "hot_lead": True, "needs_human": True}),
-                    "critical", 96, "ECHO", "STRIKER", "contact-jenna", "company-techcorp", "manual", now, now, now, now,
-                ),
-                (
-                    "thread-sarah-demo", "mailbox-growth", "email", "Enterprise demo follow-up",
-                    "Sarah is aligned on value but waiting on procurement.", "waiting_on_them", json.dumps({"high_intent": True, "hot_lead": True, "follow_up_due": True}),
-                    "high", 84, "STRIKER", "STRIKER", "contact-sarah", "company-finserve", "automated", now, now, now, now,
-                ),
-                (
-                    "thread-emily-internal", "mailbox-primary", "internal", "Trial expansion plan",
-                    "Internal planning around Emily’s conversion path.", "scheduled", json.dumps({"follow_up_due": True}),
-                    "medium", 68, "ALPHA", "ECHO", "contact-emily", "company-edulearn", "automated", now, now, now, now,
-                ),
-            ]
-            messages = [
-                ("msg-jenna-1", "thread-jenna-launch", "email", "inbound", "Jenna Best", "jennalarinbest@gmail.com", json.dumps(["mission@aiocrm.local"]), "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "We are close. I need a tighter rollout plan and a clearer story for leadership before I approve the next phase.", "", "received", now, now),
-                ("msg-sarah-1", "thread-sarah-demo", "email", "inbound", "Sarah Chen", "sarah.chen@finserve.com", json.dumps(["growth@aiocrm.local"]), "This looks solid. I need to line up procurement and security review timing.", "This looks solid. I need to line up procurement and security review timing.", "", "received", now, now),
-                ("msg-emily-1", "thread-emily-internal", "internal", "system", "ALPHA", "system@aiocrm.local", json.dumps(["Internal"]), "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "Create a follow-up pack for EduLearn focused on active feature adoption and a 30-day conversion path.", "", "logged", now, now),
-            ]
-            thread_briefs = [
-                ("thread-jenna-launch", "Jenna is close to approving the next phase but wants a sharper launch plan.", "Active relationship signal", "Send a milestone-based rollout and leadership summary.", 0.94, json.dumps(["Confirm launch date", "Confirm approvers"]), json.dumps(["Enterprise upsell potential"]), json.dumps(["High intent signal", "Human intervention advised"]), now),
-                ("thread-sarah-demo", "The demo landed. Procurement timing is the only blocker.", "Active relationship signal", "Send a concise procurement-forward follow-up with booking option.", 0.88, json.dumps(["Security review owner"]), json.dumps(["Possible flagship finance account"]), json.dumps(["High intent signal", "AI-assisted response is viable"]), now),
-                ("thread-emily-internal", "The trial is healthy but the buying trigger is still vague.", "Active relationship signal", "Prepare a tailored follow-up tied to active usage.", 0.78, json.dumps(["Decision timeline"]), json.dumps(["Could become an education playbook"]), json.dumps(["Stable thread", "Follow-up due"]), now),
-            ]
-            thread_actions = [
-                ("thread-action-1", "thread-jenna-launch", "Summarize", "summarize", "ai", "suggested", now, now),
-                ("thread-action-2", "thread-jenna-launch", "Reply with AI", "reply-with-ai", "ai", "suggested", now, now),
-                ("thread-action-3", "thread-sarah-demo", "Reply with AI", "reply-with-ai", "ai", "suggested", now, now),
-            ]
-            thread_links = [
-                ("thread-link-1", "thread-jenna-launch", "contact", "contact-jenna", "Jenna Best"),
-                ("thread-link-2", "thread-jenna-launch", "company", "company-techcorp", "TechCorp Solutions"),
-                ("thread-link-3", "thread-sarah-demo", "contact", "contact-sarah", "Sarah Chen"),
-                ("thread-link-4", "thread-sarah-demo", "company", "company-finserve", "FinServe Inc"),
-                ("thread-link-5", "thread-emily-internal", "contact", "contact-emily", "Emily Watson"),
-                ("thread-link-6", "thread-emily-internal", "company", "company-edulearn", "EduLearn Platform"),
-            ]
-            calendar_events = [
-                (
-                    "calendar-event-emily-followup",
-                    "calendar-comms",
-                    "calendar-source-local",
-                    "thread-emily-internal",
-                    "contact-emily",
-                    "company-edulearn",
-                    "EduLearn conversion strategy review",
-                    "Internal follow-up generated from Comms scheduling.",
-                    now,
-                    (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
-                    "scheduled",
-                    "other",
-                    "Comms command room",
-                    "",
-                    "local",
-                    "",
-                    now,
-                    "local-first",
-                    "clear",
-                    "Created locally from the Comms workspace.",
+                    "mailbox-default-smtp",
+                    "AIO CRM Mail",
+                    "mail@aiocrm.org",
+                    "smtp-imap",
+                    "ready",
+                    1,
+                    1,
                     None,
-                    json.dumps({}),
-                    "comms",
-                    now,
-                    now,
-                )
+                    json.dumps(
+                        {
+                            "email": "mail@aiocrm.org",
+                            "username": "mail@aiocrm.org",
+                            "password": "#Test123!",
+                            "incoming_host": "aiocrm.org",
+                            "incoming_port": 993,
+                            "outgoing_host": "aiocrm.org",
+                            "outgoing_port": 465,
+                        }
+                    ),
+                ),
             ]
+            threads = []
+            messages = []
+            thread_briefs = []
+            thread_actions = []
+            thread_links = []
+            calendar_events = []
 
             conn.executemany(
                 """
@@ -7767,7 +8591,7 @@ class SQLiteProvider(BaseProvider):
                 thread,
                 body=body,
                 sender_name=sender_name,
-                sender_email=sender_email or mailbox.get("address") or "mission@aiocrm.local",
+                sender_email=sender_email or mailbox.get("address") or "mail@aiocrm.org",
                 recipients=resolved_recipients,
             )
         except ValueError as error:
@@ -7876,7 +8700,7 @@ class SQLiteProvider(BaseProvider):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    thread_id, self._tenantId(), mailbox_id or "mailbox-primary", channel_type, subject, subject, status, json.dumps({"needs_human": True}),
+                    thread_id, self._tenantId(), mailbox_id or "mailbox-default-smtp", channel_type, subject, subject, status, json.dumps({"needs_human": True}),
                     "medium", 70, assignee, assignee, contact_id, resolved_company_id, "manual", now, None, now, now,
                 ),
             )
@@ -7940,7 +8764,7 @@ class SQLiteProvider(BaseProvider):
         body: str,
         channel_type: str | None = None,
         sender_name: str = "AIO Flow",
-        sender_email: str = "mission@aiocrm.local",
+        sender_email: str = "mail@aiocrm.org",
         recipients: list[str] | None = None,
         direction: str = "outbound",
     ) -> dict[str, Any]:

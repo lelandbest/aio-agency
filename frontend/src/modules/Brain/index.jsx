@@ -998,7 +998,7 @@ const Cortex = () => {
       }));
       setProviders(normalized);
       
-      const savedProvider = profileData?.active_provider || normalized.find((provider) => provider.is_default)?.providerKey;
+      const savedProvider = profileData?.active_provider || normalized.find((provider) => provider.isDefault)?.providerKey;
       if (savedProvider && normalized.find(p => p.providerKey === savedProvider)) {
         setActiveProviderId(savedProvider);
         const p = normalized.find(p => p.providerKey === savedProvider);
@@ -1020,7 +1020,16 @@ const Cortex = () => {
     try {
       const models = await getOllamaModelsApi();
       setProviders(prev => prev.map(p => p.providerKey === 'ollama' ? { ...p, models } : p));
-      if (models.length > 0) setActiveModelId(models[0]);
+      setActiveModelId((current) => {
+        if (current && models.includes(current)) {
+          return current;
+        }
+        const configured = providers.find((provider) => provider.providerKey === 'ollama')?.model;
+        if (configured && models.includes(configured)) {
+          return configured;
+        }
+        return models[0] || '';
+      });
     } catch (err) { console.error(err); }
   };
 

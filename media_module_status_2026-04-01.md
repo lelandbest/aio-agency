@@ -71,3 +71,67 @@ This status record covers the Media module work completed after the canonical Me
 - Canonical library items now preserve real `sourceUrl` values for ingested assets.
 - The new `transcribe-media` flow node is wired into the existing execution engine and can resolve a stored asset by `assetId`.
 - The transcription path is truthful under missing-provider conditions and does not block ingestion.
+
+---
+
+# Status Update
+
+Date: 2026-04-02
+
+## Accomplishments
+
+- Completed the live internal `ffmpeg_transcribe` lane using Vosk behind the existing FFmpeg prep path.
+- Completed the live `elevenlabs_scribe` lane using the current ElevenLabs speech-to-text API contract.
+- Preserved explicit transcription provider lock behavior with canonical values:
+  - `ffmpeg_transcribe`
+  - `elevenlabs_scribe`
+  - `disabled`
+- Added tenant-settings self-heal/default injection so missing `media` settings no longer break login/session bootstrap.
+- Added a default Ollama provider configuration for the active workspace:
+  - base URL `http://192.168.4.28:11434`
+  - default model `minimax-m2.5:cloud`
+- Hardened Media UI reflectivity for ingest, delete, polling, and job completion reconciliation.
+- Added canonical Media ingest deduplication for:
+  - local file upload
+  - normalized URL ingest
+  - provider/source-based ingest
+- Normalized Media `mediaType` handling to canonical values only:
+  - `audio`
+  - `video`
+  - `image`
+- Completed the Nexus FILE INGEST backend route and frontend wiring using canonical Media asset creation.
+- Cleaned and compacted Media chrome, then tightened Comms chrome and toolbar behavior in subsequent UI passes.
+- Purged mock/stale Comms mailbox/thread data and left a single default mailbox path.
+- Added the Data Stores backend capability surface for:
+  - `googleSheets`
+  - `airtable`
+  - `aiTable`
+- Added Data Stores record operations in backend adapters:
+  - `readRecords`
+  - `createRecord`
+  - `updateRecord`
+  - `upsertRecord`
+- Added strict backend/frontend Data Stores contract isolation:
+  - public provider payloads now expose only:
+    - `providerKey`
+    - `baseUrl`
+    - `apiKeyPresent`
+    - `lastTestedAt`
+    - `lastError`
+  - blocked internal structures such as `*_configs` are filtered from outbound responses
+  - frontend guard drops leaked/snake_case fields in dev
+
+## Failures / Limits Observed
+
+- The original Data Stores integration prompt is still only partially complete.
+- Data Stores backend routes/adapters and contract hardening are in place, but the Integrations UI category/control plane for Data Stores was not fully finished before work paused.
+- No Flow Builder Data Stores nodes were added in this pass.
+- Existing older integration surfaces outside the new Data Stores surface still contain legacy snake_case patterns and were not globally migrated in this workstream.
+- Several frontend/runtime log files and local server logs are present from live validation and restart passes.
+
+## Current State At Handoff
+
+- Media transcription now supports both a working internal lane and a working ElevenLabs lane.
+- Media ingest, probe, preview, deduplication, canonical library binding, and transcript follow-up paths are substantially hardened.
+- Comms UI underwent density/chrome cleanup, but further visual QA is still warranted.
+- Data Stores is backend-capable and contract-hardened, but frontend completion remains unfinished.

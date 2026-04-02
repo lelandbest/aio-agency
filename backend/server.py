@@ -67,6 +67,13 @@ try:
     )
     from backend.media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
     from backend.media_library_service import get_media_library_item, list_media_library_items
+    from backend.data_store_adapters import (
+        create_data_store_record,
+        read_data_store_records,
+        test_data_store_provider,
+        update_data_store_record,
+        upsert_data_store_record,
+    )
 except ModuleNotFoundError:
     from planner import create_booking_execution_plan
     from agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
@@ -88,6 +95,13 @@ except ModuleNotFoundError:
     )
     from media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
     from media_library_service import get_media_library_item, list_media_library_items
+    from data_store_adapters import (
+        create_data_store_record,
+        read_data_store_records,
+        test_data_store_provider,
+        update_data_store_record,
+        upsert_data_store_record,
+    )
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -1731,6 +1745,57 @@ class MediaProviderUpsertRequest(BaseModel):
     enabled: bool = False
     status: str | None = None
     config: dict[str, Any] | None = None
+
+
+class DataStoreProviderUpsertRequest(BaseModel):
+    label: str | None = None
+    baseUrl: str | None = None
+    apiKey: str | None = None
+    enabled: bool = False
+    status: str | None = None
+    config: dict[str, Any] | None = None
+
+
+class DataStoreReadRecordsRequest(BaseModel):
+    limit: int | None = None
+    viewName: str | None = None
+
+
+class DataStoreCreateRecordRequest(BaseModel):
+    row: dict[str, Any]
+
+
+class DataStoreUpdateRecordRequest(BaseModel):
+    recordId: str
+    row: dict[str, Any]
+
+
+class DataStoreUpsertRecordRequest(BaseModel):
+    row: dict[str, Any]
+    recordId: str | None = None
+    matchField: str | None = None
+    matchValue: Any | None = None
+
+
+DATA_STORE_PROVIDER_PUBLIC_KEYS = {
+    "providerKey",
+    "baseUrl",
+    "apiKeyPresent",
+    "lastTestedAt",
+    "lastError",
+}
+
+
+def serialize_data_store_provider_public(config: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not config:
+        return None
+    return {
+        "providerKey": config.get("providerKey") or "",
+        "baseUrl": config.get("baseUrl") or "",
+        "apiKeyPresent": bool(config.get("apiKeyPresent")),
+        "lastTestedAt": config.get("lastTestedAt"),
+        "lastError": config.get("lastError"),
+    }
 
 
 class OllamaModelsRequest(BaseModel):
@@ -3761,6 +3826,126 @@ async def test_media_provider_config(configId: str, request: Request):
             lastError=str(error),
         )
         raise HTTPException(status_code=400, detail=updated.get("lastError") or str(error)) from error
+
+
+@app.get("/api/data-stores/providers")
+async def list_data_store_provider_configs(request: Request):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view data store providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return {"data": [serialize_data_store_provider_public(item) for item in auth_store.list_data_store_provider_configs(token, tenant_id)]}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.put("/api/data-stores/providers/{providerKey}")
+async def upsert_data_store_provider_config(providerKey: str, request: Request, payload: DataStoreProviderUpsertRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage data store providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        config = auth_store.upsert_data_store_provider_config(token, tenant_id, providerKey, payload.model_dump())
+        return {"data": serialize_data_store_provider_public(config)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/data-stores/providers/{providerKey}")
+async def delete_data_store_provider_config(providerKey: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete data store providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        auth_store.delete_data_store_provider_config_by_provider_key(token, tenant_id, providerKey)
+        return {"data": None}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/data-stores/providers/{providerKey}/test")
+async def test_data_store_provider_config(providerKey: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test data store providers.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
+    if not config:
+        raise HTTPException(status_code=404, detail="Data store provider config not found")
+    try:
+        result = test_data_store_provider(config)
+        config_id = config.get("id")
+        if not config_id:
+            raise HTTPException(status_code=500, detail="Data store provider id missing")
+        updated = auth_store.save_data_store_provider_test_result(
+            tenant_id,
+            config_id,
+            status="connected",
+            last_error=None,
+            details={"lastRowCount": result.get("count", 0)},
+        )
+        return {"data": serialize_data_store_provider_public(updated)}
+    except ValueError as error:
+        config_id = config.get("id")
+        if not config_id:
+            raise HTTPException(status_code=500, detail="Data store provider id missing")
+        updated = auth_store.save_data_store_provider_test_result(
+            tenant_id,
+            config_id,
+            status="error",
+            last_error=str(error),
+        )
+        raise HTTPException(status_code=400, detail=updated.get("lastError") or str(error)) from error
+
+
+@app.post("/api/data-stores/providers/{providerKey}/read-records")
+async def read_records_from_data_store(providerKey: str, request: Request, payload: DataStoreReadRecordsRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can read data store records.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
+    if not config:
+        raise HTTPException(status_code=404, detail="Data store provider config not found")
+    try:
+        return {"data": read_data_store_records(config, payload.model_dump(exclude_none=True))}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/data-stores/providers/{providerKey}/create-record")
+async def create_record_in_data_store(providerKey: str, request: Request, payload: DataStoreCreateRecordRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can create data store records.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
+    if not config:
+        raise HTTPException(status_code=404, detail="Data store provider config not found")
+    try:
+        return {"data": create_data_store_record(config, payload.row)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/data-stores/providers/{providerKey}/update-record")
+async def update_record_in_data_store(providerKey: str, request: Request, payload: DataStoreUpdateRecordRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can update data store records.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
+    if not config:
+        raise HTTPException(status_code=404, detail="Data store provider config not found")
+    try:
+        return {"data": update_data_store_record(config, payload.recordId, payload.row)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/data-stores/providers/{providerKey}/upsert-record")
+async def upsert_record_in_data_store(providerKey: str, request: Request, payload: DataStoreUpsertRecordRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can upsert data store records.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
+    if not config:
+        raise HTTPException(status_code=404, detail="Data store provider config not found")
+    try:
+        return {"data": upsert_data_store_record(config, payload.model_dump(exclude_none=True))}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/workspaces")

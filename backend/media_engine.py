@@ -5,6 +5,7 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -42,6 +43,7 @@ TRANSCRIPTION_PROVIDER_BACKEND_ELEVENLABS = "elevenlabs_scribe"
 VOSK_DEFAULT_MODEL_NAME = "vosk-model-small-en-us-0.15"
 VOSK_DEFAULT_MODEL_URL = f"https://alphacephei.com/vosk/models/{VOSK_DEFAULT_MODEL_NAME}.zip"
 _VOSK_MODEL_CACHE: Any | None = None
+_VOSK_MODEL_CACHE_PATH: str | None = None
 _VOSK_MODEL_CACHE_LOCK = Lock()
 
 
@@ -303,6 +305,8 @@ def _prepare_audio_for_transcription(source_url: str) -> dict[str, str]:
         "-fflags",
         "+bitexact",
         "-vn",
+        "-af",
+        "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-ac",
         "1",
         "-ar",
@@ -364,6 +368,32 @@ def _resolve_vosk_model_path() -> Path:
 
     model_root = Path(__file__).resolve().parent / "data" / "models"
     model_root.mkdir(parents=True, exist_ok=True)
+    preferred_local_models = [
+        "vosk-model-en-us-0.22",
+        "vosk-model-en-us-0.21",
+        "vosk-model-en-us-0.21-lgraph",
+        "vosk-model-en-us-0.42-gigaspeech",
+        "vosk-model-en-us-daanzu-20200905",
+        "vosk-model-small-en-us-0.15",
+    ]
+    for model_name in preferred_local_models:
+        candidate = model_root / model_name
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+    existing_model_dirs = [
+        item for item in model_root.iterdir()
+        if item.is_dir() and item.name.lower().startswith("vosk-model") and not item.name.lower().endswith(".zip")
+    ]
+    if existing_model_dirs:
+        ranked_existing = sorted(
+            existing_model_dirs,
+            key=lambda item: (
+                "small" in item.name.lower(),
+                len(item.name),
+                item.name.lower(),
+            ),
+        )
+        return ranked_existing[0]
     target_dir = model_root / VOSK_DEFAULT_MODEL_NAME
     if target_dir.exists() and target_dir.is_dir():
         return target_dir
@@ -386,21 +416,23 @@ def _resolve_vosk_model_path() -> Path:
 
 
 def _get_vosk_model() -> Any:
-    global _VOSK_MODEL_CACHE
+    global _VOSK_MODEL_CACHE, _VOSK_MODEL_CACHE_PATH
     with _VOSK_MODEL_CACHE_LOCK:
-        if _VOSK_MODEL_CACHE is not None:
+        model_path = _resolve_vosk_model_path()
+        model_path_str = str(model_path)
+        if _VOSK_MODEL_CACHE is not None and _VOSK_MODEL_CACHE_PATH == model_path_str:
             return _VOSK_MODEL_CACHE
         try:
             from vosk import Model, SetLogLevel
         except Exception as error:
             raise ValueError(f"transcription_failed: Local Vosk runtime is unavailable ({error}).") from error
-        model_path = _resolve_vosk_model_path()
         try:
             SetLogLevel(-1)
         except Exception:
             pass
         try:
-            _VOSK_MODEL_CACHE = Model(str(model_path))
+            _VOSK_MODEL_CACHE = Model(model_path_str)
+            _VOSK_MODEL_CACHE_PATH = model_path_str
         except Exception as error:
             raise ValueError(f"transcription_failed: Local Vosk model could not be loaded ({error}).") from error
         return _VOSK_MODEL_CACHE
@@ -422,6 +454,18 @@ def _collect_vosk_segment(chunk: dict[str, Any]) -> dict[str, Any] | None:
         "text": text,
         "confidence": confidence,
     }
+
+
+def _cleanup_transcript_text(value: str) -> str:
+    text = clean_text(value)
+    if not text:
+        return ""
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    text = re.sub(r"([(\[{])\s+", r"\1", text)
+    text = re.sub(r"\s+([)\]}])", r"\1", text)
+    text = re.sub(r"\b(?:[A-Za-z]\s+){2,}[A-Za-z]\b", lambda match: match.group(0).replace(" ", "").upper(), text)
+    return text.strip()
 
 
 def _transcribe_with_vosk(prepared_audio_path: str) -> dict[str, Any]:
@@ -458,10 +502,12 @@ def _transcribe_with_vosk(prepared_audio_path: str) -> dict[str, Any]:
         raise
     except Exception as error:
         raise ValueError(f"transcription_failed: Local Vosk transcription failed ({error}).") from error
-    transcript_text = clean_text(" ".join(transcript_chunks))
+    transcript_text = _cleanup_transcript_text(" ".join(transcript_chunks))
     if not transcript_text:
         raise ValueError("transcription_failed: Local ffmpeg_transcribe could not detect speech in the prepared audio.")
-    normalized_segments = normalize_speaker_segments(segments)
+    normalized_segments = normalize_speaker_segments(
+        [{**segment, "text": _cleanup_transcript_text(clean_text(segment.get("text")))} for segment in segments]
+    )
     timestamps = [
         {"start": item.get("start"), "end": item.get("end"), "speaker": item.get("speaker")}
         for item in normalized_segments
@@ -1319,36 +1365,96 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
     provider_id = "elevenlabs_scribe"
     BASE_URL = "https://api.elevenlabs.io"
 
-    def _upload_audio_file(self, upload_url: str, headers: dict[str, str], audio_path: str, prompt: str) -> str:
-        file_path = Path(audio_path)
-        if not file_path.exists():
-            raise ValueError(f"Prepared audio file '{audio_path}' is missing.")
+    def _build_multipart_body(
+        self,
+        *,
+        fields: dict[str, Any],
+        file_field_name: str | None = None,
+        file_path: str | None = None,
+        file_content_type: str | None = None,
+    ) -> tuple[bytes, str]:
         boundary = f"----AIOCRM{uuid4().hex}"
-        mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
-        file_bytes = file_path.read_bytes()
-        body = b"".join(
-            [
-                f"--{boundary}\r\n".encode("utf-8"),
-                f'Content-Disposition: form-data; name="file"; filename="{file_path.name}"\r\n'.encode("utf-8"),
-                f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"),
-                file_bytes,
-                b"\r\n",
-                f"--{boundary}--\r\n".encode("utf-8"),
-            ]
-        )
-        request = urllib.request.Request(
-            f"{upload_url}?prompt={urllib.parse.quote(prompt or '')}",
-            data=body,
-            headers={
-                **headers,
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-                "Content-Length": str(len(body)),
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            payload = json.loads(response.read().decode())
-            return clean_text(payload.get("audio_id"))
+        body = bytearray()
+        for name, value in fields.items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                field_value = "true" if value else "false"
+            else:
+                field_value = clean_text(value)
+            if not field_value:
+                continue
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            body.extend(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"))
+            body.extend(field_value.encode("utf-8"))
+            body.extend(b"\r\n")
+        if file_field_name and file_path:
+            path = Path(file_path)
+            if not path.exists():
+                raise ValueError(f"Prepared audio file '{file_path}' is missing.")
+            mime_type = file_content_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            body.extend(f'Content-Disposition: form-data; name="{file_field_name}"; filename="{path.name}"\r\n'.encode("utf-8"))
+            body.extend(f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"))
+            body.extend(path.read_bytes())
+            body.extend(b"\r\n")
+        body.extend(f"--{boundary}--\r\n".encode("utf-8"))
+        return bytes(body), boundary
+
+    def _speaker_label(self, speaker_id: str) -> str:
+        normalized = clean_text(speaker_id)
+        if not normalized:
+            return "Speaker A"
+        prefix, _, suffix = normalized.rpartition("_")
+        if prefix and suffix.isdigit():
+            return f"Speaker {int(suffix) + 1}"
+        return normalized.replace("_", " ").title()
+
+    def _result_to_segments(self, result: dict[str, Any]) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+        response_text = clean_text(result.get("text"))
+        words = result.get("words") if isinstance(result.get("words"), list) else []
+        speaker_segments: list[dict[str, Any]] = []
+        timestamps: list[dict[str, Any]] = []
+        current_segment: dict[str, Any] | None = None
+        transcript_parts: list[str] = []
+
+        for item in words:
+            if not isinstance(item, dict):
+                continue
+            token_type = clean_text(item.get("type")).lower() or "word"
+            token_text = item.get("text")
+            if token_text is None:
+                continue
+            token_text = str(token_text)
+            speaker_label = self._speaker_label(clean_text(item.get("speaker_id")))
+            start = item.get("start")
+            end = item.get("end")
+            if token_type in {"word", "spacing", "audio_event"}:
+                transcript_parts.append(token_text)
+            if token_type != "word":
+                continue
+            timestamps.append({"start": start, "end": end, "speaker": speaker_label})
+            if current_segment and current_segment.get("speaker") == speaker_label:
+                current_segment["text"] = f"{current_segment['text']} {token_text}".strip()
+                current_segment["end"] = end if end is not None else current_segment.get("end")
+                continue
+            current_segment = {
+                "speaker": speaker_label,
+                "text": token_text,
+                "start": start,
+                "end": end,
+            }
+            speaker_segments.append(current_segment)
+
+        transcript_text = response_text or "".join(transcript_parts).strip()
+        normalized_segments = normalize_speaker_segments(speaker_segments)
+        normalized_timestamps = [
+            {"start": item.get("start"), "end": item.get("end"), "speaker": item.get("speaker")}
+            for item in normalized_segments
+        ] if not timestamps and normalized_segments else timestamps
+        if not transcript_text and normalized_segments:
+            transcript_text = " ".join(clean_text(item.get("text")) for item in normalized_segments if clean_text(item.get("text"))).strip()
+        return transcript_text, normalized_segments, normalized_timestamps
 
     def transcribeMedia(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         transcript_text = clean_text(payload.get("transcript_text"))
@@ -1370,87 +1476,87 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
         if not apiKey:
             raise ValueError("ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.")
 
-        audio_url = clean_text(payload.get("source_url"))
+        audio_url = clean_text(payload.get("source_url") or payload.get("sourceUrl"))
         prepared_audio_path = clean_text(payload.get("prepared_audio_path") or payload.get("preparedAudioPath"))
         if prepared_audio_path and not Path(prepared_audio_path).exists():
             raise ValueError("ffmpeg_failed: Prepared audio file is missing before transcription handoff.")
-        if not audio_url:
-            raise ValueError("ElevenLabs Scribe requires source_url for live transcription.")
+        if not prepared_audio_path and not audio_url:
+            raise ValueError("missing_source: ElevenLabs Scribe requires prepared audio or source_url.")
 
-        request_id = job.get("id", "transcribe")
-
-        upload_url = f"{self.BASE_URL}/v1/scribe/upload"
-        headers = {
-            "xi-api-key": apiKey,
+        fields: dict[str, Any] = {
+            "model_id": clean_text(payload.get("model_id") or payload.get("modelId") or os.getenv("ELEVEN_LABS_SCRIBE_MODEL_ID") or "scribe_v2"),
+            "diarize": True,
+            "timestamps_granularity": "word",
+            "tag_audio_events": False,
         }
-        
+        language_code = clean_text(payload.get("language_code") or payload.get("languageCode"))
+        if language_code:
+            fields["language_code"] = language_code
+        if prepared_audio_path:
+            fields["file_format"] = "pcm_s16le_16"
+        else:
+            fields["source_url"] = audio_url
+
+        request_body, boundary = self._build_multipart_body(
+            fields=fields,
+            file_field_name="file" if prepared_audio_path else None,
+            file_path=prepared_audio_path or None,
+            file_content_type="audio/wav" if prepared_audio_path else None,
+        )
+        request = urllib.request.Request(
+            f"{self.BASE_URL}/v1/speech-to-text",
+            data=request_body,
+            headers={
+                "xi-api-key": apiKey,
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Content-Length": str(len(request_body)),
+            },
+            method="POST",
+        )
         try:
-            if prepared_audio_path:
-                audio_id = self._upload_audio_file(upload_url, headers, prepared_audio_path, clean_text(payload.get("prompt")))
-            else:
-                req = urllib.request.Request(
-                    f"{upload_url}?prompt={urllib.parse.quote(payload.get('prompt', ''))}",
-                    headers=headers,
-                    method="POST"
-                )
-                with urllib.request.urlopen(req, timeout=30) as response:
-                    upload_result = json.loads(response.read().decode())
-                    audio_id = upload_result.get("audio_id")
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                raise ValueError("ElevenLabs API key is invalid.")
-            elif e.code == 402:
-                raise ValueError("ElevenLabs API quota exceeded.")
-            else:
-                raise ValueError(f"ElevenLabs upload failed: {e.reason}")
-        except Exception as e:
-            raise ValueError(f"ElevenLabs upload error: {str(e)}")
-        
-        if not audio_id:
-            raise ValueError("ElevenLabs failed to return audio_id after upload.")
-        
-        transcript_url = f"{self.BASE_URL}/v1/scribe/{audio_id}/transcript"
-        
-        try:
-            req = urllib.request.Request(transcript_url, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=60) as response:
-                result = json.loads(response.read().decode())
-                text = result.get("text", "")
-                speaker_segments = []
-                timestamps = []
-                
-                if "words" in result:
-                    current_speaker = "Speaker A"
-                    for word in result["words"]:
-                        if "speaker" in word:
-                            current_speaker = word["speaker"]
-                        speaker_segments.append({
-                            "speaker": current_speaker,
-                            "text": word.get("text", ""),
-                            "start": word.get("start"),
-                            "end": word.get("end"),
-                        })
-                        timestamps.append({
-                            "start": word.get("start"),
-                            "end": word.get("end"),
-                            "speaker": current_speaker,
-                        })
-                
-                return {
-                    "transcript_text": text,
-                    "speaker_segments": speaker_segments,
-                    "timestamps": timestamps,
-                    "message": "Transcript fetched from ElevenLabs Scribe.",
-                }
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                raise ValueError("ElevenLabs API key is invalid.")
-            elif e.code == 404:
-                raise ValueError("Audio file not found or expired.")
-            else:
-                raise ValueError(f"ElevenLabs transcription failed: {e.reason}")
-        except Exception as e:
-            raise ValueError(f"ElevenLabs transcription error: {str(e)}")
+            with urllib.request.urlopen(request, timeout=300) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            try:
+                details = error.read().decode("utf-8", errors="replace")
+            except Exception:
+                details = ""
+            if error.code == 401:
+                raise ValueError("ElevenLabs Scribe API key is invalid.") from error
+            if error.code == 402:
+                raise ValueError("ElevenLabs Scribe quota exceeded.") from error
+            if error.code == 422:
+                raise ValueError(f"ElevenLabs Scribe rejected the transcript request: {clean_text(details) or error.reason}") from error
+            raise ValueError(f"ElevenLabs Scribe transcription failed: {clean_text(details) or error.reason}") from error
+        except Exception as error:
+            raise ValueError(f"ElevenLabs Scribe transcription error: {error}") from error
+
+        if isinstance(result.get("transcripts"), dict):
+            ordered_items = []
+            for channel_key in sorted(result["transcripts"].keys()):
+                item = result["transcripts"].get(channel_key)
+                if isinstance(item, dict):
+                    ordered_items.append(item)
+            combined_text = " ".join(clean_text(item.get("text")) for item in ordered_items if clean_text(item.get("text"))).strip()
+            combined_words: list[dict[str, Any]] = []
+            for index, item in enumerate(ordered_items):
+                words = item.get("words") if isinstance(item.get("words"), list) else []
+                for word in words:
+                    if isinstance(word, dict):
+                        entry = dict(word)
+                        entry.setdefault("speaker_id", f"speaker_{index}")
+                        combined_words.append(entry)
+            result = {**result, "text": combined_text, "words": combined_words}
+
+        transcript_text, speaker_segments, timestamps = self._result_to_segments(result)
+        if not transcript_text and not speaker_segments:
+            raise ValueError("ElevenLabs Scribe returned no transcript text.")
+        return {
+            "transcript_text": transcript_text,
+            "speaker_segments": speaker_segments,
+            "timestamps": timestamps,
+            "message": "Transcript generated by ElevenLabs Scribe.",
+        }
 
 
 class FfmpegTranscribeProvider(BaseTranscriptionProvider):

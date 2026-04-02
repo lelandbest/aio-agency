@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  ChevronRight, Brain, Crosshair, HelpCircle, 
+  ChevronRight, Brain, HelpCircle, 
   Search, Bell, Settings, Info, Target, 
   Trash2, Shield, User, Zap, Mail, Plus,
   FileInput, Download, Tag, X, ChevronLeft,
@@ -65,7 +65,7 @@ const colorClasses = {
   primary: 'btn-primary-skeuo',
 };
 
-const Actions = ({ actions }) => {
+const Actions = ({ actions, leadIndex = null }) => {
   if (!actions || !actions.length) return null;
 
   return (
@@ -75,7 +75,8 @@ const Actions = ({ actions }) => {
           return <React.Fragment key={idx}>{action}</React.Fragment>;
         }
         const ActionIcon = action.icon;
-        const isSkeuo = action.variant === 'primary' || action.color === 'primary';
+        const isLeadAction = leadIndex === idx;
+        const isSkeuo = !isLeadAction && (action.variant === 'primary' || action.color === 'primary');
 
         return (
           <React.Fragment key={idx}>
@@ -86,17 +87,17 @@ const Actions = ({ actions }) => {
               onClick={action.onClick}
               disabled={action.disabled}
               className={`
-                ${isSkeuo ? 'btn-primary-skeuo' : 'btn-secondary'}
+                ${isLeadAction ? 'btn-toolbar-lead' : isSkeuo ? 'btn-primary-skeuo' : 'btn-secondary'}
                 shrink-0 whitespace-nowrap
                 text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2
-                ${!isSkeuo && action.color && action.color !== 'slate' ? colorClasses[action.color] : ''}
+                ${!isLeadAction && !isSkeuo && action.color && action.color !== 'slate' ? colorClasses[action.color] : ''}
                 disabled:opacity-40 disabled:cursor-not-allowed
                 ${action.className || ''}
               `}
               title={action.title}
             >
               {ActionIcon && <ActionIcon size={12} />}
-              <span className="font-bold tracking-tight">{normalizeDisplayText(action.label)}</span>
+              <span className="font-bold uppercase tracking-[0.14em]">{normalizeDisplayText(action.label)}</span>
             </button>
           </React.Fragment>
         );
@@ -129,9 +130,9 @@ const ModuleHeader = ({
   
   // Industrial Island Standard: 48px height, rounded corners, floating background
   return (
-    <div className={`h-12 shrink-0 flex items-center justify-between gap-4 px-5 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-hidden rounded-xl shadow-island-sm transition-all duration-300 ${className}`}>
+    <div className={`h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-visible rounded-xl shadow-island-sm transition-all duration-300 ${className}`}>
       <div className="flex items-center gap-4 min-w-0 flex-1 h-full font-bold">
-        {leftActions.length > 0 && <Actions actions={leftActions} />}
+        {leftActions.length > 0 && <Actions actions={leftActions} leadIndex={0} />}
         {toolbarLeftSlot}
         {TitleIcon && <TitleIcon size={16} className="text-[var(--color-primary)] flex-shrink-0" />}
         {(title && showTitle) && (
@@ -146,10 +147,10 @@ const ModuleHeader = ({
         <div className="hidden lg:flex flex-1 justify-center items-center h-full min-w-0">{toolbarCenterSlot}</div>
       )}
 
-      <div className="flex items-center gap-4 flex-shrink-0 h-full">
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
+        <div className="flex min-w-0 items-center gap-1.5">
           {toolbarRightSlot}
-          {showActions && <Actions actions={actions} />}
+          {showActions && <Actions actions={actions} leadIndex={leftActions.length === 0 ? 0 : null} />}
         </div>
         
         {/* Standardized AI Assistance Toolbar */}
@@ -188,5 +189,5 @@ const ModuleHeader = ({
   );
 };
 
-export { Brain, Crosshair };
+export { Brain };
 export default ModuleHeader;

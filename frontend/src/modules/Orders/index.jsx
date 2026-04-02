@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Download, ShoppingCart, Brain, Crosshair, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Filter, Download, ShoppingCart, Plus, Pencil, Trash2 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { openAIAssist } = useAIAssist();
-
   const runOrdersAssist = async () => {
     try {
       const response = await draftAiApi({
@@ -135,24 +132,6 @@ const OrdersModule = () => {
           }
         ]}
         showActions={true}
-        aiAssistSlot={(
-          <button
-            onClick={openAIAssist}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition"
-            title="Brain"
-          >
-            <Brain size={16} />
-          </button>
-        )}
-        executeSlot={(
-          <button
-            disabled={true}
-            className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition disabled:opacity-40"
-            title="Execute"
-          >
-            <Crosshair size={16} />
-          </button>
-        )}
         hasSelection={false}
       />
       <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden p-2">
