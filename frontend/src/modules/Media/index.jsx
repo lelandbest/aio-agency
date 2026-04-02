@@ -521,17 +521,6 @@ const MediaModule = () => {
     setActiveOutputId(outputIds[0]);
   }, [workspace.outputs, activeOutputId]);
 
-  useEffect(() => {
-    if (!formState.assetId) return;
-    const assetStillExists = sourceBackedAssets.some((output) => output.assetId === formState.assetId);
-    if (assetStillExists) return;
-    setFormState((current) => ({
-      ...current,
-      assetId: '',
-      sourceUrl: '',
-    }));
-  }, [formState.assetId, sourceBackedAssets]);
-
   const handleProbeAsset = useCallback(async (output) => {
     if (!output?.sourceUrl) return;
     setProbePending(true);
@@ -733,6 +722,17 @@ const MediaModule = () => {
   const assetOutputs = useMemo(() => workspace.outputs.filter((output) => output.recordKind === 'asset'), [workspace.outputs]);
   const sourceBackedAssets = useMemo(() => assetOutputs.filter((output) => output.sourceUrl), [assetOutputs]);
   const publishableAssets = useMemo(() => assetOutputs.filter((output) => output.type === 'render' || output.type === 'audio'), [assetOutputs]);
+
+  useEffect(() => {
+    if (!formState.assetId) return;
+    const assetStillExists = sourceBackedAssets.some((output) => output.assetId === formState.assetId);
+    if (assetStillExists) return;
+    setFormState((current) => ({
+      ...current,
+      assetId: '',
+      sourceUrl: '',
+    }));
+  }, [formState.assetId, sourceBackedAssets]);
 
   const resetActionForm = useCallback((key = null) => {
     const preferredAssetId = activeOutputId && assetOutputs.some((output) => output.assetId === activeOutputId) ? activeOutputId : '';
