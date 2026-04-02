@@ -17,9 +17,9 @@ const buildNodeLayout = (profile, sources, items) => {
       id: source.id,
       label: source.label,
       type: 'source',
-      sourceType: source.source_type,
-      x: source.graph_x ?? (centerX + Math.cos(angle) * radius),
-      y: source.graph_y ?? (centerY + Math.sin(angle) * radius),
+      sourceType: source.sourceType,
+      x: source.graphX ?? (centerX + Math.cos(angle) * radius),
+      y: source.graphY ?? (centerY + Math.sin(angle) * radius),
       size: 'sm',
     };
   });
@@ -27,7 +27,7 @@ const buildNodeLayout = (profile, sources, items) => {
   const sourceNodesById = Object.fromEntries(sourceNodes.map((node) => [node.id, node]));
 
   const itemNodes = (items || []).map((item, index) => {
-    const sourceAnchor = item.source_id ? sourceNodesById[item.source_id] : null;
+    const sourceAnchor = item.sourceId ? sourceNodesById[item.sourceId] : null;
     const anchorX = sourceAnchor ? sourceAnchor.x : centerX;
     const anchorY = sourceAnchor ? sourceAnchor.y : centerY;
     
@@ -39,9 +39,9 @@ const buildNodeLayout = (profile, sources, items) => {
       label: item.title,
       type: 'item',
       category: item.category,
-      sourceId: item.source_id,
-      x: item.graph_x ?? clampPosition(anchorX + Math.cos(angle) * radius, 10, 90),
-      y: item.graph_y ?? clampPosition(anchorY + Math.sin(angle) * radius, 10, 90),
+      sourceId: item.sourceId,
+      x: item.graphX ?? clampPosition(anchorX + Math.cos(angle) * radius, 10, 90),
+      y: item.graphY ?? clampPosition(anchorY + Math.sin(angle) * radius, 10, 90),
       size: 'xs',
     };
   });
@@ -440,7 +440,7 @@ export default function BrainGraphPanel({
                     </div>
                     <div className="surface-tertiary flex items-center gap-2 px-3 py-2 rounded-[var(--radius-card)]">
                        <Database size={12} className="text-magenta-400" />
-                       <span className="text-[10px] text-[var(--color-text-secondary)] font-bold uppercase">{contextData?.source_type || 'Nexus'}</span>
+                       <span className="text-[10px] text-[var(--color-text-secondary)] font-bold uppercase">{contextData?.sourceType || 'Nexus'}</span>
                     </div>
                   </div>
                 )}

@@ -465,7 +465,7 @@ def resolve_brain_mcp_source(source_id: str) -> dict[str, Any]:
     source = next((item for item in provider.list_brain_sources() if item.get("id") == source_id), None)
     if not source:
         raise ValueError("MCP server not found.")
-    if (source.get("source_type") or "").strip().lower() != "mcp":
+    if (_brain_value(source, "sourceType", "source_type") or "").strip().lower() != "mcp":
         raise ValueError("This Brain source is not an MCP server.")
     return source
 
@@ -1661,6 +1661,217 @@ class BrainMCPQueryRequest(BaseModel):
     limit: int = 5
 
 
+def _brain_value(record: dict[str, Any] | None, *keys: str) -> Any:
+    source = record or {}
+    for key in keys:
+        value = source.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _serialize_brain_profile(record: dict[str, Any] | None) -> dict[str, Any]:
+    source = record or {}
+    return {
+        "id": source.get("id"),
+        "tenantId": source.get("tenantId"),
+        "companyName": _brain_value(source, "companyName", "company_name") or "",
+        "website": source.get("website") or "",
+        "industry": source.get("industry") or "",
+        "overview": source.get("overview") or "",
+        "mission": source.get("mission") or "",
+        "brandVoice": _brain_value(source, "brandVoice", "brand_voice") or "",
+        "idealCustomer": _brain_value(source, "idealCustomer", "ideal_customer") or "",
+        "activeProvider": _brain_value(source, "activeProvider", "active_provider"),
+        "activeModel": _brain_value(source, "activeModel", "active_model"),
+        "createdAt": source.get("createdAt"),
+        "updatedAt": source.get("updatedAt"),
+    }
+
+
+def _serialize_brain_source(record: dict[str, Any] | None) -> dict[str, Any]:
+    source = record or {}
+    return {
+        "id": source.get("id"),
+        "tenantId": source.get("tenantId"),
+        "label": source.get("label") or "",
+        "sourceType": _brain_value(source, "sourceType", "source_type") or "document",
+        "status": source.get("status") or "draft",
+        "location": source.get("location") or "",
+        "notes": source.get("notes") or "",
+        "graphX": _brain_value(source, "graphX", "graph_x"),
+        "graphY": _brain_value(source, "graphY", "graph_y"),
+        "createdAt": source.get("createdAt"),
+        "updatedAt": source.get("updatedAt"),
+    }
+
+
+def _serialize_brain_item(record: dict[str, Any] | None) -> dict[str, Any]:
+    source = record or {}
+    tags = source.get("tags")
+    return {
+        "id": source.get("id"),
+        "tenantId": source.get("tenantId"),
+        "title": source.get("title") or "",
+        "category": source.get("category") or "note",
+        "content": source.get("content") or "",
+        "sourceId": _brain_value(source, "sourceId", "source_id"),
+        "status": source.get("status") or "draft",
+        "tags": tags if isinstance(tags, list) else [],
+        "graphX": _brain_value(source, "graphX", "graph_x"),
+        "graphY": _brain_value(source, "graphY", "graph_y"),
+        "createdAt": source.get("createdAt"),
+        "updatedAt": source.get("updatedAt"),
+    }
+
+
+def _serialize_brain_link(record: dict[str, Any] | None) -> dict[str, Any]:
+    source = record or {}
+    return {
+        "id": source.get("id"),
+        "tenantId": source.get("tenantId"),
+        "fromType": _brain_value(source, "fromType", "from_type") or "item",
+        "fromId": _brain_value(source, "fromId", "from_id"),
+        "toType": _brain_value(source, "toType", "to_type") or "item",
+        "toId": _brain_value(source, "toId", "to_id"),
+        "relationshipType": _brain_value(source, "relationshipType", "relationship_type") or "supports",
+        "createdAt": source.get("createdAt"),
+        "updatedAt": source.get("updatedAt"),
+    }
+
+
+def _serialize_brain_ingest(record: dict[str, Any] | None) -> dict[str, Any]:
+    source = record or {}
+    return {
+        "id": source.get("id"),
+        "tenantId": source.get("tenantId"),
+        "sourceId": _brain_value(source, "sourceId", "source_id"),
+        "ingestType": _brain_value(source, "ingestType", "ingest_type") or "text",
+        "status": source.get("status") or "draft",
+        "title": source.get("title") or "",
+        "location": source.get("location") or "",
+        "contentExcerpt": _brain_value(source, "contentExcerpt", "content_excerpt") or "",
+        "contentLength": _brain_value(source, "contentLength", "content_length") or 0,
+        "chunkCount": _brain_value(source, "chunkCount", "chunk_count") or 0,
+        "error": source.get("error") or "",
+        "createdAt": source.get("createdAt"),
+        "updatedAt": source.get("updatedAt"),
+    }
+
+
+def _serialize_brain_overview(
+    profile: dict[str, Any] | None,
+    sources: list[dict[str, Any]],
+    items: list[dict[str, Any]],
+    links: list[dict[str, Any]],
+    ingests: list[dict[str, Any]],
+    all_ingests_count: int,
+    categories: dict[str, int],
+    source_statuses: dict[str, int],
+) -> dict[str, Any]:
+    serialized_sources = [_serialize_brain_source(item) for item in sources[:20]]
+    serialized_items = [_serialize_brain_item(item) for item in items]
+    serialized_links = [_serialize_brain_link(item) for item in links]
+    serialized_ingests = [_serialize_brain_ingest(item) for item in ingests]
+    return {
+        "profile": _serialize_brain_profile(profile),
+        "sources": serialized_sources,
+        "items": serialized_items,
+        "links": serialized_links,
+        "ingests": serialized_ingests,
+        "stats": {
+            "sourceCount": len(sources),
+            "knowledgeCount": len(items),
+            "ingestCount": all_ingests_count,
+            "activeCount": sum(1 for item in items if item.get("status") == "active"),
+            "draftCount": sum(1 for item in items if item.get("status") == "draft"),
+        },
+        "categories": categories,
+        "sourceStatuses": source_statuses,
+        "recentItems": serialized_items[:6],
+    }
+
+
+def _brain_profile_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    source = payload or {}
+    return {
+        "company_name": source.get("companyName"),
+        "website": source.get("website"),
+        "industry": source.get("industry"),
+        "overview": source.get("overview"),
+        "mission": source.get("mission"),
+        "brand_voice": source.get("brandVoice"),
+        "ideal_customer": source.get("idealCustomer"),
+        "active_provider": source.get("activeProvider"),
+        "active_model": source.get("activeModel"),
+    }
+
+
+def _brain_source_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    source = payload or {}
+    return {
+        "id": source.get("id"),
+        "label": source.get("label"),
+        "source_type": source.get("sourceType"),
+        "status": source.get("status"),
+        "location": source.get("location"),
+        "notes": source.get("notes"),
+        "graph_x": source.get("graphX"),
+        "graph_y": source.get("graphY"),
+        "createdAt": source.get("createdAt"),
+    }
+
+
+def _brain_item_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    source = payload or {}
+    return {
+        "id": source.get("id"),
+        "title": source.get("title"),
+        "category": source.get("category"),
+        "content": source.get("content"),
+        "source_id": source.get("sourceId"),
+        "status": source.get("status"),
+        "tags": source.get("tags"),
+        "graph_x": source.get("graphX"),
+        "graph_y": source.get("graphY"),
+        "createdAt": source.get("createdAt"),
+    }
+
+
+def _brain_link_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    source = payload or {}
+    return {
+        "id": source.get("id"),
+        "from_type": source.get("fromType"),
+        "from_id": source.get("fromId"),
+        "to_type": source.get("toType"),
+        "to_id": source.get("toId"),
+        "relationship_type": source.get("relationshipType"),
+    }
+
+
+def _brain_ingest_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    source = payload or {}
+    return {
+        "id": source.get("id"),
+        "source_id": source.get("sourceId"),
+        "label": source.get("label"),
+        "source_type": source.get("sourceType"),
+        "status": source.get("status"),
+        "location": source.get("location"),
+        "notes": source.get("notes"),
+        "ingest_type": source.get("ingestType"),
+        "title": source.get("title"),
+        "content": source.get("content"),
+        "url": source.get("url"),
+        "file_name": source.get("fileName"),
+        "mime_type": source.get("mimeType"),
+        "file_content_base64": source.get("fileContentBase64"),
+        "graph_x": source.get("graphX"),
+        "graph_y": source.get("graphY"),
+    }
+
+
 class SystemEmailTemplateUpdateRequest(BaseModel):
     subject: str | None = None
     sendTo: str | None = None
@@ -2578,55 +2789,51 @@ async def get_brain_overview(request: Request):
     for source in sources:
         status_counts[source.get("status") or "unknown"] = status_counts.get(source.get("status") or "unknown", 0) + 1
     return {
-        "data": {
-            "profile": profile,
-            "sources": sources[:20],  # Limit sources
-            "items": items,
-            "links": provider.list_brain_links(limit=50),  # Limit links
-            "ingests": ingests,
-            "stats": {
-                "sourceCount": len(sources),
-                "knowledgeCount": len(items),
-                "ingestCount": len(all_ingests),
-                "activeCount": sum(1 for item in items if item.get("status") == "active"),
-                "draftCount": sum(1 for item in items if item.get("status") == "draft"),
-            },
-            "categories": categories,
-            "sourceStatuses": status_counts,
-            "recentItems": items[:6],
-        }
+        "data": _serialize_brain_overview(
+            profile=profile,
+            sources=sources,
+            items=items,
+            links=provider.list_brain_links(limit=50),
+            ingests=ingests,
+            all_ingests_count=len(all_ingests),
+            categories=categories,
+            source_statuses=status_counts,
+        )
     }
 
 
 @app.get("/api/brain/profile")
 async def get_brain_profile(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain.")
-    return {"data": provider.get_brain_profile()}
+    return {"data": _serialize_brain_profile(provider.get_brain_profile())}
 
 
 @app.patch("/api/brain/profile")
 async def update_brain_profile(request: Request, payload: BrainProfileUpdateRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain.")
-    return {"data": provider.update_brain_profile(payload.model_dump())}
+    updated = provider.update_brain_profile(_brain_profile_provider_payload(payload.model_dump()))
+    return {"data": _serialize_brain_profile(updated)}
 
 
 @app.get("/api/brain/sources")
 async def list_brain_sources(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain sources.")
-    return {"data": provider.list_brain_sources()}
+    return {"data": [_serialize_brain_source(item) for item in provider.list_brain_sources()]}
 
 
 @app.post("/api/brain/sources")
 async def create_brain_source(request: Request, payload: BrainSourceRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create AIO Brain sources.")
-    return {"data": provider.create_brain_source(payload.model_dump())}
+    created = provider.create_brain_source(_brain_source_provider_payload(payload.model_dump()))
+    return {"data": _serialize_brain_source(created)}
 
 
 @app.patch("/api/brain/sources/{source_id}")
 async def update_brain_source(source_id: str, request: Request, payload: BrainSourceUpdateRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain sources.")
     try:
-        return {"data": provider.update_brain_source(source_id, payload.model_dump())}
+        updated = provider.update_brain_source(source_id, _brain_source_provider_payload(payload.model_dump()))
+        return {"data": _serialize_brain_source(updated)}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -2664,20 +2871,22 @@ async def query_brain_mcp(source_id: str, request: Request, payload: BrainMCPQue
 @app.get("/api/brain/items")
 async def list_brain_items(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain knowledge.")
-    return {"data": provider.list_brain_items()}
+    return {"data": [_serialize_brain_item(item) for item in provider.list_brain_items()]}
 
 
 @app.post("/api/brain/items")
 async def create_brain_item(request: Request, payload: BrainItemRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create AIO Brain knowledge.")
-    return {"data": provider.create_brain_item(payload.model_dump())}
+    created = provider.create_brain_item(_brain_item_provider_payload(payload.model_dump()))
+    return {"data": _serialize_brain_item(created)}
 
 
 @app.patch("/api/brain/items/{item_id}")
 async def update_brain_item(item_id: str, request: Request, payload: BrainItemUpdateRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain knowledge.")
     try:
-        return {"data": provider.update_brain_item(item_id, payload.model_dump())}
+        updated = provider.update_brain_item(item_id, _brain_item_provider_payload(payload.model_dump()))
+        return {"data": _serialize_brain_item(updated)}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -2695,14 +2904,15 @@ async def delete_brain_item(item_id: str, request: Request):
 @app.get("/api/brain/links")
 async def list_brain_links(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain graph links.")
-    return {"data": provider.list_brain_links()}
+    return {"data": [_serialize_brain_link(item) for item in provider.list_brain_links()]}
 
 
 @app.post("/api/brain/links")
 async def create_brain_link(request: Request, payload: BrainLinkRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain graph links.")
     try:
-        return {"data": provider.create_brain_link(payload.model_dump())}
+        created = provider.create_brain_link(_brain_link_provider_payload(payload.model_dump()))
+        return {"data": _serialize_brain_link(created)}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -2718,16 +2928,17 @@ async def delete_brain_link(link_id: str, request: Request):
 
 
 @app.get("/api/brain/ingests")
-async def list_brain_ingests(request: Request, source_id: str | None = None, limit: int = 25):
+async def list_brain_ingests(request: Request, sourceId: str | None = None, limit: int = 25):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain ingest history.")
-    return {"data": provider.list_brain_ingests(source_id=source_id, limit=limit)}
+    ingests = provider.list_brain_ingests(source_id=sourceId, limit=limit)
+    return {"data": [_serialize_brain_ingest(item) for item in ingests]}
 
 
 @app.post("/api/brain/ingests")
 async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest Brain sources.")
     try:
-        resolved_ingest_type = (payload.ingest_type or "text").strip().lower()
+        resolved_ingest_type = (payload.ingestType or "text").strip().lower()
         extracted_text = ""
         location = payload.location
         if resolved_ingest_type == "url":
@@ -2737,26 +2948,36 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
             extracted_text, _ = extract_url_text(target_url)
             location = target_url
         elif resolved_ingest_type == "file":
-            extracted_text = extract_file_text(payload.file_name, payload.mime_type, payload.file_content_base64)
-            location = payload.location or payload.file_name or ""
+            extracted_text = extract_file_text(payload.fileName, payload.mimeType, payload.fileContentBase64)
+            location = payload.location or payload.fileName or ""
         else:
             extracted_text = normalize_ingest_text(payload.content)
             if not extracted_text:
                 raise ValueError("Text content is required for Brain ingest.")
-        return {
-            "data": provider.ingest_brain_source(
+        created = provider.ingest_brain_source(
+            _brain_ingest_provider_payload(
                 {
-                    "source_id": payload.source_id,
+                    "sourceId": payload.sourceId,
                     "label": payload.label,
-                    "source_type": payload.source_type,
+                    "sourceType": payload.sourceType,
                     "status": payload.status or "ready",
                     "location": location,
                     "notes": payload.notes,
-                    "ingest_type": resolved_ingest_type,
-                    "title": payload.title or payload.label or payload.file_name or payload.url,
+                    "ingestType": resolved_ingest_type,
+                    "title": payload.title or payload.label or payload.fileName or payload.url,
                     "content": extracted_text,
+                    "url": payload.url,
+                    "fileName": payload.fileName,
+                    "mimeType": payload.mimeType,
+                    "fileContentBase64": payload.fileContentBase64,
                 }
             )
+        )
+        return {
+            "data": {
+                "source": _serialize_brain_source((created or {}).get("source")),
+                "ingest": _serialize_brain_ingest((created or {}).get("ingest")),
+            }
         }
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -5926,7 +6147,7 @@ async def get_form_by_id(form_id: str):
 @app.post("/api/forms/{form_id}/submit")
 async def submit_form(form_id: str, request: FormSubmissionRequest):
     try:
-        return provider.submit_form(form_id, request.form_data)
+        return provider.submit_form(form_id, request.formData)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

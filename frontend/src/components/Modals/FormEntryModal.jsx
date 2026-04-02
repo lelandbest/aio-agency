@@ -3,6 +3,10 @@ import PropTypes from 'prop-types';
 import { X, Save } from 'lucide-react';
 import { processFormSubmission } from '../../services/formProcessor';
 
+const normalizeFormEntrySettings = (settings = {}) => ({
+    headerImage: settings?.headerImage || '',
+});
+
 const FormEntryModal = ({ form, onClose, onSuccess }) => {
     const [formData, setFormData] = useState({});
     const [submitting, setSubmitting] = useState(false);
@@ -97,6 +101,8 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
         }
     };
 
+    const settings = normalizeFormEntrySettings(form?.settings);
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-island animate-in zoom-in duration-300">
@@ -108,6 +114,15 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {settings.headerImage ? (
+                        <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)]">
+                            <img
+                                src={settings.headerImage}
+                                alt={`${form.name} header`}
+                                className="h-40 w-full object-cover"
+                            />
+                        </div>
+                    ) : null}
                     {form.schema?.map((field, idx) => (
                         <div key={field.id || idx}>
                             {!field.hideLabel && field.type !== 'checkbox' && field.type !== 'content' && (

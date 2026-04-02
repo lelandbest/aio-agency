@@ -63,6 +63,8 @@ const EMPTY_PROFILE = {
   idealCustomer: '',
   valueProp: '',
   brandVoice: '',
+  painPoints: '',
+  marketingStrategy: '',
 };
 
 const SubPanelHeader = ({ title, icon: Icon }) => (
@@ -784,8 +786,8 @@ const generateTemplateReport = (reportId, analytics) => {
     case 'offer-conversion':
       lines.push(`[CONVERSION METRICS] ${safeNum(c.totalDeals)} deals tracked`);
       if (c.stages) {
-        const won = safeNum(c.stages['Closed Won'] || c.stages['closed_won'] || 0);
-        const lost = safeNum(c.stages['Closed Lost'] || c.stages['closed_lost'] || 0);
+        const won = safeNum(c.stages['Closed Won'] || 0);
+        const lost = safeNum(c.stages['Closed Lost'] || 0);
         const total = won + lost;
         const rate = total > 0 ? Math.round((won / total) * 100) : 0;
         lines.push(`Win Rate: ${rate}% (${won} won / ${lost} lost)`);
@@ -801,8 +803,8 @@ const generateTemplateReport = (reportId, analytics) => {
       if (c.recentContacts?.length > 0) {
         lines.push(`Recent Journey Sample: ${c.recentContacts.slice(0, 3).map(x => x.name || x.email).join(', ')}`);
       }
-      if (c.engagement_distribution) {
-        lines.push(`Engagement Levels: ${JSON.stringify(c.engagement_distribution)}`);
+      if (c.engagementDistribution) {
+        lines.push(`Engagement Levels: ${JSON.stringify(c.engagementDistribution)}`);
       }
       lines.push('\n[STRATEGY] Map common journey patterns. Identify friction points. Optimize automation triggers.');
       break;
@@ -835,10 +837,10 @@ const generateTemplateReport = (reportId, analytics) => {
       break;
       
     case 'operational-efficiency':
-      lines.push(`[AI OPERATIONS] ${safeNum(aiData.total_runs)} AI executions logged`);
-      if (aiData.runs_by_module) {
+      lines.push(`[AI OPERATIONS] ${safeNum(aiData.totalRuns)} AI executions logged`);
+      if (aiData.runsByModule) {
         lines.push('AI Usage by Module:');
-        Object.entries(aiData.runs_by_module).forEach(([mod, count]) => lines.push(`  ${mod}: ${count} runs`));
+        Object.entries(aiData.runsByModule).forEach(([mod, count]) => lines.push(`  ${mod}: ${count} runs`));
       }
       lines.push(`[AUTOMATION] ${safeNum(c.totalContacts)} contacts in system`);
       lines.push('\n[STRATEGY] Optimize AI routing. Reduce manual touchpoints. Scale successful workflows.');
@@ -847,7 +849,7 @@ const generateTemplateReport = (reportId, analytics) => {
     case 'revenue-intelligence':
       lines.push(`[REVENUE] $${Object.values(c.stageValues || {}).reduce((a, b) => a + safeNum(b), 0).toLocaleString()} total pipeline value`);
       if (c.stages) {
-        const wonVal = safeNum(c.stageValues?.['Closed Won'] || c.stageValues?.['closed_won'] || 0);
+        const wonVal = safeNum(c.stageValues?.['Closed Won'] || 0);
         lines.push(`Closed Revenue: $${wonVal.toLocaleString()}`);
       }
       lines.push(`[CONCENTRATION] ${safeNum(c.totalContacts)} customers`);
@@ -860,8 +862,8 @@ const generateTemplateReport = (reportId, analytics) => {
       
     case 'client-retention':
       lines.push(`[RETENTION] ${safeNum(c.totalContacts)} contacts tracked`);
-      if (c.engagement_distribution) {
-        lines.push(`Engagement: ${JSON.stringify(c.engagement_distribution)}`);
+      if (c.engagementDistribution) {
+        lines.push(`Engagement: ${JSON.stringify(c.engagementDistribution)}`);
       }
       if (c.qualityDistribution) {
         lines.push(`Quality: ${JSON.stringify(c.qualityDistribution)}`);
@@ -886,7 +888,7 @@ const generateTemplateReport = (reportId, analytics) => {
     default:
       lines.push(`[DATA] CRM: ${safeNum(c.totalContacts)} contacts, ${safeNum(c.totalDeals)} deals`);
       lines.push(`Comms: ${safeNum(com.totalThreads)} threads`);
-      lines.push(`AI: ${safeNum(aiData.total_runs)} runs`);
+      lines.push(`AI: ${safeNum(aiData.totalRuns)} runs`);
   }
   
   lines.push('\n[STATUS] ARCHIVED TO LOCAL REPORTS');
@@ -998,11 +1000,11 @@ const Cortex = () => {
       }));
       setProviders(normalized);
       
-      const savedProvider = profileData?.active_provider || normalized.find((provider) => provider.isDefault)?.providerKey;
+      const savedProvider = profileData?.activeProvider || normalized.find((provider) => provider.isDefault)?.providerKey;
       if (savedProvider && normalized.find(p => p.providerKey === savedProvider)) {
         setActiveProviderId(savedProvider);
         const p = normalized.find(p => p.providerKey === savedProvider);
-        const savedModel = profileData?.active_model;
+        const savedModel = profileData?.activeModel;
         if (savedModel && p.models?.includes(savedModel)) {
           setActiveModelId(savedModel);
         } else if (p.models?.length > 0) {
@@ -1126,7 +1128,7 @@ const Cortex = () => {
                 } catch (err) { console.error(err); } 
             }} 
             onSyncLink={async (url) => { try { await createBrainItemApi({ title: url.split('/').pop() || 'Web Link', content: '', category: 'document', status: 'ready' }); fetchOverview(); } catch (err) { console.error(err); } }} 
-            onProbeMcp={async (loc) => { try { const s = await createBrainSourceApi({ type: 'mcp', label: loc.split('/').pop(), location: loc, status: 'active' }); if (s) { await probeBrainMcpApi(s.id); fetchOverview(); } } catch (err) { console.error(err); } }} 
+            onProbeMcp={async (loc) => { try { const s = await createBrainSourceApi({ sourceType: 'mcp', label: loc.split('/').pop(), location: loc, status: 'active' }); if (s) { await probeBrainMcpApi(s.id); fetchOverview(); } } catch (err) { console.error(err); } }} 
           />
           <SavedIntelligence 
             items={savedIntelligence} 
@@ -1286,9 +1288,9 @@ const Cortex = () => {
             <button onClick={() => setShowProfileDrawer(!showProfileDrawer)} className="absolute -left-8 top-[75%] -translate-y-1/2 h-16 w-8 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-l-[var(--radius-panel)] flex items-center justify-center text-[var(--color-text-tertiary)] z-50 shadow-island-sm transition"><ChevronRight size={18} className={showProfileDrawer ? '' : 'rotate-180'} /></button>
             <div className="p-6 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm"><Shield size={18} /></div><div><div className="text-xs font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Business DNA Profile</div><div className="text-[6px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest mt-0.5">Operational Registry</div></div></div>
             <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
-              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-black text-[var(--color-text-secondary)]">{profile.company_name || 'Unidentified'}</div></section>
+              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-black text-[var(--color-text-secondary)]">{profile.companyName || 'Unidentified'}</div></section>
               <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Mission DNA</div><div className="p-4 rounded-[var(--radius-card)] bg-white/[0.01] border border-white/5 italic text-[12px] text-[var(--color-text-secondary)] leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
-              <section className="space-y-3"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-2"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-primary)] mb-0.5">Target Audience (ICP)</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.ideal_customer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-magenta-400 mb-0.5">Voice & Tone</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.brand_voice || 'Not defined'}</div></div></div></section>
+              <section className="space-y-3"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-2"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-primary)] mb-0.5">Target Audience (ICP)</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.idealCustomer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-magenta-400 mb-0.5">Voice & Tone</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.brandVoice || 'Not defined'}</div></div></div></section>
             </div>
             <div className="p-6 border-t border-[var(--color-border)] bg-black/40"><button onClick={() => setShowBrandForm(true)} className={COMMS_TOOLBAR_PRIMARY + " w-full !h-12 !rounded-[var(--radius-card)] !text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 shadow-island-sm"}><PenTool size={14} /> Update Operations DNA</button></div>
           </div>

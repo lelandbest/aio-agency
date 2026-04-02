@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { getFormBySlugApi } from '../services/backendApi';
 import { processFormSubmission } from '../services/formProcessor';
 
+const normalizePublicFormSettings = (settings = {}) => ({
+  redirectUrl: settings?.redirectUrl || '',
+  thankYouMessage: settings?.thankYouMessage || 'Your submission has been received. We will get back to you soon.',
+  headerImage: settings?.headerImage || '',
+});
+
 const PublicForm = ({ formSlug }) => {
   const [form, setForm] = useState(null);
   const [formData, setFormData] = useState({});
@@ -20,7 +26,7 @@ const PublicForm = ({ formSlug }) => {
           setLoading(false);
           return;
         }
-        if (!data.is_active) {
+        if (!data.isActive) {
           setError('This form is no longer accepting submissions');
           setLoading(false);
           return;
@@ -51,9 +57,10 @@ const PublicForm = ({ formSlug }) => {
       }
       await processFormSubmission(form.id, formData);
       setSubmitted(true);
-      if (form.settings.redirect_url) {
+      const settings = normalizePublicFormSettings(form.settings);
+      if (settings.redirectUrl) {
         setTimeout(() => {
-          window.location.href = form.settings.redirect_url;
+          window.location.href = settings.redirectUrl;
         }, 2000);
       }
     } catch (submitError) {
@@ -75,13 +82,25 @@ const PublicForm = ({ formSlug }) => {
   }
 
   if (submitted) {
-    return <div className="min-h-screen flex items-center justify-center bg-white"><div className="text-center max-w-md"><div className="text-6xl mb-4">Done</div><h2 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h2><p className="text-lg text-gray-600 mb-6">{form.settings.thank_you_message || 'Your submission has been received. We will get back to you soon.'}</p>{form.settings.redirect_url && <p className="text-sm text-gray-500">Redirecting...</p>}</div></div>;
+    const settings = normalizePublicFormSettings(form.settings);
+    return <div className="min-h-screen flex items-center justify-center bg-white"><div className="text-center max-w-md"><div className="text-6xl mb-4">Done</div><h2 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h2><p className="text-lg text-gray-600 mb-6">{settings.thankYouMessage}</p>{settings.redirectUrl && <p className="text-sm text-gray-500">Redirecting...</p>}</div></div>;
   }
+
+  const settings = normalizePublicFormSettings(form.settings);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-cyan-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {settings.headerImage ? (
+            <div className="mb-8 overflow-hidden rounded-2xl border border-gray-200">
+              <img
+                src={settings.headerImage}
+                alt={`${form.name} header`}
+                className="h-48 w-full object-cover"
+              />
+            </div>
+          ) : null}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{form.name}</h1>
             {form.description && <p className="text-gray-600">{form.description}</p>}

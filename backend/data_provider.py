@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sqlite3
 from abc import ABC, abstractmethod
 from contextvars import ContextVar, Token
@@ -120,10 +121,13 @@ def field_key(field: dict[str, Any]) -> str:
     if field.get("name"):
         return str(field["name"])
     if field.get("label"):
-        return slugify(str(field["label"])).replace("-", "_")
+        normalized = "".join(char if char.isalnum() else " " for char in str(field["label"]).strip())
+        parts = [part.lower() for part in normalized.split() if part]
+        if parts:
+            return parts[0] + "".join(part[:1].upper() + part[1:] for part in parts[1:])
     if field.get("id"):
         return str(field["id"])
-    return f"field_{unique_suffix()}"
+    return f"field{unique_suffix().capitalize()}"
 
 
 def unique_suffix() -> str:
@@ -1124,21 +1128,21 @@ class MockProvider(BaseProvider):
                 "id": "form-contact",
                 "name": "Contact Form",
                 "folder_id": "form-folder-default",
-                "slug": "contact_form",
+                "slug": "contact-form",
                 "description": "Get in touch with us for any questions or inquiries",
                 "schema": [
-                    {"id": "f1", "name": "full_name", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "map_to_contact": "first_name", "is_identifier": False},
-                    {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "map_to_contact": "email", "is_identifier": True},
-                    {"id": "f3", "name": "phone", "label": "Phone Number", "type": "phone", "required": False, "placeholder": "+1 (555) 000-0000", "map_to_contact": "phone", "is_identifier": False},
-                    {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "map_to_contact": None, "is_identifier": False},
+                    {"id": "f1", "name": "fullName", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "mapToContact": "firstName", "isIdentifier": False},
+                    {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "mapToContact": "email", "isIdentifier": True},
+                    {"id": "f3", "name": "phone", "label": "Phone Number", "type": "tel", "required": False, "placeholder": "+1 (555) 000-0000", "mapToContact": "phone", "isIdentifier": False},
+                    {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "mapToContact": None, "isIdentifier": False},
                 ],
                 "settings": {
-                    "create_contact": True,
-                    "update_contact": True,
-                    "webhook_url": "",
-                    "notification_email": "contact@aioagency.com",
-                    "redirect_url": "",
-                    "thank_you_message": "Thank you for contacting us! We'll get back to you within 24 hours.",
+                    "createContact": True,
+                    "updateContact": True,
+                    "webhookUrl": "",
+                    "notificationEmail": "contact@aioagency.com",
+                    "redirectUrl": "",
+                    "thankYouMessage": "Thank you for contacting us! We'll get back to you within 24 hours.",
                 },
                 "is_active": True,
                 "responses_count": 0,
@@ -2085,21 +2089,21 @@ class MockProvider(BaseProvider):
                 "id": "form-contact",
                 "name": "Contact Form",
                 "folder_id": "form-folder-default",
-                "slug": "contact_form",
+                "slug": "contact-form",
                 "description": "Get in touch with us for any questions or inquiries",
                 "schema": [
-                    {"id": "f1", "name": "full_name", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "map_to_contact": "first_name", "is_identifier": False},
-                    {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "map_to_contact": "email", "is_identifier": True},
-                    {"id": "f3", "name": "phone", "label": "Phone Number", "type": "phone", "required": False, "placeholder": "+1 (555) 000-0000", "map_to_contact": "phone", "is_identifier": False},
-                    {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "map_to_contact": None, "is_identifier": False},
+                    {"id": "f1", "name": "fullName", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "mapToContact": "firstName", "isIdentifier": False},
+                    {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "mapToContact": "email", "isIdentifier": True},
+                    {"id": "f3", "name": "phone", "label": "Phone Number", "type": "tel", "required": False, "placeholder": "+1 (555) 000-0000", "mapToContact": "phone", "isIdentifier": False},
+                    {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "mapToContact": None, "isIdentifier": False},
                 ],
                 "settings": {
-                    "create_contact": True,
-                    "update_contact": True,
-                    "webhook_url": "",
-                    "notification_email": "contact@aioagency.com",
-                    "redirect_url": "",
-                    "thank_you_message": "Thank you for contacting us! We'll get back to you within 24 hours.",
+                    "createContact": True,
+                    "updateContact": True,
+                    "webhookUrl": "",
+                    "notificationEmail": "contact@aioagency.com",
+                    "redirectUrl": "",
+                    "thankYouMessage": "Thank you for contacting us! We'll get back to you within 24 hours.",
                 },
                 "is_active": True,
                 "responses_count": 0,
@@ -2636,7 +2640,7 @@ class MockProvider(BaseProvider):
             "id": payload.get("id") or f"form-{unique_suffix()}",
             "name": payload.get("name") or "New Untitled Form",
             "folderId": payload.get("folderId"),
-            "slug": payload.get("slug") or f"form_{unique_suffix()}",
+            "slug": payload.get("slug") or f"form-{unique_suffix()}",
             "description": payload.get("description") or "",
             "schema": payload.get("schema") or [],
             "settings": payload.get("settings") or {"createContact": True, "updateContact": True, "webhookUrl": "", "notificationEmail": "", "redirectUrl": "", "thankYouMessage": "Thank you."},
@@ -2716,13 +2720,13 @@ class MockProvider(BaseProvider):
         if not form:
             raise ValueError("Form not found")
 
-        identifier_field = next((field for field in form["schema"] if field.get("is_identifier")), None)
+        identifier_field = next((field for field in form["schema"] if field.get("isIdentifier")), None)
         if not identifier_field:
-            identifier_field = next((field for field in form["schema"] if field.get("map_to_contact") == "email"), None)
+            identifier_field = next((field for field in form["schema"] if field.get("mapToContact") == "email"), None)
         if not identifier_field:
             identifier_field = next((field for field in form["schema"] if field.get("type") == "email"), None)
 
-        identifier_key = (identifier_field or {}).get("map_to_contact") or "email"
+        identifier_key = (identifier_field or {}).get("mapToContact") or "email"
         identifier_value = form_data.get(field_key(identifier_field)) if identifier_field else None
         contact = next((item for item in self.contacts if item.get(identifier_key) == identifier_value), None)
 
@@ -5101,21 +5105,21 @@ class SQLiteProvider(BaseProvider):
                 (
                     "form-contact",
                     "Contact Form",
-                    "contact_form",
+                    "contact-form",
                     "Get in touch with us for any questions or inquiries",
                     json.dumps([
-                        {"id": "f1", "name": "full_name", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "map_to_contact": "first_name", "is_identifier": False},
-                        {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "map_to_contact": "email", "is_identifier": True},
-                        {"id": "f3", "name": "phone", "label": "Phone Number", "type": "phone", "required": False, "placeholder": "+1 (555) 000-0000", "map_to_contact": "phone", "is_identifier": False},
-                        {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "map_to_contact": None, "is_identifier": False},
+                        {"id": "f1", "name": "fullName", "label": "Full Name", "type": "text", "required": True, "placeholder": "John Doe", "mapToContact": "firstName", "isIdentifier": False},
+                        {"id": "f2", "name": "email", "label": "Email Address", "type": "email", "required": True, "placeholder": "john@example.com", "mapToContact": "email", "isIdentifier": True},
+                        {"id": "f3", "name": "phone", "label": "Phone Number", "type": "tel", "required": False, "placeholder": "+1 (555) 000-0000", "mapToContact": "phone", "isIdentifier": False},
+                        {"id": "f4", "name": "message", "label": "Message", "type": "textarea", "required": True, "placeholder": "How can we help you?", "mapToContact": None, "isIdentifier": False},
                     ]),
                     json.dumps({
-                        "create_contact": True,
-                        "update_contact": True,
-                        "webhook_url": "",
-                        "notification_email": "contact@aioagency.com",
-                        "redirect_url": "",
-                        "thank_you_message": "Thank you for contacting us! We'll get back to you within 24 hours.",
+                        "createContact": True,
+                        "updateContact": True,
+                        "webhookUrl": "",
+                        "notificationEmail": "contact@aioagency.com",
+                        "redirectUrl": "",
+                        "thankYouMessage": "Thank you for contacting us! We'll get back to you within 24 hours.",
                     }),
                     1,
                     0,
@@ -5603,14 +5607,16 @@ class SQLiteProvider(BaseProvider):
     def _form_from_row(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
         if row is None:
             return None
+        settings = self._normalize_form_settings(json_loads(row["settingsJson"], {}))
+        schema = self._normalize_form_schema(json_loads(row["schemaJson"], []))
         return {
             "id": row["id"],
             "name": row["name"],
             "folderId": row.get("folderId"),
             "slug": row["slug"],
             "description": row["description"],
-            "schema": json_loads(row["schemaJson"], []),
-            "settings": json_loads(row["settingsJson"], {}),
+            "schema": schema,
+            "settings": settings,
             "status": row.get("status") or ("Active" if row.get("isActive") else "Draft"),
             "isActive": bool(row["isActive"]),
             "responsesCount": row["responsesCount"],
@@ -5624,6 +5630,90 @@ class SQLiteProvider(BaseProvider):
             "updatedAt": row["updatedAt"],
             "lastModifiedAt": row["updatedAt"],
         }
+
+    @staticmethod
+    def _to_camel_case_key(key: str) -> str:
+        normalized = (key or "").strip()
+        if not normalized:
+            return normalized
+        if "_" in normalized or " " in normalized or "-" in normalized:
+            parts = [part for part in re.split(r"[_\-\s]+", normalized) if part]
+            if not parts:
+                return normalized
+            return parts[0][:1].lower() + parts[0][1:] + "".join(part[:1].upper() + part[1:] for part in parts[1:])
+        return normalized[:1].lower() + normalized[1:]
+
+    def _normalize_form_settings(self, settings: dict[str, Any] | None) -> dict[str, Any]:
+        source = settings or {}
+        normalized = {
+            "createContact": bool(source.get("createContact", source.get("create_contact", True))),
+            "updateContact": bool(source.get("updateContact", source.get("update_contact", True))),
+            "webhookUrl": source.get("webhookUrl", source.get("webhook_url", "")) or "",
+            "notificationEmail": source.get("notificationEmail", source.get("notification_email", "")) or "",
+            "redirectUrl": source.get("redirectUrl", source.get("redirect_url", "")) or "",
+            "thankYouMessage": source.get("thankYouMessage", source.get("thank_you_message", "Thank you.")) or "Thank you.",
+            "headerImage": source.get("headerImage", source.get("header_image", "")) or "",
+        }
+        reserved = {
+            "createContact", "create_contact",
+            "updateContact", "update_contact",
+            "webhookUrl", "webhook_url",
+            "notificationEmail", "notification_email",
+            "redirectUrl", "redirect_url",
+            "thankYouMessage", "thank_you_message",
+            "headerImage", "header_image",
+        }
+        for key, value in source.items():
+            if key in reserved or value is None:
+                continue
+            normalized[self._to_camel_case_key(key)] = value
+        return normalized
+
+    def _normalize_form_field(self, field: dict[str, Any] | None, index: int = 0) -> dict[str, Any]:
+        source = field or {}
+        field_type = (source.get("type") or "text").strip()
+        if field_type == "phone":
+            field_type = "tel"
+        label = source.get("label") or source.get("name") or f"Field {index + 1}"
+        name = self._to_camel_case_key(source.get("name") or label or f"field{index + 1}") or f"field{index + 1}"
+        map_to_contact = source.get("mapToContact", source.get("map_to_contact"))
+        if map_to_contact:
+            map_to_contact = self._to_camel_case_key(str(map_to_contact))
+        is_content = source.get("isContent")
+        if is_content is None:
+            is_content = source.get("is_content")
+        if is_content is None:
+            is_content = field_type in {"textarea", "content", "html"}
+
+        normalized = {
+            "id": source.get("id") or f"field-{unique_suffix()}-{index}",
+            "name": name,
+            "label": label,
+            "type": field_type,
+            "required": bool(source.get("required")),
+            "placeholder": source.get("placeholder") or "",
+            "isContent": bool(is_content),
+            "mapToContact": map_to_contact,
+            "isIdentifier": bool(source.get("isIdentifier", source.get("is_identifier", False))),
+        }
+
+        passthrough_keys = (
+            "options", "defaultValue", "prefix", "suffix", "mask", "customClass", "tabIndex",
+            "labelPosition", "hidden", "hideLabel", "showWordCounter", "content", "minLength",
+            "maxLength", "pattern", "customValidation", "errorMessage", "showTotalPrice",
+            "showCouponCode", "showCreditCardInput", "collectCardHolderName", "showCvv",
+            "collectEmail", "collectPhone", "collectBillingAddress", "addBillingConfirmation",
+            "billingConfirmationText", "disableDefaultWelcomeEmail", "disableDefaultPaymentConfirmation",
+        )
+        for key in passthrough_keys:
+            if key in source and source[key] is not None:
+                normalized[key] = source[key]
+        return normalized
+
+    def _normalize_form_schema(self, schema: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+        if not isinstance(schema, list):
+            return []
+        return [self._normalize_form_field(field, index) for index, field in enumerate(schema)]
 
     def _thread_queue_ids(self, thread: dict[str, Any]) -> list[str]:
         flags = thread.get("aiFlags") or thread.get("ai_flags") or {}
@@ -6055,6 +6145,110 @@ class SQLiteProvider(BaseProvider):
                 } for r in rows
             ]
 
+    @staticmethod
+    def _brain_profile_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        record = dict(row)
+        return {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "company_name": record.get("companyName"),
+            "website": record.get("website"),
+            "industry": record.get("industry"),
+            "overview": record.get("overview"),
+            "mission": record.get("mission"),
+            "brand_voice": record.get("brandVoice"),
+            "ideal_customer": record.get("idealCustomer"),
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+
+    @staticmethod
+    def _brain_source_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        record = dict(row)
+        return {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "label": record.get("label"),
+            "source_type": record.get("sourceType"),
+            "status": record.get("status"),
+            "location": record.get("location"),
+            "notes": record.get("notes"),
+            "graph_x": record.get("graphX"),
+            "graph_y": record.get("graphY"),
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+
+    @staticmethod
+    def _brain_item_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        record = dict(row)
+        return {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "title": record.get("title"),
+            "category": record.get("category"),
+            "content": record.get("content"),
+            "source_id": record.get("sourceId"),
+            "status": record.get("status"),
+            "tags": json_loads(record.get("tagsJson"), []),
+            "graph_x": record.get("graphX"),
+            "graph_y": record.get("graphY"),
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+
+    @staticmethod
+    def _brain_link_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        record = dict(row)
+        return {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "from_type": record.get("fromType"),
+            "from_id": record.get("fromId"),
+            "to_type": record.get("toType"),
+            "to_id": record.get("toId"),
+            "relationship_type": record.get("relationshipType"),
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+
+    @staticmethod
+    def _brain_ingest_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        record = dict(row)
+        return {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "source_id": record.get("sourceId"),
+            "ingest_type": record.get("ingestType"),
+            "status": record.get("status"),
+            "title": record.get("title"),
+            "location": record.get("location"),
+            "content_excerpt": record.get("contentExcerpt"),
+            "content_length": record.get("contentLength"),
+            "chunk_count": record.get("chunkCount"),
+            "error": record.get("error"),
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+
+    @staticmethod
+    def _brain_chunk_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+        record = dict(row)
+        return {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "source_id": record.get("sourceId"),
+            "ingest_id": record.get("ingestId"),
+            "ordinal": record.get("ordinal"),
+            "title": record.get("title"),
+            "content": record.get("content"),
+            "content_excerpt": record.get("contentExcerpt"),
+            "tokens": record.get("tokens"),
+            "vector_json": record.get("vectorJson"),
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+
     def get_brain_profile(self) -> dict[str, Any]:
         with self._connect() as conn:
             row = conn.execute(
@@ -6062,7 +6256,7 @@ class SQLiteProvider(BaseProvider):
                 (self._tenantId(),),
             ).fetchone()
         if row:
-            return dict(row)
+            return self._brain_profile_record(row)
         now = utcnow()
         profile = {
             "id": f"brain-profile-{unique_suffix()}",
@@ -6109,8 +6303,18 @@ class SQLiteProvider(BaseProvider):
                 payload[key] = updates[key]
         if not payload:
             return existing
+        assignments_map = {
+            "company_name": "companyName",
+            "website": "website",
+            "industry": "industry",
+            "overview": "overview",
+            "mission": "mission",
+            "brand_voice": "brandVoice",
+            "ideal_customer": "idealCustomer",
+            "updatedAt": "updatedAt",
+        }
         payload["updatedAt"] = utcnow()
-        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        assignments = ", ".join(f"{assignments_map[key]} = ?" for key in payload.keys())
         with self._connect() as conn:
             conn.execute(
                 f"UPDATE brain_profiles SET {assignments} WHERE id = ? AND tenantId = ?",
@@ -6121,10 +6325,13 @@ class SQLiteProvider(BaseProvider):
                 "SELECT * FROM brain_profiles WHERE id = ? AND tenantId = ?",
                 (existing["id"], self._tenantId()),
             ).fetchone()
-        return dict(refreshed)
+        return self._brain_profile_record(refreshed)
 
     def list_brain_sources(self) -> list[dict[str, Any]]:
-        return self._tenant_rows("SELECT * FROM brain_sources WHERE tenantId = ? ORDER BY updatedAt DESC")
+        return [
+            self._brain_source_record(row)
+            for row in self._tenant_rows("SELECT * FROM brain_sources WHERE tenantId = ? ORDER BY updatedAt DESC")
+        ]
 
     def create_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
         now = utcnow()
@@ -6168,15 +6375,25 @@ class SQLiteProvider(BaseProvider):
     def update_brain_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {}
         for key in ["label", "source_type", "status", "location", "notes", "graph_x", "graph_y"]:
-            if key in updates:
+            if key in updates and updates[key] is not None:
                 payload[key] = updates[key]
         if not payload:
             existing = next((item for item in self.list_brain_sources() if item["id"] == source_id), None)
             if not existing:
                 raise ValueError("Brain source not found")
             return existing
+        assignments_map = {
+            "label": "label",
+            "source_type": "sourceType",
+            "status": "status",
+            "location": "location",
+            "notes": "notes",
+            "graph_x": "graphX",
+            "graph_y": "graphY",
+            "updatedAt": "updatedAt",
+        }
         payload["updatedAt"] = utcnow()
-        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        assignments = ", ".join(f"{assignments_map[key]} = ?" for key in payload.keys())
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT id FROM brain_sources WHERE id = ? AND tenantId = ?",
@@ -6193,12 +6410,12 @@ class SQLiteProvider(BaseProvider):
                 "SELECT * FROM brain_sources WHERE id = ? AND tenantId = ?",
                 (source_id, self._tenantId()),
             ).fetchone()
-        return dict(refreshed)
+        return self._brain_source_record(refreshed)
 
     def delete_brain_source(self, source_id: str) -> None:
         with self._connect() as conn:
             conn.execute(
-                "UPDATE brain_items SET source_id = NULL, updatedAt = ? WHERE tenantId = ? AND sourceId = ?",
+                "UPDATE brain_items SET sourceId = NULL, updatedAt = ? WHERE tenantId = ? AND sourceId = ?",
                 (utcnow(), self._tenantId(), source_id),
             )
             conn.execute(
@@ -6210,7 +6427,7 @@ class SQLiteProvider(BaseProvider):
                 (self._tenantId(), source_id),
             )
             conn.execute(
-                "DELETE FROM brain_links WHERE tenantId = ? AND ((from_type = 'source' AND from_id = ?) OR (to_type = 'source' AND to_id = ?))",
+                "DELETE FROM brain_links WHERE tenantId = ? AND ((fromType = 'source' AND fromId = ?) OR (toType = 'source' AND toId = ?))",
                 (self._tenantId(), source_id, source_id),
             )
             conn.execute(
@@ -6225,7 +6442,7 @@ class SQLiteProvider(BaseProvider):
         if limit:
             query += f" LIMIT {limit}"
         rows = self._rows(query, (target_tenant,))
-        return [{**row, "tags": json_loads(row.pop("tagsJson"), [])} for row in rows]
+        return [self._brain_item_record(row) for row in rows]
 
     def create_brain_item(self, payload: dict[str, Any]) -> dict[str, Any]:
         now = utcnow()
@@ -6271,7 +6488,7 @@ class SQLiteProvider(BaseProvider):
     def update_brain_item(self, item_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {}
         for key in ["title", "category", "content", "source_id", "status", "graph_x", "graph_y"]:
-            if key in updates:
+            if key in updates and updates[key] is not None:
                 payload[key] = updates[key]
         if "tags" in updates:
             payload["tags_json"] = json.dumps(updates.get("tags") or [])
@@ -6280,8 +6497,19 @@ class SQLiteProvider(BaseProvider):
             if not existing:
                 raise ValueError("Brain item not found")
             return existing
+        assignments_map = {
+            "title": "title",
+            "category": "category",
+            "content": "content",
+            "source_id": "sourceId",
+            "status": "status",
+            "graph_x": "graphX",
+            "graph_y": "graphY",
+            "tags_json": "tagsJson",
+            "updatedAt": "updatedAt",
+        }
         payload["updatedAt"] = utcnow()
-        assignments = ", ".join(f"{key} = ?" for key in payload.keys())
+        assignments = ", ".join(f"{assignments_map[key]} = ?" for key in payload.keys())
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT id FROM brain_items WHERE id = ? AND tenantId = ?",
@@ -6298,13 +6526,11 @@ class SQLiteProvider(BaseProvider):
                 "SELECT * FROM brain_items WHERE id = ? AND tenantId = ?",
                 (item_id, self._tenantId()),
             ).fetchone()
-        item = dict(refreshed)
-        item["tags"] = json_loads(item.pop("tags_json"), [])
-        return item
+        return self._brain_item_record(refreshed)
     def delete_brain_item(self, item_id: str) -> None:
         with self._connect() as conn:
             conn.execute(
-                "DELETE FROM brain_links WHERE tenantId = ? AND ((from_type = 'item' AND from_id = ?) OR (to_type = 'item' AND to_id = ?))",
+                "DELETE FROM brain_links WHERE tenantId = ? AND ((fromType = 'item' AND fromId = ?) OR (toType = 'item' AND toId = ?))",
                 (self._tenantId(), item_id, item_id),
             )
             conn.execute(
@@ -6320,7 +6546,7 @@ class SQLiteProvider(BaseProvider):
                 conn.execute(
                     """
                     INSERT INTO brain_chunks (
-                        id, tenantId, source_id, ingest_id, ordinal, title, content, content_excerpt, createdAt, updatedAt
+                        id, tenantId, sourceId, ingestId, ordinal, title, content, contentExcerpt, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -6340,10 +6566,13 @@ class SQLiteProvider(BaseProvider):
 
     def list_brain_chunks(self, ingest_id: str | None = None) -> list[dict[str, Any]]:
         if ingest_id:
-            rows = self._tenant_rows("SELECT * FROM brain_chunks WHERE tenantId = ? AND ingestId = ?", (ingest_id,))
+            rows = self._rows(
+                "SELECT * FROM brain_chunks WHERE tenantId = ? AND ingestId = ?",
+                (self._tenantId(), ingest_id),
+            )
         else:
-            rows = self._tenant_rows("SELECT * FROM brain_chunks WHERE tenantId = ?")
-        return [dict(row) for row in rows]
+            rows = self._rows("SELECT * FROM brain_chunks WHERE tenantId = ?", (self._tenantId(),))
+        return [self._brain_chunk_record(row) for row in rows]
 
     # --- Help Desk Methods ---
 
@@ -6455,7 +6684,7 @@ class SQLiteProvider(BaseProvider):
         query = "SELECT * FROM brain_links WHERE tenantId = ? ORDER BY updatedAt DESC"
         if limit:
             query += f" LIMIT {limit}"
-        return self._tenant_rows(query)
+        return [self._brain_link_record(row) for row in self._tenant_rows(query)]
 
     def create_brain_link(self, payload: dict[str, Any]) -> dict[str, Any]:
         from_type = payload.get("from_type") or "item"
@@ -6471,13 +6700,13 @@ class SQLiteProvider(BaseProvider):
             existing = conn.execute(
                 """
                 SELECT * FROM brain_links
-                WHERE tenantId = ? AND from_type = ? AND from_id = ? AND to_type = ? AND to_id = ?
+                WHERE tenantId = ? AND fromType = ? AND fromId = ? AND toType = ? AND toId = ?
                 LIMIT 1
                 """,
                 (self._tenantId(), from_type, from_id, to_type, to_id),
             ).fetchone()
             if existing:
-                return dict(existing)
+                return self._brain_link_record(existing)
             now = utcnow()
             record = {
                 "id": payload.get("id") or f"brain-link-{unique_suffix()}",
@@ -6531,7 +6760,7 @@ class SQLiteProvider(BaseProvider):
                     "SELECT * FROM brain_ingests WHERE tenantId = ? ORDER BY createdAt DESC LIMIT ?",
                     (self._tenantId(), max(1, limit)),
                 ).fetchall()
-        return [dict(row) for row in rows]
+        return [self._brain_ingest_record(row) for row in rows]
 
     def ingest_brain_source(self, payload: dict[str, Any]) -> dict[str, Any]:
         content = normalize_text_content(payload.get("content"))
@@ -6554,7 +6783,15 @@ class SQLiteProvider(BaseProvider):
                         updates[key] = payload.get(key)
                 updates["status"] = payload.get("status") or "ready"
                 updates["updatedAt"] = now
-                assignments = ", ".join(f"{key} = ?" for key in updates.keys())
+                assignments_map = {
+                    "label": "label",
+                    "source_type": "sourceType",
+                    "location": "location",
+                    "notes": "notes",
+                    "status": "status",
+                    "updatedAt": "updatedAt",
+                }
+                assignments = ", ".join(f"{assignments_map[key]} = ?" for key in updates.keys())
                 conn.execute(
                     f"UPDATE brain_sources SET {assignments} WHERE id = ? AND tenantId = ?",
                     (*updates.values(), source_id, self._tenantId()),
@@ -6577,7 +6814,7 @@ class SQLiteProvider(BaseProvider):
                 conn.execute(
                     """
                     INSERT INTO brain_sources (
-                        id, tenantId, label, source_type, status, location, notes, graph_x, graph_y, createdAt, updatedAt
+                        id, tenantId, label, sourceType, status, location, notes, graphX, graphY, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -6608,7 +6845,7 @@ class SQLiteProvider(BaseProvider):
                     "id": item_id,
                     "tenantId": self._tenantId(),
                     "title": f"Summary: {source['label']}",
-                    "category": payload.get("category") or ("brand" if source["source_type"] == "profile" else "note"),
+                    "category": payload.get("category") or ("brand" if source["sourceType"] == "profile" else "note"),
                     "content": payload.get("item_content") or summarize_excerpt(content, limit=500),
                     "source_id": source_id,
                     "status": "ready",
@@ -6621,7 +6858,7 @@ class SQLiteProvider(BaseProvider):
                 conn.execute(
                     """
                     INSERT INTO brain_items (
-                        id, tenantId, title, category, content, source_id, status, tags_json, graph_x, graph_y, createdAt, updatedAt
+                        id, tenantId, title, category, content, sourceId, status, tagsJson, graphX, graphY, createdAt, updatedAt
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -6661,7 +6898,7 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO brain_ingests (
-                    id, tenantId, source_id, ingest_type, status, title, location, content_excerpt, content_length, chunk_count, error, createdAt, updatedAt
+                    id, tenantId, sourceId, ingestType, status, title, location, contentExcerpt, contentLength, chunkCount, error, createdAt, updatedAt
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -6687,8 +6924,8 @@ class SQLiteProvider(BaseProvider):
             conn.executemany(
                 """
                 INSERT INTO brain_chunks (
-                    id, tenantId, source_id, ingest_id, chunk_index, content, createdAt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    id, tenantId, sourceId, ingestId, ordinal, title, content, contentExcerpt, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -6696,15 +6933,18 @@ class SQLiteProvider(BaseProvider):
                         self._tenantId(),
                         source_id,
                         ingest["id"],
-                        idx,
+                        idx + 1,
+                        ingest["title"],
                         chunk,
+                        summarize_excerpt(chunk),
+                        now,
                         now,
                     )
                     for idx, chunk in enumerate(chunks)
                 ],
             )
             conn.commit()
-        return {"source": source, "ingest": ingest}
+        return {"source": self._brain_source_record(source), "ingest": ingest}
 
     def search_brain_memory(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         resolved_query = normalize_text_content(query)
@@ -6715,7 +6955,7 @@ class SQLiteProvider(BaseProvider):
         candidates: list[dict[str, Any]] = []
         with self._connect() as conn:
             chunk_rows = [
-                dict(row)
+                self._brain_chunk_record(row)
                 for row in conn.execute(
                     "SELECT * FROM brain_chunks WHERE tenantId = ? ORDER BY updatedAt DESC",
                     (self._tenantId(),),
@@ -6844,7 +7084,7 @@ class SQLiteProvider(BaseProvider):
     def _form_summary_from_row(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
         if row is None:
             return None
-        schema = json_loads(row.get("schemaJson"), [])
+        schema = self._normalize_form_schema(json_loads(row.get("schemaJson"), []))
         pages = json_loads(row.get("pagesJson"), [])
         field_count = len(schema) + sum(len(p.get("fields", [])) for p in pages)
         return {
@@ -6866,25 +7106,27 @@ class SQLiteProvider(BaseProvider):
 
     def create_form(self, payload: dict[str, Any]) -> dict[str, Any]:
         now = utcnow()
+        settings = self._normalize_form_settings(payload.get("settings") or {})
+        schema = self._normalize_form_schema(payload.get("schema") or [])
         record = {
             "id": payload.get("id") or f"form-{unique_suffix()}",
             "tenantId": self._tenantId(),
             "name": payload.get("name") or "New Untitled Form",
-            "folder_id": payload.get("folder_id") or "form-folder-default",
-            "slug": payload.get("slug") or f"form_{unique_suffix()}",
+            "folderId": payload.get("folderId") or payload.get("folder_id") or "form-folder-default",
+            "slug": payload.get("slug") or f"form-{unique_suffix()}",
             "description": payload.get("description") or "",
-            "schema_json": json.dumps(payload.get("schema") or []),
-            "pages_json": json.dumps(payload.get("pages") or [{"id": "page_1", "label": "Page 1", "fields": []}]),
-            "settings_json": json.dumps(payload.get("settings") or {"create_contact": True, "update_contact": True, "webhook_url": "", "notification_email": "", "redirect_url": "", "thank_you_message": "Thank you."}),
+            "schemaJson": json.dumps(schema),
+            "pagesJson": json.dumps(payload.get("pages") or [{"id": "page_1", "label": "Page 1", "fields": []}]),
+            "settingsJson": json.dumps(settings),
             "status": payload.get("status") or "Draft",
-            "is_active": int(bool(payload.get("is_active", False))),
-            "responses_count": payload.get("responses_count", 0),
-            "last_active": payload.get("last_active") or "Just now",
-            "last_modified_by": payload.get("last_modified_by") or "AIO Flow",
+            "isActive": int(bool(payload.get("isActive", payload.get("is_active", False)))),
+            "responsesCount": payload.get("responsesCount", payload.get("responses_count", 0)),
+            "lastActive": payload.get("lastActive", payload.get("last_active")) or "Just now",
+            "lastModifiedBy": payload.get("lastModifiedBy", payload.get("last_modified_by")) or "AIO Flow",
             "creator": payload.get("creator") or "AIO Flow",
-            "triggers_json": json.dumps(payload.get("triggers")),
-            "automation_json": json.dumps(payload.get("automation")),
-            "last_response_at": payload.get("last_response_at"),
+            "triggersJson": json.dumps(payload.get("triggers")),
+            "automationJson": json.dumps(payload.get("automation")),
+            "lastResponseAt": payload.get("lastResponseAt", payload.get("last_response_at")),
             "createdAt": payload.get("createdAt") or now,
             "updatedAt": now,
         }
@@ -6910,23 +7152,42 @@ class SQLiteProvider(BaseProvider):
 
     def update_form(self, form_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {}
-        for key in ["name", "folder_id", "slug", "description", "status", "last_active", "last_modified_by", "creator", "last_response_at"]:
-            if key in updates and updates[key] is not None:
-                payload[key] = updates[key]
+        direct_keys = {
+            "name": "name",
+            "folderId": "folderId",
+            "folder_id": "folderId",
+            "slug": "slug",
+            "description": "description",
+            "status": "status",
+            "lastActive": "lastActive",
+            "last_active": "lastActive",
+            "lastModifiedBy": "lastModifiedBy",
+            "last_modified_by": "lastModifiedBy",
+            "creator": "creator",
+            "lastResponseAt": "lastResponseAt",
+            "last_response_at": "lastResponseAt",
+        }
+        for source_key, target_key in direct_keys.items():
+            if source_key in updates and updates[source_key] is not None:
+                payload[target_key] = updates[source_key]
         if "schema" in updates:
-            payload["schema_json"] = json.dumps(updates["schema"] or [])
+            payload["schemaJson"] = json.dumps(self._normalize_form_schema(updates["schema"] or []))
         if "pages" in updates:
-            payload["pages_json"] = json.dumps(updates["pages"] or [])
+            payload["pagesJson"] = json.dumps(updates["pages"] or [])
         if "settings" in updates:
-            payload["settings_json"] = json.dumps(updates["settings"] or {})
-        if "is_active" in updates:
-            payload["is_active"] = int(bool(updates["is_active"]))
-        if "responses_count" in updates and updates["responses_count"] is not None:
-            payload["responses_count"] = updates["responses_count"]
+            payload["settingsJson"] = json.dumps(self._normalize_form_settings(updates["settings"] or {}))
+        if "isActive" in updates:
+            payload["isActive"] = int(bool(updates["isActive"]))
+        elif "is_active" in updates:
+            payload["isActive"] = int(bool(updates["is_active"]))
+        if "responsesCount" in updates and updates["responsesCount"] is not None:
+            payload["responsesCount"] = updates["responsesCount"]
+        elif "responses_count" in updates and updates["responses_count"] is not None:
+            payload["responsesCount"] = updates["responses_count"]
         if "triggers" in updates:
-            payload["triggers_json"] = json.dumps(updates["triggers"])
+            payload["triggersJson"] = json.dumps(updates["triggers"])
         if "automation" in updates:
-            payload["automation_json"] = json.dumps(updates["automation"])
+            payload["automationJson"] = json.dumps(updates["automation"])
         if not payload:
             form = self.get_form_by_id(form_id)
             if not form:
@@ -7068,13 +7329,13 @@ class SQLiteProvider(BaseProvider):
         if not form:
             raise ValueError("Form not found")
 
-        identifier_field = next((field for field in form["schema"] if field.get("is_identifier")), None)
+        identifier_field = next((field for field in form["schema"] if field.get("isIdentifier")), None)
         if not identifier_field:
-            identifier_field = next((field for field in form["schema"] if field.get("map_to_contact") == "email"), None)
+            identifier_field = next((field for field in form["schema"] if field.get("mapToContact") == "email"), None)
         if not identifier_field:
             identifier_field = next((field for field in form["schema"] if field.get("type") == "email"), None)
 
-        identifier_key = (identifier_field or {}).get("map_to_contact") or "email"
+        identifier_key = (identifier_field or {}).get("mapToContact") or "email"
         identifier_value = form_data.get(field_key(identifier_field)) if identifier_field else None
         created_contact = False
 
@@ -7084,10 +7345,10 @@ class SQLiteProvider(BaseProvider):
 
             if row:
                 contact_id = row["id"]
-                if form["settings"].get("update_contact"):
+                if form["settings"].get("updateContact"):
                     updates = {}
                     for field in form["schema"]:
-                        mapped = field.get("map_to_contact")
+                        mapped = field.get("mapToContact")
                         current_value = form_data.get(field_key(field))
                         if mapped and current_value:
                             updates[mapped] = current_value
@@ -7095,7 +7356,7 @@ class SQLiteProvider(BaseProvider):
                         assignments = ", ".join(f"{key} = ?" for key in updates.keys())
                         params = tuple(updates.values()) + (utcnow(), contact_id, self._tenantId())
                         conn.execute(f"UPDATE contacts SET {assignments}, updatedAt = ? WHERE id = ? AND tenantId = ?", params)
-            elif form["settings"].get("create_contact"):
+            elif form["settings"].get("createContact"):
                 contact_id = f"contact-{unique_suffix()}"
                 payload = {
                     "id": contact_id,
@@ -7124,7 +7385,7 @@ class SQLiteProvider(BaseProvider):
                     "deleted_at": None,
                 }
                 for field in form["schema"]:
-                    mapped = field.get("map_to_contact")
+                    mapped = field.get("mapToContact")
                     current_value = form_data.get(field_key(field))
                     if mapped and current_value:
                         payload[mapped] = current_value
@@ -7178,7 +7439,7 @@ class SQLiteProvider(BaseProvider):
                 )
 
             conn.execute(
-                "UPDATE forms SET responses_count = responses_count + 1, last_response_at = ?, updatedAt = ? WHERE id = ? AND tenantId = ?",
+                "UPDATE forms SET responsesCount = responsesCount + 1, lastResponseAt = ?, updatedAt = ? WHERE id = ? AND tenantId = ?",
                 (utcnow(), utcnow(), form_id, self._tenantId()),
             )
             conn.commit()
@@ -8687,7 +8948,7 @@ class SQLiteProvider(BaseProvider):
         resolved_company_id = company_id
         if contact_id and not resolved_company_id:
             with self._connect() as conn:
-                row = conn.execute("SELECT company_id FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
+                row = conn.execute("SELECT companyId FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
                 resolved_company_id = row["companyId"] if row else None
 
         with self._connect() as conn:
@@ -8730,7 +8991,7 @@ class SQLiteProvider(BaseProvider):
                 )
             if resolved_company_id:
                 conn.execute(
-                    "INSERT INTO thread_links (id, tenantId, thread_id, source_type, source_id, label) SELECT ?, ?, ?, 'company', id, name FROM companies WHERE id = ? AND tenantId = ?",
+                    "INSERT INTO thread_links (id, tenantId, threadId, sourceType, sourceId, label) SELECT ?, ?, ?, 'company', id, name FROM companies WHERE id = ? AND tenantId = ?",
                     (f"thread-link-{thread_id}-company", self._tenantId(), thread_id, resolved_company_id, self._tenantId()),
                 )
             conn.commit()
@@ -8752,11 +9013,11 @@ class SQLiteProvider(BaseProvider):
                 if thread["contact_id"] == contact_id and thread["channel_type"] == channel_type and thread["status"] != "closed":
                     return thread
         with self._connect() as conn:
-            contact = conn.execute("SELECT first_name, last_name, company_id FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
+            contact = conn.execute("SELECT firstName, lastName, companyId FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
         if not contact:
             raise ValueError("Contact not found")
-        resolved_subject = subject or f"{channel_type.upper()} follow-up for {contact['first_name']} {contact['last_name']}".strip()
-        return self.create_thread(resolved_subject, channel_type=channel_type, contact_id=contact_id, company_id=contact["company_id"], body=body, assignee="STRIKER" if channel_type == "email" else "ECHO", mailbox_id=mailbox_id)
+        resolved_subject = subject or f"{channel_type.upper()} follow-up for {contact['firstName']} {contact['lastName']}".strip()
+        return self.create_thread(resolved_subject, channel_type=channel_type, contact_id=contact_id, company_id=contact["companyId"], body=body, assignee="STRIKER" if channel_type == "email" else "ECHO", mailbox_id=mailbox_id)
 
     def send_thread_message(
         self,
@@ -8775,7 +9036,7 @@ class SQLiteProvider(BaseProvider):
             if not thread_row:
                 raise ValueError("Thread not found")
             thread = dict(thread_row)
-            resolved_channel = channel_type or thread["channel_type"]
+            resolved_channel = channel_type or thread["channelType"]
             resolved_recipients = recipients or []
             conn.execute(
                 """
@@ -8789,7 +9050,7 @@ class SQLiteProvider(BaseProvider):
                     body, body, "", "sent" if direction == "outbound" else "logged" if direction == "system" else "received", createdAt, createdAt,
                 ),
             )
-            ai_flags = json_loads(thread["ai_flags_json"], {})
+            ai_flags = json_loads(thread["aiFlagsJson"], {})
             status = thread["status"]
             summary_text = "System note logged: " + body[:120]
             next_step = "Review the CRM/operator note and decide the next move."

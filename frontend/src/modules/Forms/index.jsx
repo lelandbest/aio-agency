@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
   createFormApi,
@@ -8,6 +8,8 @@ import {
   getCmsTablesApi,
   getFormFoldersApi,
   getFormsApi,
+  getMediaLibraryApi,
+  uploadMediaFileApi,
   updateFormApi,
   updateFormFolderApi
 } from '../../services/backendApi';
@@ -23,8 +25,8 @@ import {
   UploadCloud, ShoppingCart, Image, MapPin, PenTool, ListChecks,
   Code, Columns, Layers, Table, GripVertical, Trash2, ExternalLink, Save,
   Bot, Settings, Bold, Italic, Underline, AlignCenter, AlignRight, GitMerge,
-  Database, Download, Search, Filter, Edit2, Folder, FolderOpen, ChevronRight,
-  Eye, Crosshair, ArrowLeft
+  Database, Download, Search, Filter, Folder, FolderOpen, ChevronRight,
+  Eye, ArrowLeft
 } from 'lucide-react';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
@@ -34,16 +36,71 @@ import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ShareFormModal from '../../components/Modals/ShareFormModal';
 import AIAssistButton from '../../components/AIAssistButton';
 import FormTemplateGallery from './FormTemplateGallery';
+import { useAIAssist } from '../../contexts/AIAssistContext';
+
+const contentFieldTypes = new Set(['textarea', 'content', 'html']);
+
+const isContentFieldType = (fieldType = '') => contentFieldTypes.has((fieldType || '').toString().trim().toLowerCase());
 
 const createFieldName = (label, fallback = 'field') => {
-  const base = (label || fallback)
+  const fallbackKey = (fallback || 'field').toString().trim().replace(/[^A-Za-z0-9]+/g, '') || 'field';
+  const normalized = (label || fallbackKey)
     .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return base || fallback;
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .trim();
+
+  const parts = normalized.split(/\s+/).filter(Boolean).map((part) => part.toLowerCase());
+  if (!parts.length) {
+    return fallbackKey.charAt(0).toLowerCase() + fallbackKey.slice(1);
+  }
+
+  let base = parts[0] + parts.slice(1).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+  if (/^\d/.test(base)) {
+    base = `${fallbackKey.charAt(0).toLowerCase() + fallbackKey.slice(1)}${base.charAt(0).toUpperCase()}${base.slice(1)}`;
+  }
+  return base;
 };
+
+const buildUniqueFieldName = (baseName, existingFields = [], excludedFieldId = null) => {
+  const normalizedBase = createFieldName(baseName, 'field');
+  const existingNames = new Set(
+    (existingFields || [])
+      .filter((field) => field?.id !== excludedFieldId)
+      .map((field) => field?.name)
+      .filter(Boolean)
+  );
+
+  if (!existingNames.has(normalizedBase)) {
+    return normalizedBase;
+  }
+
+  let suffix = 2;
+  let candidate = `${normalizedBase}${suffix}`;
+  while (existingNames.has(candidate)) {
+    suffix += 1;
+    candidate = `${normalizedBase}${suffix}`;
+  }
+  return candidate;
+};
+
+const normalizeFormField = (field, index = 0) => ({
+  ...field,
+  id: field?.id || `field-${Date.now()}-${index}`,
+  name: typeof field?.name === 'string' ? field.name : '',
+  type: field?.type || 'text',
+  label: field?.label || defaultLabelForType(field),
+  placeholder: field?.placeholder || '',
+  required: Boolean(field?.required),
+  options: Array.isArray(field?.options) ? [...field.options] : field?.options,
+  isContent: typeof field?.isContent === 'boolean' ? field.isContent : isContentFieldType(field?.type),
+  mapToContact: field?.mapToContact || null,
+  isIdentifier: Boolean(field?.isIdentifier),
+});
+
+const normalizeFormSchema = (schema = []) => (
+  Array.isArray(schema) ? schema.map((field, index) => normalizeFormField(field, index)) : []
+);
 
 const defaultLabelForType = (field) => {
   const fieldType = field?.type || 'text';
@@ -63,38 +120,77 @@ const defaultLabelForType = (field) => {
   return byType[fieldType] || field?.label || 'Field Label';
 };
 
-const buildTemplateField = (field, index) => ({
-  id: `field_${Date.now()}_${index}`,
-  name: createFieldName(field.label, field.type),
+const buildTemplateField = (field, index, existingFields = []) => normalizeFormField({
+  ...field,
+  id: `field-${Date.now()}-${index}`,
+  name: buildUniqueFieldName(field.name || field.label || field.type, existingFields),
   type: field.type,
   label: field.label,
   placeholder: field.placeholder || '',
   required: Boolean(field.required),
   options: Array.isArray(field.options) ? [...field.options] : undefined,
-  prefix: '',
-  suffix: '',
-  mask: '',
-  customClass: '',
+  prefix: field.prefix || '',
+  suffix: field.suffix || '',
+  mask: field.mask || '',
+  customClass: field.customClass || '',
   tabIndex: index,
-  labelPosition: 'Top',
-  hidden: false,
-  hideLabel: false,
-  showWordCounter: false,
+  labelPosition: field.labelPosition || 'Top',
+  hidden: Boolean(field.hidden),
+  hideLabel: Boolean(field.hideLabel),
+  showWordCounter: Boolean(field.showWordCounter),
   content: field.type === 'content' ? (field.content || '') : '',
-  minLength: '',
-  maxLength: '',
-  pattern: '',
-  customValidation: '',
-  errorMessage: '',
+  minLength: field.minLength || '',
+  maxLength: field.maxLength || '',
+  pattern: field.pattern || '',
+  customValidation: field.customValidation || '',
+  errorMessage: field.errorMessage || '',
   mapToContact: field.mapToContact || null,
   isIdentifier: Boolean(field.isIdentifier),
+  isContent: typeof field.isContent === 'boolean' ? field.isContent : isContentFieldType(field.type),
 });
+
+const buildTemplateSchema = (templateFields = []) => {
+  const builtFields = [];
+  templateFields.forEach((field, index) => {
+    builtFields.push(buildTemplateField(field, index, builtFields));
+  });
+  return builtFields;
+};
+
+const defaultFormSettings = {
+  createContact: true,
+  updateContact: true,
+  webhookUrl: '',
+  notificationEmail: '',
+  redirectUrl: '',
+  thankYouMessage: 'Thanks, we received your submission.',
+  headerImage: '',
+};
+
+const normalizeFormSettings = (settings = {}) => ({
+  ...defaultFormSettings,
+  ...(settings || {}),
+  headerImage: settings?.headerImage || '',
+});
+
+const normalizeFormRecord = (form) => (
+  form
+    ? {
+        ...form,
+        schema: normalizeFormSchema(form.schema),
+        settings: normalizeFormSettings(form.settings),
+      }
+    : form
+);
+
+const resolveFormHeaderImage = (form) => normalizeFormSettings(form?.settings).headerImage;
 
 /**
  * FormBuilderModule
  * Comprehensive form builder with folder organization and drag-and-drop field management
  */
 const FormBuilderModule = () => {
+  const { openAIAssist } = useAIAssist();
   const [view, setView] = useState('list');
   const [forms, setForms] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -123,6 +219,11 @@ const FormBuilderModule = () => {
   const [saveAction, triggerSaveAction] = useTransientSaveFeedback(2000);
   const [isSaving, setIsSaving] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
+  const [headerImageAssets, setHeaderImageAssets] = useState([]);
+  const [headerImageLoading, setHeaderImageLoading] = useState(false);
+  const [headerImageUploading, setHeaderImageUploading] = useState(false);
+  const headerImageInputRef = useRef(null);
+  const selectedFieldSupportsAssist = Boolean(selectedField?.isContent);
 
   // Sidebar Category State
   const [expandedCategories, setExpandedCategories] = useState({ 0: true });
@@ -192,6 +293,36 @@ const FormBuilderModule = () => {
     fetchCmsTables();
   }, []);
 
+  useEffect(() => {
+    if (view !== 'editor' || !currentForm) {
+      return;
+    }
+    let active = true;
+    const loadHeaderImageAssets = async () => {
+      setHeaderImageLoading(true);
+      try {
+        const media = await getMediaLibraryApi();
+        if (!active) {
+          return;
+        }
+        setHeaderImageAssets((media || []).filter((asset) => asset?.mediaType === 'image' && asset?.sourceUrl));
+      } catch (error) {
+        console.error('Error loading header image assets:', error);
+        if (active) {
+          setHeaderImageAssets([]);
+        }
+      } finally {
+        if (active) {
+          setHeaderImageLoading(false);
+        }
+      }
+    };
+    loadHeaderImageAssets();
+    return () => {
+      active = false;
+    };
+  }, [view, currentForm?.id]);
+
   const fetchFolders = async () => {
     try {
       const data = await getFormFoldersApi();
@@ -232,7 +363,7 @@ const FormBuilderModule = () => {
     setLoading(true);
     try {
       const data = await getFormsApi();
-      setForms(Array.isArray(data) ? data : []);
+      setForms(Array.isArray(data) ? data.map(normalizeFormRecord) : []);
     } catch (error) {
       console.error('Error loading forms:', error);
       setForms([]);
@@ -343,7 +474,7 @@ const FormBuilderModule = () => {
   };
 
   const createNewForm = async () => {
-    const newForm = {
+      const newForm = {
       name: "New Untitled Form",
       folderId: folders[0]?.id || null,
       status: "Draft",
@@ -355,22 +486,16 @@ const FormBuilderModule = () => {
       creator: "AIO Flow™",
       triggers: null,
       automation: null,
-      settings: {
-        createContact: true,
-        updateContact: true,
-        webhookUrl: '',
-        notificationEmail: '',
-        redirectUrl: '',
-        thankYouMessage: 'Thanks, we received your submission.'
-      },
-      slug: `form_${Date.now()}`,
+      settings: { ...defaultFormSettings },
+      slug: `form-${Date.now()}`,
       schema: []
     };
     try {
       const data = await createFormApi(newForm);
       if (data) {
-        setForms(prev => [data, ...prev]);
-        setCurrentForm(data);
+        const normalized = normalizeFormRecord(data);
+        setForms(prev => [normalized, ...prev]);
+        setCurrentForm(normalized);
         setView('editor');
       }
     } catch (error) {
@@ -393,26 +518,61 @@ const FormBuilderModule = () => {
       triggers: null,
       automation: null,
       settings: {
-        createContact: true,
-        updateContact: true,
-        webhookUrl: '',
-        notificationEmail: '',
-        redirectUrl: '',
-        thankYouMessage: 'Thanks, we received your submission.',
+        ...defaultFormSettings,
         templateSourceId: template?.id || null,
         templateSourceName: template?.name || null,
       },
-      slug: `form_${timestamp}`,
-      schema: (template?.fields || []).map((field, index) => buildTemplateField(field, index)),
+      slug: `form-${timestamp}`,
+      schema: buildTemplateSchema(template?.fields || []),
     };
 
     const created = await createFormApi(newForm);
     if (created) {
-      setForms(prev => [created, ...prev]);
-      setCurrentForm(created);
+      const normalized = normalizeFormRecord(created);
+      setForms(prev => [normalized, ...prev]);
+      setCurrentForm(normalized);
       setSelectedField(null);
       setShowTemplateGallery(false);
       setView('editor');
+    }
+  };
+
+  const updateCurrentFormSettings = (partialSettings) => {
+    if (!currentForm) {
+      return;
+    }
+    setCurrentForm({
+      ...currentForm,
+      settings: {
+        ...normalizeFormSettings(currentForm.settings),
+        ...partialSettings,
+      },
+    });
+  };
+
+  const handleHeaderImageUpload = async (file) => {
+    if (!file) {
+      return;
+    }
+    try {
+      setHeaderImageUploading(true);
+      const uploaded = await uploadMediaFileApi(file);
+      const asset = uploaded?.asset || null;
+      if (asset?.sourceUrl) {
+        updateCurrentFormSettings({ headerImage: asset.sourceUrl });
+        setHeaderImageAssets((previous) => {
+          const next = previous.filter((item) => item.assetId !== asset.assetId);
+          return [asset, ...next];
+        });
+      }
+    } catch (error) {
+      console.error('Error uploading form header image:', error);
+      alert(`Failed to upload header image: ${error.message}`);
+    } finally {
+      setHeaderImageUploading(false);
+      if (headerImageInputRef.current) {
+        headerImageInputRef.current.value = '';
+      }
     }
   };
 
@@ -550,9 +710,9 @@ const FormBuilderModule = () => {
 
   const handleAddField = (tool) => {
     if (!currentForm) return;
-    const newField = {
-      id: `field_${Date.now()}`,
-      name: `${createFieldName(tool.defaultLabel, tool.type)}_${(currentForm.schema?.length || 0) + 1}`,
+    const newField = normalizeFormField({
+      id: `field-${Date.now()}`,
+      name: buildUniqueFieldName(tool.defaultLabel || tool.type, currentForm.schema || []),
       type: tool.type,
       label: tool.defaultLabel,
       placeholder: '',
@@ -575,8 +735,9 @@ const FormBuilderModule = () => {
       customValidation: '',
       errorMessage: '',
       mapToContact: tool.type === 'email' ? 'email' : tool.type === 'tel' ? 'phone' : null,
-      isIdentifier: tool.type === 'email'
-    };
+      isIdentifier: tool.type === 'email',
+      isContent: isContentFieldType(tool.type),
+    });
 
     const updatedForm = {
       ...currentForm,
@@ -593,10 +754,16 @@ const FormBuilderModule = () => {
       if (f.id === fieldId) {
         const updated = { ...f, [key]: value };
         if (key === 'label' && !f.name) {
-          updated.name = createFieldName(value, f.type);
+          updated.name = buildUniqueFieldName(value, currentForm.schema, fieldId);
+        }
+        if (key === 'name') {
+          updated.name = buildUniqueFieldName(value, currentForm.schema, fieldId);
         }
         if (key === 'options' && typeof value === 'string') {
           updated.options = value.split(',').map(o => o.trim());
+        }
+        if (key === 'type') {
+          updated.isContent = isContentFieldType(value);
         }
         if (selectedField?.id === fieldId) setSelectedField(updated);
         return updated;
@@ -617,20 +784,26 @@ const FormBuilderModule = () => {
     if (!currentForm) return;
     try {
       setIsSaving(true);
-      const savedForm = await updateFormApi(currentForm.id, {
-        schema: currentForm.schema.map((field) => ({
+      const normalizedSchema = [];
+      for (const field of currentForm.schema || []) {
+        const normalizedField = normalizeFormField({
           ...field,
-          name: field.name || createFieldName(field.label, field.type)
-        })),
+          name: field.name || buildUniqueFieldName(field.label || field.type, normalizedSchema),
+          isContent: typeof field.isContent === 'boolean' ? field.isContent : isContentFieldType(field.type),
+        });
+        normalizedSchema.push(normalizedField);
+      }
+      const savedForm = await updateFormApi(currentForm.id, {
+        schema: normalizedSchema,
         name: currentForm.name,
         folderId: currentForm.folderId,
-        slug: currentForm.slug || `form_${Date.now()}`,
+      slug: currentForm.slug || `form-${Date.now()}`,
         settings: currentForm.settings,
         status: currentForm.status,
         isActive: currentForm.isActive
       });
       if (savedForm) {
-        setCurrentForm(savedForm);
+        setCurrentForm(normalizeFormRecord(savedForm));
       }
       triggerSaveAction('form-saved');
       fetchForms();
@@ -696,7 +869,7 @@ const FormBuilderModule = () => {
         key: "name",
         render: (form) => (
           <button
-            onClick={() => { setCurrentForm(form); setView('editor'); }}
+            onClick={() => { setCurrentForm(normalizeFormRecord(form)); setView('editor'); }}
             className="text-sm text-[var(--color-text-primary)] font-medium hover:text-[var(--color-primary)] text-left"
           >
             {form.name}
@@ -778,7 +951,7 @@ const FormBuilderModule = () => {
             </button>
             <button
               onClick={() => {
-                setCurrentForm(form);
+                setCurrentForm(normalizeFormRecord(form));
                 setView('editor');
               }}
               className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)]"
@@ -804,6 +977,7 @@ const FormBuilderModule = () => {
           <ModuleHeader
             title="Forms"
             showTitle={false}
+            onModuleAi={() => openAIAssist?.({ context: { module: 'forms', surface: 'library', formsCount: forms.length } })}
             leftActions={[
               {
                 label: 'Create Form',
@@ -862,7 +1036,7 @@ const FormBuilderModule = () => {
                       key={form.id}
                       type="button"
                       onClick={() => {
-                        setCurrentForm(form);
+                        setCurrentForm(normalizeFormRecord(form));
                         setView('editor');
                       }}
                       className="inline-flex shrink-0 items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2.5 text-left text-xs text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-hover)]"
@@ -974,18 +1148,68 @@ const FormBuilderModule = () => {
 
   // Editor View
   return (
-    <div className="flex h-full min-h-0 bg-transparent gap-[5px]">
+    <div className="flex h-full min-h-0 flex-col gap-4 bg-transparent">
+      <ModuleHeader
+        title="Forms"
+        showTitle={false}
+        onModuleAi={() => openAIAssist?.({
+          context: {
+            module: 'forms',
+            surface: 'builder',
+            formId: currentForm?.id,
+            formName: currentForm?.name,
+            selectedFieldId: selectedField?.id || null,
+            selectedFieldName: selectedField?.name || null,
+          }
+        })}
+        leftActions={[
+          {
+            label: 'Back to List',
+            icon: ArrowLeft,
+            onClick: () => {
+              setCurrentForm(null);
+              setSelectedField(null);
+              setView('list');
+            },
+            variant: 'secondary'
+          }
+        ]}
+        toolbarCenterSlot={(
+          <div className="w-full max-w-md">
+            <input
+              value={currentForm?.name || ''}
+              onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
+              className="h-9 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 text-sm font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
+              placeholder="Enter form name..."
+            />
+          </div>
+        )}
+        toolbarRightSlot={(
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleOpenPublicLink(currentForm)}
+              className="btn-secondary inline-flex h-8 shrink-0 items-center justify-center gap-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em]"
+              title="Open public form"
+            >
+              <ExternalLink size={12} />
+              <span>Open</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveForm}
+              disabled={isSaving}
+              className={`btn-secondary inline-flex h-8 shrink-0 items-center justify-center gap-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] ${saveAction === 'form-saved' ? 'border-green-500/40 text-green-300' : ''}`}
+            >
+              <Save size={12} />
+              <span>{isSaving ? 'Saving' : saveAction === 'form-saved' ? 'Saved' : 'Save Form'}</span>
+            </button>
+          </div>
+        )}
+      />
+      <div className="flex min-h-0 flex-1 bg-transparent gap-[5px]">
       {/* Left Sidebar - Field Tools */}
       <div className="w-56 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
-        <div className="p-3 border-b border-[var(--color-border)] sticky top-0 bg-[var(--color-bg-tertiary)] z-10">
-          <button 
-            onClick={() => setView('list')} 
-            className="flex items-center gap-2 w-full text-left text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
-          >
-            <ArrowRight size={16} className="rotate-180" />
-            <span className="text-xs font-bold">Back to List</span>
-          </button>
-        </div>
         <div className="p-1.5 space-y-0.5">
           {FORM_TOOLS.map((category, idx) => (
             <div key={idx}>
@@ -1017,45 +1241,18 @@ const FormBuilderModule = () => {
       </div>
 
       {/* Canvas */}
-      <div className="min-h-0 min-w-0 flex-1 flex flex-col bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
-        {/* Editor Header */}
-        <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-4 px-6 h-14 bg-[var(--color-bg-tertiary)]">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => { setCurrentForm(null); setView('list'); }} className="flex-shrink-0 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1 transition-colors">
-              <ArrowLeft size={16} />
-            </button>
-            <div className="relative group min-w-0">
-              <input
-                value={currentForm?.name || ''}
-                onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
-                className="bg-transparent text-[var(--color-text-primary)] text-sm font-bold focus:outline-none w-48 md:w-72 transition-all px-2 py-1 rounded"
-                placeholder="Enter form name..."
-              />
-              <Edit2 size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none group-hover:text-[var(--color-primary)] transition-colors" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <AIAssistButton
-              onAssist={() => runFormAssist('form-name')}
-              loading={assistTarget === 'form-name'}
-              tooltip="Draft form name"
-              iconType="crosshair"
-            />
-            <button className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] p-1.5 transition-colors">
-              <ExternalLink size={14} />
-            </button>
-            <button
-               onClick={handleSaveForm}
-               disabled={isSaving}
-               className={`bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-[var(--color-primary)]/20 active:scale-95 disabled:opacity-50 ${saveAction === 'form-saved' ? 'bg-green-600' : ''}`}
-             >
-               <Save size={12} /> {isSaving ? 'Saving...' : saveAction === 'form-saved' ? 'Saved!' : 'Save Form'}
-             </button>
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto p-8 relative">
-          <div className="max-w-3xl mx-auto space-y-4 pb-20">
-            {currentForm?.schema?.length === 0 && (
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-8 relative">
+            <div className="max-w-3xl mx-auto space-y-4 pb-20">
+              {resolveFormHeaderImage(currentForm) ? (
+                <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+                  <img
+                    src={resolveFormHeaderImage(currentForm)}
+                    alt={`${currentForm?.name || 'Form'} header`}
+                    className="h-44 w-full object-cover"
+                  />
+                </div>
+              ) : null}
+              {currentForm?.schema?.length === 0 && (
               <div className="text-center text-[var(--color-text-tertiary)] py-20 border-2 border-dashed border-[var(--color-border)] rounded-xl flex flex-col items-center justify-center">
                 <Box size={48} className="mb-4 opacity-20" />
                 <p className="text-sm font-medium text-[var(--color-text-primary)]">Start with a field.</p>
@@ -1116,7 +1313,6 @@ const FormBuilderModule = () => {
               </div>
             ))}
           </div>
-        </div>
       </div>
 
       {/* Right Sidebar - Field Configuration */}
@@ -1143,14 +1339,18 @@ const FormBuilderModule = () => {
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Label</label>
-                      <AIAssistButton variant="inline" onAssist={() => runFormAssist('label')} loading={assistTarget === `${selectedField.id}:label`} tooltip="Draft field label" iconType="crosshair" />
+                      {selectedFieldSupportsAssist ? (
+                        <AIAssistButton variant="inline" onAssist={() => runFormAssist('label')} loading={assistTarget === `${selectedField.id}:label`} tooltip="Draft field label" />
+                      ) : null}
                     </div>
                     <input value={selectedField.label} onChange={(e) => updateFieldProperty(selectedField.id, 'label', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Placeholder</label>
-                      <AIAssistButton variant="inline" onAssist={() => runFormAssist('placeholder')} loading={assistTarget === `${selectedField.id}:placeholder`} tooltip="Draft placeholder copy" iconType="crosshair" />
+                      {selectedFieldSupportsAssist ? (
+                        <AIAssistButton variant="inline" onAssist={() => runFormAssist('placeholder')} loading={assistTarget === `${selectedField.id}:placeholder`} tooltip="Draft placeholder copy" />
+                      ) : null}
                     </div>
                     <input value={selectedField.placeholder || ''} onChange={(e) => updateFieldProperty(selectedField.id, 'placeholder', e.target.value)} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
                   </div>
@@ -1169,7 +1369,9 @@ const FormBuilderModule = () => {
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Default Value</label>
-                      <AIAssistButton variant="inline" onAssist={() => runFormAssist('defaultValue')} loading={assistTarget === `${selectedField.id}:defaultValue`} tooltip="Draft default value" iconType="crosshair" />
+                      {selectedFieldSupportsAssist ? (
+                        <AIAssistButton variant="inline" onAssist={() => runFormAssist('defaultValue')} loading={assistTarget === `${selectedField.id}:defaultValue`} tooltip="Draft default value" />
+                      ) : null}
                     </div>
                     <input
                       value={selectedField.defaultValue || ''}
@@ -1182,7 +1384,9 @@ const FormBuilderModule = () => {
                     <div>
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Options (comma-separated)</label>
-                        <AIAssistButton variant="inline" onAssist={() => runFormAssist('options')} loading={assistTarget === `${selectedField.id}:options`} tooltip="Draft field options" iconType="crosshair" />
+                        {selectedFieldSupportsAssist ? (
+                          <AIAssistButton variant="inline" onAssist={() => runFormAssist('options')} loading={assistTarget === `${selectedField.id}:options`} tooltip="Draft field options" />
+                        ) : null}
                       </div>
                       <input
                         value={selectedField.options?.join(', ') || ''}
@@ -1236,7 +1440,9 @@ const FormBuilderModule = () => {
                       <div>
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <label className="block text-xs font-bold text-[var(--color-text-tertiary)] uppercase">Error Message</label>
-                          <AIAssistButton variant="inline" onAssist={() => runFormAssist('errorMessage')} loading={assistTarget === `${selectedField.id}:errorMessage`} tooltip="Draft validation message" iconType="crosshair" />
+                          {selectedFieldSupportsAssist ? (
+                            <AIAssistButton variant="inline" onAssist={() => runFormAssist('errorMessage')} loading={assistTarget === `${selectedField.id}:errorMessage`} tooltip="Draft validation message" />
+                          ) : null}
                         </div>
                         <textarea
                       value={selectedField.errorMessage || ''}
@@ -1373,10 +1579,10 @@ const FormBuilderModule = () => {
                       <div>
                         <label className="block text-xs text-[var(--color-text-tertiary)] uppercase mb-2">Confirmation Text</label>
                         <textarea
-                          value={selectedField.billingConfirmationText || 'I agree to {offer_price} starting today until cancelled online.'}
+                          value={selectedField.billingConfirmationText || 'I agree to {offerPrice} starting today until cancelled online.'}
                           onChange={(e) => updateFieldProperty(selectedField.id, 'billingConfirmationText', e.target.value)}
                           className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] resize-none h-20"
-                          placeholder="Use {offer_price} as a token"
+                          placeholder="Use {offerPrice} as a token"
                         />
                       </div>
                     )}
@@ -1408,11 +1614,86 @@ const FormBuilderModule = () => {
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-[var(--color-text-tertiary)] p-8 text-center">
-            <Settings size={48} className="mb-4 opacity-20" />
-            <p className="text-sm">Select a field to configure</p>
+          <div className="flex h-full flex-col overflow-y-auto p-5">
+            <div className="mb-4 flex items-center gap-3 border-b border-[var(--color-border)] pb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)]">
+                <Settings size={18} />
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Form Settings</div>
+                <div className="text-sm text-[var(--color-text-secondary)]">Top-level metadata and branding.</div>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Header Image</label>
+                <input
+                  value={resolveFormHeaderImage(currentForm)}
+                  onChange={(e) => updateCurrentFormSettings({ headerImage: e.target.value })}
+                  placeholder="Paste image URL or media source URL"
+                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Use Existing Image</label>
+                <select
+                  value={resolveFormHeaderImage(currentForm)}
+                  onChange={(e) => updateCurrentFormSettings({ headerImage: e.target.value })}
+                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  <option value="">{headerImageLoading ? 'Loading images...' : 'Select image asset'}</option>
+                  {headerImageAssets.map((asset) => (
+                    <option key={asset.assetId || asset.sourceUrl} value={asset.sourceUrl}>
+                      {asset.title || asset.assetId || asset.sourceUrl}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={headerImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleHeaderImageUpload(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => headerImageInputRef.current?.click()}
+                  disabled={headerImageUploading}
+                  className="inline-flex items-center gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] disabled:opacity-60"
+                >
+                  <UploadCloud size={14} />
+                  {headerImageUploading ? 'Uploading...' : 'Upload Image'}
+                </button>
+                {resolveFormHeaderImage(currentForm) ? (
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentFormSettings({ headerImage: '' })}
+                    className="inline-flex items-center gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
+                  >
+                    <Trash2 size={14} />
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              {resolveFormHeaderImage(currentForm) ? (
+                <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+                  <img
+                    src={resolveFormHeaderImage(currentForm)}
+                    alt={`${currentForm?.name || 'Form'} header preview`}
+                    className="h-28 w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-[var(--color-border)] px-4 py-6 text-center text-sm text-[var(--color-text-tertiary)]">
+                  Select a field to configure, or add a header image here.
+                </div>
+              )}
+            </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

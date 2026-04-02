@@ -86,10 +86,10 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                                 <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Brand Identity</h4>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                {renderField('company_name', 'Business Name', 'text', 'e.g. AIO BrandMaster™')}
-                                {renderField('brand_voice', 'Brand Voice', 'text', 'e.g. AI-first, professional...')}
+                                {renderField('companyName', 'Business Name', 'text', 'e.g. AIO BrandMaster™')}
+                                {renderField('brandVoice', 'Brand Voice', 'text', 'e.g. AI-first, professional...')}
                             </div>
-                            {renderField('value_prop', 'Value Proposition', 'textarea', 'What is your core value promise?')}
+                            {renderField('valueProp', 'Value Proposition', 'textarea', 'What is your core value promise?')}
                         </div>
                     )}
 
@@ -110,8 +110,8 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                                 <User className="text-[var(--color-primary)]" size={18} />
                                 <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Target Audience (ICP)</h4>
                             </div>
-                            {renderField('ideal_customer', 'Customer Profile', 'textarea', 'Describe your ideal buyer...')}
-                            {renderField('pain_points', 'Customer Pain Points', 'textarea', 'Add primary friction points identified...')}
+                            {renderField('idealCustomer', 'Customer Profile', 'textarea', 'Describe your ideal buyer...')}
+                            {renderField('painPoints', 'Customer Pain Points', 'textarea', 'Add primary friction points identified...')}
                         </div>
                     )}
 
@@ -122,7 +122,7 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                                 <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Market & Competitive Strategy</h4>
                             </div>
                             {renderField('competitors', 'Competitor Landscape', 'textarea', 'Identify key competitors and their gaps...')}
-                            {renderField('marketing_strategy', 'Marketing Angle', 'textarea', 'Primary marketing analysis/strategy...')}
+                            {renderField('marketingStrategy', 'Marketing Angle', 'textarea', 'Primary marketing analysis/strategy...')}
                             {renderField('workflow', 'Operational workflow', 'textarea', 'Execution path...')}
                         </div>
                     )}

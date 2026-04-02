@@ -314,6 +314,27 @@
       "content_hash": "48890b2c0727512f",
       "created_at": "2026-04-02T00:43:45.910639+00:00",
       "updated_at": "2026-04-02T00:43:45.911262+00:00"
+    },
+    {
+      "id": "media-asset-a3e7f4d372ac",
+      "tenant_id": "tenant-primary",
+      "provider": "local_upload",
+      "asset_type": "uploaded_file",
+      "media_type": "image",
+      "title": "AIO-192px",
+      "source": "upload",
+      "stage": "final",
+      "linked_id": null,
+      "source_url": "/api/media/image/2b82b279246d4f89bac236eb6cac3423.png",
+      "metadata": {
+        "original_filename": "AIO-192px.png",
+        "mime_type": "image/png",
+        "size_bytes": 34816
+      },
+      "attachments": [],
+      "content_hash": "0e9b06ab79e4e962",
+      "created_at": "2026-04-02T06:20:22.137124+00:00",
+      "updated_at": "2026-04-02T06:20:22.137489+00:00"
     }
   ],
   "render_jobs": [],

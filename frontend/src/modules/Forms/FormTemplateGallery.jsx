@@ -63,35 +63,47 @@ const FormTemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-      <div className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
-          <div className="flex items-center gap-4">
+      <div className="flex max-h-[90vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
+        <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] px-6 py-5">
+          <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
               <Layers size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Form Template Library</h2>
               <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Start from a template or build from scratch.</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-[var(--color-text-tertiary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="border-b border-[var(--color-border)] px-6 py-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="relative">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative hidden w-[320px] shrink-0 md:block">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search form templates..."
+                placeholder="Search templates..."
+                className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-2 pl-10 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2 text-[var(--color-text-tertiary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="border-b border-[var(--color-border)] px-6 py-4">
+          <div className="grid gap-3">
+            <div className="relative md:hidden">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search templates..."
                 className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-3 pl-10 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
               />
             </div>
@@ -114,7 +126,7 @@ const FormTemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_380px]">
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="no-scrollbar min-h-0 overflow-y-auto border-r border-[var(--color-border)] px-6 py-5">
             <div className="grid gap-3 md:grid-cols-2">
               {filteredTemplates.map((template) => {
@@ -161,34 +173,35 @@ const FormTemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
             ) : null}
           </div>
 
-          <div className="flex min-h-0 flex-col bg-[var(--color-bg-secondary)] px-6 py-5">
+          <div className="flex min-h-0 flex-col bg-[var(--color-bg-secondary)] px-5 py-5">
             {previewTemplate ? (
               <>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
-                    <FileText size={18} />
+                <div className="relative">
+                  <div className="absolute right-0 top-0 flex flex-wrap justify-end gap-1.5">
+                    <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+                      {previewTemplate.category}
+                    </span>
+                    <span className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${complexityTone[previewTemplate.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
+                      {previewTemplate.complexity}
+                    </span>
+                    <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+                      {previewTemplate.fields.length}
+                    </span>
                   </div>
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Preview</div>
-                    <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{previewTemplate.name}</h3>
+                  <div className="flex items-center gap-3 pr-28">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                      <FileText size={18} />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Preview</div>
+                      <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{previewTemplate.name}</h3>
+                    </div>
                   </div>
                 </div>
 
                 <p className="mt-4 text-sm text-[var(--color-text-secondary)]">{previewTemplate.description}</p>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
-                    {previewTemplate.category}
-                  </span>
-                  <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${complexityTone[previewTemplate.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
-                    {previewTemplate.complexity}
-                  </span>
-                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
-                    {previewTemplate.fields.length} Fields
-                  </span>
-                </div>
-
-                <div className="mt-6">
+                <div className="mt-5">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Field Outline</div>
                   <div className="mt-3 space-y-2">
                     {previewTemplate.fields.map((field, index) => (
