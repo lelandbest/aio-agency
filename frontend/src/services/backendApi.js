@@ -46,9 +46,10 @@ async function request(path, options = {}) {
   }
 
   const sessionToken = getStoredSessionToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
       ...(options.headers || {})
     },
@@ -68,7 +69,7 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-function withSessionToken(url) {
+export function withSessionToken(url) {
   const sessionToken = getStoredSessionToken();
   if (!sessionToken) {
     return url;
@@ -578,6 +579,16 @@ export async function ingestMeetingMediaApi(payload) {
   const response = await request('/api/media/meeting-ingestion', {
     method: 'POST',
     body: JSON.stringify(payload)
+  });
+  return toCamelCase(response.data || null);
+}
+
+export async function uploadMediaFileApi(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await request('/api/media/upload', {
+    method: 'POST',
+    body: formData,
   });
   return toCamelCase(response.data || null);
 }

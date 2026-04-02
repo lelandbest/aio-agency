@@ -80,6 +80,9 @@ DEFAULT_TENANT_SETTINGS: dict[str, Any] = {
             "bufferAfterMinutes": 0,
         },
     },
+    "media": {
+        "transcriptionProvider": "ffmpeg_transcribe",
+    },
     "automation": {
         "defaults": {
             "enabled": True,
@@ -159,6 +162,7 @@ BLUEPRINT_SECTION_KEYS = [
     "domains",
     "comms",
     "calendar",
+    "media",
     "automation",
     "visibility",
     "internal",
@@ -250,7 +254,7 @@ def normalize_tenant_settings_payload(payload: dict[str, Any] | None, *, include
         candidate = {}
 
     normalized: dict[str, Any] = {}
-    for key in ["branding", "globalVariables", "domains", "comms", "calendar", "automation", "visibility"]:
+    for key in ["branding", "globalVariables", "domains", "comms", "calendar", "media", "automation", "visibility"]:
         if isinstance(candidate.get(key), dict):
             normalized[key] = candidate[key]
     internal = _normalize_tenant_internal(candidate)

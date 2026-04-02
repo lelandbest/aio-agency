@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 try:
     from backend.media_library_models import MediaLibraryItem
@@ -12,6 +14,81 @@ except ModuleNotFoundError:
 
 def _clean_text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _normalize_media_type(*values: Any) -> str:
+    hints: list[str] = []
+    for value in values:
+        text = _clean_text(value).lower()
+        if not text:
+            continue
+        hints.append(text)
+        parsed_suffix = Path(urlparse(text).path).suffix.lower().lstrip(".")
+        if parsed_suffix:
+            hints.append(parsed_suffix)
+
+    for hint in hints:
+        if hint.startswith("audio/"):
+            return "audio"
+        if hint.startswith("video/"):
+            return "video"
+        if hint.startswith("image/"):
+            return "image"
+
+    image_hints = {
+        "image",
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "bmp",
+        "webp",
+        "svg",
+        "svg+xml",
+        "tif",
+        "tiff",
+        "heic",
+        "heif",
+    }
+    audio_hints = {
+        "audio",
+        "wav",
+        "wave",
+        "x-wav",
+        "mp3",
+        "mpeg",
+        "m4a",
+        "aac",
+        "ogg",
+        "oga",
+        "opus",
+        "flac",
+        "aiff",
+        "aif",
+        "wma",
+    }
+    video_hints = {
+        "video",
+        "mp4",
+        "mov",
+        "m4v",
+        "avi",
+        "mkv",
+        "webm",
+        "wmv",
+        "mpeg4",
+        "quicktime",
+    }
+
+    for hint in hints:
+        normalized = hint.replace(".", "").replace("_", "-").replace("/", "-")
+        if normalized in image_hints or normalized.endswith("-image"):
+            return "image"
+        if normalized in audio_hints or normalized.endswith("-audio"):
+            return "audio"
+        if normalized in video_hints or normalized.endswith("-video"):
+            return "video"
+    return "video"
 
 
 def _camelcase_metadata(metadata: Any) -> dict[str, Any]:
@@ -35,18 +112,27 @@ def _resolve_source_url(record: dict[str, Any], asset_lookup: dict[str, dict[str
     return None
 
 
+def _resolve_primary_source_asset(record: dict[str, Any], asset_lookup: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    source_asset_ids = record.get("source_asset_ids") if isinstance(record.get("source_asset_ids"), list) else []
+    for source_asset_id in source_asset_ids:
+        source_asset = asset_lookup.get(_clean_text(source_asset_id))
+        if source_asset:
+            return source_asset
+    return None
+
+
 def _normalize_asset_source(record: dict[str, Any], source_url: str | None) -> str:
     raw_source = _clean_text(record.get("source")).lower()
     attachments = record.get("attachments") if isinstance(record.get("attachments"), list) else []
     normalized_url = _clean_text(source_url)
 
-    if normalized_url.startswith("/api/media/"):
-        return "generated"
     if normalized_url.startswith("http://") or normalized_url.startswith("https://"):
         return "url"
     if raw_source in {"upload", "uploaded", "file_upload", "file", "manual", "import"}:
         return "upload"
     if raw_source in {"audio_render", "render", "generated", "transcription", "meeting_ingest"}:
+        return "generated"
+    if normalized_url.startswith("/api/media/"):
         return "generated"
     if any(_clean_text(item.get("type") or item.get("kind")).lower() in {"upload", "file"} for item in attachments if isinstance(item, dict)):
         return "upload"
@@ -68,18 +154,35 @@ def _build_artifact_metadata(record: dict[str, Any], *, artifact_type: str) -> d
     return metadata
 
 
+def _resolve_media_type(record: dict[str, Any], *, asset_lookup: dict[str, dict[str, Any]], source_url: str | None = None) -> str:
+    metadata = record.get("metadata") if isinstance(record.get("metadata"), dict) else {}
+    source_asset = _resolve_primary_source_asset(record, asset_lookup)
+    source_asset_metadata = source_asset.get("metadata") if isinstance(source_asset, dict) and isinstance(source_asset.get("metadata"), dict) else {}
+    return _normalize_media_type(
+        record.get("media_type"),
+        record.get("mime_type"),
+        metadata.get("mime_type"),
+        metadata.get("mimeType"),
+        source_url,
+        source_asset.get("media_type") if isinstance(source_asset, dict) else None,
+        source_asset.get("source_url") if isinstance(source_asset, dict) else None,
+        source_asset_metadata.get("mime_type"),
+        source_asset_metadata.get("mimeType"),
+    )
+
+
 def translate_asset_record(record: dict[str, Any], *, asset_lookup: dict[str, dict[str, Any]]) -> MediaLibraryItem | None:
     asset_id = _clean_text(record.get("id"))
     if not asset_id:
         return None
 
     source_url = _resolve_source_url(record, asset_lookup)
-    media_type = _clean_text(record.get("media_type")).lower() or "video"
+    media_type = _resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url)
 
     return MediaLibraryItem(
         assetId=asset_id,
         source=_normalize_asset_source(record, source_url),
-        type="audio" if media_type == "audio" else "render",
+        type="audio" if media_type == "audio" else "image" if media_type == "image" else "render",
         status=_clean_text(record.get("status")).lower() or "complete",
         sourceUrl=source_url,
         title=_clean_text(record.get("title")) or "Media Asset",
@@ -97,18 +200,19 @@ def translate_transcript_artifact_record(record: dict[str, Any], *, asset_lookup
     if not artifact_id:
         return None
 
+    source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
         source="generated",
         type="transcript",
         status="complete",
-        sourceUrl=_resolve_source_url(record, asset_lookup),
+        sourceUrl=source_url,
         title=_clean_text(record.get("title")) or "Transcript",
         recordKind="artifact",
         artifactType="transcript",
         createdAt=record.get("created_at"),
         deleteType="transcript",
-        mediaType="text",
+        mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
         metadata=_build_artifact_metadata(record, artifact_type="transcript"),
     )
 
@@ -118,18 +222,19 @@ def translate_script_artifact_record(record: dict[str, Any], *, asset_lookup: di
     if not artifact_id:
         return None
 
+    source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
         source="generated",
         type="script",
         status="complete",
-        sourceUrl=_resolve_source_url(record, asset_lookup),
+        sourceUrl=source_url,
         title=_clean_text(record.get("title")) or "Script",
         recordKind="artifact",
         artifactType="script",
         createdAt=record.get("created_at"),
         deleteType="script",
-        mediaType="text",
+        mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
         metadata=_build_artifact_metadata(record, artifact_type="script"),
     )
 
@@ -139,18 +244,19 @@ def translate_run_of_show_artifact_record(record: dict[str, Any], *, asset_looku
     if not artifact_id:
         return None
 
+    source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
         source="generated",
         type="runOfShow",
         status="complete",
-        sourceUrl=_resolve_source_url(record, asset_lookup),
+        sourceUrl=source_url,
         title=_clean_text(record.get("title")) or "Run of Show",
         recordKind="artifact",
         artifactType="runOfShow",
         createdAt=record.get("created_at"),
         deleteType="run_of_show",
-        mediaType="text",
+        mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
         metadata=_build_artifact_metadata(record, artifact_type="run_of_show"),
     )
 
@@ -160,17 +266,18 @@ def translate_publish_artifact_record(record: dict[str, Any], *, asset_lookup: d
     if not artifact_id:
         return None
 
+    source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
         source="generated",
         type="publish",
         status=_clean_text(record.get("publication_status")).lower() or "published",
-        sourceUrl=_resolve_source_url(record, asset_lookup),
+        sourceUrl=source_url,
         title=_clean_text(record.get("title")) or "Publish",
         recordKind="artifact",
         artifactType="publish",
         createdAt=record.get("created_at"),
         deleteType="publish",
-        mediaType="text",
+        mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
         metadata=_build_artifact_metadata(record, artifact_type="publish"),
     )

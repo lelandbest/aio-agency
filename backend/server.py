@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
 import re
 import sqlite3
@@ -12,6 +13,8 @@ import time
 from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from email.parser import BytesParser
+from email.policy import default as email_policy_default
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -25,7 +28,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 from pydantic import BaseModel
@@ -57,10 +60,13 @@ try:
     from backend.media_engine import (
         get_media_engine, build_script_job, build_run_of_show_job, 
         build_audio_render_job, build_render_job, build_transcript_job,
-        normalize_attachment_links
+        clone_json,
+        get_transcription_provider_lock, normalize_attachment_links,
+        resolve_ffprobe_path, resolve_local_media_path,
+        resolve_transcription_provider_id_from_lock,
     )
-    from backend.media_library_models import MediaLibraryResponse
-    from backend.media_library_service import list_media_library_items
+    from backend.media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
+    from backend.media_library_service import get_media_library_item, list_media_library_items
 except ModuleNotFoundError:
     from planner import create_booking_execution_plan
     from agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
@@ -75,10 +81,13 @@ except ModuleNotFoundError:
     from media_engine import (
         get_media_engine, build_script_job, build_run_of_show_job,
         build_audio_render_job, build_render_job, build_transcript_job,
-        normalize_attachment_links
+        clone_json,
+        get_transcription_provider_lock, normalize_attachment_links,
+        resolve_ffprobe_path, resolve_local_media_path,
+        resolve_transcription_provider_id_from_lock,
     )
-    from media_library_models import MediaLibraryResponse
-    from media_library_service import list_media_library_items
+    from media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
+    from media_library_service import get_media_library_item, list_media_library_items
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -1921,6 +1930,8 @@ class MediaRenderRequest(BaseModel):
 class MediaTranscriptRequest(BaseModel):
     provider: str | None = None
     title: str | None = None
+    assetId: str | None = None
+    sourceAssetIds: list[str] | None = None
     sourceUrl: str | None = None
     transcriptText: str | None = None
     speakerSegments: list[dict[str, Any]] | None = None
@@ -4712,6 +4723,79 @@ async def list_media_library(request: Request):
     return MediaLibraryResponse(data=list_media_library_items())
 
 
+def _resolve_media_file_path(kind: str, filename: str) -> Path:
+    if not re.match(r"^[A-Za-z0-9._-]+$", filename):
+        raise HTTPException(status_code=400, detail="Invalid media filename.")
+    media_path = CURRENT_DIR / "data" / kind / filename
+    if not media_path.exists() or not media_path.is_file():
+        raise HTTPException(status_code=404, detail="Media file not found.")
+    return media_path
+
+
+@app.get("/api/media/audio/{filename}")
+async def serve_media_audio(filename: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access audio files.")
+    media_path = _resolve_media_file_path("audio", filename)
+    return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "audio/mpeg")
+
+
+@app.get("/api/media/video/{filename}")
+async def serve_media_video(filename: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access video files.")
+    media_path = _resolve_media_file_path("video", filename)
+    return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "video/mp4")
+
+
+@app.get("/api/media/image/{filename}")
+async def serve_media_image(filename: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access image files.")
+    media_path = _resolve_media_file_path("image", filename)
+    return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "image/png")
+
+
+def _extract_uploaded_file_from_multipart(content_type: str, body: bytes) -> tuple[str, str | None, bytes]:
+    message = BytesParser(policy=email_policy_default).parsebytes(
+        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
+    )
+    if not message.is_multipart():
+        raise ValueError("Expected multipart/form-data upload.")
+    for part in message.iter_parts():
+        if (part.get_param("name", header="content-disposition") or "") != "file":
+            continue
+        filename = part.get_filename()
+        payload = part.get_payload(decode=True) or b""
+        return filename or "upload.bin", part.get_content_type(), payload
+    raise ValueError("No file field was provided.")
+
+
+@app.post("/api/media/upload", response_model=MediaLibraryMutationResponse)
+async def upload_media_file(request: Request):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can upload media.")
+    tenant = session.get("tenant") or {}
+    try:
+        content_type = request.headers.get("content-type") or ""
+        if "multipart/form-data" not in content_type:
+            raise HTTPException(status_code=400, detail="media upload expects multipart/form-data.")
+        filename, uploaded_content_type, payload = _extract_uploaded_file_from_multipart(content_type, await request.body())
+        if not payload:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        result = get_media_engine().upload_local_media(
+            file_bytes=payload,
+            filename=filename,
+            content_type=uploaded_content_type,
+            tenant_id=tenant.get("id"),
+            context={},
+        )
+        asset = result.get("asset") if isinstance(result, dict) else None
+        deduplicated = bool(result.get("deduplicated")) if isinstance(result, dict) else False
+        item = get_media_library_item(asset.get("id")) if isinstance(asset, dict) else None
+        if not item:
+            raise HTTPException(status_code=500, detail="Uploaded asset could not be resolved in the media library.")
+        return MediaLibraryMutationResponse(data=MediaLibraryMutationPayload(asset=item, deduplicated=deduplicated))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.get("/api/media/render-jobs")
 async def list_render_jobs(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view render jobs.")
@@ -4911,17 +4995,73 @@ async def create_transcript_job(request: Request, payload: MediaTranscriptReques
     tenant_id = tenant.get("id")
     try:
         engine = get_media_engine()
-        provider_id = clean_text(payload.provider) or "elevenlabs_scribe"
-        attachments = normalize_attachment_links(payload.model_dump(exclude_none=True), {})
+        provider_lock = get_transcription_provider_lock(session_tenant_settings(tenant))
+        provider_id = resolve_transcription_provider_id_from_lock(provider_lock)
+        if not provider_id:
+            raise HTTPException(status_code=400, detail="Transcription is disabled in workspace settings.")
+        asset_id = clean_text(payload.assetId)
+        source_asset_ids = [clean_text(item) for item in (payload.sourceAssetIds or []) if clean_text(item)]
+        if asset_id and asset_id not in source_asset_ids:
+            source_asset_ids.append(asset_id)
+        asset = engine.get_asset(asset_id) if asset_id else None
+        source_url = clean_text(payload.sourceUrl) or (clean_text(asset.get("source_url")) if isinstance(asset, dict) else None)
+        transcript_text = clean_text(payload.transcriptText) or None
+        speaker_segments = clone_json(payload.speakerSegments or [])
+        attachments_payload = clone_json(payload.attachments or [])
+        metadata_payload = clone_json(payload.metadata or {})
+        title = clean_text(payload.title) or (clean_text(asset.get("title")) if isinstance(asset, dict) else None) or "Transcript Job"
+        payload_data = {
+            "provider": provider_id,
+            "title": title,
+            "templateId": None,
+            "outputTarget": None,
+            "source_url": source_url or None,
+            "sourceUrl": source_url or None,
+            "transcript_text": transcript_text,
+            "transcriptText": transcript_text,
+            "speaker_segments": speaker_segments,
+            "speakerSegments": speaker_segments,
+            "recording_files": None,
+            "drive_files": None,
+            "meeting_id": None,
+            "meeting_title": None,
+            "media_type": clean_text(asset.get("media_type")) if isinstance(asset, dict) else None,
+            "script": None,
+            "text": None,
+            "topic": None,
+            "tone": None,
+            "duration": None,
+            "context": None,
+            "subtitle": None,
+            "prompt": None,
+            "voice": None,
+            "style": None,
+            "image": None,
+            "assetRef": None,
+            "asset_id": asset_id or None,
+            "assetId": asset_id or None,
+            "artifactRef": None,
+            "publishTarget": None,
+            "attachTarget": None,
+            "metadata": metadata_payload,
+            "attachments": attachments_payload,
+            "auto_transcribe": True,
+            "api_key": None,
+            "access_key_id": None,
+            "secret_access_key": None,
+            "source_asset_ids": source_asset_ids,
+            "sourceAssetIds": clone_json(source_asset_ids),
+        }
+        attachments = normalize_attachment_links(payload_data, {})
         job = build_transcript_job(
             tenant_id=tenant_id,
             provider=provider_id,
-            title=clean_text(payload.title) or "Transcript Job",
-            input_payload=payload.model_dump(exclude_none=True),
+            title=title,
+            input_payload=payload_data,
             attachments=attachments
         )
         engine.store.upsert("transcript_jobs", job)
-        background_tasks.add_task(engine.process_job, "transcript", job["id"], payload.model_dump(exclude_none=True), tenant_id)
+        background_tasks.add_task(engine.process_job, "transcript", job["id"], payload_data, tenant_id)
         return {"data": {"job": job}}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -4959,7 +5099,7 @@ async def create_publish_job(request: Request, payload: MediaPublishRequest):
 
 @app.post("/api/media/probe")
 async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...)):
-    """Probe a media asset and return real metadata. Uses ffprobe if available; returns honest failure if not."""
+    """Probe a media asset and return real metadata using env-resolved ffprobe."""
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can probe media assets.")
     source_url = clean_text(payload.get("sourceUrl") or payload.get("source_url") or "")
     asset_id = clean_text(payload.get("assetId") or payload.get("asset_id") or "")
@@ -4975,20 +5115,7 @@ async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...
     if not source_url:
         raise HTTPException(status_code=400, detail="sourceUrl or assetId with a known URL is required.")
 
-    # Resolve a local file path if it looks like /api/media/...
-    local_path = None
-    from pathlib import Path
-    backend_root = Path(__file__).resolve().parent
-    if source_url.startswith("/api/media/video/"):
-        filename = source_url.split("/api/media/video/")[-1]
-        candidate = backend_root / "data" / "video" / filename
-        if candidate.exists():
-            local_path = str(candidate)
-    elif source_url.startswith("/api/media/audio/"):
-        filename = source_url.split("/api/media/audio/")[-1]
-        candidate = backend_root / "data" / "audio" / filename
-        if candidate.exists():
-            local_path = str(candidate)
+    local_path = resolve_local_media_path(source_url)
 
     # Attempt ffprobe
     probe_result: dict[str, Any] = {
@@ -5006,9 +5133,8 @@ async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...
         "waveformStatus": "unavailable",
     }
 
-    target = local_path or source_url
+    target = str(local_path) if local_path else source_url
     if local_path:
-        import os
         try:
             probe_result["fileSize"] = os.path.getsize(local_path)
         except OSError:
@@ -5016,8 +5142,9 @@ async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...
 
     try:
         import subprocess, json as _json
+        ffprobe_path = resolve_ffprobe_path()
         cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
+            str(ffprobe_path), "-v", "quiet", "-print_format", "json",
             "-show_streams", "-show_format", target
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -5052,9 +5179,11 @@ async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...
         else:
             probe_result["probeStatus"] = "ffprobe_error"
             probe_result["probeMethod"] = "ffprobe"
-    except FileNotFoundError:
+            probe_result["probeError"] = clean_text(result.stderr or result.stdout) or "ffprobe failed."
+    except ValueError as error:
         probe_result["probeStatus"] = "ffprobe_not_installed"
         probe_result["probeMethod"] = None
+        probe_result["probeError"] = str(error)
     except subprocess.TimeoutExpired:
         probe_result["probeStatus"] = "ffprobe_timeout"
         probe_result["probeMethod"] = "ffprobe"

@@ -26,3 +26,22 @@ class MediaLibraryResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data: list[MediaLibraryItem]
+
+
+class MediaLibraryItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data: MediaLibraryItem
+
+
+class MediaLibraryMutationPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset: MediaLibraryItem
+    deduplicated: bool = False
+
+
+class MediaLibraryMutationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data: MediaLibraryMutationPayload

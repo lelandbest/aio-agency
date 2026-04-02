@@ -67,3 +67,12 @@ def list_media_library_items() -> list[MediaLibraryItem]:
             items.append(item)
 
     return sorted(items, key=lambda item: ((item.createdAt or ""), item.assetId), reverse=True)
+
+
+def get_media_library_item(asset_id: str) -> MediaLibraryItem | None:
+    if not str(asset_id or "").strip():
+        return None
+    for item in list_media_library_items():
+        if item.assetId == str(asset_id).strip():
+            return item
+    return None

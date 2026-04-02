@@ -51,6 +51,17 @@ const DEFAULT_ACTIVE_MODULE = 'aio-brain';
 const DEFAULT_CLIENT_MODULE = 'chat';
 const DEFAULT_INTEGRATION_CATEGORY = 'automation';
 const CLIENT_ALLOWED_MODULES = new Set(['chat', 'calendar']);
+const LEGACY_MODULE_REDIRECTS = {
+  pipeline: 'flows',
+};
+
+const normalizeModuleId = (value) => {
+  const normalized = normalizeNavigationValue(value);
+  if (!normalized) {
+    return null;
+  }
+  return LEGACY_MODULE_REDIRECTS[normalized] || normalized;
+};
 
 const normalizeNavigationValue = (value) => {
   if (typeof value !== 'string') {
@@ -75,7 +86,7 @@ const readNavigationStateFromUrl = () => {
 
   const params = new URLSearchParams(window.location.search);
   return {
-    activeModule: normalizeNavigationValue(params.get('module')) || DEFAULT_ACTIVE_MODULE,
+    activeModule: normalizeModuleId(params.get('module')) || DEFAULT_ACTIVE_MODULE,
     flowId: normalizeNavigationValue(params.get('flowId')),
     flowAction: normalizeNavigationValue(params.get('action')),
     flowIntent: normalizeNavigationValue(params.get('intent')),
@@ -245,7 +256,6 @@ const App = () => {
   const moduleLabels = {
     'aio-brain': 'Brain',
     'crm': 'CRM',
-    'pipeline': 'Pipeline',
     'orders': 'Orders',
     'media': 'Media',
     'comms': 'Communications',
@@ -471,7 +481,8 @@ const App = () => {
     const handleNavigate = (event) => {
       const detail = event.detail || {};
       if (detail.module) {
-        setActiveModule(clientMode && !CLIENT_ALLOWED_MODULES.has(detail.module) ? DEFAULT_CLIENT_MODULE : detail.module);
+        const nextModule = normalizeModuleId(detail.module);
+        setActiveModule(clientMode && !CLIENT_ALLOWED_MODULES.has(nextModule) ? DEFAULT_CLIENT_MODULE : nextModule);
       }
       if (detail.flowId !== undefined) {
         setFlowId(detail.flowId);

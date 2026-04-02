@@ -19,7 +19,11 @@ try:
         get_bulk_results as get_email_verifier_bulk_results,
         verify_single_email as verify_single_email_address,
     )
-    from backend.media_engine import get_media_engine
+    from backend.media_engine import (
+        get_media_engine,
+        get_transcription_provider_lock,
+        resolve_transcription_provider_id_from_lock,
+    )
 except ModuleNotFoundError:
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
@@ -29,7 +33,11 @@ except ModuleNotFoundError:
         get_bulk_results as get_email_verifier_bulk_results,
         verify_single_email as verify_single_email_address,
     )
-    from media_engine import get_media_engine
+    from media_engine import (
+        get_media_engine,
+        get_transcription_provider_lock,
+        resolve_transcription_provider_id_from_lock,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +63,7 @@ DIRECT_EXECUTION_INTENTS = {
     "verification_branch",
     "generate_script",
     "generate_run_of_show",
+    "generate_transcript_intelligence",
     "generate_voice",
     "text_to_speech",
     "generate_thumbnail",
@@ -124,6 +133,34 @@ def parse_string_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [clean_text(item) for item in re.split(r"[\n,]+", value) if clean_text(item)]
     return []
+
+
+TRANSCRIPT_ACTION_VERBS = {
+    "assign",
+    "compile",
+    "confirm",
+    "create",
+    "deliver",
+    "draft",
+    "finalize",
+    "follow",
+    "prepare",
+    "publish",
+    "review",
+    "schedule",
+    "send",
+    "share",
+    "update",
+}
+
+TRANSCRIPT_STOPWORDS = {
+    "a", "about", "after", "all", "also", "an", "and", "any", "are", "as", "at", "be", "been", "but", "by",
+    "can", "could", "did", "do", "does", "done", "each", "for", "from", "get", "got", "had", "has", "have",
+    "if", "in", "into", "is", "it", "its", "just", "like", "meeting", "more", "most", "need", "needed", "needs",
+    "not", "now", "of", "on", "one", "only", "or", "other", "our", "over", "should", "speaker", "than", "that",
+    "the", "their", "them", "then", "there", "these", "they", "this", "those", "to", "too", "transcript", "very",
+    "was", "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would", "you", "your",
+}
 
 
 TEMPLATE_TOKEN_RE = re.compile(r"{{\s*([^{}]+?)\s*}}")
@@ -623,6 +660,16 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
             "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
             "createdAt": "now"
         })
+    elif intent == "generate_transcript_intelligence":
+        artifacts.append({
+            "id": f"art-{unique_suffix()}",
+            "type": "transcript_intelligence",
+            "title": "Transcript Intelligence",
+            "summary": "Structured intelligence was generated from transcript output.",
+            "data": {"raw_result": raw_result},
+            "uiBinding": {"module": "flows", "recordId": step_id, "view": "run"},
+            "createdAt": "now"
+        })
     elif intent == "generate_voice":
         artifacts.append({
             "id": f"art-{unique_suffix()}",
@@ -708,6 +755,7 @@ class StepExecutor:
             "verification_branch": {"service": "logicService", "handlerType": "direct", "executionType": "deterministic"},
             "generate_script": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "generate_run_of_show": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
+            "generate_transcript_intelligence": {"service": "mediaService", "handlerType": "direct", "executionType": "deterministic"},
             "generate_voice": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "text_to_speech": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
             "generate_thumbnail": {"service": "mediaService", "handlerType": "adapter", "executionType": "bridge"},
@@ -742,6 +790,7 @@ class StepExecutor:
             "verification_branch": self._verification_branch,
             "generate_script": self._generate_script,
             "generate_run_of_show": self._generate_run_of_show,
+            "generate_transcript_intelligence": self._generate_transcript_intelligence,
             "generate_voice": self._generate_voice,
             "text_to_speech": self._generate_voice,
             "generate_thumbnail": self._generate_thumbnail,
@@ -2112,7 +2161,7 @@ class StepExecutor:
 
         if intent in DIRECT_EXECUTION_INTENTS and handler:
             try:
-                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "transcribe-media", "ingest_meeting_artifacts", "publish_asset"}:
+                if intent in {"verify_email", "verify_email_bulk", "wait_for_verification", "verification_branch", "if_then", "filter", "switch", "time_delay", "set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_transcript_intelligence", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "transcribe-media", "ingest_meeting_artifacts", "publish_asset"}:
                     return finalize(handler(step, context, runtime))
                 return finalize(handler(step, context))
             except Exception as exc:
@@ -2643,12 +2692,24 @@ class StepExecutor:
         text_value = config.get("text") if "text" in config else config.get("scriptText")
         if text_value is None:
             text_value = raw_inputs.get("text") if "text" in raw_inputs else raw_inputs.get("scriptText")
+        source_url_value = config.get("sourceUrl") if "sourceUrl" in config else config.get("source_url")
+        if source_url_value is None:
+            source_url_value = raw_inputs.get("sourceUrl") if "sourceUrl" in raw_inputs else raw_inputs.get("source_url")
+        transcript_text_value = config.get("transcriptText") if "transcriptText" in config else config.get("transcript_text")
+        if transcript_text_value is None:
+            transcript_text_value = raw_inputs.get("transcriptText") if "transcriptText" in raw_inputs else raw_inputs.get("transcript_text")
+        speaker_segments_value = config.get("speakerSegments") if "speakerSegments" in config else config.get("speaker_segments")
+        if speaker_segments_value is None:
+            speaker_segments_value = raw_inputs.get("speakerSegments") if "speakerSegments" in raw_inputs else raw_inputs.get("speaker_segments")
         title_value = config.get("title") if "title" in config else raw_inputs.get("title")
         subtitle_value = config.get("subtitle") if "subtitle" in config else raw_inputs.get("subtitle")
         prompt_value = config.get("prompt") if "prompt" in config else raw_inputs.get("prompt")
         voice_value = config.get("voice") if "voice" in config else raw_inputs.get("voice")
         style_value = config.get("style") if "style" in config else raw_inputs.get("style")
         image_value = config.get("image") if "image" in config else raw_inputs.get("image")
+        metadata_value = config.get("metadata") if "metadata" in config else raw_inputs.get("metadata")
+        if isinstance(metadata_value, str) and "{{" not in metadata_value and "}}" not in metadata_value:
+            metadata_value = json_value(metadata_value, metadata_value)
         asset_ref_value = config.get("assetRef") if "assetRef" in config else config.get("asset_ref")
         asset_id_value = config.get("assetId") if "assetId" in config else config.get("asset_id")
         artifact_ref_value = config.get("artifactRef") if "artifactRef" in config else config.get("artifact_ref")
@@ -2658,12 +2719,16 @@ class StepExecutor:
         resolved_duration = resolve_media_value(duration, "duration") if duration is not None else None
         resolved_context_value = resolve_media_value(context_value, "context") if context_value is not None else None
         resolved_text_value = resolve_media_value(text_value, "text") if text_value is not None else None
+        resolved_source_url_value = resolve_media_value(source_url_value, "sourceUrl") if source_url_value is not None else None
+        resolved_transcript_text_value = resolve_media_value(transcript_text_value, "transcriptText") if transcript_text_value is not None else None
+        resolved_speaker_segments_value = resolve_media_value(speaker_segments_value, "speakerSegments") if speaker_segments_value is not None else None
         resolved_title_value = resolve_media_value(title_value, "title") if title_value is not None else None
         resolved_subtitle_value = resolve_media_value(subtitle_value, "subtitle") if subtitle_value is not None else None
         resolved_prompt_value = resolve_media_value(prompt_value, "prompt") if prompt_value is not None else None
         resolved_voice_value = resolve_media_value(voice_value, "voice") if voice_value is not None else None
         resolved_style_value = resolve_media_value(style_value, "style") if style_value is not None else None
         resolved_image_value = resolve_media_value(image_value, "image") if image_value is not None else None
+        resolved_metadata_value = resolve_media_value(metadata_value, "metadata") if metadata_value is not None else None
         resolved_asset_ref_value = resolve_media_value(asset_ref_value, "assetRef") if asset_ref_value is not None else None
         resolved_asset_id_value = resolve_media_value(asset_id_value, "assetId") if asset_id_value is not None else None
         resolved_artifact_ref_value = resolve_media_value(artifact_ref_value, "artifactRef") if artifact_ref_value is not None else None
@@ -2674,9 +2739,9 @@ class StepExecutor:
             "title": resolved_title_value if resolved_title_value is not None else config.get("title") or context.get("flow_name") or "Media Job",
             "templateId": config.get("templateId") or config.get("template_id"),
             "outputTarget": config.get("outputTarget") or config.get("output_target"),
-            "source_url": config.get("source_url") or config.get("sourceUrl") or trigger_payload.get("source_url") or trigger_payload.get("recording_url"),
-            "transcript_text": config.get("transcript_text") or config.get("transcriptText") or trigger_payload.get("transcript_text"),
-            "speaker_segments": config.get("speaker_segments") or config.get("speakerSegments") or trigger_payload.get("speaker_segments"),
+            "source_url": resolved_source_url_value if resolved_source_url_value is not None else config.get("source_url") or config.get("sourceUrl") or trigger_payload.get("source_url") or trigger_payload.get("recording_url"),
+            "transcript_text": resolved_transcript_text_value if resolved_transcript_text_value is not None else config.get("transcript_text") or config.get("transcriptText") or trigger_payload.get("transcript_text"),
+            "speaker_segments": resolved_speaker_segments_value if resolved_speaker_segments_value is not None else config.get("speaker_segments") or config.get("speakerSegments") or trigger_payload.get("speaker_segments"),
             "recording_files": config.get("recording_files") or config.get("recordingFiles") or trigger_payload.get("recording_files"),
             "drive_files": config.get("drive_files") or config.get("driveFiles") or trigger_payload.get("drive_files"),
             "meeting_id": config.get("meeting_id") or config.get("meetingId") or trigger_payload.get("meeting_id"),
@@ -2698,7 +2763,7 @@ class StepExecutor:
             "artifactRef": resolved_artifact_ref_value if resolved_artifact_ref_value is not None else artifact_ref_value,
             "publishTarget": resolved_publish_target_value if resolved_publish_target_value is not None else publish_target_value,
             "attachTarget": config.get("attachTarget") or config.get("attach_target"),
-            "metadata": config.get("metadata") if isinstance(config.get("metadata"), dict) else {},
+            "metadata": resolved_metadata_value if isinstance(resolved_metadata_value, dict) else (config.get("metadata") if isinstance(config.get("metadata"), dict) else {}),
             "attachments": self._media_attachments(context, runtime, config),
             "auto_transcribe": parse_bool(config.get("auto_transcribe"), True),
             "api_key": config.get("api_key"),
@@ -2725,7 +2790,7 @@ class StepExecutor:
         if config.get("driveFiles") is not None or config.get("drive_files") is not None:
             payload["drive_files"] = config.get("driveFiles") if config.get("driveFiles") is not None else config.get("drive_files")
         if config.get("transcriptText") is not None or config.get("transcript_text") is not None:
-            payload["transcript_text"] = config.get("transcriptText") if config.get("transcriptText") is not None else config.get("transcript_text")
+            payload["transcript_text"] = resolved_transcript_text_value if resolved_transcript_text_value is not None else (config.get("transcriptText") if config.get("transcriptText") is not None else config.get("transcript_text"))
 
         return payload, missing
 
@@ -2778,6 +2843,293 @@ class StepExecutor:
         job = result.get("job") or {}
         status = "success" if clean_text(job.get("status")) == "complete" else "failed"
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _merge_transcript_metadata(self, metadata: dict[str, Any] | None, asset: dict[str, Any] | None) -> dict[str, Any]:
+        merged = safe_clone(metadata) if isinstance(metadata, dict) else {}
+        asset_metadata = safe_clone(asset.get("metadata")) if isinstance(asset, dict) and isinstance(asset.get("metadata"), dict) else {}
+        if not asset_metadata:
+            return merged
+        if not merged:
+            return asset_metadata
+        meeting = merged.get("meeting") if isinstance(merged.get("meeting"), dict) else {}
+        asset_meeting = asset_metadata.get("meeting") if isinstance(asset_metadata.get("meeting"), dict) else {}
+        return {
+            **asset_metadata,
+            **merged,
+            "meeting": {
+                **asset_meeting,
+                **meeting,
+            },
+        }
+
+    def _meeting_title_from_metadata(self, metadata: dict[str, Any]) -> str:
+        meeting = metadata.get("meeting") if isinstance(metadata.get("meeting"), dict) else {}
+        return clean_text(metadata.get("meetingTitle") or metadata.get("title") or meeting.get("title"))
+
+    def _meeting_id_from_metadata(self, metadata: dict[str, Any]) -> str:
+        meeting = metadata.get("meeting") if isinstance(metadata.get("meeting"), dict) else {}
+        return clean_text(metadata.get("meetingId") or metadata.get("meeting_id") or meeting.get("meetingId") or meeting.get("meeting_id"))
+
+    def _truncate_transcript_value(self, value: str, limit: int) -> str:
+        normalized = clean_text(value)
+        if len(normalized) <= limit:
+            return normalized
+        return normalized[: max(limit - 3, 0)].rstrip() + "..."
+
+    def _transcript_sentences(self, transcript_text: str, limit: int = 80) -> list[str]:
+        normalized = clean_text(transcript_text)
+        if not normalized:
+            return []
+        raw_parts = re.split(r"(?<=[.!?])\s+|\n+", normalized)
+        sentences: list[str] = []
+        seen: set[str] = set()
+        for part in raw_parts:
+            sentence = re.sub(r"\s+", " ", clean_text(part))
+            if len(sentence) < 12:
+                continue
+            key = sentence.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            sentences.append(sentence)
+            if len(sentences) >= limit:
+                break
+        return sentences
+
+    def _infer_action_owner(self, sentence: str) -> str | None:
+        owner_match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:will|should|needs to|owns|to)\b", sentence)
+        if owner_match:
+            return clean_text(owner_match.group(1)) or None
+        tagged_match = re.search(r"@([A-Za-z][A-Za-z0-9_-]+)", sentence)
+        if tagged_match:
+            return clean_text(tagged_match.group(1)) or None
+        return None
+
+    def _action_confidence(self, sentence: str) -> str:
+        lower = sentence.lower()
+        if any(token in lower for token in ("action item", "todo", "we will", "must", "owner", "next step")):
+            return "high"
+        if any(token in lower for token in ("should", "need to", "follow up", "please")):
+            return "medium"
+        return "low"
+
+    def _extract_action_items(self, sentences: list[str]) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for sentence in sentences:
+            lower = sentence.lower()
+            starts_with_verb = any(lower.startswith(f"{verb} ") for verb in TRANSCRIPT_ACTION_VERBS)
+            contains_action_signal = any(token in lower for token in ("action item", "todo", "follow up", "next step", "needs to", "need to", "should", "must", "we will"))
+            if not starts_with_verb and not contains_action_signal:
+                continue
+            text = self._truncate_transcript_value(sentence, 180)
+            key = text.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(
+                {
+                    "text": text,
+                    "owner": self._infer_action_owner(sentence),
+                    "confidence": self._action_confidence(sentence),
+                }
+            )
+            if len(items) >= 8:
+                break
+        return items
+
+    def _extract_topics(self, transcript_text: str, metadata: dict[str, Any]) -> list[str]:
+        counts: dict[str, int] = {}
+        words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9-]{3,}\b", transcript_text.lower())
+        for word in words:
+            if word in TRANSCRIPT_STOPWORDS:
+                continue
+            counts[word] = counts.get(word, 0) + 1
+        ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        topics: list[str] = []
+        meeting_title = self._meeting_title_from_metadata(metadata)
+        if meeting_title:
+            topics.append(self._truncate_transcript_value(meeting_title, 80))
+        for word, _count in ranked:
+            label = word.replace("-", " ").title()
+            if label.lower() in {item.lower() for item in topics}:
+                continue
+            topics.append(label)
+            if len(topics) >= 5:
+                break
+        return topics[:5]
+
+    def _highlight_label(self, text: str) -> str:
+        lower = text.lower()
+        if any(token in lower for token in ("decided", "decision", "approved", "agreed", "we will")):
+            return "decision"
+        if any(token in lower for token in ("important", "critical", "must", "need to", "priority")):
+            return "important"
+        if len(text) <= 140:
+            return "quote"
+        return "insight"
+
+    def _extract_highlights(self, sentences: list[str], speaker_segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        highlights: list[dict[str, Any]] = []
+        if isinstance(speaker_segments, list):
+            for segment in speaker_segments:
+                if not isinstance(segment, dict):
+                    continue
+                text = self._truncate_transcript_value(clean_text(segment.get("text")), 220)
+                if not text:
+                    continue
+                lower = text.lower()
+                if not any(token in lower for token in ("decision", "decided", "agreed", "important", "must", "need", "quote", "key", "insight")) and len(highlights) >= 2:
+                    continue
+                highlights.append(
+                    {
+                        "start": segment.get("start"),
+                        "end": segment.get("end"),
+                        "text": text,
+                        "label": self._highlight_label(text),
+                    }
+                )
+                if len(highlights) >= 5:
+                    break
+        if highlights:
+            return highlights
+        for sentence in sentences[:4]:
+            highlights.append(
+                {
+                    "start": None,
+                    "end": None,
+                    "text": self._truncate_transcript_value(sentence, 220),
+                    "label": self._highlight_label(sentence),
+                }
+            )
+        return highlights
+
+    def _extract_summary(self, sentences: list[str], topics: list[str], action_items: list[dict[str, Any]], metadata: dict[str, Any]) -> dict[str, Any]:
+        meeting_title = self._meeting_title_from_metadata(metadata)
+        lead_sentences = sentences[:2]
+        text = " ".join(lead_sentences)
+        if meeting_title and text and meeting_title.lower() not in text.lower():
+            text = f"{meeting_title}: {text}"
+        text = self._truncate_transcript_value(text or "Transcript processed successfully.", 360)
+        bullets: list[str] = []
+        for sentence in sentences[:4]:
+            bullets.append(self._truncate_transcript_value(sentence, 140))
+            if len(bullets) >= 4:
+                break
+        if action_items and len(bullets) < 6:
+            bullets.append(f"Next action: {self._truncate_transcript_value(action_items[0].get('text') or '', 110)}")
+        if topics and len(bullets) < 6:
+            bullets.append(f"Primary topics: {', '.join(topics[:3])}")
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for bullet in bullets:
+            normalized = clean_text(bullet)
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(normalized)
+        while len(deduped) < 3 and topics:
+            next_topic = topics[len(deduped) - 1] if len(topics) >= len(deduped) else topics[-1]
+            candidate = f"Discussion theme: {next_topic}"
+            if candidate.lower() not in seen:
+                seen.add(candidate.lower())
+                deduped.append(candidate)
+        return {
+            "text": text,
+            "bullets": deduped[:6],
+        }
+
+    def _extract_content_ideas(self, topics: list[str], metadata: dict[str, Any], summary_text: str) -> list[dict[str, Any]]:
+        meeting_title = self._meeting_title_from_metadata(metadata) or "Transcript"
+        seeds = topics[:3] or [meeting_title]
+        content_types = ["short", "post", "clip"]
+        ideas: list[dict[str, Any]] = []
+        for index, seed in enumerate(seeds):
+            normalized_seed = clean_text(seed) or meeting_title
+            if index == 0:
+                title = f"{normalized_seed}: Fast Take"
+                hook = f"Turn the strongest takeaway from {meeting_title} into a fast, clear recap."
+            elif index == 1:
+                title = f"What {normalized_seed} Means Next"
+                hook = f"Use the transcript to explain why {normalized_seed.lower()} matters and what changes next."
+            else:
+                title = f"{normalized_seed} Clip Idea"
+                hook = f"Cut a tight moment around {normalized_seed.lower()} and pair it with the clearest quote."
+            ideas.append(
+                {
+                    "title": self._truncate_transcript_value(title, 90),
+                    "hook": self._truncate_transcript_value(hook or summary_text, 160),
+                    "type": content_types[index % len(content_types)],
+                }
+            )
+        return ideas
+
+    def _generate_transcript_intelligence(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        payload, missing = self._resolved_media_payload(step, context, runtime)
+        if missing:
+            transcript_missing = [entry for entry in missing if entry == "transcriptText" or entry.startswith("transcriptText:")]
+            other_missing = [entry for entry in missing if entry not in transcript_missing]
+            if other_missing:
+                return self._service_error(step, "; ".join(missing), data={"status": "failed", "reason": "invalid_input"})
+            payload["transcript_text"] = None
+        transcript_raw = payload.get("transcript_text")
+        if transcript_raw is not None and not isinstance(transcript_raw, str):
+            data = {
+                "status": "failed",
+                "reason": "invalid_input",
+                "assetId": clean_text(payload.get("asset_id") or payload.get("assetId")) or None,
+                "sourceUrl": clean_text(payload.get("source_url") or payload.get("sourceUrl")) or None,
+                "summary": {"text": "", "bullets": []},
+                "actionItems": [],
+                "topics": [],
+                "highlights": [],
+                "contentIdeas": [],
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": "Transcript text must be a string."}
+
+        transcript_text = clean_text(transcript_raw)
+        asset_id = clean_text(payload.get("asset_id") or payload.get("assetId")) or None
+        source_url = clean_text(payload.get("source_url") or payload.get("sourceUrl")) or None
+        speaker_segments = payload.get("speaker_segments") if isinstance(payload.get("speaker_segments"), list) else []
+        asset = get_media_engine().get_asset(asset_id) if asset_id else None
+        metadata = self._merge_transcript_metadata(payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}, asset)
+        if asset and not source_url:
+            source_url = clean_text(asset.get("source_url")) or None
+        if not transcript_text:
+            data = {
+                "status": "failed",
+                "reason": "missing_transcript",
+                "assetId": asset_id,
+                "sourceUrl": source_url,
+                "summary": {"text": "", "bullets": []},
+                "actionItems": [],
+                "topics": [],
+                "highlights": [],
+                "contentIdeas": [],
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": "Transcript text is required."}
+
+        working_text = transcript_text[:120000]
+        sentences = self._transcript_sentences(working_text)
+        action_items = self._extract_action_items(sentences)
+        topics = self._extract_topics(working_text, metadata)
+        summary = self._extract_summary(sentences, topics, action_items, metadata)
+        highlights = self._extract_highlights(sentences, speaker_segments)
+        content_ideas = self._extract_content_ideas(topics, metadata, summary.get("text") or "")
+        data = {
+            "status": "success",
+            "assetId": asset_id,
+            "sourceUrl": source_url,
+            "summary": summary,
+            "actionItems": action_items,
+            "topics": topics,
+            "highlights": highlights,
+            "contentIdeas": content_ideas,
+        }
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": data, "error": None}
 
     def _generate_voice(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         payload, missing = self._resolved_media_payload(step, context, runtime)
@@ -2873,6 +3225,23 @@ class StepExecutor:
         if missing:
             return self._service_error(step, "; ".join(missing), data={"job": None, "artifact": None})
         config = self._normalized_service_config(step)
+        provider_lock = get_transcription_provider_lock(runtime_tenant_settings(context))
+        provider_id = resolve_transcription_provider_id_from_lock(provider_lock)
+        if not provider_id:
+            data = {
+                "status": "transcription_disabled",
+                "assetId": clean_text(payload.get("asset_id") or payload.get("assetId")) or None,
+                "artifactId": None,
+                "providerUsed": "disabled",
+                "sourceUrl": clean_text(payload.get("source_url") or payload.get("sourceUrl")) or None,
+                "transcriptText": None,
+                "transcriptExcerpt": None,
+                "reason": "transcription_disabled",
+                "job": None,
+                "artifact": None,
+                "error": "Transcription is disabled in workspace settings.",
+            }
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "failed", "data": data, "error": data["error"]}
         source_type = clean_text(config.get("sourceType") or config.get("source_type")).lower()
         asset_id = clean_text(payload.get("asset_id") or payload.get("assetId"))
         if not source_type and not asset_id:
@@ -2887,7 +3256,7 @@ class StepExecutor:
                     "status": "asset_not_found",
                     "assetId": asset_id,
                     "artifactId": None,
-                    "providerUsed": clean_text(payload.get("provider")) or "elevenlabs_scribe",
+                    "providerUsed": provider_lock,
                     "sourceUrl": None,
                     "transcriptText": None,
                     "transcriptExcerpt": None,
@@ -2907,7 +3276,7 @@ class StepExecutor:
                 "status": "missing_source",
                 "assetId": asset_id or None,
                 "artifactId": None,
-                "providerUsed": clean_text(payload.get("provider")) or "elevenlabs_scribe",
+                "providerUsed": provider_lock,
                 "sourceUrl": clean_text(payload.get("source_url")) or None,
                 "transcriptText": None,
                 "transcriptExcerpt": None,
@@ -2920,7 +3289,7 @@ class StepExecutor:
         result = get_media_engine().transcribe_media(
             {
                 **payload,
-                "provider": clean_text(payload.get("provider")) or "elevenlabs_scribe",
+                "provider": provider_id,
                 "title": clean_text(payload.get("title")) or "Transcript Job",
             },
             tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
@@ -2938,7 +3307,11 @@ class StepExecutor:
         failure_reason = None
         lowered_error = error_message.lower()
         if status != "success":
-            if "not configured" in lowered_error or "credentials are missing" in lowered_error:
+            if "ffmpeg_not_available" in lowered_error:
+                failure_reason = "ffmpeg_not_available"
+            elif "ffmpeg_failed" in lowered_error:
+                failure_reason = "ffmpeg_failed"
+            elif "not configured" in lowered_error or "credentials are missing" in lowered_error:
                 failure_reason = "provider_not_configured"
             elif "asset" in lowered_error and "not found" in lowered_error:
                 failure_reason = "asset_not_found"
@@ -2951,7 +3324,7 @@ class StepExecutor:
             "status": "complete" if status == "success" else failure_reason or (clean_text(job.get("status")) or "failed"),
             "assetId": asset_id or None,
             "artifactId": clean_text((artifact or {}).get("id")) or None,
-            "providerUsed": clean_text(job.get("provider")) or clean_text(payload.get("provider")) or "elevenlabs_scribe",
+            "providerUsed": provider_lock,
             "sourceUrl": clean_text(payload.get("source_url")) or None,
             "transcriptText": transcript_text or None,
             "transcriptExcerpt": transcript_text[:280] if transcript_text else None,
@@ -3572,6 +3945,9 @@ def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, l
                 blockers.append(f"{node_label}: Generate Run of Show requires a topic.")
             if not clean_text(config.get("duration")):
                 blockers.append(f"{node_label}: Generate Run of Show requires a duration.")
+        elif intent == "generate_transcript_intelligence":
+            if not clean_text(config.get("transcriptText") or config.get("transcript_text")):
+                blockers.append(f"{node_label}: Transcript Intelligence requires transcriptText.")
         elif intent == "generate_voice":
             if not clean_text(config.get("text")) and not clean_text(config.get("script")) and not clean_text(config.get("scriptText")):
                 blockers.append(f"{node_label}: Generate Voice requires text or script input.")
@@ -3595,7 +3971,7 @@ def validate_prepared_flow_steps(raw_steps: list[dict[str, Any]]) -> dict[str, l
             if not clean_text(config.get("meetingRef") or config.get("meeting_ref")):
                 blockers.append(f"{node_label}: Ingest Meeting requires a meetingRef.")
 
-        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "transcribe-media", "ingest_meeting_artifacts", "publish_asset", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
+        if not outgoing_edges and intent not in {"send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_transcript_intelligence", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "transcribe-media", "ingest_meeting_artifacts", "publish_asset", "create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "wait_for_verification"}:
             warnings.append(f"{node_label}: no downstream node is connected.")
 
     return {"blockers": list(dict.fromkeys(blockers)), "warnings": list(dict.fromkeys(warnings))}

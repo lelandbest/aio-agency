@@ -34,6 +34,17 @@ const loadCanonicalTenantSettings = async () => {
   return bundle?.tenantSettings || {};
 };
 
+const normalizeTranscriptionProviderSetting = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_').replace(/\s+/g, '_');
+  if (normalized === 'elevenlabs' || normalized === 'eleven_labs' || normalized === 'elevenlabs_scribe') {
+    return 'elevenlabs_scribe';
+  }
+  if (normalized === 'disabled' || normalized === 'off' || normalized === 'none') {
+    return 'disabled';
+  }
+  return 'ffmpeg_transcribe';
+};
+
 const mapCanonicalGlobalVariables = (tenantSettings = {}) => {
   const variables = tenantSettings?.globalVariables || {};
   return Object.entries(variables).map(([key, details]) => ({
@@ -2037,10 +2048,12 @@ const OmegaSettings = () => {
 
 const WorkspaceSettings = () => {
   const { tenant, tenants = [], switchTenant, refreshSession, user } = useAuth();
+  const tenantSettings = tenant?.tenantSettings || tenant?.settings || {};
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(tenant?.id || '');
   const [memberships, setMemberships] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [workspaceName, setWorkspaceName] = useState(tenant?.name || '');
+  const [transcriptionProvider, setTranscriptionProvider] = useState(() => normalizeTranscriptionProviderSetting(tenantSettings?.media?.transcriptionProvider));
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('staff');
@@ -2053,8 +2066,9 @@ const WorkspaceSettings = () => {
   useEffect(() => {
     setSelectedWorkspaceId(tenant?.id || '');
     setWorkspaceName(tenant?.name || '');
+    setTranscriptionProvider(normalizeTranscriptionProviderSetting(tenantSettings?.media?.transcriptionProvider));
     setShowArchiveConfirm(false);
-  }, [tenant?.id, tenant?.name]);
+  }, [tenant?.id, tenant?.name, tenantSettings?.media?.transcriptionProvider]);
 
   useEffect(() => {
     const loadMemberships = async () => {
@@ -2130,6 +2144,29 @@ const WorkspaceSettings = () => {
       triggerSavedAction('create-workspace');
     } catch (createError) {
       setError(createError.message || 'Unable to create workspace.');
+    }
+  };
+
+  const handleTranscriptionProviderChange = async (nextProvider) => {
+    const normalized = normalizeTranscriptionProviderSetting(nextProvider);
+    if (!canManageWorkspace || normalized === transcriptionProvider) {
+      return;
+    }
+    setError('');
+    setStatusMessage('');
+    try {
+      await updateCanonicalTenantSettingsApi({
+        media: {
+          ...(tenantSettings?.media || {}),
+          transcriptionProvider: normalized,
+        },
+      });
+      await refreshSession?.();
+      setTranscriptionProvider(normalized);
+      setStatusMessage('Transcription provider updated.');
+      triggerSavedAction('save-transcription-provider');
+    } catch (providerError) {
+      setError(providerError.message || 'Unable to update transcription provider.');
     }
   };
 
@@ -2274,6 +2311,45 @@ const WorkspaceSettings = () => {
               <div className="text-xs text-[var(--color-text-secondary)]">
                 Workspace creation is limited to owners and admins.
               </div>
+            )}
+          </div>
+
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Transcription Provider</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">Locks transcription to one provider. No fallback.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'ffmpeg_transcribe', label: 'FFMPEG' },
+                { value: 'elevenlabs_scribe', label: 'ELEVENLABS' },
+                { value: 'disabled', label: 'DISABLED' },
+              ].map((option) => {
+                const active = transcriptionProvider === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleTranscriptionProviderChange(option.value)}
+                    disabled={!canManageWorkspace}
+                    className={`px-4 py-2 rounded-[var(--radius-card)] border text-xs font-semibold tracking-[0.16em] transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      active
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
+                        : 'border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            {!canManageWorkspace && (
+              <div className="text-xs text-[var(--color-text-secondary)]">
+                Workspace admins control the locked transcription provider.
+              </div>
+            )}
+            {savedAction === 'save-transcription-provider' && (
+              <div className="text-xs text-emerald-300">Provider lock saved.</div>
             )}
           </div>
         </div>

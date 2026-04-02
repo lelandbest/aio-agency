@@ -214,11 +214,11 @@ const PipelineModule = () => {
     const highestSignal = [...contacts].sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0))[0];
     if (!highestSignal) return;
     
-    try {
-      const response = await draftAiApi({
-        module: 'pipeline',
-        surface: 'deal-card',
-        field: 'next-action',
+      try {
+        const response = await draftAiApi({
+        module: 'pipelines',
+          surface: 'deal-card',
+          field: 'next-action',
         intent: 'suggest',
         current_value: '',
         context: {

@@ -507,6 +507,22 @@ export const utilityNodes = [
     },
   },
   {
+    id: 'generate-transcript-intelligence',
+    type: 'action',
+    label: 'Transcript Intelligence',
+    description: 'Generate structured summary, actions, topics, highlights, and content ideas from transcript output',
+    iconName: 'Sparkles',
+    nodeColor: 'action',
+    actionType: 'generate_transcript_intelligence',
+    config: {
+      actionType: 'generate_transcript_intelligence',
+      transcriptText: '{{previous.transcriptText}}',
+      assetId: '{{previous.assetId}}',
+      sourceUrl: '{{previous.sourceUrl}}',
+      metadata: {},
+    },
+  },
+  {
     id: 'ingest-meeting-artifacts',
     type: 'action',
     label: 'Ingest Meeting',
@@ -580,7 +596,7 @@ export const nodeLibrary = {
   'Logic/Condition': logicNodes,
   'Webhook/API': webhookNodes,
   Messaging: messagingNodes,
-  Media: utilityNodes.filter((node) => ['generate_script', 'generate_run_of_show', 'generate_voice', 'text_to_speech', 'generate_thumbnail', 'generate_video', 'transcribe_media', 'ingest_meeting_artifacts', 'publish_asset'].includes(node.actionType)),
+  Media: utilityNodes.filter((node) => ['generate_script', 'generate_run_of_show', 'generate_transcript_intelligence', 'generate_voice', 'text_to_speech', 'generate_thumbnail', 'generate_video', 'transcribe_media', 'ingest_meeting_artifacts', 'publish_asset'].includes(node.actionType)),
   'Utilities/Data': utilityNodes,
   'AI Agents': toolNodeTemplates.map((tool) => ({
     ...tool,

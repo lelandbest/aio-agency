@@ -168,6 +168,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
               <option value="get_booking">Get Booking</option>
               <option value="generate_script">Generate Script</option>
               <option value="generate_run_of_show">Generate Run of Show</option>
+              <option value="generate_transcript_intelligence">Transcript Intelligence</option>
               <option value="generate_voice">Generate Voice</option>
               <option value="text_to_speech">Text to Speech</option>
               <option value="generate_thumbnail">Generate Thumbnail</option>
@@ -231,6 +232,31 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
                 onChange={(e) => handleInputChange('context', e.target.value)}
                 placeholder="Production context"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[100px]"
+              />
+            </div>
+          )}
+
+          {config.actionType === 'generate_transcript_intelligence' && (
+            <div className="grid grid-cols-1 gap-3">
+              <textarea
+                value={config.transcriptText || ''}
+                onChange={(e) => handleInputChange('transcriptText', e.target.value)}
+                placeholder="Transcript text"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[120px]"
+              />
+              <input
+                type="text"
+                value={config.assetId || ''}
+                onChange={(e) => handleInputChange('assetId', e.target.value)}
+                placeholder="Asset ID (optional)"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+              />
+              <input
+                type="text"
+                value={config.sourceUrl || ''}
+                onChange={(e) => handleInputChange('sourceUrl', e.target.value)}
+                placeholder="Source URL (optional)"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
             </div>
           )}

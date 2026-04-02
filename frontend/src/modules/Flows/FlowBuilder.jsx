@@ -313,6 +313,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           verify_email_bulk: { contactIds: ['{{contact.id}}'], emails: [], mode: 'power', writeback: true },
           generate_script: { topic: '{{trigger.payload.topic}}', tone: 'clear', duration: '10 minutes', context: 'Prospect-facing episode outline', provider: 'stub-script' },
           generate_run_of_show: { topic: '{{trigger.payload.topic}}', duration: '30 minutes', context: 'Live production', provider: 'stub-run-of-show' },
+          generate_transcript_intelligence: { transcriptText: '{{previous.transcriptText}}', assetId: '{{previous.assetId}}', sourceUrl: '{{previous.sourceUrl}}', metadata: {} },
           generate_voice: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
           text_to_speech: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
           generate_thumbnail: { title: '{{trigger.payload.title}}', subtitle: 'Campaign cut', image: 'Bold studio backdrop', prompt: 'Create a bold thumbnail for the launch episode.', provider: 'stub-render' },
@@ -1877,6 +1878,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <option value="verify_email_bulk">Verify Email Bulk</option>
                             <option value="generate_script">Generate Script</option>
                             <option value="generate_run_of_show">Generate Run of Show</option>
+                            <option value="generate_transcript_intelligence">Transcript Intelligence</option>
                             <option value="generate_voice">Generate Voice</option>
                             <option value="text_to_speech">Text to Speech</option>
                             <option value="generate_thumbnail">Generate Thumbnail</option>
@@ -2089,6 +2091,60 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                                 placeholder="Live production context, guests, or stage notes"
                                 className="w-full min-h-[100px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
                               />
+                            </div>
+                          </div>
+                        )}
+                        {nodeConfigDraft.actionType === 'generate_transcript_intelligence' && (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                  Transcript Text
+                                </label>
+                                <textarea
+                                  value={nodeConfigDraft.transcriptText || ''}
+                                  onChange={(e) => updateField('transcriptText', e.target.value)}
+                                  placeholder="{{previous.transcriptText}}"
+                                  className="w-full min-h-[120px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                />
+                              </div>
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                    Asset ID
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={nodeConfigDraft.assetId || ''}
+                                    onChange={(e) => updateField('assetId', e.target.value)}
+                                    placeholder="{{previous.assetId}}"
+                                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                    Source URL
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={nodeConfigDraft.sourceUrl || ''}
+                                    onChange={(e) => updateField('sourceUrl', e.target.value)}
+                                    placeholder="{{previous.sourceUrl}}"
+                                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                                    Metadata JSON
+                                  </label>
+                                  <textarea
+                                    value={typeof nodeConfigDraft.metadata === 'string' ? nodeConfigDraft.metadata : JSON.stringify(nodeConfigDraft.metadata || {}, null, 2)}
+                                    onChange={(e) => updateField('metadata', e.target.value)}
+                                    placeholder='{"meeting":{"title":"Weekly Sync"}}'
+                                    className="w-full min-h-[90px] px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -2332,7 +2388,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
                                 >
                                   <option value="elevenlabs_scribe">ElevenLabs Scribe</option>
-                                  <option value="aws_transcribe">AWS Transcribe</option>
+                                  <option value="ffmpeg_transcribe">FFmpeg Transcribe</option>
                                 </select>
                               </div>
                               <div>

@@ -26,7 +26,7 @@
     },
     "tenant": {
       "type": "object",
-      "required": ["branding", "navigation", "globalVariables", "domains", "comms", "calendar", "automation", "visibility", "internal"],
+      "required": ["branding", "navigation", "globalVariables", "domains", "comms", "calendar", "media", "automation", "visibility", "internal"],
       "additionalProperties": true,
       "properties": {
         "branding": {
@@ -63,6 +63,16 @@
         "calendar": {
           "type": "object",
           "additionalProperties": true
+        },
+        "media": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "transcriptionProvider": {
+              "type": "string",
+              "enum": ["ffmpeg_transcribe", "elevenlabs_scribe", "disabled"]
+            }
+          }
         },
         "automation": {
           "type": "object",

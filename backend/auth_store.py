@@ -405,6 +405,7 @@ class AuthStore:
             self._backfill_usernames(conn)
             self._backfill_default_workspace(conn)
             self._seed_system_settings(conn)
+            self._backfill_canonical_tenant_settings(conn)
             self._seed_default_system_email_templates(conn)
             conn.commit()
 
@@ -486,6 +487,20 @@ class AuthStore:
             "INSERT INTO app_settings (id, systemSettingsJson, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
             ("system-primary", json.dumps(DEFAULT_SYSTEM_SETTINGS), now, now),
         )
+
+    def _backfill_canonical_tenant_settings(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute("SELECT id, settingsJson FROM tenants").fetchall()
+        now = utcnow_iso()
+        for row in rows:
+            raw_payload = self._json_loads(row["settingsJson"], {})
+            normalized = normalize_tenant_settings_payload(raw_payload, include_defaults=True)
+            persisted = {"tenantSettings": strip_derived_tenant_sections(normalized)}
+            if raw_payload == persisted:
+                continue
+            conn.execute(
+                "UPDATE tenants SET settingsJson = ?, updatedAt = ? WHERE id = ?",
+                (json.dumps(persisted), now, row["id"]),
+            )
 
     def _seed_default_system_email_templates(self, conn: sqlite3.Connection) -> None:
         tenants = conn.execute("SELECT id FROM tenants").fetchall()

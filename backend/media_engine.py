@@ -1,7 +1,18 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import mimetypes
+import os
+import shutil
+import subprocess
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import wave
+import zipfile
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +33,132 @@ def clean_text(value: Any) -> str:
     return str(value or "").strip()
 
 
+TRANSCRIPTION_PROVIDER_LOCK_FFMPEG = "ffmpeg_transcribe"
+TRANSCRIPTION_PROVIDER_LOCK_ELEVENLABS = "elevenlabs_scribe"
+TRANSCRIPTION_PROVIDER_LOCK_DISABLED = "disabled"
+LEGACY_TRANSCRIPTION_PROVIDER_AWS = "aws_transcribe"
+TRANSCRIPTION_PROVIDER_BACKEND_FFMPEG = "ffmpeg_transcribe"
+TRANSCRIPTION_PROVIDER_BACKEND_ELEVENLABS = "elevenlabs_scribe"
+VOSK_DEFAULT_MODEL_NAME = "vosk-model-small-en-us-0.15"
+VOSK_DEFAULT_MODEL_URL = f"https://alphacephei.com/vosk/models/{VOSK_DEFAULT_MODEL_NAME}.zip"
+_VOSK_MODEL_CACHE: Any | None = None
+_VOSK_MODEL_CACHE_LOCK = Lock()
+
+
+def normalize_transcription_provider_lock(value: Any) -> str:
+    normalized = clean_text(value).lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "primary": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "default": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "internal": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "ffmpeg": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "ffmpeg_transcribe": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "remotion": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "remotion_ffmpeg": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "aws": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "aws_transcribe": TRANSCRIPTION_PROVIDER_LOCK_FFMPEG,
+        "elevenlabs": TRANSCRIPTION_PROVIDER_LOCK_ELEVENLABS,
+        "eleven_labs": TRANSCRIPTION_PROVIDER_LOCK_ELEVENLABS,
+        "elevenlabs_scribe": TRANSCRIPTION_PROVIDER_LOCK_ELEVENLABS,
+        "disabled": TRANSCRIPTION_PROVIDER_LOCK_DISABLED,
+        "off": TRANSCRIPTION_PROVIDER_LOCK_DISABLED,
+        "none": TRANSCRIPTION_PROVIDER_LOCK_DISABLED,
+    }
+    return aliases.get(normalized, TRANSCRIPTION_PROVIDER_LOCK_FFMPEG)
+
+
+def transcription_provider_lock_label(value: Any) -> str:
+    normalized = normalize_transcription_provider_lock(value)
+    if normalized == TRANSCRIPTION_PROVIDER_LOCK_ELEVENLABS:
+        return "elevenlabs"
+    if normalized == TRANSCRIPTION_PROVIDER_LOCK_DISABLED:
+        return "disabled"
+    return "ffmpeg_transcribe"
+
+
+def get_transcription_provider_lock(tenant_settings: dict[str, Any] | None) -> str:
+    media = tenant_settings.get("media") if isinstance(tenant_settings, dict) and isinstance(tenant_settings.get("media"), dict) else {}
+    return normalize_transcription_provider_lock(media.get("transcriptionProvider"))
+
+
+def resolve_transcription_provider_id_from_lock(value: Any) -> str | None:
+    normalized = normalize_transcription_provider_lock(value)
+    if normalized == TRANSCRIPTION_PROVIDER_LOCK_DISABLED:
+        return None
+    if normalized == TRANSCRIPTION_PROVIDER_LOCK_ELEVENLABS:
+        return TRANSCRIPTION_PROVIDER_BACKEND_ELEVENLABS
+    return TRANSCRIPTION_PROVIDER_BACKEND_FFMPEG
+
+
+def normalize_media_type_hint(*values: Any) -> str:
+    hints = [clean_text(value).lower() for value in values if clean_text(value)]
+    for hint in hints:
+        if hint.startswith("audio/"):
+            return "audio"
+        if hint.startswith("video/"):
+            return "video"
+        if hint.startswith("image/"):
+            return "image"
+    image_hints = {
+        "image",
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "bmp",
+        "webp",
+        "svg",
+        "svg+xml",
+        "tif",
+        "tiff",
+        "heic",
+        "heif",
+    }
+    audio_hints = {
+        "audio",
+        "wav",
+        "wave",
+        "x-wav",
+        "mp3",
+        "mpeg",
+        "m4a",
+        "aac",
+        "ogg",
+        "oga",
+        "opus",
+        "flac",
+        "aiff",
+        "aif",
+        "wma",
+    }
+    video_hints = {
+        "video",
+        "mp4",
+        "mov",
+        "m4v",
+        "avi",
+        "mkv",
+        "webm",
+        "wmv",
+        "mpeg4",
+        "quicktime",
+    }
+    for hint in hints:
+        normalized = hint.replace(".", "").replace("_", "-").replace("/", "-")
+        if normalized in image_hints or normalized.endswith("-image"):
+            return "image"
+        if normalized in audio_hints or normalized.endswith("-audio"):
+            return "audio"
+        if normalized in video_hints or normalized.endswith("-video"):
+            return "video"
+    return "video"
+
+
+def classify_uploaded_media(*values: Any) -> str:
+    return normalize_media_type_hint(*values)
+
+
 def clone_json(value: Any) -> Any:
     return json.loads(json.dumps(value))
 
@@ -29,6 +166,417 @@ def clone_json(value: Any) -> Any:
 def generate_content_hash(content: Any) -> str:
     normalized = json.dumps(content, sort_keys=True, default=str)
     return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+
+
+def normalize_dedup_url(value: Any) -> str:
+    raw = clean_text(value)
+    if not raw:
+        return ""
+    parsed = urllib.parse.urlparse(raw)
+    if not parsed.scheme and not parsed.netloc:
+        return raw
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+    if scheme == "http" and netloc.endswith(":80"):
+        netloc = netloc[:-3]
+    if scheme == "https" and netloc.endswith(":443"):
+        netloc = netloc[:-4]
+    path = parsed.path or ""
+    query_items = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    normalized_query = urllib.parse.urlencode(sorted(query_items))
+    return urllib.parse.urlunparse((scheme, netloc, path, "", normalized_query, ""))
+
+
+def build_upload_dedup_hash(filename: str, payload: bytes, content_type: str | None = None) -> str:
+    safe_name = Path(clean_text(filename) or "upload.bin").name.lower()
+    first_chunk_hash = hashlib.sha256((payload or b"")[:65536]).hexdigest()[:16]
+    return generate_content_hash(
+        {
+            "filename": safe_name,
+            "size_bytes": len(payload or b""),
+            "content_type": clean_text(content_type).lower(),
+            "first_chunk_hash": first_chunk_hash,
+        }
+    )
+
+
+def _backend_root() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _resolve_local_media_path(source_url: str) -> Path | None:
+    if not clean_text(source_url):
+        return None
+    candidate = Path(source_url)
+    if candidate.exists():
+        return candidate
+    backend_root = _backend_root()
+    if source_url.startswith("/api/media/video/"):
+        filename = source_url.split("/api/media/video/")[-1]
+        resolved = backend_root / "data" / "video" / filename
+        return resolved if resolved.exists() else None
+    if source_url.startswith("/api/media/audio/"):
+        filename = source_url.split("/api/media/audio/")[-1]
+        resolved = backend_root / "data" / "audio" / filename
+        return resolved if resolved.exists() else None
+    if source_url.startswith("/api/media/image/"):
+        filename = source_url.split("/api/media/image/")[-1]
+        resolved = backend_root / "data" / "image" / filename
+        return resolved if resolved.exists() else None
+    return None
+
+
+def resolve_local_media_path(source_url: str) -> Path | None:
+    return _resolve_local_media_path(source_url)
+
+
+def _resolve_media_binary_path(env_var: str, unavailable_reason: str, *, fallback_to_ffmpeg_sibling: bool = False) -> Path:
+    configured = clean_text(os.getenv(env_var)).strip('"')
+    if configured:
+        candidate = Path(configured)
+        if candidate.exists() and candidate.is_file():
+            return candidate
+        raise ValueError(f"{unavailable_reason}: {env_var} does not point to a valid binary.")
+    if fallback_to_ffmpeg_sibling:
+        ffmpeg_configured = clean_text(os.getenv("FFMPEG_PATH")).strip('"')
+        if not ffmpeg_configured:
+            raise ValueError(f"{unavailable_reason}: {env_var} is not configured and FFMPEG_PATH is not configured.")
+        ffmpeg_candidate = Path(ffmpeg_configured)
+        if not ffmpeg_candidate.exists() or not ffmpeg_candidate.is_file():
+            raise ValueError(f"{unavailable_reason}: FFMPEG_PATH does not point to a valid ffmpeg binary.")
+        sibling_name = "ffprobe.exe" if ffmpeg_candidate.suffix.lower() == ".exe" else "ffprobe"
+        sibling_candidate = ffmpeg_candidate.with_name(sibling_name)
+        if sibling_candidate.exists() and sibling_candidate.is_file():
+            return sibling_candidate
+        raise ValueError(f"{unavailable_reason}: FFPROBE_PATH is not configured and no sibling ffprobe binary was found next to FFMPEG_PATH.")
+    raise ValueError(f"{unavailable_reason}: {env_var} is not configured.")
+
+
+def resolve_ffmpeg_path() -> Path:
+    return _resolve_media_binary_path("FFMPEG_PATH", "ffmpeg_not_available")
+
+
+def resolve_ffprobe_path() -> Path:
+    return _resolve_media_binary_path("FFPROBE_PATH", "ffprobe_not_available", fallback_to_ffmpeg_sibling=True)
+
+
+def _download_media_source(source_url: str, destination: Path) -> None:
+    request = urllib.request.Request(
+        source_url,
+        headers={"User-Agent": "AIOCRM/1.0"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response, destination.open("wb") as handle:
+            shutil.copyfileobj(response, handle)
+    except urllib.error.HTTPError as error:
+        raise ValueError(f"ffmpeg_failed: Unable to download source media ({error.code} {error.reason}).") from error
+    except urllib.error.URLError as error:
+        raise ValueError(f"ffmpeg_failed: Unable to download source media ({error.reason}).") from error
+    except Exception as error:
+        raise ValueError(f"ffmpeg_failed: Unable to download source media ({error}).") from error
+
+
+def _prepare_audio_for_transcription(source_url: str) -> dict[str, str]:
+    normalized_source_url = clean_text(source_url)
+    if not normalized_source_url:
+        raise ValueError("missing_source: source_url is required for FFmpeg media preparation.")
+    ffmpeg_path = resolve_ffmpeg_path()
+    temp_dir = Path(tempfile.mkdtemp(prefix="aio-transcribe-"))
+    local_input_path = _resolve_local_media_path(normalized_source_url)
+    working_input_path: Path
+    if local_input_path:
+        working_input_path = local_input_path
+    else:
+        parsed = urllib.parse.urlparse(normalized_source_url)
+        suffix = Path(parsed.path).suffix or ".bin"
+        working_input_path = temp_dir / f"input{suffix}"
+        _download_media_source(normalized_source_url, working_input_path)
+    output_path = temp_dir / "normalized-audio.wav"
+    command = [
+        str(ffmpeg_path),
+        "-y",
+        "-i",
+        str(working_input_path),
+        "-map_metadata",
+        "-1",
+        "-fflags",
+        "+bitexact",
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-flags:a",
+        "+bitexact",
+        "-c:a",
+        "pcm_s16le",
+        "-f",
+        "wav",
+        str(output_path),
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("ffmpeg_failed: FFmpeg timed out while preparing audio.") from error
+    except Exception as error:
+        raise ValueError(f"ffmpeg_failed: FFmpeg could not be started ({error}).") from error
+    if result.returncode != 0:
+        details = clean_text(result.stderr or result.stdout) or "Unknown FFmpeg failure."
+        raise ValueError(f"ffmpeg_failed: {details}")
+    if not output_path.exists() or output_path.stat().st_size <= 0:
+        raise ValueError("ffmpeg_failed: FFmpeg did not produce a usable audio file.")
+    return {
+        "prepared_audio_path": str(output_path),
+        "cleanup_dir": str(temp_dir),
+    }
+
+
+def _resolve_local_stt_shell() -> str:
+    for candidate in ("powershell", "pwsh"):
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    raise ValueError("transcription_failed: No local PowerShell runtime is available for ffmpeg_transcribe.")
+
+
+def _download_file(url: str, destination: Path) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": "AIOCRM/ffmpeg_transcribe"})
+    with urllib.request.urlopen(request, timeout=300) as response, destination.open("wb") as output_stream:
+        shutil.copyfileobj(response, output_stream)
+
+
+def _resolve_vosk_model_path() -> Path:
+    configured_path = clean_text(os.getenv("VOSK_MODEL_PATH"))
+    if configured_path:
+        candidate = Path(configured_path).expanduser()
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+        raise ValueError("transcription_failed: VOSK_MODEL_PATH does not point to a valid model directory.")
+
+    model_root = Path(__file__).resolve().parent / "data" / "models"
+    model_root.mkdir(parents=True, exist_ok=True)
+    target_dir = model_root / VOSK_DEFAULT_MODEL_NAME
+    if target_dir.exists() and target_dir.is_dir():
+        return target_dir
+
+    archive_path = model_root / f"{VOSK_DEFAULT_MODEL_NAME}.zip"
+    download_url = clean_text(os.getenv("VOSK_MODEL_URL")) or VOSK_DEFAULT_MODEL_URL
+    if not archive_path.exists():
+        try:
+            _download_file(download_url, archive_path)
+        except Exception as error:
+            raise ValueError(f"transcription_failed: Local Vosk model is unavailable and could not be downloaded ({error}).") from error
+    try:
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            archive.extractall(model_root)
+    except Exception as error:
+        raise ValueError(f"transcription_failed: Local Vosk model archive could not be extracted ({error}).") from error
+    if target_dir.exists() and target_dir.is_dir():
+        return target_dir
+    raise ValueError("transcription_failed: Local Vosk model directory is missing after extraction.")
+
+
+def _get_vosk_model() -> Any:
+    global _VOSK_MODEL_CACHE
+    with _VOSK_MODEL_CACHE_LOCK:
+        if _VOSK_MODEL_CACHE is not None:
+            return _VOSK_MODEL_CACHE
+        try:
+            from vosk import Model, SetLogLevel
+        except Exception as error:
+            raise ValueError(f"transcription_failed: Local Vosk runtime is unavailable ({error}).") from error
+        model_path = _resolve_vosk_model_path()
+        try:
+            SetLogLevel(-1)
+        except Exception:
+            pass
+        try:
+            _VOSK_MODEL_CACHE = Model(str(model_path))
+        except Exception as error:
+            raise ValueError(f"transcription_failed: Local Vosk model could not be loaded ({error}).") from error
+        return _VOSK_MODEL_CACHE
+
+
+def _collect_vosk_segment(chunk: dict[str, Any]) -> dict[str, Any] | None:
+    text = clean_text(chunk.get("text"))
+    words = chunk.get("result") if isinstance(chunk.get("result"), list) else []
+    if not text:
+        return None
+    start = words[0].get("start") if words and isinstance(words[0], dict) else None
+    end = words[-1].get("end") if words and isinstance(words[-1], dict) else None
+    confidence_values = [float(item.get("conf")) for item in words if isinstance(item, dict) and item.get("conf") is not None]
+    confidence = round(sum(confidence_values) / len(confidence_values), 4) if confidence_values else None
+    return {
+        "start": start,
+        "end": end,
+        "speaker": "Speaker A",
+        "text": text,
+        "confidence": confidence,
+    }
+
+
+def _transcribe_with_vosk(prepared_audio_path: str) -> dict[str, Any]:
+    audio_path = Path(clean_text(prepared_audio_path))
+    if not audio_path.exists() or not audio_path.is_file():
+        raise ValueError("ffmpeg_failed: Prepared audio file is missing before local transcription.")
+    try:
+        from vosk import KaldiRecognizer
+    except Exception as error:
+        raise ValueError(f"transcription_failed: Local Vosk runtime is unavailable ({error}).") from error
+    model = _get_vosk_model()
+    transcript_chunks: list[str] = []
+    segments: list[dict[str, Any]] = []
+    try:
+        with wave.open(str(audio_path), "rb") as wav_file:
+            recognizer = KaldiRecognizer(model, wav_file.getframerate())
+            recognizer.SetWords(True)
+            while True:
+                data = wav_file.readframes(4000)
+                if not data:
+                    break
+                if recognizer.AcceptWaveform(data):
+                    chunk = json.loads(recognizer.Result() or "{}")
+                    segment = _collect_vosk_segment(chunk)
+                    if segment:
+                        transcript_chunks.append(segment["text"])
+                        segments.append(segment)
+            final_chunk = json.loads(recognizer.FinalResult() or "{}")
+            final_segment = _collect_vosk_segment(final_chunk)
+            if final_segment:
+                transcript_chunks.append(final_segment["text"])
+                segments.append(final_segment)
+    except ValueError:
+        raise
+    except Exception as error:
+        raise ValueError(f"transcription_failed: Local Vosk transcription failed ({error}).") from error
+    transcript_text = clean_text(" ".join(transcript_chunks))
+    if not transcript_text:
+        raise ValueError("transcription_failed: Local ffmpeg_transcribe could not detect speech in the prepared audio.")
+    normalized_segments = normalize_speaker_segments(segments)
+    timestamps = [
+        {"start": item.get("start"), "end": item.get("end"), "speaker": item.get("speaker")}
+        for item in normalized_segments
+    ]
+    return {
+        "transcript_text": transcript_text,
+        "speaker_segments": normalized_segments,
+        "timestamps": timestamps,
+        "message": "Transcript generated by local ffmpeg_transcribe.",
+    }
+
+
+def _transcribe_with_windows_speech(prepared_audio_path: str) -> dict[str, Any]:
+    audio_path = Path(clean_text(prepared_audio_path))
+    if not audio_path.exists() or not audio_path.is_file():
+        raise ValueError("ffmpeg_failed: Prepared audio file is missing before local transcription.")
+
+    powershell_path = _resolve_local_stt_shell()
+    script = r"""
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Speech
+$audioPath = $env:AIOCRM_TRANSCRIBE_AUDIO_PATH
+if ([string]::IsNullOrWhiteSpace($audioPath) -or -not (Test-Path $audioPath)) {
+  throw 'Prepared audio path is missing.'
+}
+$recognizerInfo = [System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers() | Select-Object -First 1
+$engine = $null
+try {
+  if ($null -ne $recognizerInfo) {
+    $engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine($recognizerInfo)
+  } else {
+    $engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+  }
+  $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+  $engine.SetInputToWaveFile($audioPath)
+  $segments = @()
+  $full = @()
+  while ($true) {
+    $result = $engine.Recognize()
+    if ($null -eq $result) { break }
+    $text = "$($result.Text)".Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) { continue }
+    $start = $null
+    $end = $null
+    if ($null -ne $result.Audio) {
+      $start = [math]::Round($result.Audio.AudioPosition.TotalSeconds, 3)
+      $end = [math]::Round(($result.Audio.AudioPosition + $result.Audio.Duration).TotalSeconds, 3)
+    }
+    $full += $text
+    $segments += [pscustomobject]@{
+      start = $start
+      end = $end
+      speaker = 'Speaker A'
+      text = $text
+      confidence = [math]::Round([double]$result.Confidence, 4)
+    }
+  }
+  $timestamps = @($segments | ForEach-Object {
+    [pscustomobject]@{
+      start = $_.start
+      end = $_.end
+      speaker = $_.speaker
+    }
+  })
+  [pscustomobject]@{
+    transcript_text = (($full -join ' ').Trim())
+    speaker_segments = $segments
+    timestamps = $timestamps
+    message = 'Transcript generated by Windows Speech.'
+  } | ConvertTo-Json -Compress -Depth 6
+}
+finally {
+  if ($null -ne $engine) {
+    $engine.Dispose()
+  }
+}
+"""
+    encoded_script = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    environment = os.environ.copy()
+    environment["AIOCRM_TRANSCRIBE_AUDIO_PATH"] = str(audio_path)
+    try:
+        result = subprocess.run(
+            [powershell_path, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded_script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=300,
+            env=environment,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("transcription_failed: Windows Speech transcription timed out.") from error
+    except Exception as error:
+        raise ValueError(f"transcription_failed: Windows Speech transcription could not be started ({error}).") from error
+
+    if result.returncode != 0:
+        details = clean_text(result.stderr or result.stdout) or "Windows Speech transcription failed."
+        raise ValueError(f"transcription_failed: {details}")
+
+    payload = json.loads(result.stdout or "{}")
+    transcript_text = clean_text(payload.get("transcript_text"))
+    speaker_segments = normalize_speaker_segments(payload.get("speaker_segments"))
+    timestamps = payload.get("timestamps") if isinstance(payload.get("timestamps"), list) else []
+    if not transcript_text and not speaker_segments:
+        raise ValueError("transcription_failed: Windows Speech returned no transcript text.")
+    if not transcript_text and speaker_segments:
+        transcript_text = " ".join(clean_text(segment.get("text")) for segment in speaker_segments if clean_text(segment.get("text"))).strip()
+    return {
+        "transcript_text": transcript_text,
+        "speaker_segments": speaker_segments,
+        "timestamps": timestamps,
+        "message": clean_text(payload.get("message")) or "Transcript generated by ffmpeg_transcribe.",
+    }
 
 
 MEDIA_STAGES = ("temporary", "intermediate", "generated", "processing", "final")
@@ -104,6 +652,18 @@ def build_media_asset(
     content_hash: str | None = None,
     validate: bool = True,
 ) -> dict[str, Any]:
+    metadata = metadata if isinstance(metadata, dict) else {}
+    source_url_value = clean_text(source_url)
+    source_suffix = Path(urllib.parse.urlparse(source_url_value).path).suffix if source_url_value else ""
+    normalized_media_type = normalize_media_type_hint(
+        media_type,
+        source_suffix,
+        metadata.get("mime_type"),
+        metadata.get("mimeType"),
+        metadata.get("content_type"),
+        metadata.get("contentType"),
+    )
+
     if validate:
         if not clean_text(source):
             raise MediaValidationError("Media asset requires 'source' field.")
@@ -122,21 +682,21 @@ def build_media_asset(
         "tenant_id": tenant_id,
         "provider": provider,
         "asset_type": asset_type,
-        "media_type": media_type,
+        "media_type": normalized_media_type,
         "title": title or "Media Asset",
         "source": source,
         "stage": stage,
         "linked_id": linked_id,
-        "source_url": source_url,
-        "metadata": clone_json(metadata or {}),
+        "source_url": source_url_value or None,
+        "metadata": clone_json(metadata),
         "attachments": clone_json(attachments or []),
         "content_hash": content_hash,
         "created_at": now,
         "updated_at": now,
     }
 
-    if not content_hash and source_url:
-        asset["content_hash"] = generate_content_hash({"url": source_url, "type": asset_type})
+    if not content_hash and source_url_value:
+        asset["content_hash"] = generate_content_hash({"url": source_url_value, "type": asset_type})
 
     return asset
 
@@ -433,6 +993,53 @@ class MediaStateStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
+    def _same_tenant(self, left: dict[str, Any], right: dict[str, Any]) -> bool:
+        return clean_text(left.get("tenant_id")) == clean_text(right.get("tenant_id"))
+
+    def _provider_source_key(self, asset: dict[str, Any]) -> tuple[str, str] | None:
+        metadata = asset.get("metadata") if isinstance(asset.get("metadata"), dict) else {}
+        provider = clean_text(asset.get("provider")).lower()
+        source_id = clean_text(
+            metadata.get("recording_id")
+            or metadata.get("drive_file_id")
+            or metadata.get("provider_asset_id")
+            or metadata.get("providerAssetId")
+            or metadata.get("source_id")
+            or metadata.get("sourceId")
+        )
+        if provider and source_id:
+            return provider, source_id
+        return None
+
+    def _upload_fingerprint(self, asset: dict[str, Any]) -> tuple[str, str, str] | None:
+        metadata = asset.get("metadata") if isinstance(asset.get("metadata"), dict) else {}
+        filename = clean_text(metadata.get("original_filename")).lower()
+        size_bytes = clean_text(metadata.get("size_bytes") or metadata.get("sizeBytes"))
+        content_hash = clean_text(asset.get("content_hash"))
+        if filename and size_bytes and content_hash:
+            return filename, size_bytes, content_hash
+        return None
+
+    def _find_duplicate_asset(self, rows: list[dict[str, Any]], payload: dict[str, Any]) -> dict[str, Any] | None:
+        payload_content_hash = clean_text(payload.get("content_hash"))
+        payload_url = normalize_dedup_url(payload.get("source_url"))
+        payload_provider_source = self._provider_source_key(payload)
+        payload_upload_fingerprint = self._upload_fingerprint(payload)
+
+        for existing in rows:
+            if not self._same_tenant(existing, payload):
+                continue
+            existing_content_hash = clean_text(existing.get("content_hash"))
+            if payload_content_hash and existing_content_hash == payload_content_hash:
+                return clone_json(existing)
+            if payload_provider_source and self._provider_source_key(existing) == payload_provider_source:
+                return clone_json(existing)
+            if payload_url and normalize_dedup_url(existing.get("source_url")) == payload_url:
+                return clone_json(existing)
+            if payload_upload_fingerprint and self._upload_fingerprint(existing) == payload_upload_fingerprint:
+                return clone_json(existing)
+        return None
+
     def upsert(self, collection: str, record: dict[str, Any], deduplicate: bool = False) -> dict[str, Any]:
         with self._lock:
             state = self._read_state()
@@ -446,11 +1053,9 @@ class MediaStateStore:
                     self._write_state(state)
                     return payload
             if deduplicate and collection == "assets":
-                content_hash = payload.get("content_hash")
-                if content_hash:
-                    for existing in rows:
-                        if clean_text(existing.get("content_hash")) == content_hash:
-                            return existing
+                duplicate = self._find_duplicate_asset(rows, payload)
+                if duplicate:
+                    return duplicate
             rows.append(payload)
             self._write_state(state)
             return payload
@@ -714,6 +1319,37 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
     provider_id = "elevenlabs_scribe"
     BASE_URL = "https://api.elevenlabs.io"
 
+    def _upload_audio_file(self, upload_url: str, headers: dict[str, str], audio_path: str, prompt: str) -> str:
+        file_path = Path(audio_path)
+        if not file_path.exists():
+            raise ValueError(f"Prepared audio file '{audio_path}' is missing.")
+        boundary = f"----AIOCRM{uuid4().hex}"
+        mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        file_bytes = file_path.read_bytes()
+        body = b"".join(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="file"; filename="{file_path.name}"\r\n'.encode("utf-8"),
+                f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"),
+                file_bytes,
+                b"\r\n",
+                f"--{boundary}--\r\n".encode("utf-8"),
+            ]
+        )
+        request = urllib.request.Request(
+            f"{upload_url}?prompt={urllib.parse.quote(prompt or '')}",
+            data=body,
+            headers={
+                **headers,
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Content-Length": str(len(body)),
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            payload = json.loads(response.read().decode())
+            return clean_text(payload.get("audio_id"))
+
     def transcribeMedia(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         transcript_text = clean_text(payload.get("transcript_text"))
         segments = normalize_speaker_segments(payload.get("speaker_segments"))
@@ -735,12 +1371,11 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
             raise ValueError("ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.")
 
         audio_url = clean_text(payload.get("source_url"))
+        prepared_audio_path = clean_text(payload.get("prepared_audio_path") or payload.get("preparedAudioPath"))
+        if prepared_audio_path and not Path(prepared_audio_path).exists():
+            raise ValueError("ffmpeg_failed: Prepared audio file is missing before transcription handoff.")
         if not audio_url:
             raise ValueError("ElevenLabs Scribe requires source_url for live transcription.")
-
-        import urllib.request
-        import urllib.error
-        import json
 
         request_id = job.get("id", "transcribe")
 
@@ -750,14 +1385,17 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
         }
         
         try:
-            req = urllib.request.Request(
-                f"{upload_url}?prompt={urllib.parse.quote(payload.get('prompt', ''))}",
-                headers=headers,
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=30) as response:
-                upload_result = json.loads(response.read().decode())
-                audio_id = upload_result.get("audio_id")
+            if prepared_audio_path:
+                audio_id = self._upload_audio_file(upload_url, headers, prepared_audio_path, clean_text(payload.get("prompt")))
+            else:
+                req = urllib.request.Request(
+                    f"{upload_url}?prompt={urllib.parse.quote(payload.get('prompt', ''))}",
+                    headers=headers,
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    upload_result = json.loads(response.read().decode())
+                    audio_id = upload_result.get("audio_id")
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 raise ValueError("ElevenLabs API key is invalid.")
@@ -815,8 +1453,8 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
             raise ValueError(f"ElevenLabs transcription error: {str(e)}")
 
 
-class AwsTranscribeProvider(BaseTranscriptionProvider):
-    provider_id = "aws_transcribe"
+class FfmpegTranscribeProvider(BaseTranscriptionProvider):
+    provider_id = "ffmpeg_transcribe"
 
     def transcribeMedia(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         transcript_text = clean_text(payload.get("transcript_text"))
@@ -828,9 +1466,10 @@ class AwsTranscribeProvider(BaseTranscriptionProvider):
                 "timestamps": [{"start": item.get("start"), "end": item.get("end"), "speaker": item.get("speaker")} for item in segments],
                 "message": "Transcript normalized from provided text.",
             }
-        if not clean_text(payload.get("access_key_id")) or not clean_text(payload.get("secret_access_key")):
-            raise ValueError("AWS transcription credentials are missing.")
-        raise NotImplementedError("Live AWS transcription is not wired in this safe pass.")
+        prepared_audio_path = clean_text(payload.get("prepared_audio_path") or payload.get("preparedAudioPath"))
+        if not prepared_audio_path:
+            raise ValueError("missing_source: Prepared audio path is required for ffmpeg_transcribe.")
+        return _transcribe_with_vosk(prepared_audio_path)
 
 
 class ZoomMeetingIngestionProvider(BaseMeetingIngestionProvider):
@@ -851,7 +1490,14 @@ class ZoomMeetingIngestionProvider(BaseMeetingIngestionProvider):
             "assets": [
                 {
                     "asset_type": "meeting_recording",
-                    "media_type": clean_text(item.get("media_type") or item.get("file_type") or "video").lower(),
+                    "media_type": normalize_media_type_hint(
+                        item.get("media_type"),
+                        item.get("mime_type"),
+                        item.get("mimeType"),
+                        item.get("file_type"),
+                        item.get("fileType"),
+                        Path(clean_text(item.get("url") or item.get("downloadUrl") or item.get("download_url"))).suffix,
+                    ),
                     "title": clean_text(item.get("title") or item.get("file_name") or "Zoom Recording"),
                     "source_url": clean_text(item.get("url") or item.get("downloadUrl") or item.get("download_url")),
                     "metadata": {
@@ -891,7 +1537,14 @@ class GoogleMeetDriveIngestionProvider(BaseMeetingIngestionProvider):
             "assets": [
                 {
                     "asset_type": "meeting_recording",
-                    "media_type": clean_text(item.get("media_type") or item.get("mime_type") or "video").lower(),
+                    "media_type": normalize_media_type_hint(
+                        item.get("media_type"),
+                        item.get("mime_type"),
+                        item.get("mimeType"),
+                        item.get("file_type"),
+                        item.get("fileType"),
+                        Path(clean_text(item.get("url") or item.get("webViewLink") or item.get("downloadUrl"))).suffix,
+                    ),
                     "title": clean_text(item.get("title") or item.get("name") or "Drive Meeting Artifact"),
                     "source_url": clean_text(item.get("url") or item.get("webViewLink") or item.get("downloadUrl")),
                     "metadata": {
@@ -1114,7 +1767,9 @@ class MediaEngine:
         }
         self.transcription_providers: dict[str, BaseTranscriptionProvider] = {
             ElevenLabsScribeTranscriptionProvider.provider_id: ElevenLabsScribeTranscriptionProvider(),
-            AwsTranscribeProvider.provider_id: AwsTranscribeProvider(),
+            FfmpegTranscribeProvider.provider_id: FfmpegTranscribeProvider(),
+            # Legacy alias only. New settings and active routing must use ffmpeg_transcribe.
+            LEGACY_TRANSCRIPTION_PROVIDER_AWS: FfmpegTranscribeProvider(),
         }
         self.ingestion_providers: dict[str, BaseMeetingIngestionProvider] = {
             ZoomMeetingIngestionProvider.provider_id: ZoomMeetingIngestionProvider(),
@@ -1175,6 +1830,70 @@ class MediaEngine:
 
     def get_assets_by_flow(self, flow_id: str) -> list[dict[str, Any]]:
         return self.get_assets_by_pipeline("flow", flow_id)
+
+    def upload_local_media(
+        self,
+        *,
+        file_bytes: bytes,
+        filename: str,
+        content_type: str | None = None,
+        tenant_id: str | None = None,
+        title: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        safe_name = Path(clean_text(filename) or "upload.bin").name
+        if not safe_name:
+            raise ValueError("Uploaded file must include a filename.")
+        payload = file_bytes or b""
+        if not payload:
+            raise ValueError("Uploaded file is empty.")
+
+        guessed_content_type, _ = mimetypes.guess_type(safe_name)
+        media_type = classify_uploaded_media(content_type, guessed_content_type, Path(safe_name).suffix)
+        if media_type == "audio":
+            storage_dir = _backend_root() / "data" / "audio"
+            source_prefix = "/api/media/audio"
+        elif media_type == "image":
+            storage_dir = _backend_root() / "data" / "image"
+            source_prefix = "/api/media/image"
+        else:
+            storage_dir = _backend_root() / "data" / "video"
+            source_prefix = "/api/media/video"
+
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        suffix = Path(safe_name).suffix or (
+            mimetypes.guess_extension(content_type or "") or ".bin"
+        )
+        stored_filename = f"{uuid4().hex}{suffix.lower()}"
+        storage_path = storage_dir / stored_filename
+        storage_path.write_bytes(payload)
+
+        dedup_hash = build_upload_dedup_hash(safe_name, payload, content_type or guessed_content_type)
+
+        asset = build_media_asset(
+            tenant_id=tenant_id,
+            provider="local_upload",
+            asset_type="uploaded_file",
+            media_type=media_type,
+            title=clean_text(title) or Path(safe_name).stem or "Uploaded File",
+            source="upload",
+            stage="final",
+            source_url=f"{source_prefix}/{stored_filename}",
+            metadata={
+                "original_filename": safe_name,
+                "mime_type": clean_text(content_type) or clean_text(guessed_content_type) or None,
+                "size_bytes": len(payload),
+            },
+            attachments=normalize_attachment_links({}, context),
+            content_hash=dedup_hash,
+        )
+        persisted = self.store.upsert_asset(asset, deduplicate=True)
+        if clean_text(persisted.get("id")) != clean_text(asset.get("id")) and storage_path.exists():
+            storage_path.unlink(missing_ok=True)
+        return {
+            "asset": persisted,
+            "deduplicated": clean_text(persisted.get("id")) != clean_text(asset.get("id")),
+        }
 
     def get_assets_by_agent(self, agent_id: str) -> list[dict[str, Any]]:
         return self.get_assets_by_pipeline("agent", agent_id)
@@ -1531,8 +2250,19 @@ class MediaEngine:
     ) -> dict[str, Any]:
         started = {**job, "status": "processing", "started_at": utcnow_iso()}
         self.store.upsert("transcript_jobs", started)
+        cleanup_dir = None
         try:
-            result = provider.transcribeMedia(started, payload)
+            provider_payload = clone_json(payload)
+            asset_id = clean_text(provider_payload.get("asset_id") or provider_payload.get("assetId"))
+            source_asset_ids_value = provider_payload.get("source_asset_ids") or provider_payload.get("sourceAssetIds") or []
+            has_source_asset_ids = any(clean_text(item) for item in source_asset_ids_value) if isinstance(source_asset_ids_value, list) else False
+            has_inline_transcript = bool(clean_text(provider_payload.get("transcript_text")) or normalize_speaker_segments(provider_payload.get("speaker_segments")))
+            if (asset_id or has_source_asset_ids) and not has_inline_transcript:
+                prepared_audio = _prepare_audio_for_transcription(clean_text(provider_payload.get("source_url") or provider_payload.get("sourceUrl")))
+                cleanup_dir = prepared_audio.get("cleanup_dir")
+                provider_payload["prepared_audio_path"] = prepared_audio.get("prepared_audio_path")
+                provider_payload["preparedAudioPath"] = prepared_audio.get("prepared_audio_path")
+            result = provider.transcribeMedia(started, provider_payload)
             artifact = build_transcript_artifact(
                 tenant_id=tenant_id,
                 provider=provider.provider_id,
@@ -1563,6 +2293,9 @@ class MediaEngine:
             }
             self.store.upsert("transcript_jobs", failed)
             return {"job": failed, "artifact": None}
+        finally:
+            if cleanup_dir:
+                shutil.rmtree(cleanup_dir, ignore_errors=True)
 
     def ingest_meeting_artifacts(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
         provider_id = clean_text(payload.get("provider") or payload.get("source")) or ZoomMeetingIngestionProvider.provider_id
@@ -1572,7 +2305,38 @@ class MediaEngine:
         normalized = provider.ingestMeetingArtifacts(payload)
         attachments = normalize_attachment_links(payload, context)
         assets: list[dict[str, Any]] = []
+        deduplicated_asset_ids: list[str] = []
         for asset_payload in normalized.get("assets") or []:
+            source_url = clean_text(asset_payload.get("source_url")) or None
+            asset_metadata = {
+                **(asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {}),
+                "meeting": clone_json(normalized.get("meeting") or {}),
+            }
+            provider_source_id = clean_text(
+                asset_metadata.get("recording_id")
+                or asset_metadata.get("drive_file_id")
+                or asset_metadata.get("provider_asset_id")
+                or asset_metadata.get("providerAssetId")
+                or asset_metadata.get("source_id")
+                or asset_metadata.get("sourceId")
+            )
+            content_hash = None
+            if provider_source_id:
+                content_hash = generate_content_hash(
+                    {
+                        "provider": provider.provider_id,
+                        "source_id": provider_source_id,
+                        "asset_type": clean_text(asset_payload.get("asset_type")) or "meeting_recording",
+                    }
+                )
+            elif source_url:
+                content_hash = generate_content_hash(
+                    {
+                        "provider": provider.provider_id,
+                        "url": normalize_dedup_url(source_url),
+                        "asset_type": clean_text(asset_payload.get("asset_type")) or "meeting_recording",
+                    }
+                )
             asset = build_media_asset(
                 tenant_id=tenant_id,
                 provider=provider.provider_id,
@@ -1580,14 +2344,15 @@ class MediaEngine:
                 media_type=clean_text(asset_payload.get("media_type")) or "video",
                 title=clean_text(asset_payload.get("title")) or clean_text(normalized.get("meeting", {}).get("title")) or "Meeting Artifact",
                 source="meeting_ingest",
-                source_url=clean_text(asset_payload.get("source_url")) or None,
-                metadata={
-                    **(asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {}),
-                    "meeting": clone_json(normalized.get("meeting") or {}),
-                },
+                source_url=source_url,
+                metadata=asset_metadata,
                 attachments=attachments,
+                content_hash=content_hash,
             )
-            assets.append(self.store.upsert("assets", asset))
+            persisted = self.store.upsert_asset(asset, deduplicate=True)
+            if clean_text(persisted.get("id")) != clean_text(asset.get("id")):
+                deduplicated_asset_ids.append(clean_text(persisted.get("id")))
+            assets.append(persisted)
 
         transcript = normalized.get("transcript") if isinstance(normalized.get("transcript"), dict) else None
         transcript_job = None
@@ -1623,6 +2388,8 @@ class MediaEngine:
             "provider": provider.provider_id,
             "meeting": normalized.get("meeting") or {},
             "assets": assets,
+            "deduplicated": bool(deduplicated_asset_ids),
+            "deduplicated_asset_ids": deduplicated_asset_ids,
             "transcript_job": transcript_job,
             "transcript_artifact": transcript_artifact,
         }
@@ -1639,13 +2406,16 @@ class MediaEngine:
         collection = collection_map.get(job_type)
         if not collection:
             return None
-        with self._lock:
-            state = self._read_state()
-            rows = state.get(collection) or []
-            for row in rows:
-                if clean_text(row.get("id")) == clean_text(job_id):
-                    return clone_json(row)
-        return None
+        return self.store.get(collection, job_id)
+
+    def delete_asset(self, asset_id: str) -> bool:
+        return self.store.delete_asset(asset_id)
+
+    def delete_job(self, job_type: str, job_id: str) -> bool:
+        return self.store.delete_job(job_type, job_id)
+
+    def delete_artifact(self, artifact_type: str, artifact_id: str) -> bool:
+        return self.store.delete_artifact(artifact_type, artifact_id)
 
     def process_job(self, job_type: str, job_id: str, payload: dict[str, Any], tenant_id: str | None = None) -> dict[str, Any]:
         """Runs the actual processing logic for a job. Suitable for BackgroundTasks."""
@@ -1684,7 +2454,18 @@ class MediaEngine:
             provider_id = job.get("provider") or ElevenLabsScribeTranscriptionProvider.provider_id
             provider = self.transcription_providers.get(provider_id)
             if not provider: return {"error": f"Provider {provider_id} not found"}
-            return self._process_transcript_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+            source_asset_ids = [clean_text(item) for item in (payload.get("source_asset_ids") or payload.get("sourceAssetIds") or []) if clean_text(item)]
+            single_asset_id = clean_text(payload.get("asset_id") or payload.get("assetId"))
+            if single_asset_id and single_asset_id not in source_asset_ids:
+                source_asset_ids.append(single_asset_id)
+            return self._process_transcript_job(
+                provider,
+                job,
+                payload,
+                tenant_id=tenant_id,
+                attachments=attachments,
+                source_asset_ids=source_asset_ids or None,
+            )
 
         return {"error": f"Unsupported job type {job_type}"}
 
