@@ -6170,12 +6170,14 @@ async def bulk_delete_forms(request: Request, payload: dict[str, Any] = Body(...
 
 
 @app.get("/api/cms/tables")
-async def list_cms_tables():
+async def list_cms_tables(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view CMS tables.")
     return {"data": provider.list_cms_tables()}
 
 
 @app.get("/api/cms/tables/{slug}")
-async def list_cms_table_data(slug: str):
+async def list_cms_table_data(slug: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view CMS table data.")
     return {"data": provider.list_cms_table_data(slug)}
 
 

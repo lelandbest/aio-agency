@@ -807,23 +807,23 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         surface: 'thread',
         field,
         intent: field === 'summary' ? 'summarize' : 'draft',
-        current_value: field === 'rewrite' ? composer || selectedThread.preview || '' : selectedThread.brief?.summary || selectedThread.preview || '',
+        currentValue: field === 'rewrite' ? composer || selectedThread.preview || '' : selectedThread.brief?.summary || selectedThread.preview || '',
         context: {
-          thread_id: selectedThread.id,
+          threadId: selectedThread.id,
           subject: selectedThread.subject,
           preview: selectedThread.preview,
           summary: selectedThread.brief?.summary,
-          recommended_next_step: selectedThread.brief?.recommendedNextStep,
+          recommendedNextStep: selectedThread.brief?.recommendedNextStep,
           disposition: selectedThread.brief?.disposition,
-          unresolved_questions: selectedThread.brief?.unresolvedQuestions || [],
-          reasoning_cues: selectedThread.brief?.reasoningCues || [],
-          ai_flags: Object.keys(selectedThread.aiFlags || {}).filter((key) => selectedThread.aiFlags[key]),
+          unresolvedQuestions: selectedThread.brief?.unresolvedQuestions || [],
+          reasoningCues: selectedThread.brief?.reasoningCues || [],
+          aiFlags: Object.keys(selectedThread.aiFlags || {}).filter((key) => selectedThread.aiFlags[key]),
           priority: selectedThread.aiPriority,
-          contact_name: selectedThread.contact ? `${selectedThread.contact.firstName} ${selectedThread.contact.lastName}`.trim() : '',
-          company_name: selectedThread.company?.name || '',
+          contactName: selectedThread.contact ? `${selectedThread.contact.firstName} ${selectedThread.contact.lastName}`.trim() : '',
+          companyName: selectedThread.company?.name || '',
           assignee: selectedThread.assignee,
-          latest_message: latestMessage?.plain_text || latestMessage?.body || '',
-          latest_direction: latestMessage?.direction || '',
+          latestMessage: latestMessage?.plain_text || latestMessage?.body || '',
+          latestDirection: latestMessage?.direction || '',
         }
       });
       if (field !== 'summary') {
@@ -1069,7 +1069,10 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   }, [latestAgentAction, latestAgentMessage, selectedThread?.activeAgentIdentity, selectedThread?.assignee]);
 
   const agentRailAgents = useMemo(
-    () => VISIBLE_SPECIALIST_KEYS.filter((agentName) => availableAgents.includes(agentName)).slice(0, 13),
+    () => {
+      const backendAgents = availableAgents.length > 0 ? availableAgents : VISIBLE_SPECIALIST_KEYS;
+      return VISIBLE_SPECIALIST_KEYS.filter((agentName) => backendAgents.includes(agentName)).slice(0, 13);
+    },
     [availableAgents]
   );
 
@@ -1228,9 +1231,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         .comms-thread-strip::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(96,165,250,0.75),rgba(59,130,246,0.58));border-radius:999px;border:2px solid rgba(15,23,42,0.34);}
         .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
       `}</style>
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        {actionNotice ? (
-          <div className={`rounded-xl border px-3 py-2.5 text-sm flex-shrink-0 ${actionNotice.tone === 'success'
+      <div className="flex h-full min-h-0 flex-col gap-3 relative">
+        {actionNotice && (
+          <div className={`absolute top-0 left-0 right-0 z-50 rounded-xl border px-3 py-2.5 text-sm ${actionNotice.tone === 'success'
               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
               : actionNotice.tone === 'warning'
                 ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
@@ -1238,7 +1241,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
             }`}>
             {actionNotice.message}
           </div>
-        ) : null}
+        )}
 
         <ModuleHeader
           showTitle={false}

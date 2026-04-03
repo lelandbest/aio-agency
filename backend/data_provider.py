@@ -5936,7 +5936,7 @@ class SQLiteProvider(BaseProvider):
                     payload[key] = int(bool(updates[key]))
             if not payload:
                 return self._contact_from_row(dict(existing))
-            payload["updated_at"] = utcnow()
+            payload["updatedAt"] = utcnow()
             assignments = ", ".join(f"{key} = ?" for key in payload.keys())
             conn.execute(f"UPDATE contacts SET {assignments} WHERE id = ? AND tenantId = ?", (*payload.values(), contact_id, self._tenantId()))
             conn.commit()
@@ -7246,7 +7246,7 @@ class SQLiteProvider(BaseProvider):
     def list_cms_tables(self) -> list[dict[str, Any]]:
         forms = self.list_forms()
         submission_counts: dict[str, int] = {}
-        for row in self._tenant_rows("SELECT form_id, COUNT(*) AS total FROM form_submissions WHERE tenantId = ? GROUP BY form_id"):
+        for row in self._tenant_rows("SELECT formId, COUNT(*) AS total FROM form_submissions WHERE tenantId = ? GROUP BY formId"):
             submission_counts[row["formId"]] = row["total"]
         return [
             {
