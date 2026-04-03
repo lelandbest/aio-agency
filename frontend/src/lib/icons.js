@@ -3,6 +3,7 @@
  * Exports all lucide-react icons used throughout the application
  * This allows modules to import only what they need
  */
+import { BrainIcon, BullseyeIcon, TargetIcon } from '../components/ui/icons';
 
 export {
   // Navigation & Layout
@@ -94,7 +95,6 @@ export {
   // Search & Filter
   Search,
   Filter,
-  Crosshair,
   
   // UI Elements
   Layout,
@@ -131,10 +131,10 @@ export {
   Hash,
   MousePointer,
   Cpu,
-  Target,
   ExternalLink,
   Save,
 } from 'lucide-react';
+export { BrainIcon as Brain, BullseyeIcon as Crosshair, TargetIcon as Target };
 
 /**
  * Icon Library Object
@@ -166,7 +166,7 @@ export const ICON_LIBRARY = {
   Layout: IconsModule.Layout,
   EyeOff: IconsModule.EyeOff,
   Activity: IconsModule.Activity,
-  Crosshair: IconsModule.Crosshair,
+  Crosshair: BullseyeIcon,
   Box: IconsModule.Box,
   CheckSquare: IconsModule.CheckSquare,
   Key: IconsModule.Key,
@@ -196,7 +196,7 @@ export const ICON_LIBRARY = {
   Receipt: IconsModule.Receipt,
   CardIcon: IconsModule.CreditCard,
   Cpu: IconsModule.Cpu,
-  Target: IconsModule.Target,
+  Target: TargetIcon,
   ShieldCheck: IconsModule.ShieldCheck,
   Terminal: IconsModule.Terminal,
   MessageSquareCode: IconsModule.MessageSquareCode,
@@ -243,6 +243,7 @@ export const ICON_LIBRARY = {
   ArrowRight: IconsModule.ArrowRight,
   Save: IconsModule.Save,
   Calendar: IconsModule.Calendar,
+  Brain: BrainIcon,
 };
 
 export default ICON_LIBRARY;

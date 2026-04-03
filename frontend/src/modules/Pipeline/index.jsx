@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Brain,
-  Crosshair,
   GitMerge,
   Plus,
   Calendar,

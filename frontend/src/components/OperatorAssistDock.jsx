@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   ArrowUp,
-  Brain,
   Loader2,
   Mic,
   Sparkles,

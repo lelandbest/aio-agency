@@ -1,13 +1,14 @@
 import React from 'react';
 import { 
-  ChevronRight, Brain, HelpCircle, 
-  Search, Bell, Settings, Info, Target, 
+  ChevronRight, HelpCircle, 
+  Search, Bell, Settings, Info, 
   Trash2, Shield, User, Zap, Mail, Plus,
   FileInput, Download, Tag, X, ChevronLeft,
   RefreshCw
 } from 'lucide-react';
 import { useAIAssist } from '../contexts/AIAssistContext';
 import { normalizeDisplayText } from '../utils/text';
+import { BrainIcon, TargetIcon } from './ui/icons';
 
 const StatusBadge = ({ statusBadge }) => {
   if (!statusBadge) return null;
@@ -127,6 +128,7 @@ const ModuleHeader = ({
   onModuleAi = null,
 }) => {
   const { openAIAssist } = useAIAssist?.() || {};
+  const toolbarIconButtonClass = 'p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group disabled:opacity-20 disabled:cursor-not-allowed';
   
   // Industrial Island Standard: 48px height, rounded corners, floating background
   return (
@@ -161,33 +163,25 @@ const ModuleHeader = ({
               if (openAIAssist) openAIAssist();
               else console.warn('AIAssistContext not found');
             }}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+            className={toolbarIconButtonClass}
             title="Brain (Global KB)"
           >
-            <Brain size={15} className="group-hover:drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]" />
+            <BrainIcon size={15} className="group-hover:drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]" />
           </button>
           
           {/* Target - Module Specific Assistance */}
           <button
             onClick={() => onModuleAi?.()}
             disabled={!onModuleAi}
-            className="p-1.5 rounded-lg text-white hover:text-emerald-400 hover:bg-emerald-500/25 transition-all group disabled:opacity-20 disabled:cursor-not-allowed"
+            className={toolbarIconButtonClass}
             title="Target (Module AI)"
           >
-            <Target size={15} className="group-hover:drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+            <TargetIcon size={15} className="group-hover:drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]" />
           </button>
         </div>
-
-        {aiAssistSlot}
-        {executeSlot && (
-          <div className={hasSelection ? '' : 'opacity-40 pointer-events-none'}>
-            {executeSlot}
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
-export { Brain };
 export default ModuleHeader;

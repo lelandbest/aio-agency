@@ -18,12 +18,12 @@ import {
   Globe,
   Sparkles,
   Bot,
-  Brain,
   Zap,
   Webhook,
   Send,
   Calendar,
 } from 'lucide-react';
+import { BrainIcon } from '../../../../../components/ui/icons';
 
 export const nodeLibrary = {
   Messaging: [
@@ -184,7 +184,7 @@ export const nodeLibrary = {
       type: 'action',
       label: 'AI Analysis',
       description: 'Analyze data with AI',
-      icon: <Brain className="w-4 h-4 text-pink-600 dark:text-pink-400" />,
+      icon: <BrainIcon className="w-4 h-4 text-pink-600 dark:text-pink-400" />,
       iconBg: 'bg-pink-100 dark:bg-pink-900/30',
     },
     {

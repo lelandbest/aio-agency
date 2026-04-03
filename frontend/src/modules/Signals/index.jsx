@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, Users, MessageSquare, AlertTriangle,
-  Activity, Brain, Plus, Send,
-  RefreshCw, AlertCircle, Target,
+  Activity, Plus, Send,
+  RefreshCw, AlertCircle,
   ChevronRight, Play, Clock, Loader2, Zap
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
+import { BrainIcon, TargetIcon } from '../../components/ui/icons';
 
 const executeSignalApi = async (signalType, action, target, input, context = {}) => {
   const response = await fetch('/api/signals/execute', {
@@ -477,7 +478,7 @@ const SignalHistory = ({ signals }) => {
           </div>
         )) : (
           <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
-            <Brain size={32} className="mb-4" />
+            <BrainIcon size={32} className="mb-4" />
             <p className="text-xs font-black uppercase tracking-widest">No active signals</p>
           </div>
         )}
@@ -527,9 +528,9 @@ const PulseBand = ({ stats, compact = false }) => {
       </div>
       <div className={compact ? 'flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar' : 'grid grid-cols-2 lg:grid-cols-4 gap-3'}>
         <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} compact={compact} />
-        <PulseCard title="Pipelines" value={stats.pipeline} icon={Target} color="green" live={true} compact={compact} />
+        <PulseCard title="Pipelines" value={stats.pipeline} icon={TargetIcon} color="green" live={true} compact={compact} />
         <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} compact={compact} />
-        <PulseCard title="Runs" value={stats.aiRuns} icon={Brain} color="cyan" live={false} compact={compact} />
+        <PulseCard title="Runs" value={stats.aiRuns} icon={BrainIcon} color="cyan" live={false} compact={compact} />
       </div>
     </div>
   );

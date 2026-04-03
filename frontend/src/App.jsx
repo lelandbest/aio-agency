@@ -46,6 +46,7 @@ const AcceptableUsePage = lazy(() => import('./pages/AcceptableUse'));
 const PublicForm = lazy(() => import('./pages/PublicForm'));
 
 import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
+import { BullseyeIcon } from './components/ui/icons';
 
 const DEFAULT_ACTIVE_MODULE = 'aio-brain';
 const DEFAULT_CLIENT_MODULE = 'chat';
@@ -98,7 +99,7 @@ const readNavigationStateFromUrl = () => {
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
   MessageSquare, PenTool, GitMerge, GitBranch, FileText, ShoppingCart, Globe,
-  Phone, Settings, Video, Crosshair, EyeOff, Activity, Zap, Rocket, GraduationCap
+  Phone, Settings, Video, EyeOff, Activity, Zap, Rocket, GraduationCap
 } from 'lucide-react';
 
 // ============ MENU STRUCTURE ============
@@ -121,7 +122,7 @@ const ICON_MAP = {
   Phone,
   Settings,
   Video,
-  Crosshair,
+  Crosshair: BullseyeIcon,
   EyeOff,
   Activity,
   Zap,

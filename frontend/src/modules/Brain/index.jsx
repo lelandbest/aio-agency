@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Globe, Link2, Search, Trash2, UploadCloud, ChevronRight, X, Zap, Activity, Rocket, 
-  Bot, Brain as BrainIcon, Workflow, FileText, Lock, Loader2, PenTool, 
+  Bot, Workflow, FileText, Lock, Loader2, PenTool, 
   Database, Radio, Share2, Server, GraduationCap, ExternalLink,
   Cpu, User, Shield, ChevronDown, CheckCircle, RefreshCcw, Save, Trash, Code, Table, Presentation, Image, Video,
   Plus, File, Check
 } from 'lucide-react';
+import { BrainIcon } from '../../components/ui/icons';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ModuleHeader from '../../components/ModuleHeader';
 

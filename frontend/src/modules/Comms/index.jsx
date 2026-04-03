@@ -1642,31 +1642,32 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
             {!clientMode ? <aside className={`min-w-0 flex flex-col min-h-0 overflow-hidden ${COMMS_COLUMN_BG} ${isThreeColumnComms ? 'col-start-5 row-start-1 border-t-0' : isDesktopComms ? 'col-[1/4] row-start-2 border-t' : 'border-t'} border-[var(--color-border)]`}>
               {selectedThread ? (
-                <>
-                  <div className="shrink-0 border-b border-[var(--color-border)] px-3 pb-3 pt-3 pr-[3.5rem]">
-                    <section className={`${COMMS_PANEL} overflow-hidden border-emerald-500/20 bg-[#05110a] shadow-[inset_0_1px_0_rgba(34,197,94,0.06)]`}>
-                      <div className="flex items-center justify-between border-b border-emerald-500/15 px-3 py-2">
-                        <span className="text-[9px] font-black uppercase tracking-[0.24em] text-emerald-300">Agent Activity Log</span>
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-500/70">Live</span>
-                      </div>
-                      <div className="space-y-1 px-3 py-2.5 font-mono text-[11px] leading-4 text-emerald-300/85">
-                        {agentActivityLog.length ? agentActivityLog.map((entry) => (
-                          <div key={entry.id} className="border-b border-emerald-500/10 pb-1 last:border-b-0 last:pb-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate text-emerald-200">{entry.prefix} // {entry.agent}</span>
-                              <span className="shrink-0 text-[10px] text-emerald-500/70">{formatRelative(entry.stamp)}</span>
+                <div className="flex h-full min-h-0">
+                  <div className="min-w-0 flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <div className="shrink-0 border-b border-[var(--color-border)] px-3 pb-3 pt-3">
+                      <section className={`${COMMS_PANEL} overflow-hidden border-emerald-500/20 bg-[#05110a] shadow-[inset_0_1px_0_rgba(34,197,94,0.06)]`}>
+                        <div className="flex items-center justify-between border-b border-emerald-500/15 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-[0.24em] text-emerald-300">Agent Activity Log</span>
+                          <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-500/70">Live</span>
+                        </div>
+                        <div className="space-y-1 px-3 py-2.5 font-mono text-[11px] leading-4 text-emerald-300/85">
+                          {agentActivityLog.length ? agentActivityLog.map((entry) => (
+                            <div key={entry.id} className="border-b border-emerald-500/10 pb-1 last:border-b-0 last:pb-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="truncate text-emerald-200">{entry.prefix} // {entry.agent}</span>
+                                <span className="shrink-0 text-[10px] text-emerald-500/70">{formatRelative(entry.stamp)}</span>
+                              </div>
+                              <div className="mt-0.5 text-emerald-400/70">{entry.detail}</div>
                             </div>
-                            <div className="mt-0.5 text-emerald-400/70">{entry.detail}</div>
-                          </div>
-                        )) : (
-                          <div className="text-emerald-400/70">&gt; Awaiting routed agent activity...</div>
-                        )}
-                      </div>
-                    </section>
-                  </div>
+                          )) : (
+                            <div className="text-emerald-400/70">&gt; Awaiting routed agent activity...</div>
+                          )}
+                        </div>
+                      </section>
+                    </div>
 
-                  <div style={hiddenScrollbarStyle} className={`comms-scroll-hidden flex-1 min-w-0 overflow-x-hidden overflow-y-auto ${isCompactComms ? 'p-3 pt-2 space-y-3' : 'p-3.5 pt-2.5 space-y-3.5'} pr-[3.5rem]`}>
-                  <section className={`min-w-0 ${COMMS_PANEL} ${isCompactComms ? 'p-3' : 'p-3.5'} ${isCompactComms ? 'max-h-[20rem] overflow-hidden' : ''}`}>
+                    <div style={hiddenScrollbarStyle} className={`comms-scroll-hidden flex-1 min-w-0 overflow-x-hidden overflow-y-auto ${isCompactComms ? 'p-3 pt-2 space-y-3' : 'p-3.5 pt-2.5 space-y-3.5'}`}>
+                    <section className={`min-w-0 ${COMMS_PANEL} ${isCompactComms ? 'p-3' : 'p-3.5'} ${isCompactComms ? 'max-h-[20rem] overflow-hidden' : ''}`}>
                     <div style={isCompactComms ? hiddenScrollbarStyle : undefined} className={`${isCompactComms ? 'comms-scroll-hidden h-full overflow-y-auto pr-1' : 'space-y-3'}`}>
                       <div className={isCompactComms ? 'space-y-[0.625rem]' : 'space-y-3'}>
                         <div className="flex items-center justify-between gap-2">
@@ -1955,8 +1956,51 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     </section>
                   ) : null}
 
+                    </div>
+                  </div>
+                  <div className="w-16 flex-none flex flex-col bg-transparent p-0 relative overflow-hidden border-l border-[var(--color-border)]">
+                    <div className="py-2 flex items-center justify-center shrink-0">
+                      <span className="text-[7.5px] uppercase tracking-[0.4em] text-slate-700 font-bold">AGENTS</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto no-scrollbar pt-0.5">
+                      <div className="flex flex-col gap-0">
+                        {agentRailAgents.map((agentName) => {
+                          const isSelectedAgent = selectedThread.assignee === agentName;
+                          let c;
+                          if (agentName === 'ALPHA') {
+                            c = HQ_AGENT_STYLE;
+                          } else {
+                            const regularKeys = VISIBLE_SPECIALIST_KEYS.filter((key) => key !== 'ALPHA' && key !== 'OMEGA');
+                            const idx = regularKeys.indexOf(agentName);
+                            const row = Math.floor(idx / 4);
+                            const col = idx % 4;
+                            const lane = ROW_COLOR_LANES[row] || ROW_COLOR_LANES[0];
+                            c = lane[col % lane.length] || lane[0];
+                          }
+                          return (
+                            <button
+                              key={agentName}
+                              onClick={() => handleAssignThread(agentName)}
+                              title={agentName}
+                              className={`flex flex-col items-center justify-center px-0.5 py-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelectedAgent ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                            >
+                              <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
+                                ${isSelectedAgent
+                                  ? `${c.bg.replace('950/50', '600/95').replace('950/45', '600/95').replace('900/50', '500/95').replace('900/45', '500/95').replace('800/45', '400/95').replace('500/10', '500/80')} ${c.border.replace('600/40', '400/95').replace('500/40', '400/95').replace('400/40', '300/95')} text-white shadow-[0_0_20px_${c.shadow.replace('0.2', '0.5')}] scale-110 ring-1 ring-white/20`
+                                  : `opacity-60 group-hover:opacity-100 ${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] group-hover:shadow-[0_0_15px_${c.shadow.replace('0.2', '0.4')}] group-hover:scale-105`
+                                } text-[9px] font-black tracking-tighter shrink-0`}>
+                                {agentName.substring(0, 2).toUpperCase()}
+                              </div>
+                              <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelectedAgent ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
+                                {agentName}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                </>
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <EmptyState
@@ -1970,50 +2014,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
               )}
             </aside> : null}
           </div>
-          {!clientMode && selectedThread ? (
-            <div className="absolute inset-y-0 right-0 z-20 hidden xl:flex w-16 flex-none flex-col bg-transparent p-0 overflow-hidden">
-              <div className="py-2 flex items-center justify-center shrink-0">
-                <span className="text-[7.5px] uppercase tracking-[0.4em] text-slate-700 font-bold">AGENTS</span>
-              </div>
-              <div className="flex-1 overflow-y-auto no-scrollbar pt-0.5">
-                <div className="flex flex-col gap-0">
-                  {agentRailAgents.map((agentName) => {
-                    const isSelectedAgent = selectedThread.assignee === agentName;
-                    let c;
-                    if (agentName === 'ALPHA') {
-                      c = HQ_AGENT_STYLE;
-                    } else {
-                      const regularKeys = VISIBLE_SPECIALIST_KEYS.filter((key) => key !== 'ALPHA' && key !== 'OMEGA');
-                      const idx = regularKeys.indexOf(agentName);
-                      const row = Math.floor(idx / 4);
-                      const col = idx % 4;
-                      const lane = ROW_COLOR_LANES[row] || ROW_COLOR_LANES[0];
-                      c = lane[col % lane.length] || lane[0];
-                    }
-                    return (
-                      <button
-                        key={agentName}
-                        onClick={() => handleAssignThread(agentName)}
-                        title={agentName}
-                        className={`flex flex-col items-center justify-center px-0.5 py-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelectedAgent ? 'bg-white/5' : 'hover:bg-white/5'}`}
-                      >
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
-                          ${isSelectedAgent
-                            ? `${c.bg.replace('950/50', '600/95').replace('950/45', '600/95').replace('900/50', '500/95').replace('900/45', '500/95').replace('800/45', '400/95').replace('500/10', '500/80')} ${c.border.replace('600/40', '400/95').replace('500/40', '400/95').replace('400/40', '300/95')} text-white shadow-[0_0_20px_${c.shadow.replace('0.2', '0.5')}] scale-110 ring-1 ring-white/20`
-                            : `opacity-60 group-hover:opacity-100 ${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] group-hover:shadow-[0_0_15px_${c.shadow.replace('0.2', '0.4')}] group-hover:scale-105`
-                          } text-[9px] font-black tracking-tighter shrink-0`}>
-                          {agentName.substring(0, 2).toUpperCase()}
-                        </div>
-                        <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelectedAgent ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
-                          {agentName}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

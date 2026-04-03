@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
-  Brain,
   Clapperboard,
-  Crosshair,
   FileText,
   Image as ImageIcon,
   ListChecks,
@@ -29,6 +27,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { BullseyeIcon } from '../../components/ui/icons';
 import {
   createMediaAudioRenderJobApi,
   createMediaRenderJobApi,
@@ -1917,7 +1916,7 @@ const MediaModule = () => {
               `}
             >
               <div className="relative">
-                <Crosshair size={14} className={`${launchingAction ? 'text-amber-500 animate-spin' : 'text-slate-300 group-hover:text-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]'}`} />
+                <BullseyeIcon size={14} className={`${launchingAction ? 'text-amber-500 animate-spin' : 'text-slate-300 group-hover:text-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]'}`} />
                 {launchingAction && <div className="absolute inset-0 bg-amber-500/20 blur-md rounded-full animate-pulse" />}
               </div>
               <span className={`text-[11px] font-black uppercase tracking-[0.6em] ${launchingAction ? 'text-amber-400 animate-pulse' : 'text-white'}`}>

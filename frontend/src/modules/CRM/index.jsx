@@ -33,7 +33,7 @@ import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { 
-  Brain, Crosshair, Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
+  Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
   Trash2, X, Download, MessageCircle, Calendar, Zap,
   AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ArrowLeft,
   Edit, Clipboard, FileInput, User, Building2, KeyRound, Shield, ExternalLink

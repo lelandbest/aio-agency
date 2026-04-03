@@ -2,28 +2,29 @@ import {
   LayoutDashboard, Users, Bot, Workflow, Radio, RadioTower, Calendar as CalendarIcon, GraduationCap,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
   Phone, Settings, ChevronDown, ChevronRight, Search, Plus, Video,
-  CreditCard, Zap, Shield, Tag, Layout, EyeOff, Activity, Crosshair,
+  CreditCard, Zap, Shield, Tag, Layout, EyeOff, Activity,
   CheckSquare, Save, ExternalLink, Box, Edit2, X, List, Grid,
   UserPlus, Mail, MessageCircle, Trash2, MoreHorizontal, LogOut, Key, Lock,
   Briefcase, FileInput, Columns, Filter, ArrowRight, Link, Webhook, Power,
   Download, Package, Clock, Copy, Calendar, Server, Chrome,
   PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
-  User, Bell, Smartphone, MapPin, Receipt, CreditCard as CardIcon, Cpu, Target, ShieldCheck, Terminal, MessageSquareCode, Layers,
+  User, Bell, Smartphone, MapPin, Receipt, CreditCard as CardIcon, Cpu, ShieldCheck, Terminal, MessageSquareCode, Layers,
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays,
   Activity as ActivityIcon, Hash, AtSign, MousePointer, Image, Table, Code, AlignCenter, AlignRight, Bold, Italic, Underline,
-  Brain, AlertTriangle
+  AlertTriangle
 } from 'lucide-react';
+import { BrainIcon, BullseyeIcon, TargetIcon } from '../components/ui/icons';
 
 export const ICON_LIBRARY = {
   LayoutDashboard, Users, Bot, Workflow, Radio, RadioTower, CalendarIcon,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
   Phone, Settings, Video, CreditCard, Zap, Shield, Tag, Layout,
-  EyeOff, Activity, Crosshair, Box, CheckSquare, Key, Lock,
+  EyeOff, Activity, Crosshair: BullseyeIcon, Box, CheckSquare, Key, Lock,
   Briefcase, FileInput, Webhook, Link, Power, Download, Package, Clock, Copy,
   Server, Chrome, PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
-  User, Bell, Smartphone, MapPin, Receipt, CardIcon, Cpu, Target, ShieldCheck, Terminal, MessageSquareCode, Layers,
+  User, Bell, Smartphone, MapPin, Receipt, CardIcon, Cpu, Target: TargetIcon, ShieldCheck, Terminal, MessageSquareCode, Layers,
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays, GraduationCap,
-  Brain, AlertTriangle
+  Brain: BrainIcon, AlertTriangle
 };
 
 const TM = '\u2122';

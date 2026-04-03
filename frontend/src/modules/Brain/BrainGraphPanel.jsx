@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link2, X, Trash2, Globe, Database, FileText, Zap, Brain, ZoomIn, ZoomOut, Maximize, Bot } from 'lucide-react';
+import { Link2, X, Trash2, Globe, Database, FileText, Zap, ZoomIn, ZoomOut, Maximize, Bot } from 'lucide-react';
+import { BrainIcon } from '../../components/ui/icons';
 
 const clampPosition = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -390,7 +391,7 @@ export default function BrainGraphPanel({
                 >
                     {node.type === 'profile' && (
                   <div className="relative flex items-center justify-center w-full h-full">
-                    <Brain 
+                        <BrainIcon
                       size={80} 
                       className="text-sky-400 absolute animate-pulse" 
                       style={{ 
