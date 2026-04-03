@@ -1460,7 +1460,7 @@ const MediaModule = () => {
   if (loading && !workspace.outputs.length) return <div className="flex h-full items-center justify-center bg-black text-cyan-500 font-mono text-xs uppercase tracking-widest">INITIAL LOADING SEQUENCE...</div>;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#070708] text-slate-300">
+    <div className="flex h-full min-h-0 flex-col gap-4 bg-[#070708] text-slate-300">
       <input
         ref={fileInputRef}
         type="file"
@@ -1468,7 +1468,7 @@ const MediaModule = () => {
         className="hidden"
         onChange={handleFileInputChange}
       />
-      <div className="relative shrink-0">
+      <div className="shrink-0">
         <ModuleHeader
           title="Media Workstation"
           showTitle={false}
@@ -1519,9 +1519,9 @@ const MediaModule = () => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex gap-4 p-4 bg-[#08080A]">
+      <div className="flex-1 min-h-0 flex gap-4 pe-4 py-4 bg-[#08080A]">
         {/* LEFT WORKSTATION: MONITOR A */}
-        <div className="flex-[1.2] min-w-0 flex flex-col bg-[#111318] rounded-xl border border-[#1E2024] p-3 relative items-center gap-3">
+        <div className="flex-[1.2] min-w-0 flex flex-col bg-[#111318] rounded-xl border border-[#1E2024] relative items-center gap-3">
           <div className="absolute top-4 left-5 flex items-center gap-2 z-10 px-2 py-0.5 rounded bg-black/60 backdrop-blur border border-white/5">
             <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]"></div>
             <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // PROG</span>

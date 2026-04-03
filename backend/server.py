@@ -4731,6 +4731,23 @@ async def delete_contact(contact_id: str, request: Request):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.post("/api/contacts/{contact_id}/restore")
+async def restore_contact(contact_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can restore contacts.")
+    try:
+        provider.restore_contact(contact_id)
+        print(f"[RESTORE] Contact restored: {contact_id}")
+        return {"success": True}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/contacts/deleted")
+async def list_deleted_contacts(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view deleted contacts.")
+    return {"data": provider.list_deleted_contacts()}
+
+
 @app.delete("/api/contacts")
 async def bulk_delete_contacts(request: Request, payload: dict[str, Any] = Body(...)):
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete contacts.")

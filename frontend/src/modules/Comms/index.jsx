@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import EmptyState from '../../components/EmptyState';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import {
   advanceThreadStageApi,
@@ -489,6 +490,7 @@ const buildThreadReport = (thread, kind = 'executive') => {
 };
 
 const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigate, clientMode = false }) => {
+  const { openAIAssist } = useAIAssist();
   const [queueId, setQueueId] = useState('now');
   const [threadViewMode, setThreadViewMode] = useState('latest-contact-channel');
   const [channel, setChannel] = useState(initialChannel);
@@ -1243,6 +1245,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
           leftActions={primaryHeaderActions}
           actions={headerActions}
           hasSelection={!!selectedThread}
+          onModuleAi={() => openAIAssist({ context: { module: 'comms', threadId: selectedThread?.id } })}
         />
         <div className="relative flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island">
           <div ref={layoutRef} className="h-full min-h-0 grid grid-cols-1" style={workspaceLayoutStyle}>

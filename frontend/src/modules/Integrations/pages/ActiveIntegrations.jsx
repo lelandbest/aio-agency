@@ -4,13 +4,15 @@
  * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, CalendarDays, CheckCircle2, LogOut, Mail, RefreshCw, ShieldCheck, Trash2, Zap } from 'lucide-react';
+import { Bot, Calendar, CalendarDays, CheckCircle2, LogOut, Mail, RefreshCw, ShieldCheck, Trash2, Zap } from 'lucide-react';
+import { BrainIcon } from '../../../components/ui/icons';
 import IntegrationCard from '../components/IntegrationCard';
 import { IntegrationProviderSelector } from '../components/AddIntegrationPanel';
 import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES, normalizeAiField } from '../utils/integrationConfigs';
 import { getBrandIcon } from '../utils/brandIcons.jsx';
 import ModuleHeader from '../../../components/ModuleHeader';
 import { useNotice } from '../../../contexts/NoticeContext';
+import { useAIAssist } from '../../../contexts/AIAssistContext';
 import {
   deleteAutomationProviderConfigApi,
   deleteAiProviderConfigApi,
@@ -702,6 +704,12 @@ const useTransientSaveFeedback = (duration = 1400) => {
 
 const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
 const SaveFeedbackNote = ({ visible, label = 'Saved' }) => visible ? <span className="save-feedback-note"><CheckCircle2 size={14} /> {label}</span> : null;
+const toneClass = (tone) => ({
+  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+  error: 'border-red-500/30 bg-red-500/10 text-red-200',
+  info: 'border-sky-500/30 bg-sky-500/10 text-sky-200'
+}[tone] || 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]');
 
 const providerStateDetail = (config = {}, fallback) => config.lastError || config.connectedIdentity || config.connectedCalendar || fallback;
 
@@ -745,8 +753,9 @@ const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, sel
   </button>
 );
 
-export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AUTOMATION }) => {
+export const ActiveIntegrations = ({ initialCategory = null }) => {
   const { showNotice } = useNotice();
+  const { openAIAssist } = useAIAssist();
   const [integrations, setIntegrations] = useState([]);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [selectorProviderKey, setSelectorProviderKey] = useState(null);
@@ -866,7 +875,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   );
 
   useEffect(() => {
-    setActiveCategory(initialCategory || INTEGRATION_CATEGORIES.AUTOMATION);
+    setActiveCategory(initialCategory);
   }, [initialCategory]);
 
   useEffect(() => {
@@ -1509,6 +1518,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const aiProviderConfigLocked = !!selectedAiProviderConfig && !aiProviderConfigEditing;
   const dataStoreConfigLocked = !!selectedDataStoreProviderConfig && !dataStoreConfigEditing;
   const paymentConfigLocked = !!selectedPaymentProviderConfig && !paymentConfigEditing;
+  const hasProviderSelected = !!(selectedAutomationProviderConfig || selectedAiProviderConfig || selectedDataStoreProviderConfig || selectedMediaProviderConfig || selectedPaymentProviderConfig || selectedMailbox || selectedCalendarSource);
+  const showSplash = !activeCategory || !selectorProviderKey;
   const currentCategory = categories.find((category) => category.id === activeCategory);
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
   const selectedLegacyProvider = useMemo(() => {
@@ -2303,7 +2314,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleTestAutomationProvider} className={saveButtonClassName(compactActionClass, savedAction === 'automation-test')}>
                   {busyAction === 'automation-test' ? 'Testing...' : savedAction === 'automation-test' ? 'Tested' : 'TEST CONNECT'}
                 </button>
-                <button onClick={handleSaveAutomationProvider} disabled={automationConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'automation-save')}>
+                <button onClick={handleSaveAutomationProvider} disabled={automationConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'automation-save')}>
                   {savedAction === 'automation-save' ? 'Saved' : selectedAutomationProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
               </div>
@@ -2396,7 +2407,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.inboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.outboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label>
             </div>
-            <button onClick={handleCreateMailbox} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim()} className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:opacity-50">Attach</button>
+            <button onClick={handleCreateMailbox} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim()} className="btn-toolbar-lead !px-3 !py-1.5 !text-xs">Attach</button>
           </div>
         ) : null}
         <div className="space-y-3">
@@ -2456,7 +2467,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 {emailVerifierConfig?.hasApiKey ? <button onClick={() => setEmailVerifierConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button> : null}
                 <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
-                <button onClick={handleSaveEmailVerifier} disabled={emailVerifierConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : emailVerifierConfig?.hasApiKey ? 'SAVE' : 'ADD ACTIVATION'}</button>
+                <button onClick={handleSaveEmailVerifier} disabled={emailVerifierConfigLocked} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : emailVerifierConfig?.hasApiKey ? 'SAVE' : 'ADD ACTIVATION'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} label="Saved" />
               </div>
             </div>
@@ -2493,11 +2504,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setMailboxConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
-                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
+                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
                 <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
                 <button onClick={handleSyncMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
-                <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled || mailboxConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled || mailboxConfigLocked} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-save'} label="Saved" />
               </div>
             </div>
@@ -2579,7 +2590,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceDraft.config?.importPolicy || 'review'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className={compactInputSecondaryClass}><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
             </div>
             {calendarDraftProvider.fields?.length ? <div className="grid gap-2.5 sm:grid-cols-2 text-sm">{calendarDraftProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceDraft.config?.[field.key] || ''} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className={compactInputSecondaryClass} /></label>)}</div> : null}
-            <button onClick={handleCreateCalendarSource} disabled={!calendarSourceDraft.name.trim()} className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:opacity-50">Attach</button>
+            <button onClick={handleCreateCalendarSource} disabled={!calendarSourceDraft.name.trim()} className="btn-toolbar-lead !px-3 !py-1.5 !text-xs">Attach</button>
           </div>
         ) : null}
         <div className="space-y-3">
@@ -2614,12 +2625,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{controlPlaneTitle}</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setCalendarConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
-                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
+                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
                 <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
                 <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
                 <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
-                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled || calendarConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled || calendarConfigLocked} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-save'} label="Saved" />
               </div>
             </div>
@@ -2692,7 +2703,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                       onClick={handleSaveAiProvider}
-                      className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)]", savedAction === 'ai-provider-save')}
+                      className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'ai-provider-save')}
                     >
                       {savedAction === 'ai-provider-save' ? 'Saved' : 'ADD ACTIVATION'}
                     </button>
@@ -2749,7 +2760,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 {selectedAiProviderConfig ? <button onClick={() => setAiProviderConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
                 <button onClick={handleTestAiProvider} disabled={busyAction === 'ai-provider-test'} className={saveButtonClassName(`${compactActionClass} disabled:opacity-60 disabled:cursor-not-allowed`, savedAction === 'ai-provider-test')}>{busyAction === 'ai-provider-test' ? 'Testing...' : savedAction === 'ai-provider-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-test'} label="Provider OK" />
-                <button onClick={handleSaveAiProvider} disabled={aiProviderConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : selectedAiProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}</button>
+                <button onClick={handleSaveAiProvider} disabled={aiProviderConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : selectedAiProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}</button>
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-save'} label="Saved" />
               </div>
           </div>
@@ -2890,7 +2901,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleSaveDataStoreProvider}
-                    className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)]", savedAction === 'data-store-save')}
+                    className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'data-store-save')}
                   >
                     {savedAction === 'data-store-save' ? 'Saved' : 'ADD ACTIVATION'}
                   </button>
@@ -2940,7 +2951,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleTestDataStoreProvider} disabled={busyAction === 'data-store-test'} className={saveButtonClassName(`${compactActionClass} disabled:opacity-60 disabled:cursor-not-allowed`, savedAction === 'data-store-test')}>
                   {busyAction === 'data-store-test' ? 'Testing...' : savedAction === 'data-store-test' ? 'Tested' : 'TEST CONNECT'}
                 </button>
-                <button onClick={handleSaveDataStoreProvider} disabled={dataStoreConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'data-store-save')}>
+                <button onClick={handleSaveDataStoreProvider} disabled={dataStoreConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'data-store-save')}>
                   {savedAction === 'data-store-save' ? 'Saved' : selectedDataStoreProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
               </div>
@@ -3047,7 +3058,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleSaveMediaProvider}
-                    className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)]", savedAction === 'media-save')}
+                    className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'media-save')}
                   >
                     {savedAction === 'media-save' ? 'Saved' : 'ADD ACTIVATION'}
                   </button>
@@ -3097,7 +3108,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleTestMediaProvider} disabled={busyAction === 'media-test'} className={saveButtonClassName(`${compactActionClass} disabled:opacity-60 disabled:cursor-not-allowed`, savedAction === 'media-test')}>
                   {busyAction === 'media-test' ? 'Testing...' : savedAction === 'media-test' ? 'Tested' : 'TEST CONNECT'}
                 </button>
-                <button onClick={handleSaveMediaProvider} disabled={!!selectedMediaProviderConfig && !mediaConfigEditing} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'media-save')}>
+                <button onClick={handleSaveMediaProvider} disabled={!!selectedMediaProviderConfig && !mediaConfigEditing} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'media-save')}>
                   {savedAction === 'media-save' ? 'Saved' : selectedMediaProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
               </div>
@@ -3213,7 +3224,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleActivateLegacyProvider}
-                    className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)]", legacyActivationSelections[activeCategory] === selectedLegacyProvider.id)}
+                    className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", legacyActivationSelections[activeCategory] === selectedLegacyProvider.id)}
                   >
                     {legacyActivationSelections[activeCategory] === selectedLegacyProvider.id ? 'Saved' : 'ADD ACTIVATION'}
                   </button>
@@ -3329,7 +3340,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               </div>
               <div className="flex flex-wrap gap-2">
                 {selectedPaymentProviderConfig ? <button onClick={() => setPaymentConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
-                <button onClick={handleSavePaymentProvider} disabled={paymentConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'payment-save')}>
+                <button onClick={handleSavePaymentProvider} disabled={paymentConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'payment-save')}>
                   {savedAction === 'payment-save' ? 'Saved' : 'Save'}
                 </button>
               </div>
@@ -3395,7 +3406,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
       <ModuleHeader
         showTitle={false}
-        className="mx-6 mt-3 bg-transparent"
         leftActions={[
           { label: 'Refresh', icon: RefreshCw, onClick: loadAll, variant: 'secondary' }
         ]}
@@ -3413,9 +3423,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
           </div>
         )}
         showActions
+        onModuleAi={() => openAIAssist({ context: { module: 'integrations', activeCategory, providerCount: integrations.length } })}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 pb-6 pt-2">
-        <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="mt-4 flex-1 min-h-0 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island p-2">
+        <div className="h-full flex-1 overflow-y-auto p-4">
           <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
             <div className="min-h-0 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
               <div className="flex h-full min-h-0 flex-col">
@@ -3434,7 +3445,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 </div>
               </div>
             </div>
-            <div className="min-h-0 overflow-hidden">
+            <div className="min-h-0 overflow-hidden relative">
+              {activeCategory && selectorProviderKey ? (
+              <>
               {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
                 ? renderAutomationAdmin()
                 : activeCategory === INTEGRATION_CATEGORIES.EMAIL
@@ -3451,11 +3464,65 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                         ? renderMediaAdmin()
                       : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS
                         ? renderPaymentsAdmin()
-                        : activeCategory === INTEGRATION_CATEGORIES.SMS
-                          ? renderLegacyCategory()
-                          : activeCategory === INTEGRATION_CATEGORIES.TRACKING
-                            ? renderLegacyCategory()
-                            : renderLegacyCategory()}
+                        : null}
+              </>
+              ) : null}
+              {showSplash && (
+                <div className="absolute inset-0 bg-[var(--color-bg-secondary)]/95 backdrop-blur-sm rounded-2xl border border-[var(--color-border)] flex items-center justify-center">
+                  <div className="max-w-md text-center space-y-6 px-8">
+                    <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                          <path d="M2 17l10 5 10-5" />
+                          <path d="M2 12l10 5 10-5" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Integrations</h2>
+                      <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+                        Connect your workspace to external services. Manage mailboxes, calendars, automation, AI providers, and more from one unified control plane.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-left">
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-indigo-400">
+                          <Mail size={14} />
+                          <span className="text-xs font-semibold">Mail</span>
+                        </div>
+                        <p className="text-[10px] text-[var(--color-text-tertiary)]">Connect mailboxes for inbound/outbound email</p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-emerald-400">
+                          <Calendar size={14} />
+                          <span className="text-xs font-semibold">Calendar</span>
+                        </div>
+                        <p className="text-[10px] text-[var(--color-text-tertiary)]">Sync calendars and scheduling</p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <Zap size={14} />
+                          <span className="text-xs font-semibold">Automation</span>
+                        </div>
+                        <p className="text-[10px] text-[var(--color-text-tertiary)]">n8n, Make, Zapier webhooks</p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-cyan-400">
+                          <BrainIcon size={14} />
+                          <span className="text-xs font-semibold">AI Providers</span>
+                        </div>
+                        <p className="text-[10px] text-[var(--color-text-tertiary)]">OpenAI, Ollama, Claude</p>
+                      </div>
+                    </div>
+                    <div className="pt-2">
+                      <p className="text-xs text-[var(--color-text-tertiary)]">
+                        Select a provider from the left panel to configure.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

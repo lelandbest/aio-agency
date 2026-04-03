@@ -186,9 +186,9 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                 </div>
             </div>
 
-            <div className="flex min-w-0 items-center gap-4 ml-auto">
+            <div className="flex min-w-0 items-center gap-2 ml-auto">
                 {showSearch && (
-                    <div className="surface-tertiary hidden xl:flex items-center gap-2 min-w-[320px] px-4 py-2 rounded-[var(--radius-pill)]">
+                    <div className="surface-tertiary hidden xl:flex items-center gap-2 min-w-[200px] max-w-[200px] px-3 py-2 rounded-[var(--radius-pill)]">
                         <Search size={16} className="text-[var(--color-text-tertiary)]" />
                         <input
                             type="search"
@@ -205,23 +205,11 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                     </div>
                 )}
 
-                {!clientMode ? (
-                    <button
-                        onClick={handleThemeToggle}
-                        disabled={themeSaving}
-                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600"
-                        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-                        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-                    >
-                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                    </button>
-                ) : null}
-
                 {!clientMode && onOpenSystemHealth ? (
                     <button
                         type="button"
                         onClick={onOpenSystemHealth}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${healthMeta.buttonClass}`}
+                        className={`shrink-0 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${healthMeta.buttonClass}`}
                         title="Open system health"
                         aria-label="Open system health"
                     >
@@ -232,6 +220,18 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                 {healthAlertCount}
                             </span>
                         ) : null}
+                    </button>
+                ) : null}
+
+                {!clientMode ? (
+                    <button
+                        onClick={handleThemeToggle}
+                        disabled={themeSaving}
+                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600"
+                        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+                        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+                    >
+                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                     </button>
                 ) : null}
 

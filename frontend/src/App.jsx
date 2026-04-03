@@ -47,11 +47,11 @@ const AcceptableUsePage = lazy(() => import('./pages/AcceptableUse'));
 const PublicForm = lazy(() => import('./pages/PublicForm'));
 
 import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
-import { BullseyeIcon } from './components/ui/icons';
+import { Crosshair } from './components/ui/icons';
 
 const DEFAULT_ACTIVE_MODULE = 'aio-brain';
 const DEFAULT_CLIENT_MODULE = 'chat';
-const DEFAULT_INTEGRATION_CATEGORY = 'automation';
+const DEFAULT_INTEGRATION_CATEGORY = null;
 const CLIENT_ALLOWED_MODULES = new Set(['chat', 'calendar']);
 const LEGACY_MODULE_REDIRECTS = {
   pipeline: 'flows',
@@ -123,7 +123,7 @@ const ICON_MAP = {
   Phone,
   Settings,
   Video,
-  Crosshair: BullseyeIcon,
+  Crosshair,
   EyeOff,
   Activity,
   Zap,
@@ -140,7 +140,7 @@ const MODULE_SUBTITLE_MAP = {
   flows: 'Manage and launch your automation flows.',
   forms: 'Create, organize, and deploy workspace forms.',
   chat: 'Thread-first Comms for triage, actions, and audit logs.',
-  integrations: 'Admin control plane for mailbox accounts, calendar sources, and every other external system connected to AIO CRM.',
+  integrations: 'Admin control plane for mailbox accounts, calendar sources, and all external systems connected to AIO.',
   media: 'Operate scripts, voice, renders, transcripts, and ingest workflows from one workspace.',
   orders: 'Review order records, payment state, and fulfillment posture from one workspace.',
   pipelines: 'Operate deal stages, next moves, and relationship records from one workspace.',
@@ -257,7 +257,7 @@ const App = () => {
 
   const moduleLabels = {
     'aio-brain': 'Brain',
-    'crm': 'CRM',
+    'crm': 'AIO',
     'orders': 'Orders',
     'media': 'Media',
     'comms': 'Communications',

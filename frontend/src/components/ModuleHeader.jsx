@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAIAssist } from '../contexts/AIAssistContext';
 import { normalizeDisplayText } from '../utils/text';
-import { BrainIcon, TargetIcon } from './ui/icons';
+import { BrainIcon, Crosshair } from './ui/icons';
 
 const StatusBadge = ({ statusBadge }) => {
   if (!statusBadge) return null;
@@ -166,17 +166,17 @@ const ModuleHeader = ({
             className={toolbarIconButtonClass}
             title="Brain (Global KB)"
           >
-            <BrainIcon size={15} className="group-hover:drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]" />
+            <BrainIcon size={15} />
           </button>
           
-          {/* Target - Module Specific Assistance */}
+          {/* Crosshair - Module Specific Assistance */}
           <button
             onClick={() => onModuleAi?.()}
             disabled={!onModuleAi}
             className={toolbarIconButtonClass}
-            title="Target (Module AI)"
+            title="Crosshair (Module AI)"
           >
-            <TargetIcon size={15} className="group-hover:drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]" />
+            <Crosshair size={15} />
           </button>
         </div>
       </div>

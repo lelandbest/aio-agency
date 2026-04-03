@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Filter, Download, ShoppingCart, Plus, Pencil, Trash2 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
+  const { openAIAssist } = useAIAssist();
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -133,6 +135,7 @@ const OrdersModule = () => {
         ]}
         showActions={true}
         hasSelection={false}
+        onModuleAi={() => openAIAssist({ context: { module: 'orders', tab: activeTab } })}
       />
       <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden p-2">
         <div className="h-full flex-1 overflow-auto p-4 relative">

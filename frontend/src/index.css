@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* All icons inherit color from parent */
+svg { color: inherit; }
+
 /**
  * Theme System
  * CSS variables for light/dark mode support

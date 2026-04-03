@@ -390,7 +390,7 @@ export default function SignalsModule() {
         return nextSignals[0]?.id || '';
       });
     } catch (error) {
-      setNotice({
+      showNotice({
         type: 'error',
         message: error.message || 'Signals failed to refresh.',
         persistent: true,
@@ -439,14 +439,14 @@ export default function SignalsModule() {
           command: payload.command || `Signals retry for ${signal.title}`,
           context: payload.context || {},
         });
-        setNotice({
+        showNotice({
           type: 'success',
           message: 'Flow triggered successfully.',
           persistent: false,
         });
       } else if (action.actionType === 'retry') {
         await retrySignal(action.payload || {});
-        setNotice({
+        showNotice({
           type: 'success',
           message: 'Retry dispatched successfully.',
           persistent: false,
@@ -456,7 +456,7 @@ export default function SignalsModule() {
       }
       await reloadSignals(true);
     } catch (error) {
-      setNotice({
+      showNotice({
         type: 'error',
         message: error.message || 'Action failed.',
         persistent: true,
@@ -498,35 +498,6 @@ export default function SignalsModule() {
         onModuleAi={() => openAIAssist({ context: { module: 'signals', surface: 'action-feed', signalCount: signals.length } })}
         hasSelection={false}
       />
-
-      {notice ? (
-        <div
-          className={`pointer-events-none absolute right-6 top-4 z-20 max-w-[440px] transition-all duration-300 ${
-            notice.persistent ? 'translate-x-0 opacity-100' : 'translate-x-[300px] opacity-0'
-          }`}
-        >
-          <div
-            className={`pointer-events-auto rounded-[var(--radius-outer)] border px-4 py-3 shadow-island ${
-              notice.type === 'error'
-                ? 'border-red-500/30 bg-red-500/[0.08] text-red-100'
-                : 'border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-100'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold">{notice.message}</p>
-              {notice.persistent ? (
-                <button
-                  type="button"
-                  onClick={() => setNotice(null)}
-                  className="rounded-full border border-white/15 px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white/80"
-                >
-                  Clear
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island">
         {loading ? (

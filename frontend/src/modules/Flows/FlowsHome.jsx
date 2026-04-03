@@ -4,6 +4,7 @@ import FolderTable from '../../components/FolderTable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import TemplateGallery from './components/TemplateGallery';
 import flowRepository from './utils/flowRepository';
 import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi } from '../../services/backendApi';
@@ -45,6 +46,7 @@ const getFlowSourceMeta = (flow) => {
 };
 
 const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlow = null, selectionMode = false }) => {
+  const { openAIAssist } = useAIAssist();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -457,6 +459,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             </button>
           </div>
         )}
+        onModuleAi={() => openAIAssist({ context: { module: 'flows' } })}
       />
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">

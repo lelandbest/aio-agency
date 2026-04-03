@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
 import { getAiAgentsApi, getAiRunApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
 
 
@@ -428,6 +429,7 @@ const buildAssistantMessageFromRun = (run, overrides = {}) => ({
 
 // 8. AIO AGENTS MODULE
 const AIOAgentsModule = () => {
+  const { openAIAssist } = useAIAssist();
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([
@@ -881,6 +883,7 @@ const AIOAgentsModule = () => {
               }
         ]}
         showActions={true}
+        onModuleAi={() => openAIAssist({ context: { module: 'agents', view } })}
       />
 
       {/* Main Workspace */}

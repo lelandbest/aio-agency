@@ -25,6 +25,7 @@ import { requestAiSuggestion } from '../../services/aiAssist';
 import { generateZoomLink, generateGoogleMeetLink } from '../../services/videoCallService';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { openOAuthPopup } from '../../utils/oauthPopup';
 
 const COMMS_CALENDAR = {
@@ -126,6 +127,7 @@ const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'micro
 const openCalendarAdmin = () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'integrations', integrationCategory: 'calendar' } }));
 
 const CalendarModule = ({ clientMode = false }) => {
+  const { openAIAssist } = useAIAssist();
   const [activeTab, setActiveTab] = useState('calendar');
   const [view, setView] = useState('month'); // 'month', 'week', 'day'
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1438,7 +1440,8 @@ const CalendarModule = ({ clientMode = false }) => {
               </button>
             </div>
           ) : null
-        }
+        } 
+        onModuleAi={() => openAIAssist({ context: { module: 'calendar', activeTab } })}
       />
 
       <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden">

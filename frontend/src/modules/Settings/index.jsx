@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers, Search, Monitor, LogOut, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBrand } from '../../contexts/BrandContext';
+import { useAIAssist } from '../../contexts/AIAssistContext';
+import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import { clearStoredSessionToken } from '../../services/authStorage';
 import {
   addWorkspaceMemberApi,
@@ -1656,7 +1658,7 @@ const ProfileSettings = () => {
                   <div className="col-span-2 grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Display Name</label>
-                      <input autoComplete="nickname" value={form.displayName} onChange={(e) => setForm(c => ({ ...c, displayName: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                      <input autoComplete="off" value={form.displayName} onChange={(e) => setForm(c => ({ ...c, displayName: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Email</label>
@@ -1665,7 +1667,7 @@ const ProfileSettings = () => {
                   </div>
                     <div>
                       <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Phone</label>
-                      <input id="phone" name="phone" type="tel" value={form.phone} onChange={(e) => setForm(c => ({ ...c, phone: e.target.value }))} autoComplete="tel" inputMode="tel" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                      <input id="phone-field" name="telephone-number" type="tel" value={form.phone} onChange={(e) => setForm(c => ({ ...c, phone: e.target.value }))} autoComplete="off" inputMode="tel" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
                     </div>
                   <div className="col-span-2 grid grid-cols-2 gap-3">
                     <div>
@@ -1739,11 +1741,11 @@ const ProfileSettings = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Current Password</label>
-                      <input type="password" autoComplete="off" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm(c => ({ ...c, currentPassword: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                      <input id="current-pw" name="current-password-field" type="password" autoComplete="off" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm(c => ({ ...c, currentPassword: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">New Password</label>
-                      <input type="password" autoComplete="off" value={passwordForm.newPassword} onChange={(e) => setPasswordForm(c => ({ ...c, newPassword: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                      <input id="new-pw" name="new-password-field" type="password" autoComplete="off" value={passwordForm.newPassword} onChange={(e) => setPasswordForm(c => ({ ...c, newPassword: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
                     </div>
                   </div>
                   <div className="flex justify-end">
@@ -2595,15 +2597,16 @@ const SETTINGS_TAB_KEY = 'aio-settings-active-tab';
 
 const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const { tenant, user } = useAuth();
+  const { openAIAssist } = useAIAssist();
   const [activeTab, setActiveTab] = useState(() => {
     if (activeSettingsTab) return activeSettingsTab;
     try {
       const saved = localStorage.getItem(SETTINGS_TAB_KEY);
-      if (saved && ['personal', 'billing', 'security', 'workspace', 'whitelabel', 'variables', 'omega'].includes(saved)) {
+      if (saved && ['account', 'billing', 'workspace', 'whitelabel', 'variables', 'omega'].includes(saved)) {
         return saved;
       }
     } catch {}
-    return 'personal';
+    return 'account';
   });
   const isOwner = ((tenant?.role || user?.role || 'viewer').toLowerCase() === 'owner');
   const wlHandlers = useRef({ reset: null, save: null });
@@ -2622,8 +2625,8 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   };
 
   const mainTabs = [
+    { id: 'account', label: 'Account', icon: User },
     { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'profile', label: 'Profile', icon: User },
     { id: 'variables', label: 'Variables', icon: Key },
     { id: 'whitelabel', label: 'White Label', icon: Globe },
     { id: 'workspace', label: 'Workspace', icon: Layers },
@@ -2631,7 +2634,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const tabs = isOwner ? [...mainTabs, { id: 'omega', label: 'Omega', icon: Lock }] : mainTabs;
 
   const tabMeta = {
-    profile: { description: 'Identity, preferences, password, and active sessions.', status: 'Live' },
+    account: { description: 'Identity, preferences, password, and active sessions.', status: 'Live' },
     billing: { description: 'Subscription, payment methods, and billing history.', status: 'Staged' },
     workspace: { description: 'Switch, rename, and manage members.', status: 'Live' },
     whitelabel: { description: 'Brand, menu, and presentation controls.' },
@@ -2646,7 +2649,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'profile': return <ProfileSettings />;
+      case 'account': return <ProfileSettings />;
       case 'billing': return <BillingSettings />;
       case 'workspace': return <WorkspaceSettings />;
       case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} handlersRef={wlHandlers.current} />;
@@ -2657,17 +2660,17 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] shadow-island overflow-hidden">
-      {/* Island Header */}
-      <div className="h-11 flex items-center justify-between gap-3 px-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/80 backdrop-blur-sm flex-shrink-0">
+    <div className="h-full min-h-0 flex flex-col gap-4">
+      {/* Toolbar */}
+      <div className="shrink-0 h-12 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-sm rounded-xl shadow-island-sm">
         {/* Left: Icon + Title */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 shrink-0">
           {ActiveIcon && <ActiveIcon size={14} className="text-[var(--color-primary)] flex-shrink-0" />}
           <span className="text-xs font-semibold text-[var(--color-text-primary)]">{activeTabData?.label || 'Settings'}</span>
         </div>
 
-        {/* Center: Tab Pills */}
-        <div className="flex-1 flex justify-center items-center gap-1 overflow-x-auto no-scrollbar px-4">
+        {/* Left: Tab Pills */}
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0">
           {mainTabs.map(tab => {
             const TabIcon = tab.icon;
             return (
@@ -2704,18 +2707,25 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+            <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><BrainIcon size={14} /></button>
+            <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><Crosshair size={14} /></button>
+          </div>
           {isWhiteLabel && (
-            <>
+            <div className="flex items-center gap-2 ml-2">
               <button onClick={() => wlHandlers.current.reset?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30 transition whitespace-nowrap">Reset</button>
               <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
-        {renderContent()}
+      {/* Content */}
+      <div className="flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );

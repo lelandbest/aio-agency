@@ -13,13 +13,13 @@ import {
   Activity as ActivityIcon, Hash, AtSign, MousePointer, Image, Table, Code, AlignCenter, AlignRight, Bold, Italic, Underline,
   AlertTriangle
 } from 'lucide-react';
-import { BrainIcon, BullseyeIcon, TargetIcon } from '../components/ui/icons';
+import { BrainIcon, TargetIcon, Crosshair } from '../components/ui/icons';
 
 export const ICON_LIBRARY = {
   LayoutDashboard, Users, Bot, Workflow, Radio, RadioTower, CalendarIcon,
   MessageSquare, PenTool, GitMerge, FileText, ShoppingCart, Globe,
   Phone, Settings, Video, CreditCard, Zap, Shield, Tag, Layout,
-  EyeOff, Activity, Crosshair: BullseyeIcon, Box, CheckSquare, Key, Lock,
+  EyeOff, Activity, Crosshair, Bullseye: TargetIcon, Box, CheckSquare, Key, Lock,
   Briefcase, FileInput, Webhook, Link, Power, Download, Package, Clock, Copy,
   Server, Chrome, PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
   User, Bell, Smartphone, MapPin, Receipt, CardIcon, Cpu, Target: TargetIcon, ShieldCheck, Terminal, MessageSquareCode, Layers,

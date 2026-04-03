@@ -434,7 +434,7 @@ export const AddIntegrationPanel = ({
           </button>
           {selectedProvider && (
             <button 
-              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-[var(--color-text-on-primary)] transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 btn-toolbar-lead"
               onClick={handleSave}
               disabled={saving}
             >

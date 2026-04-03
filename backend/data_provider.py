@@ -5899,7 +5899,7 @@ class SQLiteProvider(BaseProvider):
             conn.commit()
         return self._contact_from_row(record)
 
-    def update_contact(self, contactId: str, updates: dict[str, Any]) -> dict[str, Any]:
+    def update_contact(self, contact_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         allowed_scalar = {
             "firstName", "lastName", "email", "phone", "company", "companyId", "title", "department",
             "owner", "source", "status", "leadScore", "quality", "engagement", "lastContactedAt",
@@ -5907,7 +5907,7 @@ class SQLiteProvider(BaseProvider):
             "emailVerified", "emailVerifiedAt", "emailVerificationStatus", "emailVerificationScore"
         }
         with self._connect() as conn:
-            existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenantId = ?", (contactId, self._tenantId())).fetchone()
+            existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
             if not existing:
                 raise ValueError("Contact not found")
             payload = {}
@@ -5936,7 +5936,7 @@ class SQLiteProvider(BaseProvider):
                     payload[key] = int(bool(updates[key]))
             if not payload:
                 return self._contact_from_row(dict(existing))
-            payload["updatedAt"] = utcnow()
+            payload["updated_at"] = utcnow()
             assignments = ", ".join(f"{key} = ?" for key in payload.keys())
             conn.execute(f"UPDATE contacts SET {assignments} WHERE id = ? AND tenantId = ?", (*payload.values(), contact_id, self._tenantId()))
             conn.commit()
@@ -5960,6 +5960,17 @@ class SQLiteProvider(BaseProvider):
                 deleted += result.rowcount
             conn.commit()
         return {"deleted": deleted, "requested": len(contact_ids)}
+
+    def restore_contact(self, contact_id: str) -> None:
+        with self._connect() as conn:
+            result = conn.execute("UPDATE contacts SET deletedAt = NULL WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId()))
+            if result.rowcount == 0:
+                raise ValueError("Contact not found")
+            conn.commit()
+
+    def list_deleted_contacts(self) -> list[dict[str, Any]]:
+        rows = self._tenant_rows("SELECT * FROM contacts WHERE tenantId = ? AND deletedAt IS NOT NULL ORDER BY updatedAt DESC")
+        return [self._contact_from_row(row) for row in rows]
 
     def list_companies(self) -> list[dict[str, Any]]:
         return self._tenant_rows("SELECT * FROM companies WHERE tenantId = ? ORDER BY name ASC")
