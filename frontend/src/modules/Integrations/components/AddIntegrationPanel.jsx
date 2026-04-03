@@ -15,63 +15,76 @@ export const IntegrationProviderSelector = ({
   onSelectProvider,
   className = '',
 }) => {
+  const handleCategoryClick = (catId) => {
+    onCategoryChange(category === catId ? null : catId);
+  };
+
   return (
     <div className={`flex flex-col ${className}`}>
       <h3 className="m-0 mb-3 text-[11px] font-semibold text-[var(--color-text-primary)] uppercase tracking-[0.18em]">Select Integration Type</h3>
       <div className="flex flex-col gap-1.5">
-        {categories.map((cat) => (
-          <div key={cat.id} className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
-            <button
-              className={`flex w-full items-center justify-between px-3 py-2 transition-all cursor-pointer font-medium text-[12px] ${
-                category === cat.id
-                  ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]/70'
-              }`}
-              onClick={() => onCategoryChange(cat.id)}
-            >
-              <span className="flex-1 text-left">{cat.name}</span>
-              <div className="flex items-center gap-2">
-                <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                  category === cat.id
-                    ? 'bg-[var(--color-primary)]/20 text-[var(--color-text-primary)]'
-                    : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'
-                }`}>{cat.providerCount}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`flex-shrink-0 transition-transform ${category === cat.id ? 'rotate-90' : ''}`}>
-                  <polyline points="9 18 15 12 9 6"></polyline>
-                </svg>
-              </div>
-            </button>
-            {category === cat.id ? (
-              <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 px-2 py-2">
-                <div className="flex flex-col gap-1.5">
-                  {getProvidersByCategory(cat.id).map((prov) => (
-                    <button
-                      key={prov.id}
-                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition-all text-left ${
-                        selectedProvider === prov.id
-                          ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
-                          : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-tertiary)]'
-                      }`}
-                      onClick={() => onSelectProvider(prov.id, cat.id)}
-                    >
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
-                        {prov.logo ? (
-                          <img src={prov.logo} alt={prov.name} className="w-full h-full object-contain p-1" />
-                        ) : (
-                          getBrandIcon(prov.id, 24)
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="m-0 mb-0.5 text-[12px] font-semibold leading-tight text-[var(--color-text-primary)]">{prov.name}</p>
-                        <p className="m-0 text-[11px] text-[var(--color-text-secondary)] whitespace-nowrap overflow-hidden text-ellipsis">{prov.description}</p>
-                      </div>
-                    </button>
-                  ))}
+        {categories.map((cat) => {
+          const isOpen = category === cat.id;
+          return (
+            <div key={cat.id} className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+              <button
+                className={`flex w-full items-center justify-between px-3 py-2 transition-all cursor-pointer font-medium text-[12px] ${
+                  isOpen
+                    ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)]'
+                    : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]/70'
+                }`}
+                onClick={() => handleCategoryClick(cat.id)}
+              >
+                <span className="flex-1 text-left">{cat.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    isOpen
+                      ? 'bg-[var(--color-primary)]/20 text-[var(--color-text-primary)]'
+                      : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'
+                  }`}>{cat.providerCount}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </div>
+              </button>
+              <div
+                className="overflow-hidden transition-all duration-200 ease-out"
+                style={{
+                  maxHeight: isOpen ? '500px' : '0',
+                  opacity: isOpen ? 1 : 0,
+                }}
+              >
+                <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 px-2 py-2">
+                  <div className="flex flex-col gap-1.5">
+                    {getProvidersByCategory(cat.id).map((prov) => (
+                      <button
+                        key={prov.id}
+                        className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition-all text-left ${
+                          selectedProvider === prov.id
+                            ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
+                            : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-tertiary)]'
+                        }`}
+                        onClick={() => onSelectProvider(prov.id, cat.id)}
+                      >
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
+                          {prov.logo ? (
+                            <img src={prov.logo} alt={prov.name} className="w-full h-full object-contain p-1" />
+                          ) : (
+                            getBrandIcon(prov.id, 24)
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="m-0 mb-0.5 text-[12px] font-semibold leading-tight text-[var(--color-text-primary)]">{prov.name}</p>
+                          <p className="m-0 text-[11px] text-[var(--color-text-secondary)] whitespace-nowrap overflow-hidden text-ellipsis">{prov.description}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            ) : null}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -2496,7 +2496,7 @@ def schedule_contact_email_auto_verify(background_tasks: BackgroundTasks, reques
     email = str(contact.get("email") or "").strip()
     if not tenant_id or not contact_id or not email:
         return
-    config = provider.get_email_verifier_config(include_secret=True)
+    config = _email_verifier_internal_config(provider.get_email_verifier_config(include_secret=True))
     if not config.get("enabled") or not config.get("auto_verify_contacts", True) or not config.get("api_key"):
         return
     background_tasks.add_task(run_contact_email_auto_verify, tenant_id, contact_id, email)
@@ -2506,7 +2506,7 @@ def run_contact_email_auto_verify(tenant_id: str, contact_id: str, email: str) -
     context_token = set_request_tenant_id(tenant_id)
     background_provider = create_provider()
     try:
-        config = background_provider.get_email_verifier_config(include_secret=True)
+        config = _email_verifier_internal_config(background_provider.get_email_verifier_config(include_secret=True))
         if not config.get("enabled") or not config.get("auto_verify_contacts", True) or not config.get("api_key"):
             return
         result = verify_single_email_address(config["api_key"], email, "quick")
@@ -3176,6 +3176,35 @@ async def update_auth_profile(request: Request, payload: ProfileUpdateRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.post("/api/auth/avatar")
+async def upload_avatar(request: Request):
+    token = extract_session_token(request)
+    try:
+        payload = await request.json()
+        image_data = payload.get("imageData", "")
+        mime_type = payload.get("mimeType", "image/png")
+        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        if mime_type not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"Unsupported image type. Allowed: {', '.join(allowed_types)}")
+        data_url = f"data:{mime_type};base64,{image_data}"
+        profile = auth_store.update_profile(token, {"avatarUrl": data_url})
+        session = auth_store.get_session(token)
+        return {"data": profile, "session": session}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/auth/avatar")
+async def delete_avatar(request: Request):
+    token = extract_session_token(request)
+    try:
+        profile = auth_store.update_profile(token, {"avatarUrl": None})
+        session = auth_store.get_session(token)
+        return {"data": profile, "session": session}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.post("/api/auth/password")
 async def update_auth_password(request: Request, payload: PasswordChangeRequest):
     token = extract_session_token(request)
@@ -3499,8 +3528,8 @@ async def omega_arm(request: Request, payload: OmegaArmRequest):
         protocol = auth_store.arm_omega_protocol(
             token,
             tenant.get("id"),
-            payload.confirmation_code,
-            payload.cancel_code,
+            payload.confirmationCode,
+            payload.cancelCode,
             delay_minutes=5,
         )
         events = auth_store.list_omega_protocol_events(token, tenant.get("id"), limit=12)
@@ -3515,7 +3544,7 @@ async def omega_cancel(request: Request, payload: OmegaCancelRequest):
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     try:
-        protocol = auth_store.cancel_omega_protocol(token, tenant.get("id"), payload.cancel_code)
+        protocol = auth_store.cancel_omega_protocol(token, tenant.get("id"), payload.cancelCode)
         events = auth_store.list_omega_protocol_events(token, tenant.get("id"), limit=12)
         return {"data": {"protocol": protocol, "events": events}}
     except ValueError as error:
@@ -3528,7 +3557,7 @@ async def omega_execute(request: Request, payload: OmegaExecuteRequest):
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     try:
-        protocol = auth_store.verify_omega_execution(token, tenant.get("id"), payload.confirmation_code)
+        protocol = auth_store.verify_omega_execution(token, tenant.get("id"), payload.confirmationCode)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     removed_paths = purge_local_app_data()
@@ -3933,7 +3962,12 @@ async def upsert_automation_provider_config(provider_key: str, request: Request,
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
-        config = auth_store.upsert_automation_provider_config(token, tenant_id, provider_key, payload.model_dump())
+        config = auth_store.upsert_automation_provider_config(
+            token,
+            tenant_id,
+            provider_key,
+            _automation_provider_internal_payload(payload.model_dump()),
+        )
         return {"data": config}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -3958,7 +3992,7 @@ async def test_automation_provider_config(config_id: str, request: Request):
     if not config:
         raise HTTPException(status_code=404, detail="Automation provider config not found")
     try:
-        result = test_automation_provider(config)
+        result = test_automation_provider(_automation_provider_internal_config(config))
         details = {
             "last_delivery_at": result.get("delivery_at"),
             "last_delivery_status": result.get("status"),
@@ -4793,13 +4827,13 @@ async def delete_email_verifier_config(request: Request):
 async def verify_email_address(request: Request, payload: EmailVerifierSingleRequest):
     require_operator(request, "Only operators can verify emails.")
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can verify emails.")
-    config = provider.get_email_verifier_config(include_secret=True)
+    config = _email_verifier_internal_config(provider.get_email_verifier_config(include_secret=True))
     if not config.get("enabled") or not config.get("api_key"):
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
 
     resolved_email = str(payload.email or "").strip().lower()
-    if payload.contact_id and not resolved_email:
-        targets = provider.resolve_email_verification_targets(contact_ids=[payload.contact_id])
+    if payload.contactId and not resolved_email:
+        targets = provider.resolve_email_verification_targets(contact_ids=[payload.contactId])
         if not targets:
             raise HTTPException(status_code=400, detail="The contact does not have a verifiable email address.")
         resolved_email = str(targets[0].get("email") or "").strip().lower()
@@ -4810,8 +4844,8 @@ async def verify_email_address(request: Request, payload: EmailVerifierSingleReq
     try:
         result = verify_single_email_address(config["api_key"], resolved_email, mode)
         provider.mark_email_verifier_config_status(status="active", last_tested_at=result.get("verifiedAt"))
-        if payload.contact_id:
-            updated_contact = provider.apply_email_verification_result(payload.contact_id, result, expected_email=resolved_email)
+        if payload.contactId:
+            updated_contact = provider.apply_email_verification_result(payload.contactId, result, expected_email=resolved_email)
             return {"data": {**result, "contact": updated_contact}}
         return {"data": result}
     except ValueError as error:
@@ -4823,11 +4857,11 @@ async def verify_email_address(request: Request, payload: EmailVerifierSingleReq
 async def create_email_verifier_bulk(request: Request, payload: EmailVerifierBulkRequest):
     require_operator(request, "Only operators can verify emails.")
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can verify emails.")
-    config = provider.get_email_verifier_config(include_secret=True)
+    config = _email_verifier_internal_config(provider.get_email_verifier_config(include_secret=True))
     if not config.get("enabled") or not config.get("api_key"):
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
 
-    targets = provider.resolve_email_verification_targets(contact_ids=payload.contact_ids, emails=payload.emails)
+    targets = provider.resolve_email_verification_targets(contact_ids=payload.contactIds, emails=payload.emails)
     if not targets:
         raise HTTPException(status_code=400, detail="No verifiable emails were provided.")
 
@@ -4864,7 +4898,7 @@ async def get_email_verifier_bulk_task(task_id: str, request: Request):
     if task.get("status") in {"completed", "failed"} and task.get("completed_at"):
         return {"data": task}
 
-    config = provider.get_email_verifier_config(include_secret=True)
+    config = _email_verifier_internal_config(provider.get_email_verifier_config(include_secret=True))
     if not config.get("api_key"):
         task = provider.update_email_verification_task(task_id, {"status": "failed", "completed_at": utcnow_iso(), "last_error": "Email verifier API key is missing."})
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
@@ -5159,19 +5193,19 @@ async def serve_media_image(filename: str, request: Request):
     return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "image/png")
 
 
-def _extract_uploaded_file_from_multipart(content_type: str, body: bytes) -> tuple[str, str | None, bytes]:
+def _extract_uploaded_file_from_multipart(content_type: str, body: bytes, field_name: str = "file") -> tuple[str, str | None, bytes]:
     message = BytesParser(policy=email_policy_default).parsebytes(
         f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
     )
     if not message.is_multipart():
         raise ValueError("Expected multipart/form-data upload.")
     for part in message.iter_parts():
-        if (part.get_param("name", header="content-disposition") or "") != "file":
+        if (part.get_param("name", header="content-disposition") or "") != field_name:
             continue
         filename = part.get_filename()
         payload = part.get_payload(decode=True) or b""
         return filename or "upload.bin", part.get_content_type(), payload
-    raise ValueError("No file field was provided.")
+    raise ValueError(f"No '{field_name}' field was provided.")
 
 
 @app.post("/api/media/upload", response_model=MediaLibraryMutationResponse)
@@ -6847,6 +6881,708 @@ class SignalExecuteRequest(BaseModel):
     target: str | None = None  # agent name, flowId, or null for command
     input: str | dict[str, Any] = ""
     context: dict[str, Any] = {}
+
+
+def _automation_provider_internal_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    source = payload or {}
+    return {
+        "label": source.get("label"),
+        "base_url": source.get("baseUrl"),
+        "api_key": source.get("apiKey"),
+        "enabled": source.get("enabled"),
+        "status": source.get("status"),
+        "config": clone_json(source.get("config") or {}),
+        "last_tested_at": source.get("lastTestedAt"),
+        "last_error": source.get("lastError"),
+    }
+
+
+def _automation_provider_internal_config(config: dict[str, Any] | None) -> dict[str, Any]:
+    source = config or {}
+    return {
+        "id": source.get("id"),
+        "tenant_id": source.get("tenantId"),
+        "provider_key": source.get("providerKey"),
+        "label": source.get("label"),
+        "base_url": source.get("baseUrl"),
+        "api_key": source.get("apiKey"),
+        "enabled": source.get("enabled"),
+        "status": source.get("status"),
+        "last_tested_at": source.get("lastTestedAt"),
+        "last_error": source.get("lastError"),
+        "config": clone_json(source.get("config") or {}),
+    }
+
+
+def _email_verifier_internal_config(config: dict[str, Any] | None) -> dict[str, Any]:
+    source = config or {}
+    return {
+        "id": source.get("id"),
+        "tenant_id": source.get("tenantId"),
+        "provider": source.get("provider"),
+        "api_key": source.get("apiKey"),
+        "has_api_key": source.get("hasApiKey"),
+        "enabled": source.get("enabled"),
+        "auto_verify_contacts": source.get("autoVerifyContacts"),
+        "default_mode": source.get("defaultMode"),
+        "last_tested_at": source.get("lastTestedAt"),
+        "status": source.get("status"),
+        "last_error": source.get("lastError"),
+    }
+
+
+def _signal_created_at(*values: Any) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return utcnow_iso()
+
+
+def _signal_severity(raw_value: str | None, *, default: str = "medium") -> str:
+    normalized = str(raw_value or "").strip().lower()
+    if normalized in {"critical", "high", "medium", "low"}:
+        return normalized
+    if normalized in {"error", "failed", "failure", "warning"}:
+        return "high"
+    if normalized in {"info", "ready", "queued", "running", "pending", "completed"}:
+        return "medium" if normalized in {"queued", "running", "pending"} else "low"
+    return default
+
+
+def _signal_action(label: str, action_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "label": label,
+        "actionType": action_type,
+        "payload": payload or {},
+    }
+
+
+def _signal_record(
+    *,
+    signal_id: str,
+    signal_type: str,
+    title: str,
+    description: str,
+    source: str,
+    source_id: str,
+    severity: str,
+    created_at: str,
+    module: str,
+    entity_id: str | None,
+    metadata: dict[str, Any] | None,
+    actions: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    filtered_actions = [action for action in (actions or []) if isinstance(action, dict) and str(action.get("actionType") or "").strip()]
+    if not filtered_actions:
+        return None
+    return {
+        "id": signal_id,
+        "type": signal_type,
+        "title": title,
+        "description": description,
+        "source": source,
+        "sourceId": source_id,
+        "severity": _signal_severity(severity),
+        "createdAt": created_at,
+        "context": {
+            "module": module,
+            "entityId": entity_id,
+            "metadata": metadata or {},
+        },
+        "actions": filtered_actions,
+    }
+
+
+def _append_signal(signals: list[dict[str, Any]], seen: set[str], signal: dict[str, Any] | None) -> None:
+    if not signal:
+        return
+    dedupe_key = f"{signal.get('source')}:{signal.get('sourceId')}"
+    if dedupe_key in seen:
+        return
+    seen.add(dedupe_key)
+    signals.append(signal)
+
+
+def _signal_view_detail(source: str, source_id: str) -> dict[str, Any]:
+    return _signal_action("View Detail", "view_detail", {"source": source, "sourceId": source_id})
+
+
+def _build_ai_run_signals() -> list[dict[str, Any]]:
+    runs = [project_engine_run_for_ui(run) for run in provider.list_ai_runs(limit=80)]
+    signals: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for run in runs:
+        if not run:
+            continue
+        run_id = str(run.get("id") or "").strip()
+        if not run_id:
+            continue
+        status = str(run.get("status") or "").strip().lower()
+        flow_id = str(run.get("flowId") or run.get("flow_id") or "").strip()
+        flow_name = str(run.get("flowName") or run.get("flow_name") or "").strip() or "Untitled Flow"
+        thread_id = str(run.get("thread_id") or run.get("threadId") or "").strip()
+        result_text = clean_text(run.get("result") or run.get("output"))
+        artifacts = run.get("artifacts") if isinstance(run.get("artifacts"), list) else []
+        metadata_payload = run.get("metadata") if isinstance(run.get("metadata"), dict) else {}
+        context_payload = metadata_payload.get("context") if isinstance(metadata_payload.get("context"), dict) else {}
+
+        actions = []
+        if status in {"failed", "error"} and flow_id:
+            actions.append(
+                _signal_action(
+                    "Retry Flow",
+                    "run_flow",
+                    {
+                        "flowId": flow_id,
+                        "command": clean_text(run.get("command_text") or run.get("prompt")),
+                        "context": context_payload,
+                    },
+                )
+            )
+        if thread_id:
+            actions.append(_signal_action("Open Comms", "open_comms", {"threadId": thread_id}))
+        actions.append(_signal_view_detail("ai_run", run_id))
+
+        if status in {"failed", "error"}:
+            _append_signal(
+                signals,
+                seen,
+                _signal_record(
+                    signal_id=f"signal-ai-run-{run_id}",
+                    signal_type="error",
+                    title=f"{flow_name} execution failed",
+                    description=clean_text(result_text or ((artifacts[0] or {}).get("body") if artifacts else "") or "The execution run failed and requires review before it is retried."),
+                    source="ai_run",
+                    source_id=run_id,
+                    severity="high",
+                    created_at=_signal_created_at(run.get("updated_at"), run.get("created_at")),
+                    module="flows",
+                    entity_id=flow_id or run_id,
+                    metadata={
+                        "runId": run_id,
+                        "flowId": flow_id or None,
+                        "flowName": flow_name,
+                        "agent": run.get("executing_agent") or run.get("agent_role"),
+                        "status": status,
+                        "result": result_text or None,
+                    },
+                    actions=actions,
+                ),
+            )
+            continue
+
+        if status in {"completed", "success"} and (result_text or artifacts):
+            primary_actions = []
+            if thread_id:
+                primary_actions.append(_signal_action("Open Comms", "open_comms", {"threadId": thread_id}))
+            primary_actions.append(_signal_view_detail("ai_run", run_id))
+            _append_signal(
+                signals,
+                seen,
+                _signal_record(
+                    signal_id=f"signal-ai-result-{run_id}",
+                    signal_type="opportunity",
+                    title=f"{flow_name} result ready",
+                    description=clean_text(result_text or ((artifacts[0] or {}).get("body") if artifacts else "") or "Execution completed with output ready for review."),
+                    source="ai_run",
+                    source_id=run_id,
+                    severity="medium",
+                    created_at=_signal_created_at(run.get("updated_at"), run.get("created_at")),
+                    module="flows",
+                    entity_id=flow_id or run_id,
+                    metadata={
+                        "runId": run_id,
+                        "flowId": flow_id or None,
+                        "flowName": flow_name,
+                        "threadId": thread_id or None,
+                        "artifactCount": len(artifacts),
+                    },
+                    actions=primary_actions,
+                ),
+            )
+    return signals
+
+
+def _build_verification_signals() -> list[dict[str, Any]]:
+    lister = getattr(provider, "list_email_verification_tasks", None)
+    if not lister:
+        return []
+    tasks = lister(limit=40) or []
+    signals: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        task_id = str(task.get("id") or "").strip()
+        if not task_id:
+            continue
+        status = str(task.get("status") or "").strip().lower()
+        targets = task.get("targets") if isinstance(task.get("targets"), list) else []
+        contact_ids = [str(item.get("contact_id") or item.get("contactId") or "").strip() for item in targets if str(item.get("contact_id") or item.get("contactId") or "").strip()]
+        emails = [str(item.get("email") or "").strip() for item in targets if str(item.get("email") or "").strip()]
+        last_error = clean_text(task.get("last_error") or task.get("lastError"))
+        actions = []
+        if status == "failed" and (contact_ids or emails):
+            actions.append(
+                _signal_action(
+                    "Retry Verification",
+                    "retry",
+                    {
+                        "retryType": "verification_bulk",
+                        "mode": str(task.get("mode") or "power").strip() or "power",
+                        "contactIds": contact_ids,
+                        "emails": emails,
+                    },
+                )
+            )
+        if "not configured" in last_error.lower() or "api key" in last_error.lower():
+            actions.append(_signal_action("Fix Config", "fix_config", {"integrationCategory": "email", "providerKey": "reoon-email-verification"}))
+        actions.append(_signal_view_detail("verification", task_id))
+
+        if status == "failed":
+            _append_signal(
+                signals,
+                seen,
+                _signal_record(
+                    signal_id=f"signal-verification-failed-{task_id}",
+                    signal_type="validation",
+                    title="Email verification failed",
+                    description=last_error or "A bulk email verification task failed before completion.",
+                    source="verification",
+                    source_id=task_id,
+                    severity="high",
+                    created_at=_signal_created_at(task.get("updatedAt"), task.get("createdAt")),
+                    module="crm",
+                    entity_id=task_id,
+                    metadata={
+                        "taskId": task_id,
+                        "mode": task.get("mode"),
+                        "submittedCount": task.get("submitted_count") or task.get("submittedCount") or 0,
+                        "completedCount": task.get("completed_count") or task.get("completedCount") or 0,
+                    },
+                    actions=actions,
+                ),
+            )
+            continue
+
+        if status in {"queued", "processing", "running"}:
+            pending_count = max(
+                int(task.get("submitted_count") or task.get("submittedCount") or 0) -
+                int(task.get("completed_count") or task.get("completedCount") or 0),
+                0,
+            )
+            _append_signal(
+                signals,
+                seen,
+                _signal_record(
+                    signal_id=f"signal-verification-pending-{task_id}",
+                    signal_type="validation",
+                    title="Email verification waiting on completion",
+                    description=f"{pending_count or 'Some'} verification target(s) are still pending final results.",
+                    source="verification",
+                    source_id=task_id,
+                    severity="medium",
+                    created_at=_signal_created_at(task.get("updatedAt"), task.get("createdAt")),
+                    module="crm",
+                    entity_id=task_id,
+                    metadata={
+                        "taskId": task_id,
+                        "mode": task.get("mode"),
+                        "submittedCount": task.get("submitted_count") or task.get("submittedCount") or 0,
+                        "completedCount": task.get("completed_count") or task.get("completedCount") or 0,
+                    },
+                    actions=actions,
+                ),
+            )
+            continue
+
+        invalid_count = int(task.get("invalid_count") or task.get("invalidCount") or 0)
+        risky_count = int(task.get("risky_count") or task.get("riskyCount") or 0)
+        if status == "completed" and (invalid_count or risky_count):
+            _append_signal(
+                signals,
+                seen,
+                _signal_record(
+                    signal_id=f"signal-verification-review-{task_id}",
+                    signal_type="validation",
+                    title="Contacts require validation review",
+                    description=f"Verification completed with {invalid_count} invalid and {risky_count} risky result(s) that need operator review.",
+                    source="verification",
+                    source_id=task_id,
+                    severity="medium",
+                    created_at=_signal_created_at(task.get("completed_at"), task.get("updatedAt"), task.get("createdAt")),
+                    module="crm",
+                    entity_id=task_id,
+                    metadata={
+                        "taskId": task_id,
+                        "invalidCount": invalid_count,
+                        "riskyCount": risky_count,
+                        "validCount": int(task.get("valid_count") or task.get("validCount") or 0),
+                    },
+                    actions=actions,
+                ),
+            )
+    return signals
+
+
+def _media_signal_actions(job_type: str, job: dict[str, Any]) -> list[dict[str, Any]]:
+    job_id = str(job.get("id") or "").strip()
+    actions: list[dict[str, Any]] = []
+    input_payload = clone_json(job.get("input_payload") or job.get("inputPayload") or {})
+    if str(job.get("status") or "").strip().lower() == "failed" and input_payload:
+        actions.append(
+            _signal_action(
+                "Retry Job",
+                "retry",
+                {
+                    "retryType": "media_job",
+                    "jobType": job_type,
+                    "inputPayload": input_payload,
+                },
+            )
+        )
+    actions.append(_signal_view_detail("media", job_id))
+    return actions
+
+
+def _build_media_signals() -> list[dict[str, Any]]:
+    engine = get_media_engine()
+    job_groups = [
+        ("render", engine.list_render_jobs(), "Render"),
+        ("transcript", engine.list_transcript_jobs(), "Transcript"),
+        ("script", engine.list_script_jobs(), "Script"),
+        ("runOfShow", engine.list_run_of_show_jobs(), "Run of Show"),
+        ("audioRender", engine.list_audio_render_jobs(), "Audio Render"),
+        ("publish", engine.list_publish_jobs(), "Publish"),
+    ]
+    signals: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for job_type, jobs, label in job_groups:
+        for job in jobs or []:
+            if not isinstance(job, dict):
+                continue
+            job_id = str(job.get("id") or "").strip()
+            if not job_id:
+                continue
+            status = str(job.get("status") or "").strip().lower()
+            created_at = _signal_created_at(job.get("completed_at"), job.get("updated_at"), job.get("created_at"))
+            metadata = {
+                "jobId": job_id,
+                "jobType": job_type,
+                "provider": job.get("provider"),
+                "status": status,
+                "artifactId": job.get("artifact_id") or job.get("artifactId"),
+                "outputAssetIds": clone_json(job.get("output_asset_ids") or job.get("outputAssetIds") or []),
+                "lastError": clean_text(job.get("last_error") or job.get("lastError")) or None,
+            }
+            actions = _media_signal_actions(job_type, job)
+            if status == "failed":
+                _append_signal(
+                    signals,
+                    seen,
+                    _signal_record(
+                        signal_id=f"signal-media-failed-{job_id}",
+                        signal_type="error",
+                        title=f"{label} job failed",
+                        description=clean_text(job.get("last_error") or job.get("lastError") or f"The {label.lower()} job failed before output was produced."),
+                        source="media",
+                        source_id=job_id,
+                        severity="high",
+                        created_at=created_at,
+                        module="media",
+                        entity_id=job_id,
+                        metadata=metadata,
+                        actions=actions,
+                    ),
+                )
+                continue
+            if status in {"queued", "running"}:
+                _append_signal(
+                    signals,
+                    seen,
+                    _signal_record(
+                        signal_id=f"signal-media-pending-{job_id}",
+                        signal_type="follow_up",
+                        title=f"{label} job in progress",
+                        description=f"The {label.lower()} job is still running and should be monitored until output is ready.",
+                        source="media",
+                        source_id=job_id,
+                        severity="low",
+                        created_at=created_at,
+                        module="media",
+                        entity_id=job_id,
+                        metadata=metadata,
+                        actions=actions,
+                    ),
+                )
+                continue
+            has_output = bool(metadata["artifactId"] or metadata["outputAssetIds"])
+            if status == "complete" and has_output:
+                _append_signal(
+                    signals,
+                    seen,
+                    _signal_record(
+                        signal_id=f"signal-media-ready-{job_id}",
+                        signal_type="opportunity",
+                        title=f"{label} output ready",
+                        description=f"The {label.lower()} job completed successfully and output is ready for review or use.",
+                        source="media",
+                        source_id=job_id,
+                        severity="medium",
+                        created_at=created_at,
+                        module="media",
+                        entity_id=job_id,
+                        metadata=metadata,
+                        actions=actions,
+                    ),
+                )
+    return signals
+
+
+def _integration_issue_actions(category: str, provider_key: str | None, source: str, source_id: str) -> list[dict[str, Any]]:
+    return [
+        _signal_action(
+            "Fix Config",
+            "fix_config",
+            {
+                "integrationCategory": category,
+                "providerKey": provider_key,
+            },
+        ),
+        _signal_view_detail(source, source_id),
+    ]
+
+
+def _build_integration_signals(token: str, tenant_id: str) -> list[dict[str, Any]]:
+    signals: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def append_config_signal(
+        *,
+        source: str,
+        source_id: str,
+        provider_key: str | None,
+        category: str,
+        title: str,
+        description: str,
+        severity: str = "high",
+        created_at: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        _append_signal(
+            signals,
+            seen,
+            _signal_record(
+                signal_id=f"signal-{source}-{source_id}",
+                signal_type="system",
+                title=title,
+                description=description,
+                source=source,
+                source_id=source_id,
+                severity=severity,
+                created_at=_signal_created_at(created_at),
+                module="integrations",
+                entity_id=source_id,
+                metadata=metadata,
+                actions=_integration_issue_actions(category, provider_key, source, source_id),
+            ),
+        )
+
+    for config in auth_store.list_ai_provider_configs(token, tenant_id):
+        status = str(config.get("status") or "").strip().lower()
+        if status in {"error", "disconnected", "needs_config"} or (config.get("enabled") and clean_text(config.get("lastError"))):
+            append_config_signal(
+                source="integration",
+                source_id=str(config.get("id") or config.get("providerKey") or "").strip(),
+                provider_key=str(config.get("providerKey") or "").strip() or None,
+                category="llms",
+                title=f"{config.get('label') or config.get('providerKey') or 'LLM provider'} needs attention",
+                description=clean_text(config.get("lastError") or f"The {config.get('label') or config.get('providerKey') or 'selected'} LLM provider is not healthy and should be reviewed."),
+                created_at=config.get("updatedAt"),
+                metadata={"providerKey": config.get("providerKey"), "status": config.get("status")},
+            )
+
+    for config in auth_store.list_automation_provider_configs(token, tenant_id):
+        status = str(config.get("status") or "").strip().lower()
+        if status in {"error", "disconnected", "needs_config"} or (config.get("enabled") and clean_text(config.get("lastError"))):
+            append_config_signal(
+                source="integration",
+                source_id=str(config.get("id") or config.get("providerKey") or "").strip(),
+                provider_key=str(config.get("providerKey") or "").strip() or None,
+                category="automation",
+                title=f"{config.get('label') or config.get('providerKey') or 'Automation provider'} needs attention",
+                description=clean_text(config.get("lastError") or "Automation provider connectivity needs to be corrected before flows depend on it."),
+                created_at=config.get("updatedAt"),
+                metadata={"providerKey": config.get("providerKey"), "status": config.get("status")},
+            )
+
+    for config in auth_store.list_media_provider_configs(token, tenant_id):
+        status = str(config.get("status") or "").strip().lower()
+        if status in {"error", "disconnected", "needs_config"} or (config.get("enabled") and clean_text(config.get("lastError"))):
+            append_config_signal(
+                source="integration",
+                source_id=str(config.get("id") or config.get("providerKey") or "").strip(),
+                provider_key=str(config.get("providerKey") or "").strip() or None,
+                category="media",
+                title=f"{config.get('label') or config.get('providerKey') or 'Media provider'} needs attention",
+                description=clean_text(config.get("lastError") or "Media provider configuration requires correction before media actions can run cleanly."),
+                created_at=config.get("updatedAt"),
+                metadata={"providerKey": config.get("providerKey"), "status": config.get("status")},
+            )
+
+    for config in auth_store.list_data_store_provider_configs(token, tenant_id):
+        status = str(config.get("status") or "").strip().lower()
+        if status in {"error", "disconnected", "needs_config"} or (config.get("enabled") and clean_text(config.get("lastError"))):
+            append_config_signal(
+                source="integration",
+                source_id=str(config.get("id") or config.get("providerKey") or "").strip(),
+                provider_key=str(config.get("providerKey") or "").strip() or None,
+                category="data-stores",
+                title=f"{config.get('label') or config.get('providerKey') or 'Data store'} needs attention",
+                description=clean_text(config.get("lastError") or "Data store configuration requires review before record operations can succeed."),
+                created_at=config.get("updatedAt"),
+                metadata={"providerKey": config.get("providerKey"), "status": config.get("status")},
+            )
+
+    for config in auth_store.list_payment_provider_configs(token, tenant_id):
+        status = str(config.get("status") or "").strip().lower()
+        if status in {"error", "disconnected", "needs_config"} or (config.get("enabled") and clean_text(config.get("lastError"))):
+            append_config_signal(
+                source="integration",
+                source_id=str(config.get("id") or config.get("providerKey") or "").strip(),
+                provider_key=str(config.get("providerKey") or "").strip() or None,
+                category="payments",
+                title=f"{config.get('label') or config.get('providerKey') or 'Payment provider'} needs attention",
+                description=clean_text(config.get("lastError") or "Payment provider configuration requires review before transactions are trusted."),
+                created_at=config.get("updatedAt"),
+                metadata={"providerKey": config.get("providerKey"), "status": config.get("status")},
+            )
+
+    email_verifier = provider.get_email_verifier_config(include_secret=False) if getattr(provider, "get_email_verifier_config", None) else {}
+    if email_verifier:
+        status = str(email_verifier.get("status") or "").strip().lower()
+        last_error = clean_text(email_verifier.get("lastError"))
+        if status in {"error", "needs_config", "disconnected"} or (email_verifier.get("enabled") and last_error):
+            append_config_signal(
+                source="integration",
+                source_id="email-verifier",
+                provider_key="reoon-email-verification",
+                category="email",
+                title="Email verification needs attention",
+                description=last_error or "Email verification is enabled but not healthy enough for reliable validation.",
+                created_at=email_verifier.get("updatedAt") or email_verifier.get("lastTestedAt"),
+                metadata={"providerKey": "reoon-email-verification", "status": email_verifier.get("status")},
+            )
+
+    for mailbox in provider.list_mailboxes() if getattr(provider, "list_mailboxes", None) else []:
+        canonical_status = str(mailbox.get("status_canonical") or mailbox.get("statusCanonical") or mailbox.get("status") or "").strip().lower()
+        if canonical_status in {"connected", "ready", "active"}:
+            continue
+        mailbox_id = str(mailbox.get("id") or "").strip()
+        append_config_signal(
+            source="integration",
+            source_id=mailbox_id or f"mailbox-{clean_text(mailbox.get('address'))}",
+            provider_key=str(mailbox.get("provider") or "").strip() or None,
+            category="email",
+            title=f"{mailbox.get('name') or mailbox.get('address') or 'Mailbox'} requires reconnect",
+            description=clean_text((mailbox.get("statusSummary") or {}).get("detail") or mailbox.get("lastError") or "Mailbox connectivity is degraded and should be repaired."),
+            severity="critical" if canonical_status in {"unauthorized", "reconnect_required"} else "high",
+            created_at=mailbox.get("updatedAt") or mailbox.get("lastSyncedAt"),
+            metadata={"providerKey": mailbox.get("provider"), "status": canonical_status, "mailboxId": mailbox_id or None},
+        )
+
+    for source in provider.list_calendar_sources() if getattr(provider, "list_calendar_sources", None) else []:
+        canonical_status = str(source.get("status_canonical") or source.get("statusCanonical") or source.get("status") or "").strip().lower()
+        if canonical_status in {"connected", "ready", "active"}:
+            continue
+        source_id = str(source.get("id") or "").strip()
+        append_config_signal(
+            source="integration",
+            source_id=source_id or f"calendar-{clean_text(source.get('name'))}",
+            provider_key=str(source.get("provider") or "").strip() or None,
+            category="calendar",
+            title=f"{source.get('name') or 'Calendar source'} requires reconnect",
+            description=clean_text((source.get("statusSummary") or {}).get("detail") or source.get("lastError") or "Calendar synchronization is degraded and should be repaired."),
+            severity="critical" if canonical_status in {"unauthorized", "reconnect_required"} else "high",
+            created_at=source.get("updatedAt") or source.get("lastSyncedAt"),
+            metadata={"providerKey": source.get("provider"), "status": canonical_status, "sourceId": source_id or None},
+        )
+
+    return signals
+
+
+def _build_system_signals(token: str, session: dict[str, Any]) -> list[dict[str, Any]]:
+    health = build_system_health(
+        token=token,
+        session=session,
+        auth_store=auth_store,
+        provider=provider,
+    )
+    alerts = health.get("alerts") if isinstance(health.get("alerts"), list) else []
+    signals: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    supported_alert_types = {"config_issue", "deployment_failure", "inactive_flow", "booking_trigger_failure"}
+    for alert in alerts:
+        if not isinstance(alert, dict):
+            continue
+        alert_type = str(alert.get("type") or "").strip().lower()
+        if alert_type not in supported_alert_types:
+            continue
+        source_id = str(alert.get("id") or alert.get("entityId") or "").strip()
+        navigation_target = alert.get("navigationTarget") if isinstance(alert.get("navigationTarget"), dict) else {}
+        actions = [_signal_view_detail("system", source_id or alert_type)]
+        if navigation_target.get("module") == "calendar":
+            actions.insert(0, _signal_action("Fix Config", "fix_config", {"integrationCategory": "calendar"}))
+        _append_signal(
+            signals,
+            seen,
+            _signal_record(
+                signal_id=f"signal-system-{source_id or alert_type}",
+                signal_type="system",
+                title=clean_text(alert.get("title") or "System alert"),
+                description=clean_text(alert.get("message") or alert.get("suggestedAction") or "System state requires operator review."),
+                source="system",
+                source_id=source_id or alert_type,
+                severity=_signal_severity(alert.get("severity"), default="high"),
+                created_at=_signal_created_at(alert.get("timestamp")),
+                module=str(navigation_target.get("module") or "system-health"),
+                entity_id=str(alert.get("entityId") or "").strip() or None,
+                metadata={
+                    "alertType": alert_type,
+                    "entityType": alert.get("entityType"),
+                    "suggestedAction": alert.get("suggestedAction"),
+                },
+                actions=actions,
+            ),
+        )
+    return signals
+
+
+def _build_actionable_signals(token: str, session: dict[str, Any]) -> list[dict[str, Any]]:
+    aggregated = [
+        *_build_ai_run_signals(),
+        *_build_verification_signals(),
+        *_build_media_signals(),
+        *_build_integration_signals(token, str((session.get("tenant") or {}).get("id") or "").strip()),
+        *_build_system_signals(token, session),
+    ]
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    aggregated.sort(key=lambda signal: str(signal.get("createdAt") or ""), reverse=True)
+    aggregated.sort(key=lambda signal: severity_order.get(str(signal.get("severity") or "low").lower(), 4))
+    return aggregated
+
+
+@app.get("/api/signals")
+async def list_actionable_signals(request: Request):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view signals.")
+    token = extract_session_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+    try:
+        return {"data": _build_actionable_signals(token, session)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/signals/execute")

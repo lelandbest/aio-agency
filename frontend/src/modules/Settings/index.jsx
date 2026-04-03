@@ -25,7 +25,9 @@ import {
   updateSystemEmailTemplateApi,
   updateWorkspaceApi,
   updateWorkspaceMemberApi,
-  upsertGlobalVariableApi
+  upsertGlobalVariableApi,
+  uploadAvatarApi,
+  deleteAvatarApi
 } from '../../services/backendApi';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
 
@@ -121,7 +123,7 @@ const GlobalVarsManager = () => {
       const tenantSettings = await loadCanonicalTenantSettings();
       setVars(mapCanonicalGlobalVariables(tenantSettings));
     } catch (loadError) {
-      setError(loadError.message || 'Unable to load variables.');
+      setError(loadError?.message || loadError?.detail || String(loadError) || 'Unable to load variables.');
     } finally {
       setLoading(false);
     }
@@ -159,7 +161,7 @@ const GlobalVarsManager = () => {
       triggerSavedAction('add-variable');
       await fetchVars();
     } catch (saveError) {
-      setError(saveError.message || 'Unable to save variable.');
+      setError(saveError?.message || saveError?.detail || String(saveError) || 'Unable to save variable.');
     }
   };
 
@@ -171,7 +173,7 @@ const GlobalVarsManager = () => {
       setVars(current => current.filter(item => item.id !== id));
       setStatus('Variable removed.');
     } catch (deleteError) {
-      setError(deleteError.message || 'Unable to remove variable.');
+      setError(deleteError?.message || deleteError?.detail || String(deleteError) || 'Unable to remove variable.');
     }
   };
 
@@ -522,7 +524,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`px-4 py-3 text-xs font-medium border-b-2 transition whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id
                   ? 'text-[var(--color-text-primary)] border-blue-500'
                   : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
@@ -1311,9 +1313,9 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
     setEditing(template);
     setDraft({
       subject: template.subject || '',
-      sendTo: template.send_to || '',
+      sendTo: template.sendTo || '',
       enabled: !!template.enabled,
-      bodyText: template.body_text || ''
+      bodyText: template.bodyText || ''
     });
   };
 
@@ -1369,14 +1371,14 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
                 <tr key={template.id} className="bg-[var(--color-bg-secondary)]">
                   <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium">{template.emailType}</td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)] max-w-[260px] truncate">{template.subject}</td>
-                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.send_to}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.sendTo}</td>
                   <td className="px-5 py-4">
                     <button onClick={() => handleToggle(template)} className={`w-12 h-6 rounded-full border transition relative ${template.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
                       <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${template.enabled ? 'left-6' : 'left-0.5'}`} />
                     </button>
                   </td>
-                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.edited_by_name || 'AIO Flow\u2122'}</td>
-                  <td className="px-5 py-4 text-[var(--color-text-secondary)]">{template.edited_at || template.updatedAt}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.editedByName || 'AIO Flow\u2122'}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-secondary)]">{template.editedAt || template.updatedAt}</td>
                   <td className="px-5 py-4">
                     <button onClick={() => openEditor(template)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)] text-[var(--color-text-primary)]">
                       <Edit2 size={14} /> Edit
@@ -1440,22 +1442,30 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
   );
 };
 
-// ============ PERSONAL SETTINGS ============
-const PersonalSettings = () => {
+// ============ PROFILE SETTINGS (Personal + Security merged) ============
+const ProfileSettings = () => {
   const { user, refreshSession } = useAuth();
   const [form, setForm] = useState({
-    display_name: '',
+    displayName: '',
     email: '',
     phone: '',
     locale: 'en-US',
     timezone: 'America/New_York',
-    email_signature: ''
+    emailSignature: ''
   });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [hasLocalPassword, setHasLocalPassword] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -1464,24 +1474,76 @@ const PersonalSettings = () => {
       try {
         const profile = await getProfileApi();
         setForm({
-          display_name: profile?.name || '',
+          displayName: profile?.name || '',
           email: profile?.email || '',
           phone: profile?.phone || '',
           locale: profile?.locale || 'en-US',
           timezone: profile?.timezone || 'America/New_York',
-          email_signature: profile?.email_signature || ''
+          emailSignature: profile?.emailSignature || ''
         });
+        setAvatarUrl(profile?.avatarUrl || '');
+        setHasLocalPassword(profile?.provider !== 'google-oauth' && profile?.provider !== 'github-oauth' && profile?.provider !== 'microsoft-oauth');
       } catch (loadError) {
-        setError(loadError.message || 'Unable to load your profile.');
+        setError(loadError?.message || loadError?.detail || String(loadError) || 'Unable to load your profile.');
       } finally {
         setLoading(false);
       }
     };
-
     loadProfile();
   }, []);
 
-  const initials = (form.display_name || user?.name || 'A').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'A';
+  useEffect(() => {
+    const loadSessions = async () => {
+      setLoadingSessions(true);
+      try {
+        const data = await getAuthSessionsApi();
+        setSessions(data || []);
+      } catch {}
+      setLoadingSessions(false);
+    };
+    loadSessions();
+  }, []);
+
+  const handleAvatarChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be smaller than 2MB.');
+      return;
+    }
+    setAvatarUploading(true);
+    setError('');
+    try {
+      const result = await uploadAvatarApi(file);
+      setAvatarUrl(result.data?.avatarUrl || '');
+      await refreshSession?.();
+      setStatus('Avatar updated.');
+    } catch (err) {
+      setError(err?.message || err?.detail || String(err) || 'Failed to upload avatar.');
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    setAvatarUploading(true);
+    setError('');
+    try {
+      await deleteAvatarApi();
+      setAvatarUrl('');
+      await refreshSession?.();
+      setStatus('Avatar removed.');
+    } catch (err) {
+      setError(err?.message || err?.detail || String(err) || 'Failed to remove avatar.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1489,88 +1551,286 @@ const PersonalSettings = () => {
     setStatus('');
     try {
       await updateProfileApi({
-        display_name: form.display_name,
+        displayName: form.displayName,
         phone: form.phone,
         locale: form.locale,
         timezone: form.timezone,
-        email_signature: form.email_signature
+        emailSignature: form.emailSignature
       });
       await refreshSession?.();
       setStatus('Profile updated.');
       triggerSavedAction('save-profile');
     } catch (saveError) {
-      setError(saveError.message || 'Unable to save profile changes.');
+      setError(saveError?.message || saveError?.detail || String(saveError) || 'Unable to save profile changes.');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleChangePassword = async () => {
+    setError('');
+    setStatus('');
+    try {
+      await changePasswordApi(passwordForm);
+      setPasswordForm({ currentPassword: '', newPassword: '' });
+      setStatus('Password updated.');
+      triggerSavedAction('update-password');
+    } catch (passwordError) {
+      setError(passwordError?.message || passwordError?.detail || String(passwordError) || 'Unable to update password.');
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    setError('');
+    setStatus('');
+    try {
+      await revokeAuthSessionApi(sessionId);
+      setSessions(current => current.filter(item => item.id !== sessionId));
+      setStatus('Session revoked.');
+    } catch (revokeError) {
+      setError(revokeError?.message || revokeError?.detail || String(revokeError) || 'Unable to revoke session.');
+    }
+  };
+
+  const handleLogoutOthers = async () => {
+    setError('');
+    setStatus('');
+    try {
+      await logoutOtherSessionsApi();
+      const loadSessions = async () => {
+        setLoadingSessions(true);
+        try {
+          const data = await getAuthSessionsApi();
+          setSessions(data || []);
+        } catch {}
+        setLoadingSessions(false);
+      };
+      await loadSessions();
+      setStatus('All other sessions were logged out.');
+    } catch (logoutError) {
+      setError(logoutError?.message || logoutError?.detail || String(logoutError) || 'Unable to log out other sessions.');
+    }
+  };
+
+  const initials = (form.displayName || user?.name || 'A').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'A';
+
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="flex-1 overflow-y-auto p-8 space-y-8">
-        {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
-        {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
-        <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 flex flex-col md:flex-row gap-8">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-cyan-500 flex items-center justify-center text-3xl font-bold text-[var(--color-text-primary)] border-4 border-[var(--color-border)] shadow-lg">
-              {initials}
+      <div className="flex-1 overflow-y-auto p-6">
+        {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 mb-4">{error}</div>}
+        {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 mb-4">{status}</div>}
+
+        {/* 2-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LEFT COLUMN - Personal */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Personal</h3>
+            
+            {/* Profile Card */}
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4">
+              <div className="grid grid-cols-[auto_1fr] gap-6">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="w-20 h-20 rounded-full object-cover border-2 border-[var(--color-border)]" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-cyan-500 flex items-center justify-center text-2xl font-bold text-[var(--color-text-primary)] border-2 border-[var(--color-border)]">
+                        {initials}
+                      </div>
+                    )}
+                    {avatarUploading && (
+                      <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleAvatarChange} className="hidden" id="avatar-upload" />
+                  <label htmlFor="avatar-upload" className="cursor-pointer text-[10px] text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] font-medium">
+                    {avatarUploading ? 'Uploading...' : 'Upload Photo'}
+                  </label>
+                  {avatarUrl && (
+                    <button onClick={handleDeleteAvatar} className="text-[10px] text-red-400 hover:text-red-300">Remove</button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 content-start">
+                  <div className="col-span-2 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Display Name</label>
+                      <input autoComplete="nickname" value={form.displayName} onChange={(e) => setForm(c => ({ ...c, displayName: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Email</label>
+                      <input autoComplete="off" type="email" value={form.email} disabled className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] opacity-80" />
+                    </div>
+                  </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Phone</label>
+                      <input id="phone" name="phone" type="tel" value={form.phone} onChange={(e) => setForm(c => ({ ...c, phone: e.target.value }))} autoComplete="tel" inputMode="tel" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                    </div>
+                  <div className="col-span-2 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Language</label>
+                      <select value={form.locale} onChange={(e) => setForm(c => ({ ...c, locale: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                        <option value="en-US">English (US)</option>
+                        <option value="en-GB">English (UK)</option>
+                        <option value="es-ES">Español</option>
+                        <option value="es-MX">Español MX</option>
+                        <option value="fr-FR">Français</option>
+                        <option value="de-DE">Deutsch</option>
+                        <option value="pt-BR">Português</option>
+                        <option value="it-IT">Italiano</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="zh-CN">中文</option>
+                        <option value="ko-KR">한국어</option>
+                        <option value="ar-SA">العربية</option>
+                        <option value="hi-IN">हिन्दी</option>
+                        <option value="nl-NL">Nederlands</option>
+                        <option value="pl-PL">Polski</option>
+                        <option value="ru-RU">Русский</option>
+                        <option value="tr-TR">Türkçe</option>
+                        <option value="vi-VN">Tiếng Việt</option>
+                        <option value="th-TH">ไทย</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Timezone</label>
+                      <select value={form.timezone} onChange={(e) => setForm(c => ({ ...c, timezone: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="America/Chicago">America/Chicago</option>
+                        <option value="America/Denver">America/Denver</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        <option value="America/Anchorage">America/Anchorage</option>
+                        <option value="Pacific/Honolulu">Pacific/Honolulu</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="Europe/Paris">Europe/Paris</option>
+                        <option value="Europe/Berlin">Europe/Berlin</option>
+                        <option value="Europe/Madrid">Europe/Madrid</option>
+                        <option value="Europe/Rome">Europe/Rome</option>
+                        <option value="Europe/Amsterdam">Europe/Amsterdam</option>
+                        <option value="Europe/Moscow">Europe/Moscow</option>
+                        <option value="Asia/Dubai">Asia/Dubai</option>
+                        <option value="Asia/Kolkata">Asia/Kolkata</option>
+                        <option value="Asia/Bangkok">Asia/Bangkok</option>
+                        <option value="Asia/Singapore">Asia/Singapore</option>
+                        <option value="Asia/Hong_Kong">Asia/Hong_Kong</option>
+                        <option value="Asia/Shanghai">Asia/Shanghai</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="Asia/Seoul">Asia/Seoul</option>
+                        <option value="Australia/Sydney">Australia/Sydney</option>
+                        <option value="Pacific/Auckland">Pacific/Auckland</option>
+                        <option value="UTC">UTC</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button onClick={handleSave} disabled={saving || loading} className={saveButtonClassName("bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60 text-[var(--color-text-primary)] px-4 py-1.5 rounded-lg text-xs font-bold", savedAction === 'save-profile')}>
+                  {saving ? 'Saving...' : savedAction === 'save-profile' ? 'Saved' : 'Save'}
+                </button>
+              </div>
             </div>
-            <div className="text-xs text-[var(--color-text-secondary)]">Avatar uploads are staged for a later pass.</div>
+
+            {/* Password */}
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4 space-y-3">
+              <h4 className="text-xs font-bold text-[var(--color-text-secondary)] uppercase">Change Password</h4>
+              {hasLocalPassword ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Current Password</label>
+                      <input type="password" autoComplete="off" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm(c => ({ ...c, currentPassword: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">New Password</label>
+                      <input type="password" autoComplete="off" value={passwordForm.newPassword} onChange={(e) => setPasswordForm(c => ({ ...c, newPassword: e.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button onClick={handleChangePassword} className={saveButtonClassName("bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-4 py-1.5 rounded-lg text-xs font-bold", savedAction === 'update-password')}>
+                      {savedAction === 'update-password' ? 'Saved' : 'Update Password'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-[10px] text-[var(--color-text-secondary)] py-2">
+                  Password managed via OAuth provider. Set a local password to enable email/password login.
+                </div>
+              )}
+            </div>
+
+            {/* Email Signature */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-[var(--color-text-secondary)] uppercase">Email Signature</h4>
+              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-3">
+                <textarea
+                  className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-3 text-sm text-[var(--color-text-primary)] min-h-[80px] focus:outline-none focus:border-[var(--color-primary)]"
+                  value={form.emailSignature}
+                  onChange={(e) => setForm(c => ({ ...c, emailSignature: e.target.value }))}
+                  placeholder={`Best regards,\n\n${form.displayName || user?.name || 'AIO CRM'}`}
+                />
+              </div>
+            </div>
           </div>
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Display Name</label>
-              <input value={form.display_name} onChange={(event) => setForm(current => ({ ...current, display_name: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Phone</label>
-              <div className="relative">
-                <Smartphone size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                <input value={form.phone} onChange={(event) => setForm(current => ({ ...current, phone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+
+          {/* RIGHT COLUMN - Security */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Security</h3>
+
+            {/* Active Sessions */}
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+              <div className="p-3 border-b border-[var(--color-border)]">
+                <h4 className="text-xs font-bold text-[var(--color-text-secondary)] uppercase">Active Sessions ({sessions.length})</h4>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Email</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                <input value={form.email} disabled className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] pl-10 pr-20 py-2 text-sm text-[var(--color-text-primary)] opacity-80" />
-                <span className="absolute right-3 top-2.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 rounded-[var(--radius-card)]">Verified</span>
+              <div className="divide-y divide-[var(--color-border)] max-h-[420px] overflow-y-auto">
+                {loadingSessions && <div className="p-3 text-xs text-[var(--color-text-secondary)]">Loading...</div>}
+                {!loadingSessions && sessions.slice(0, 7).map(session => (
+                  <div key={session.id} className="p-3 flex justify-between items-center">
+                    <div className="min-w-0">
+                      <div className="text-sm text-[var(--color-text-primary)] font-medium flex items-center gap-2">
+                        <Monitor size={11} className="text-[var(--color-text-secondary)] flex-shrink-0" />
+                        <span className="truncate">{session.label}</span>
+                        {session.isCurrent && <span className="text-[9px] border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 px-1.5 py-0.5 rounded-full flex-shrink-0">Current</span>}
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-secondary)]">Last: {session.lastSeenAt ? new Date(session.lastSeenAt).toLocaleString() : 'Unknown'}</div>
+                    </div>
+                    {!session.isCurrent && <button onClick={() => handleRevokeSession(session.id)} className="text-[10px] text-red-400 hover:text-red-300 flex-shrink-0 ml-2">Revoke</button>}
+                  </div>
+                ))}
               </div>
+              {sessions.length > 1 && (
+                <div className="p-2 border-t border-[var(--color-border)]">
+                  <button onClick={handleLogoutOthers} className="w-full px-3 py-1.5 rounded-lg font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition text-[10px]">
+                    Logout All Others
+                  </button>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Language / Locale</label>
-              <select value={form.locale} onChange={(event) => setForm(current => ({ ...current, locale: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                <option value="en-US">English (US)</option>
-                <option value="es-US">Spanish (US)</option>
-                <option value="fr-FR">French</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Timezone</label>
-              <div className="relative">
-                <Clock size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-                <select value={form.timezone} onChange={(event) => setForm(current => ({ ...current, timezone: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                  <option value="America/New_York">Eastern Time</option>
-                  <option value="America/Chicago">Central Time</option>
-                  <option value="America/Denver">Mountain Time</option>
-                  <option value="America/Los_Angeles">Pacific Time</option>
-                  <option value="UTC">UTC</option>
-                </select>
+
+            {/* Data & Privacy + 2FA side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-3 space-y-2">
+                <div className="text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Data & Privacy</div>
+                <div className="flex gap-2">
+                  <button onClick={() => setStatus('Data export staged for later pass.')} className="flex-1 px-2 py-1.5 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-[10px] font-medium transition">
+                    Download
+                  </button>
+                  <button className="flex-1 px-2 py-1.5 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-red-400 text-[10px] font-medium opacity-50 cursor-not-allowed">
+                    Delete
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2"><PenTool size={16} className="text-[var(--color-primary)]" /> Email Signature</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4">
-            <textarea
-              className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg p-4 text-sm text-[var(--color-text-primary)] min-h-[140px] focus:outline-none focus:border-[var(--color-primary)]"
-              value={form.email_signature}
-              onChange={(event) => setForm(current => ({ ...current, email_signature: event.target.value }))}
-              placeholder={`Best regards,\n\n${form.display_name || user?.name || 'AIO CRM Operator'}`}
-            />
-            <div className="flex justify-end mt-4">
-              <button onClick={handleSave} disabled={saving || loading} className={saveButtonClassName("bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60 disabled:cursor-not-allowed text-[var(--color-text-primary)] px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2", savedAction === 'save-profile')}><Save size={16} /> {saving ? 'Saving...' : savedAction === 'save-profile' ? 'Saved' : 'Save Changes'}</button>
+              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-3">
+                <div className="text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">2FA -FUTURE</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-[var(--color-text-secondary)]">Extra security layer</span>
+                  <div className="relative opacity-40 cursor-not-allowed">
+                    <div className="w-9 h-5 rounded-full border bg-[var(--color-bg-primary)] border-[var(--color-border)]">
+                      <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1590,25 +1850,25 @@ const BillingSettings = () => {
 
   return (
     <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="flex-1 overflow-y-auto p-8 space-y-8">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Current Plan Card */}
         <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-4">Current Subscription</h3>
           <div className="flex justify-between items-center pb-3 border-b border-[var(--color-border)]">
-            <span className="text-[var(--color-text-secondary)]">Plan</span>
-            <span className="text-[var(--color-text-primary)] font-bold">{billing.plan}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">Plan</span>
+            <span className="text-xs text-[var(--color-text-primary)] font-bold">{billing.plan}</span>
           </div>
           <div className="flex justify-between items-center pb-3 border-b border-[var(--color-border)]">
-            <span className="text-[var(--color-text-secondary)]">Billing Status</span>
-            <span className="px-3 py-1 rounded text-xs bg-green-900/30 text-green-400 font-medium">{billing.status}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">Billing Status</span>
+            <span className="px-2 py-0.5 rounded text-[10px] bg-green-900/30 text-green-400 font-medium">{billing.status}</span>
           </div>
           <div className="flex justify-between items-center pb-3 border-b border-[var(--color-border)]">
-            <span className="text-[var(--color-text-secondary)]">Next Billing Date</span>
-            <span className="text-[var(--color-text-primary)]">{billing.nextBillingDate}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">Next Billing Date</span>
+            <span className="text-xs text-[var(--color-text-primary)]">{billing.nextBillingDate}</span>
           </div>
           <div className="flex justify-between items-center pt-2">
-            <span className="text-[var(--color-text-secondary)] font-medium">Monthly Charge</span>
-            <span className="text-[var(--color-text-primary)] font-bold text-lg">{billing.amount}</span>
+            <span className="text-xs text-[var(--color-text-secondary)] font-medium">Monthly Charge</span>
+            <span className="text-sm text-[var(--color-text-primary)] font-bold">{billing.amount}</span>
           </div>
         </div>
 
@@ -1651,155 +1911,6 @@ const BillingSettings = () => {
   );
 };
 
-// ============ SECURITY SETTINGS ============
-const SecuritySettings = () => {
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '' });
-  const [sessions, setSessions] = useState([]);
-  const [loadingSessions, setLoadingSessions] = useState(true);
-  const [error, setError] = useState('');
-  const [status, setStatus] = useState('');
-  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
-
-  const loadSessions = async () => {
-    setLoadingSessions(true);
-    setError('');
-    try {
-      const data = await getAuthSessionsApi();
-      setSessions(data);
-    } catch (loadError) {
-      setError(loadError.message || 'Unable to load active sessions.');
-    } finally {
-      setLoadingSessions(false);
-    }
-  };
-
-  useEffect(() => {
-    loadSessions();
-  }, []);
-
-  const handleChangePassword = async () => {
-    setError('');
-    setStatus('');
-    try {
-      await changePasswordApi(passwordForm);
-      setPasswordForm({ current_password: '', new_password: '' });
-      setStatus('Password updated.');
-      triggerSavedAction('update-password');
-    } catch (passwordError) {
-      setError(passwordError.message || 'Unable to update password.');
-    }
-  };
-
-  const handleRevokeSession = async (sessionId) => {
-    setError('');
-    setStatus('');
-    try {
-      await revokeAuthSessionApi(sessionId);
-      setSessions(current => current.filter(item => item.id !== sessionId));
-      setStatus('Session revoked.');
-    } catch (revokeError) {
-      setError(revokeError.message || 'Unable to revoke session.');
-    }
-  };
-
-  const handleLogoutOthers = async () => {
-    setError('');
-    setStatus('');
-    try {
-      await logoutOtherSessionsApi();
-      await loadSessions();
-      setStatus('All other sessions were logged out.');
-    } catch (logoutError) {
-      setError(logoutError.message || 'Unable to log out other sessions.');
-    }
-  };
-
-  return (
-    <div className="h-full bg-[var(--color-bg-primary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-      <div className="flex-1 overflow-y-auto p-8 space-y-8">
-        {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
-        {status && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{status}</div>}
-        {/* Password Management */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Password</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Current Password</label>
-                <input type="password" autoComplete="new-password" value={passwordForm.current_password} onChange={(event) => setPasswordForm(current => ({ ...current, current_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">New Password</label>
-                <input type="password" autoComplete="new-password" value={passwordForm.new_password} onChange={(event) => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button onClick={handleChangePassword} className={saveButtonClassName("text-xs bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-primary)] px-3 py-1.5 rounded-[var(--radius-card)] transition", savedAction === 'update-password')}>{savedAction === 'update-password' ? 'Saved' : 'Update Password'}</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Two-Factor Authentication */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Two-Factor Authentication</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-[var(--color-text-primary)] font-medium">Enable 2FA</div>
-                <div className="text-xs text-[var(--color-text-secondary)]">Add an extra layer of security to your account</div>
-              </div>
-              <div className={`w-12 h-6 rounded-[var(--radius-card)] transition cursor-pointer ${twoFactorEnabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-bg-tertiary)]'}`} onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}></div>
-            </div>
-            {twoFactorEnabled && (
-              <div className="p-3 bg-[var(--color-bg-primary)] border border-[var(--color-primary)]/30 rounded-[var(--radius-card)] text-sm text-[var(--color-text-primary)]">
-                Authenticator app enrollment is staged for the post-beta security pass.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Active Sessions */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Active Sessions</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
-            <div className="divide-y divide-[var(--color-border)]">
-              {loadingSessions && <div className="p-4 text-sm text-[var(--color-text-secondary)]">Loading sessions...</div>}
-              {!loadingSessions && sessions.map(session => (
-                <div key={session.id} className="p-4 flex justify-between items-center">
-                  <div>
-                    <div className="text-[var(--color-text-primary)] font-medium flex items-center gap-2">
-                      <Monitor size={14} className="text-[var(--color-text-secondary)]" />
-                      {session.label}
-                      {session.is_current && <span className="text-[10px] border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-full">Current</span>}
-                    </div>
-                    <div className="text-xs text-[var(--color-text-secondary)]">Last active: {session.last_seen_at}</div>
-                  </div>
-                  {!session.is_current && <button onClick={() => handleRevokeSession(session.id)} className="text-xs text-[var(--color-text-secondary)] hover:text-red-400">Revoke</button>}
-                </div>
-              ))}
-            </div>
-          </div>
-          <button onClick={handleLogoutOthers} className="w-full px-4 py-2 rounded-[var(--radius-card)] font-medium bg-red-600/20 text-red-400 hover:bg-red-600/30 transition text-sm flex items-center justify-center gap-2"><LogOut size={14} /> Logout All Other Sessions</button>
-        </div>
-
-        {/* Data & Privacy */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Data & Privacy</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-            <button onClick={() => setStatus('Data export will be packaged during the tenancy/commercial pass.')} className="w-full text-left px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-sm font-medium transition">
-              Download Your Data
-            </button>
-            <button className="w-full text-left px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-red-500/50 text-red-400 text-sm font-medium transition">
-              Delete Account (Staged)
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const OmegaSettings = () => {
   const { tenant, user } = useAuth();
   const currentRole = (tenant?.role || user?.role || 'viewer').toLowerCase();
@@ -1815,10 +1926,6 @@ const OmegaSettings = () => {
   const [nowTick, setNowTick] = useState(Date.now());
 
   const loadOmega = async () => {
-    if (!isOwner) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError('');
     try {
@@ -1849,8 +1956,8 @@ const OmegaSettings = () => {
     setStatus('');
     try {
       const data = await armOmegaApi({
-        confirmation_code: armCode,
-        cancel_code: cancelCode
+        confirmationCode: armCode,
+        cancelCode: cancelCode
       });
       setProtocol(data?.protocol || null);
       setEvents(Array.isArray(data?.events) ? data.events : []);
@@ -1868,7 +1975,7 @@ const OmegaSettings = () => {
     setError('');
     setStatus('');
     try {
-      const data = await cancelOmegaApi({ cancel_code: cancelCode });
+      const data = await cancelOmegaApi({ cancelCode });
       setProtocol(data?.protocol || null);
       setEvents(Array.isArray(data?.events) ? data.events : []);
       setStatus('Omega sequence cancelled.');
@@ -1883,7 +1990,7 @@ const OmegaSettings = () => {
     setError('');
     setStatus('');
     try {
-      await executeOmegaApi({ confirmation_code: executeCode });
+      await executeOmegaApi({ confirmationCode: executeCode });
       clearStoredSessionToken();
       setStatus('Omega executed. Local app data was purged. Reloading...');
       window.setTimeout(() => window.location.reload(), 900);
@@ -2029,8 +2136,8 @@ const OmegaSettings = () => {
               {!loading && events.map((event) => (
                 <div key={event.id} className="px-5 py-4 space-y-1">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{event.event_type}</div>
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{new Date(event.created_at).toLocaleString()}</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{event.eventType}</div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{new Date(event.createdAt).toLocaleString()}</div>
                   </div>
                   <div className="text-sm text-[var(--color-text-primary)]">{event.detail || 'No detail recorded.'}</div>
                 </div>
@@ -2484,20 +2591,39 @@ const WorkspaceSettings = () => {
 };
 
 // ============ MAIN SETTINGS MODULE ============
+const SETTINGS_TAB_KEY = 'aio-settings-active-tab';
+
 const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const { tenant, user } = useAuth();
-  const [activeTab, setActiveTab] = useState(activeSettingsTab || 'personal');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (activeSettingsTab) return activeSettingsTab;
+    try {
+      const saved = localStorage.getItem(SETTINGS_TAB_KEY);
+      if (saved && ['personal', 'billing', 'security', 'workspace', 'whitelabel', 'variables', 'omega'].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return 'personal';
+  });
   const isOwner = ((tenant?.role || user?.role || 'viewer').toLowerCase() === 'owner');
   const wlHandlers = useRef({ reset: null, save: null });
 
   useEffect(() => {
-    if (activeSettingsTab) setActiveTab(activeSettingsTab);
+    if (activeSettingsTab) {
+      setActiveTab(activeSettingsTab);
+    }
   }, [activeSettingsTab]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    try {
+      localStorage.setItem(SETTINGS_TAB_KEY, tabId);
+    } catch {}
+  };
 
   const mainTabs = [
     { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'personal', label: 'Personal', icon: User },
-    { id: 'security', label: 'Security', icon: Shield },
+    { id: 'profile', label: 'Profile', icon: User },
     { id: 'variables', label: 'Variables', icon: Key },
     { id: 'whitelabel', label: 'White Label', icon: Globe },
     { id: 'workspace', label: 'Workspace', icon: Layers },
@@ -2505,9 +2631,8 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const tabs = isOwner ? [...mainTabs, { id: 'omega', label: 'Omega', icon: Lock }] : mainTabs;
 
   const tabMeta = {
-    personal: { description: 'Identity, contact defaults, and operator-level preferences.', status: 'Live' },
+    profile: { description: 'Identity, preferences, password, and active sessions.', status: 'Live' },
     billing: { description: 'Subscription, payment methods, and billing history.', status: 'Staged' },
-    security: { description: 'Password, sessions, and security posture.' },
     workspace: { description: 'Switch, rename, and manage members.', status: 'Live' },
     whitelabel: { description: 'Brand, menu, and presentation controls.' },
     variables: { description: 'Global variables and tokens for builders and workflows.', status: 'Legacy' },
@@ -2521,58 +2646,57 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'personal': return <PersonalSettings />;
+      case 'profile': return <ProfileSettings />;
       case 'billing': return <BillingSettings />;
-      case 'security': return <SecuritySettings />;
       case 'workspace': return <WorkspaceSettings />;
       case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} handlersRef={wlHandlers.current} />;
       case 'variables': return <GlobalVarsManager />;
       case 'omega': return <OmegaSettings />;
-      default: return <PersonalSettings />;
+      default: return <ProfileSettings />;
     }
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-primary)]">
-      {/* 48px Island Header */}
-      <div className="h-12 flex items-center justify-between gap-3 px-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-t-[var(--radius-outer)] shadow-island-sm">
-        {/* Left: Icon + Title - fixed width, truncate */}
-        <div className="flex items-center gap-2 w-48 min-w-0 flex-shrink-0">
-          {ActiveIcon && <ActiveIcon size={16} className="text-[var(--color-primary)] flex-shrink-0" />}
-          <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{activeTabData?.label || 'Settings'}</span>
+    <div className="h-full min-h-0 flex flex-col bg-[var(--color-bg-secondary)] rounded-[var(--radius-outer)] border border-[var(--color-border)] shadow-island overflow-hidden">
+      {/* Island Header */}
+      <div className="h-11 flex items-center justify-between gap-3 px-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/80 backdrop-blur-sm flex-shrink-0">
+        {/* Left: Icon + Title */}
+        <div className="flex items-center gap-2 min-w-0">
+          {ActiveIcon && <ActiveIcon size={14} className="text-[var(--color-primary)] flex-shrink-0" />}
+          <span className="text-xs font-semibold text-[var(--color-text-primary)]">{activeTabData?.label || 'Settings'}</span>
         </div>
 
-        {/* Center: Tab Pills - always centered */}
-        <div className="flex-1 flex justify-center items-center gap-1 overflow-x-auto no-scrollbar">
+        {/* Center: Tab Pills */}
+        <div className="flex-1 flex justify-center items-center gap-1 overflow-x-auto no-scrollbar px-4">
           {mainTabs.map(tab => {
             const TabIcon = tab.icon;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-medium rounded-lg border transition whitespace-nowrap ${
+                onClick={() => handleTabChange(tab.id)}
+                className={`px-2.5 py-1 flex items-center gap-1 text-[10px] font-medium rounded-md border transition whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'text-[var(--color-text-primary)] border-[var(--color-primary)] bg-[var(--color-primary)]/10'
-                    : 'text-[var(--color-text-secondary)] border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
+                    ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10'
+                    : 'text-[var(--color-text-secondary)] border-transparent bg-transparent hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
                 }`}
               >
-                <TabIcon size={12} />
+                <TabIcon size={11} />
                 {tab.label}
               </button>
             );
           })}
           {isOwner && (
             <>
-              <div className="w-px h-6 bg-[var(--color-border)] mx-1" />
+              <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
               <button
-                onClick={() => setActiveTab('omega')}
-                className={`px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-medium rounded-lg border transition whitespace-nowrap ${
+                onClick={() => handleTabChange('omega')}
+                className={`px-2.5 py-1 flex items-center gap-1 text-[10px] font-medium rounded-md border transition whitespace-nowrap ${
                   activeTab === 'omega'
                     ? 'text-red-300 border-red-500/40 bg-red-500/10'
-                    : 'text-red-300/60 border-red-500/20 bg-red-500/5 hover:text-red-300 hover:border-red-500/40'
+                    : 'text-red-300/60 border-transparent bg-transparent hover:text-red-300 hover:bg-red-500/10'
                 }`}
               >
-                <Lock size={12} />
+                <Lock size={11} />
                 Omega
               </button>
             </>
@@ -2583,21 +2707,20 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
         <div className="flex items-center gap-2 flex-shrink-0">
           {isWhiteLabel && (
             <>
-              <button onClick={() => wlHandlers.current.reset?.()} className="text-[10px] py-1.5 px-3 h-8 flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30 transition whitespace-nowrap">Reset</button>
-              <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1.5 px-3 h-8 flex items-center justify-center rounded-lg border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
+              <button onClick={() => wlHandlers.current.reset?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30 transition whitespace-nowrap">Reset</button>
+              <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
             </>
           )}
-          {activeMeta.status && <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)]">{activeMeta.status}</span>}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden p-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4">
         {renderContent()}
       </div>
     </div>
   );
 };
 
-export { GlobalVarsManager, WhiteLabelSettings, PersonalSettings, BillingSettings, SecuritySettings, WorkspaceSettings, OmegaSettings };
+export { GlobalVarsManager, WhiteLabelSettings, ProfileSettings, BillingSettings, WorkspaceSettings, OmegaSettings };
 export default SettingsModule;
 

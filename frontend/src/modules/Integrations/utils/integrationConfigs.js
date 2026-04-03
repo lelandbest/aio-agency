@@ -43,6 +43,18 @@ export const integrationConfigs = {
         logo: 'https://cdn.worldvectorlogo.com/logos/n8n.svg',
       },
       {
+        id: 'boostspace',
+        name: 'Boost.Space',
+        icon: 'zap',
+        description: 'Boost.Space orchestration and no-code workflow operations.',
+        fields: [
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Boost.Space' },
+          { name: 'baseUrl', label: 'Base URL', type: 'text', required: true, placeholder: 'https://api.boost.space' },
+          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+        ],
+        logo: null,
+      },
+      {
         id: 'make',
         name: 'Make.com',
         icon: 'make',
@@ -58,7 +70,7 @@ export const integrationConfigs = {
         id: 'zapier',
         name: 'Zapier',
         icon: 'zapier',
-        description: 'Connect your apps and automate workflows.',
+        description: 'Development hold. Keep available for later workspace activation.',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Zapier' },
           { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true },
@@ -94,7 +106,7 @@ export const integrationConfigs = {
         id: 'pabbly',
         name: 'Pabbly Connect',
         icon: 'zap',
-        description: 'Automation and webhook orchestration through Pabbly Connect.',
+        description: 'Development hold. Keep available for later workspace activation.',
         fields: [
           { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Pabbly Connect' },
           { name: 'baseUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://connect.pabbly.com' },

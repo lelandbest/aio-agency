@@ -132,7 +132,8 @@ async function request(path, options = {}) {
     throw new Error(detail || `Request failed: ${response.status}`);
   }
 
-  return response.json();
+  const json = await response.json();
+  return toCamelCase(json);
 }
 
 export function withSessionToken(url) {
@@ -179,6 +180,30 @@ export async function updateProfileApi(payload) {
     method: 'PATCH',
     body: JSON.stringify(payload)
   });
+}
+
+export async function uploadAvatarApi(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result.split(',')[1];
+        const result = await request('/api/auth/avatar', {
+          method: 'POST',
+          body: JSON.stringify({ imageData: base64, mimeType: file.type })
+        });
+        resolve(result);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function deleteAvatarApi() {
+  return request('/api/auth/avatar', { method: 'DELETE' });
 }
 
 export async function changePasswordApi(payload) {
@@ -272,6 +297,11 @@ export async function getAiAgentsApi(includeHidden = false) {
 
 export async function getSystemHealthApi() {
   return request('/api/system/health');
+}
+
+export async function getSignalsApi() {
+  const response = await request('/api/signals');
+  return toCamelCase(response.data || []);
 }
 
 export async function getOmegaStatusApi(limit = 12) {
@@ -1234,8 +1264,18 @@ export async function importCalendarSourceApi(sourceId) {
   });
 }
 
-export function getCalendarSourceAuthorizeUrl(sourceId) {
-  return withSessionToken(`${API_BASE_URL}/api/calendar/sources/${encodeURIComponent(sourceId)}/authorize`);
+export async function getCalendarSourceAuthorizeUrl(sourceId) {
+  const response = await fetch(`${API_BASE_URL}/api/calendar/sources/${encodeURIComponent(sourceId)}/authorize`, {
+    credentials: 'include'
+  });
+  if (response.redirected) {
+    return response.url;
+  }
+  const data = await response.json().catch(() => ({}));
+  if (data.detail) {
+    throw new Error(data.detail);
+  }
+  return null;
 }
 
 export async function getBookingTypesApi() {
@@ -1319,8 +1359,18 @@ export async function testMailboxConnectionApi(mailboxId) {
   });
 }
 
-export function getMailboxAuthorizeUrl(mailboxId) {
-  return withSessionToken(`${API_BASE_URL}/api/mailboxes/${encodeURIComponent(mailboxId)}/authorize`);
+export async function getMailboxAuthorizeUrl(mailboxId) {
+  const response = await fetch(`${API_BASE_URL}/api/mailboxes/${encodeURIComponent(mailboxId)}/authorize`, {
+    credentials: 'include'
+  });
+  if (response.redirected) {
+    return response.url;
+  }
+  const data = await response.json().catch(() => ({}));
+  if (data.detail) {
+    throw new Error(data.detail);
+  }
+  return null;
 }
 
 export async function ingestMailboxMessageApi(mailboxId, payload) {

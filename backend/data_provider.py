@@ -5490,6 +5490,21 @@ class SQLiteProvider(BaseProvider):
             ).fetchone()
         return self._email_verification_task_from_row(dict(row) if row else None)
 
+    def list_email_verification_tasks(self, limit: int = 50) -> list[dict[str, Any]]:
+        resolved_limit = max(1, int(limit or 50))
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM email_verification_tasks
+                WHERE tenantId = ?
+                ORDER BY updatedAt DESC, createdAt DESC
+                LIMIT ?
+                """,
+                (self._tenantId(), resolved_limit),
+            ).fetchall()
+        return [task for task in (self._email_verification_task_from_row(dict(row)) for row in rows) if task]
+
     def update_email_verification_task(self, task_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = dict(updates or {})
         if "targets" in payload:

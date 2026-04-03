@@ -3,9 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 /**
  * useTransientSaveFeedback Hook
  * Provides a transient "saved" state for UI feedback (e.g., changing button text to "Saved" for a few seconds).
- * @param {number} duration - How long the feedback should remain (ms). Default 1400ms.
+ * @param {number} duration - How long the feedback should remain (ms). Default 3000ms.
  */
-export const useTransientSaveFeedback = (duration = 1400) => {
+export const useTransientSaveFeedback = (duration = 3000) => {
   const [savedKey, setSavedKey] = useState('');
   const timeoutRef = useRef(null);
 

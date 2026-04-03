@@ -16,6 +16,7 @@ import TicketModal from './components/TicketModal';
 import OperatorAssistDock from './components/OperatorAssistDock';
 import { AIAssistProvider } from './contexts/AIAssistContext';
 import { SignalProvider } from './contexts/SignalContext';
+import { NoticeProvider, GlobalNoticeViewport } from './contexts/NoticeContext';
 import StatusBar from './components/StatusBar';
 
 // Lazy load modules for code splitting
@@ -649,14 +650,14 @@ const App = () => {
   // Map settings IDs to tab IDs
   const getSettingsTabFromModuleId = (moduleId) => {
     const settingsTabMap = {
-      'set-personal': 'personal',
+      'set-profile': 'profile',
+      'set-personal': 'profile',
       'set-billing': 'billing',
-      'set-security': 'security',
       'set-workspace': 'workspace',
       'set-whitelabel': 'whitelabel',
       'set-vars': 'variables'
     };
-    return settingsTabMap[moduleId] || 'personal';
+    return settingsTabMap[moduleId] || 'profile';
   };
 
   // Module router - conditionally render modules
@@ -677,7 +678,7 @@ const App = () => {
     }
 
     // Check if this is a settings tab
-    const settingsTabs = ['set-personal', 'set-billing', 'set-security', 'set-workspace', 'set-whitelabel', 'set-vars'];
+    const settingsTabs = ['set-profile', 'set-billing', 'set-workspace', 'set-whitelabel', 'set-vars'];
     if (settingsTabs.includes(effectiveActiveModule)) {
       const activeSettingsTab = getSettingsTabFromModuleId(effectiveActiveModule);
       return <SettingsModule menuStructure={menuStructure} onMenuUpdate={setMenuStructure} activeSettingsTab={activeSettingsTab} />;
@@ -736,6 +737,7 @@ const App = () => {
   };
 
   return (
+    <NoticeProvider>
     <ThemeProvider preferredTheme={preferredTenantTheme}>
       <SignalProvider>
       <BrandProvider initialConfig={activeTenantSettings?.branding || {}}>
@@ -803,10 +805,12 @@ const App = () => {
         </OrchestrationProvider>
         </AIAssistProvider>
         <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
+        <GlobalNoticeViewport />
       </BrandProvider>
       <StatusBar />
       </SignalProvider>
     </ThemeProvider>
+    </NoticeProvider>
   );
 };
 

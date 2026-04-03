@@ -1,679 +1,570 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, Users, MessageSquare, AlertTriangle,
-  Activity, Plus, Send,
-  RefreshCw, AlertCircle,
-  ChevronRight, Play, Clock, Loader2, Zap
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleAlert,
+  ExternalLink,
+  RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
+import { BullseyeIcon } from '../../components/ui/icons';
 import { useAIAssist } from '../../contexts/AIAssistContext';
-import { getAiRunsApi, getCalendarEventsApi, getCommsSnapshotApi, getContactsApi } from '../../services/backendApi';
-import { dispatchAction } from '../../orchestration';
-import { BrainIcon, TargetIcon } from '../../components/ui/icons';
+import { useNotice } from '../../contexts/NoticeContext';
+import {
+  createEmailVerificationBulkTaskApi,
+  createMediaAudioRenderJobApi,
+  createMediaPublishJobApi,
+  createMediaRenderJobApi,
+  createMediaRunOfShowJobApi,
+  createMediaScriptJobApi,
+  createMediaTranscriptJobApi,
+  getSignalsApi,
+  triggerFlowManualApi,
+} from '../../services/backendApi';
 
-const executeSignalApi = async (signalType, action, target, input, context = {}) => {
-  const response = await fetch('/api/signals/execute', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      signalType,
-      action,
-      target: target || null,
-      input: input || '',
-      context,
-    }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Signal execution failed');
-  }
-  return response.json();
-};
+const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
 
-const runSignalAction = async (signal, onResult) => {
-  if (!signal?.primaryAction?.action) {
-    return;
-  }
-  
-  const action = signal.primaryAction.action;
-  
-  // Check if this is an execution action
-  if (action.type === 'execute_agent' && action.agent) {
-    try {
-      const result = await executeSignalApi(
-        signal.type,
-        'agent',
-        action.agent,
-        action.input || `Process ${signal.title}`,
-        action.context || {}
-      );
-      if (onResult) onResult(result);
-      return result;
-    } catch (error) {
-      console.error('Signal execution failed:', error);
-      throw error;
-    }
-  }
-  
-  if (action.type === 'execute_flow' && action.flowId) {
-    try {
-      const result = await executeSignalApi(
-        signal.type,
-        'flow',
-        action.flowId,
-        action.input || '',
-        action.context || {}
-      );
-      if (onResult) onResult(result);
-      return result;
-    } catch (error) {
-      console.error('Signal execution failed:', error);
-      throw error;
-    }
-  }
-  
-  if (action.type === 'execute_command') {
-    try {
-      const result = await executeSignalApi(
-        signal.type,
-        'command',
-        null,
-        action.input || `Process ${signal.title}`,
-        action.context || {}
-      );
-      if (onResult) onResult(result);
-      return result;
-    } catch (error) {
-      console.error('Signal execution failed:', error);
-      throw error;
-    }
-  }
-  
-  // Fallback to navigation/dispatch for non-execution actions
-  if (action.type === 'open_module' || action.type === 'navigate') {
-    dispatchAction(action, { ...(action.payload || {}), source: 'signals' });
-    return { status: 'navigated' };
-  }
-  
-  // Default dispatch
-  dispatchAction(action, { ...(action.payload || {}), source: 'signals' });
-  return { status: 'dispatched' };
-};
+function formatSeverityLabel(severity) {
+  return {
+    critical: 'Critical',
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
+  }[String(severity || '').toLowerCase()] || 'Signal';
+}
 
-/**
- * SIGNAL ENGINE CORE LOGIC
- * Interprets raw workspace data into operator-facing heuristics.
- */
-const mapDataToSignals = (rawData) => {
-  const { contacts = [], threads = [], aiRuns = [], bookings = [] } = rawData;
-  const signals = [];
-  const now = Date.now();
-
-  // 1. Pipeline Signals (Stalled Deals)
-  const stalledDeals = contacts.filter(c => {
-    if (!c.pipelineStage || ['Closed Won', 'Closed Lost'].includes(c.pipelineStage)) return false;
-    const lastUpdate = new Date(c.updatedAt || c.createdAt).getTime();
-    return (now - lastUpdate) > (48 * 60 * 60 * 1000); // 48h limit
-  });
-
-  if (stalledDeals.length > 0) {
-    signals.push({
-      id: `stalled-deals-${now}`,
-      type: 'pipeline',
-      severity: stalledDeals.length > 2 ? 'critical' : 'warning',
-      title: `${stalledDeals.length} deals stalled 48+ hours`,
-      description: `No stage movement on these deals in 48+ hours.`,
-      impact: 'Revenue at risk as stages age.',
-      timeContext: 'Window: 48h without movement',
-      primaryAction: {
-        label: 'Open Pipeline',
-        action: { type: 'open_module', payload: { module: 'pipelines' } }
-      },
-      count: stalledDeals.length,
-      entities: stalledDeals,
-      timestamp: now
-    });
-  }
-
-  // 2. Comms Signals (Missed Follow-ups)
-  const unreadThreads = threads.filter(t => t.status === 'unread' || t.lastMessageSource === 'external');
-  if (unreadThreads.length > 0) {
-    signals.push({
-      id: `unread-threads-${now}`,
-      type: 'comms',
-      severity: unreadThreads.length > 5 ? 'critical' : 'warning',
-      title: `${unreadThreads.length} threads need response`,
-      description: `Unread threads are waiting in Comms.`,
-      impact: 'Response SLAs at risk.',
-      timeContext: 'Queue state: awaiting reply now',
-      primaryAction: {
-        label: 'Open Comms',
-        action: { type: 'open_module', payload: { module: 'chat' } }
-      },
-      count: unreadThreads.length,
-      entities: unreadThreads,
-      timestamp: now
-    });
-  }
-
-  // 3. System Signals (Run Health)
-  const failedRuns = aiRuns.filter(r => r.status === 'failed');
-  if (failedRuns.length > 0) {
-    signals.push({
-      id: `failed-runs-${now}`,
-      type: 'system',
-      severity: 'critical',
-      title: `${failedRuns.length} automations failed`,
-      description: `Flow nodes failed in the last 24 hours.`,
-      impact: 'Automations stalled; follow-ups may slip.',
-      timeContext: 'Window: last 24 hours',
-      primaryAction: {
-        label: 'Open Flows',
-        action: { type: 'open_module', payload: { module: 'flows' } }
-      },
-      count: failedRuns.length,
-      timestamp: now
-    });
-  }
-
-  // 4. Normal Updates (Informational)
-  if (aiRuns.length > 10) {
-    signals.push({
-      id: `ai-velocity-${now}`,
-      type: 'ai',
-      severity: 'info',
-      title: 'High run throughput',
-      description: `${aiRuns.length} recorded runs completed recently.`,
-      impact: 'Recent execution volume is elevated.',
-      timeContext: 'Recent execution window',
-      primaryAction: {
-        label: 'View Runs',
-        action: { type: 'open_module', payload: { module: 'flows' } }
-      },
-      timestamp: now
-    });
-  }
-
-  // Add execution-capable signals
-  // Example: Quick AI Analysis signal
-  if (threads.length > 0 || contacts.length > 0) {
-    signals.push({
-      id: `quick-analysis-${now}`,
-      type: 'ai_analysis',
-      severity: 'info',
-      title: 'Quick AI Analysis Available',
-      description: 'Analyze current workspace state with AI.',
-      impact: 'Get instant insights on contacts and conversations.',
-      timeContext: 'On-demand',
-      primaryAction: {
-        label: 'Run Analysis',
-        action: { type: 'execute_agent', agent: 'ALPHA', input: 'Analyze the current workspace state and provide insights on contacts, conversations, and opportunities.' }
-      },
-      timestamp: now
-    });
-  }
-
-  const activeBookings = bookings.filter((booking) => !['cancelled'].includes(String(booking.status || '').toLowerCase()));
-  const upcoming24h = activeBookings.filter((booking) => {
-    const start = new Date(booking.startTime).getTime();
-    return start >= now && start <= now + (24 * 60 * 60 * 1000);
-  });
-  if (upcoming24h.length > 0) {
-    signals.push({
-      id: `booking-upcoming-24h-${now}`,
-      type: 'booking_upcoming',
-      severity: 'info',
-      title: `${upcoming24h.length} bookings scheduled in the next 24h`,
-      description: `Upcoming bookings are live on the calendar.`,
-      impact: 'Operators have live meeting demand queued.',
-      timeContext: 'Window: next 24h',
-      primaryAction: {
-        label: 'Open Calendar',
-        action: { type: 'open_module', payload: { module: 'calendar' } }
-      },
-      count: upcoming24h.length,
-      entities: upcoming24h,
-      timestamp: now
-    });
-  }
-
-  const upcoming7d = activeBookings.filter((booking) => {
-    const start = new Date(booking.startTime).getTime();
-    return start >= now && start <= now + (7 * 24 * 60 * 60 * 1000);
-  });
-  const missedBookings = activeBookings.filter((booking) => {
-    const end = new Date(booking.endTime || booking.startTime).getTime();
-    return end < now && !['completed'].includes(String(booking.status || '').toLowerCase());
-  });
-  if (missedBookings.length > 0) {
-    signals.push({
-      id: `booking-missed-${now}`,
-      type: 'booking_missed',
-      severity: 'warning',
-      title: `${missedBookings.length} missed bookings`,
-      description: `Scheduled bookings ended without being marked completed.`,
-      impact: 'Follow-up risk is increasing on booked meetings.',
-      timeContext: 'Past-due booking audit',
-      primaryAction: {
-        label: 'Review Calendar',
-        action: { type: 'open_module', payload: { module: 'calendar' } }
-      },
-      count: missedBookings.length,
-      entities: missedBookings,
-      timestamp: now
-    });
-  }
-
-  if (upcoming7d.length === 0) {
-    signals.push({
-      id: `booking-gap-${now}`,
-      type: 'booking_gap',
-      severity: 'warning',
-      title: 'No bookings scheduled in the next 7 days',
-      description: 'The booking calendar is empty for the upcoming week.',
-      impact: 'Pipeline conversion and meeting momentum may stall.',
-      timeContext: 'Window: next 7d',
-      primaryAction: {
-        label: 'Open Calendar',
-        action: { type: 'open_module', payload: { module: 'calendar' } }
-      },
-      timestamp: now
-    });
-  }
-
-  const cancelledBookings = bookings.filter((booking) => String(booking.status || '').toLowerCase() === 'cancelled');
-  if (cancelledBookings.length > 0) {
-    signals.push({
-      id: `booking-cancelled-${now}`,
-      type: 'booking_cancelled',
-      severity: cancelledBookings.length > 2 ? 'warning' : 'info',
-      title: `${cancelledBookings.length} cancelled bookings detected`,
-      description: `Cancelled bookings are present in the active calendar dataset.`,
-      impact: 'Reschedule coverage should be checked.',
-      timeContext: 'Current booking state',
-      primaryAction: {
-        label: 'Open Calendar',
-        action: { type: 'open_module', payload: { module: 'calendar' } }
-      },
-      count: cancelledBookings.length,
-      entities: cancelledBookings,
-      timestamp: now
-    });
-  }
-
-  const severityRank = { critical: 0, warning: 1, info: 2 };
-  return signals.sort((a, b) => {
-    const rankDelta = severityRank[a.severity] - severityRank[b.severity];
-    if (rankDelta !== 0) {
-      return rankDelta;
-    }
-    return b.timestamp - a.timestamp;
-  });
-};
-
-/**
- * UI COMPONENTS
- */
-
-const SignalSummaryStrip = ({ signals, compact = false }) => {
-  const counts = signals.reduce(
-    (acc, signal) => {
-      acc[signal.severity] += 1;
-      return acc;
+function severityClasses(severity) {
+  return {
+    critical: {
+      shell: 'border-red-500/30 bg-red-500/[0.05]',
+      pill: 'border-red-500/35 bg-red-500/10 text-red-200',
+      accent: 'text-red-300 bg-red-500/10',
+      button: 'border-red-500/35 bg-red-500/15 hover:bg-red-500/20 text-red-100',
     },
-    { critical: 0, warning: 0, info: 0 }
-  );
+    high: {
+      shell: 'border-amber-500/25 bg-amber-500/[0.04]',
+      pill: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+      accent: 'text-amber-300 bg-amber-500/10',
+      button: 'border-amber-500/35 bg-amber-500/15 hover:bg-amber-500/20 text-amber-100',
+    },
+    medium: {
+      shell: 'border-cyan-500/20 bg-cyan-500/[0.04]',
+      pill: 'border-cyan-500/25 bg-cyan-500/10 text-cyan-200',
+      accent: 'text-cyan-300 bg-cyan-500/10',
+      button: 'border-cyan-500/35 bg-cyan-500/15 hover:bg-cyan-500/20 text-cyan-100',
+    },
+    low: {
+      shell: 'border-white/10 bg-white/[0.02]',
+      pill: 'border-white/10 bg-white/[0.05] text-slate-200',
+      accent: 'text-slate-300 bg-white/5',
+      button: 'border-white/15 bg-white/[0.06] hover:bg-white/[0.1] text-slate-100',
+    },
+  }[String(severity || '').toLowerCase()] || {
+    shell: 'border-white/10 bg-white/[0.02]',
+    pill: 'border-white/10 bg-white/[0.05] text-slate-200',
+    accent: 'text-slate-300 bg-white/5',
+    button: 'border-white/15 bg-white/[0.06] hover:bg-white/[0.1] text-slate-100',
+  };
+}
 
-  if (!signals.length) return null;
+function severityIcon(severity) {
+  return {
+    critical: ShieldAlert,
+    high: AlertTriangle,
+    medium: CircleAlert,
+    low: CheckCircle2,
+  }[String(severity || '').toLowerCase()] || CircleAlert;
+}
+
+function formatRelativeTime(value) {
+  const timestamp = Date.parse(String(value || ''));
+  if (Number.isNaN(timestamp)) {
+    return 'Now';
+  }
+  const deltaMs = Date.now() - timestamp;
+  const minutes = Math.max(Math.round(deltaMs / 60000), 0);
+  if (minutes < 1) {
+    return 'Now';
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatModuleLabel(moduleId) {
+  return {
+    flows: 'Flows',
+    media: 'Media',
+    integrations: 'Integrations',
+    crm: 'CRM',
+    chat: 'Comms',
+    comms: 'Comms',
+    'system-health': 'System Health',
+  }[String(moduleId || '').toLowerCase()] || 'Workspace';
+}
+
+function summarizeContext(signal) {
+  const moduleLabel = formatModuleLabel(signal?.context?.module);
+  const metadata = signal?.context?.metadata && typeof signal.context.metadata === 'object'
+    ? signal.context.metadata
+    : {};
+  const summaryParts = [];
+
+  if (metadata.flowName) summaryParts.push(String(metadata.flowName));
+  else if (metadata.providerKey) summaryParts.push(String(metadata.providerKey));
+  else if (metadata.jobType) summaryParts.push(String(metadata.jobType));
+  else if (metadata.alertType) summaryParts.push(String(metadata.alertType).replace(/_/g, ' '));
+
+  if (metadata.status) summaryParts.push(String(metadata.status).replace(/_/g, ' '));
+  if (metadata.mailboxId && !summaryParts.includes(String(metadata.mailboxId))) summaryParts.push(`Mailbox ${metadata.mailboxId}`);
+  if (metadata.sourceId && !summaryParts.includes(String(metadata.sourceId))) summaryParts.push(`Source ${metadata.sourceId}`);
+
+  return {
+    moduleLabel,
+    detail: summaryParts.filter(Boolean).slice(0, 2).join(' • '),
+  };
+}
+
+function buildMetadataRows(signal) {
+  const metadata = signal?.context?.metadata && typeof signal.context.metadata === 'object'
+    ? signal.context.metadata
+    : {};
+  return Object.entries(metadata)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0))
+    .slice(0, 8)
+    .map(([key, value]) => ({
+      key,
+      label: key.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase()),
+      value: Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value),
+    }));
+}
+
+async function retrySignal(payload) {
+  const retryType = String(payload?.retryType || '').trim();
+  if (retryType === 'verification_bulk') {
+    return createEmailVerificationBulkTaskApi({
+      contactIds: Array.isArray(payload?.contactIds) ? payload.contactIds : [],
+      emails: Array.isArray(payload?.emails) ? payload.emails : [],
+      mode: payload?.mode || 'power',
+    });
+  }
+
+  if (retryType === 'media_job') {
+    const inputPayload = payload?.inputPayload && typeof payload.inputPayload === 'object' ? payload.inputPayload : null;
+    if (!inputPayload) {
+      throw new Error('Missing media retry payload.');
+    }
+    switch (String(payload?.jobType || '')) {
+      case 'render':
+        return createMediaRenderJobApi(inputPayload);
+      case 'transcript':
+        return createMediaTranscriptJobApi(inputPayload);
+      case 'script':
+        return createMediaScriptJobApi(inputPayload);
+      case 'runOfShow':
+        return createMediaRunOfShowJobApi(inputPayload);
+      case 'audioRender':
+        return createMediaAudioRenderJobApi(inputPayload);
+      case 'publish':
+        return createMediaPublishJobApi(inputPayload);
+      default:
+        throw new Error('Unsupported media retry type.');
+    }
+  }
+
+  throw new Error('Unsupported retry action.');
+}
+
+function DetailInspector({ signal }) {
+  if (!signal) {
+    return (
+      <div className="rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 shadow-island">
+        <div className="rounded-[var(--radius-inner)] border border-dashed border-white/10 bg-black/20 px-5 py-10 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.32em] text-[var(--color-text-tertiary)]">Inspector</p>
+          <p className="mt-3 text-sm font-semibold text-[var(--color-text-secondary)]">Select a signal to inspect context.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const metadataRows = buildMetadataRows(signal);
+  const contextSummary = summarizeContext(signal);
 
   return (
-    <div className={compact ? 'flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar' : 'px-6 py-3 border-b border-[var(--color-border)] bg-black/10'}>
-      <div className={`flex ${compact ? 'flex-nowrap' : 'flex-wrap'} items-center gap-2`}>
-        <div className={`inline-flex items-center gap-2 rounded-lg border border-white/5 bg-black/20 ${compact ? 'px-3 py-2 shrink-0' : 'px-3 py-2'}`}>
-          <AlertCircle size={12} className="text-[var(--color-text-tertiary)]" />
-          <span className="text-[9px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Signal Summary</span>
+    <div className="rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 shadow-island">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.32em] text-[var(--color-text-tertiary)]">Inspector</p>
+          <h3 className="mt-2 text-xl font-black text-[var(--color-text-primary)]">{signal.title}</h3>
         </div>
-        <div className={`inline-flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-red-300 ${compact ? 'shrink-0' : ''}`}>
-          Critical {counts.critical}
+        <div className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] ${severityClasses(signal.severity).pill}`}>
+          {formatSeverityLabel(signal.severity)}
         </div>
-        <div className={`inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-amber-300 ${compact ? 'shrink-0' : ''}`}>
-          Warning {counts.warning}
+      </div>
+
+      <div className="mt-5 space-y-5">
+        <div className="rounded-[var(--radius-inner)] border border-white/8 bg-black/25 p-4">
+          <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Reason</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{signal.description}</p>
         </div>
-        <div className={`inline-flex items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-300 ${compact ? 'shrink-0' : ''}`}>
-          Info {counts.info}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-[var(--radius-inner)] border border-white/8 bg-black/25 p-4">
+            <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Context</p>
+            <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{contextSummary.moduleLabel}</p>
+            {contextSummary.detail ? (
+              <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{contextSummary.detail}</p>
+            ) : null}
+          </div>
+          <div className="rounded-[var(--radius-inner)] border border-white/8 bg-black/25 p-4">
+            <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Source</p>
+            <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{signal.source}</p>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{signal.sourceId}</p>
+          </div>
+        </div>
+
+        <div className="rounded-[var(--radius-inner)] border border-white/8 bg-black/25 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Metadata</p>
+            <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{formatRelativeTime(signal.createdAt)}</span>
+          </div>
+          {metadataRows.length ? (
+            <div className="mt-3 space-y-2">
+              {metadataRows.map((row) => (
+                <div key={row.key} className="flex items-start justify-between gap-4 border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{row.label}</span>
+                  <span className="text-right text-sm text-[var(--color-text-secondary)]">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No additional metadata.</p>
+          )}
         </div>
       </div>
     </div>
   );
-};
+}
 
-const SignalCard = ({ signal, onExecute }) => {
-  const [executing, setExecuting] = useState(false);
-  const [result, setResult] = useState(null);
-  
-  const severityColor = {
-    critical: 'border-red-500/35 bg-red-500/6 text-red-300',
-    warning: 'border-amber-500/35 bg-amber-500/6 text-amber-300',
-    info: 'border-cyan-500/30 bg-cyan-500/6 text-cyan-300',
-  }[signal.severity];
-
-  const iconColor = {
-    critical: 'text-red-400 bg-red-400/10',
-    warning: 'text-amber-400 bg-amber-400/10',
-    info: 'text-cyan-400 bg-cyan-400/10',
-  }[signal.severity];
-  const severityLabel = {
-    critical: 'Critical',
-    warning: 'Warning',
-    info: 'Info'
-  }[signal.severity] || 'Status';
-  const actionTone = {
-    critical: 'bg-red-500 hover:bg-red-600 text-white',
-    warning: 'bg-amber-500 hover:bg-amber-600 text-black',
-    info: 'bg-cyan-500 hover:bg-cyan-600 text-slate-950',
-  }[signal.severity];
-
-  const isExecutionAction = signal.primaryAction?.action?.type?.startsWith('execute_');
-  
-  const handleAction = async () => {
-    if (isExecutionAction) {
-      setExecuting(true);
-      setResult(null);
-      try {
-        const execResult = await runSignalAction(signal);
-        setResult(execResult);
-        if (onExecute) onExecute(execResult);
-      } catch (error) {
-        setResult({ error: error.message });
-      } finally {
-        setExecuting(false);
-      }
-    } else {
-      runSignalAction(signal);
-    }
-  };
+function SignalCard({ signal, busyActionType, onAction }) {
+  const tone = severityClasses(signal.severity);
+  const Icon = severityIcon(signal.severity);
+  const contextSummary = summarizeContext(signal);
+  const [primaryAction, ...secondaryActions] = Array.isArray(signal.actions) ? signal.actions : [];
+  const isBusy = busyActionType && busyActionType === primaryAction?.actionType;
 
   return (
-    <div className={`relative rounded-2xl border ${severityColor} p-4 pr-[148px] transition-all duration-300 shadow-[0_12px_28px_rgba(0,0,0,0.14)]`}>
-      <div className={`absolute right-4 top-4 px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-[0.18em] border ${severityColor}`}>
-        {severityLabel}
-      </div>
-      <div className="flex items-start gap-3 mb-2">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${iconColor}`}>
-          <AlertTriangle size={16} />
+    <article className={`rounded-[var(--radius-outer)] border p-5 shadow-island transition-colors ${tone.shell}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-inner)] border border-white/10 ${tone.accent}`}>
+            <Icon size={18} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-black text-[var(--color-text-primary)]">{signal.title}</h3>
+              <span className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] ${tone.pill}`}>
+                {formatSeverityLabel(signal.severity)}
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{signal.description}</p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-[13px] font-black text-white uppercase tracking-[0.16em]">{signal.title}</h3>
-          <p className="mt-1 text-[10px] text-[var(--color-text-secondary)] font-medium leading-relaxed">
-            {signal.description}
+        <span className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+          {formatRelativeTime(signal.createdAt)}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="rounded-[var(--radius-inner)] border border-white/8 bg-black/20 px-4 py-3">
+          <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Context</p>
+          <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{contextSummary.moduleLabel}</p>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            {contextSummary.detail || signal.sourceId || 'Operator review required.'}
           </p>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.22em]">Impact</span>
-            <p className="mt-1 text-[10px] text-white/80 leading-relaxed">{signal.impact}</p>
-          </div>
-          <div>
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.22em]">Time Context</span>
-            <p className="mt-1 text-[10px] text-[var(--color-text-secondary)] leading-relaxed">
-              {signal.timeContext || `Detected ${new Date(signal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-            </p>
-          </div>
+        <div className="rounded-[var(--radius-inner)] border border-white/8 bg-black/20 px-4 py-3">
+          <p className="text-[9px] font-black uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Source</p>
+          <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{signal.source}</p>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{signal.sourceId}</p>
         </div>
       </div>
-      {result && (
-        <div className="mt-3 p-2 rounded-lg bg-black/20 text-[9px] text-white/70">
-          {result.runId ? `Executed: ${result.runId}` : result.error ? `Error: ${result.error}` : 'Executed'}
-        </div>
-      )}
-      <button
-        onClick={handleAction}
-        disabled={executing}
-        className={`absolute right-4 bottom-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[8px] font-black uppercase tracking-[0.18em] transition-all ${actionTone} ${executing ? 'opacity-50 cursor-wait' : ''}`}
-      >
-        {executing ? <Loader2 size={9} className="animate-spin" /> : isExecutionAction ? <Zap size={9} /> : <Play size={9} />}
-        {executing ? 'Executing...' : signal.primaryAction.label}
-      </button>
-    </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {primaryAction ? (
+          <button
+            type="button"
+            onClick={() => onAction(primaryAction, signal)}
+            disabled={Boolean(busyActionType)}
+            className={`inline-flex items-center gap-2 rounded-[var(--radius-inner)] border px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition-colors disabled:cursor-wait disabled:opacity-60 ${tone.button}`}
+          >
+            {busyActionType ? <RefreshCw size={12} className="animate-spin" /> : <BullseyeIcon size={12} />}
+            {isBusy ? 'Working' : primaryAction.label}
+          </button>
+        ) : null}
+        {secondaryActions.map((action) => (
+          <button
+            key={`${signal.id}-${action.actionType}-${action.label}`}
+            type="button"
+            onClick={() => onAction(action, signal)}
+            disabled={Boolean(busyActionType)}
+            className="inline-flex items-center gap-2 rounded-[var(--radius-inner)] border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-secondary)] transition-colors hover:border-white/20 hover:bg-white/5 hover:text-[var(--color-text-primary)] disabled:opacity-60"
+          >
+            {action.actionType === 'view_detail' ? <ExternalLink size={12} /> : null}
+            {action.label}
+          </button>
+        ))}
+      </div>
+    </article>
   );
-};
+}
 
-const SignalHistory = ({ signals }) => {
-  return (
-    <div className="bg-black/10 border border-white/5 rounded-2xl p-5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-      <div className="flex items-center gap-2 mb-5">
-        <Clock size={14} className="text-slate-500" />
-        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Signal Feed</h3>
-      </div>
-      <div className="space-y-5">
-        {signals.length > 0 ? signals.map((signal, i) => (
-          <div key={i} className="group relative flex gap-4">
-            <div className="flex flex-col items-center">
-              <div className={`w-3 h-3 rounded-full border-2 border-black ${
-                signal.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
-                signal.severity === 'warning' ? 'bg-amber-500' : 'bg-cyan-500'
-              }`} />
-              {i < signals.length - 1 && <div className="w-px h-full bg-white/5 my-2" />}
-            </div>
-            <div className="flex-1 pb-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] font-black text-white uppercase tracking-[0.16em] group-hover:text-[var(--color-primary)] transition-colors">{signal.title}</p>
-                <span className="text-[8px] font-bold text-slate-600 uppercase">{new Date(signal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
-              <p className="text-[10px] text-slate-500 leading-relaxed font-medium line-clamp-2">{signal.impact}</p>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-[7px] font-black text-slate-700 uppercase tracking-widest">{signal.timeContext}</span>
-                <ChevronRight size={10} className="text-slate-800 shrink-0" />
-                <button 
-                  onClick={() => runSignalAction(signal.primaryAction.action)}
-                  className="text-[7px] font-black text-[var(--color-primary)] uppercase tracking-widest hover:underline"
-                >
-                  RUN {signal.primaryAction.label}
-                </button>
-              </div>
-            </div>
-          </div>
-        )) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center opacity-30">
-            <BrainIcon size={32} className="mb-4" />
-            <p className="text-xs font-black uppercase tracking-widest">No active signals</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const PulseCard = ({ title, value, icon: Icon, color = 'purple', live = false, compact = false }) => {
-  const colorClass = {
-    purple: 'text-purple-400',
-    blue: 'text-blue-400',
-    green: 'text-green-400',
-    sky: 'text-sky-400',
-    cyan: 'text-cyan-400',
-    amber: 'text-amber-400',
-  }[color] || 'text-purple-400';
-
-  return (
-    <div className={`flex items-center gap-2 bg-[var(--color-bg-primary)]/40 rounded-lg border border-[var(--color-border)]/20 ${compact ? 'min-w-[140px] shrink-0 px-4 py-1.5' : 'px-4 py-2'}`}>
-      <div className={`${colorClass} shrink-0`}>
-        <Icon size={12} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[7px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">{title}</p>
-        <p className="text-[12px] font-black text-[var(--color-text-primary)]">{value}</p>
-      </div>
-      {live && (
-        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-      )}
-    </div>
-  );
-};
-
-const PulseBand = ({ stats, compact = false }) => {
-  return (
-    <div className={compact ? 'flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar' : 'px-6 py-3 border-b border-[var(--color-border)] bg-black/10'}>
-      <div className={`flex items-center ${compact ? 'gap-3 shrink-0' : 'justify-between mb-2'}`}>
-        <div className="flex items-center gap-2">
-          <Activity size={12} className="text-[var(--color-primary)]" />
-          <span className="text-[9px] font-black text-[var(--color-text-tertiary)] uppercase tracking-[0.3em]">Ops Pulse</span>
-        </div>
-        <div className="flex items-center gap-2 text-[7px] font-black text-slate-500 uppercase tracking-widest">
-          <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-          Workspace Feed
-        </div>
-      </div>
-      <div className={compact ? 'flex flex-nowrap items-center gap-3 overflow-x-auto no-scrollbar' : 'grid grid-cols-2 lg:grid-cols-4 gap-3'}>
-        <PulseCard title="Contacts" value={stats.contacts} icon={Users} color="purple" live={false} compact={compact} />
-        <PulseCard title="Pipelines" value={stats.pipeline} icon={TargetIcon} color="green" live={true} compact={compact} />
-        <PulseCard title="Threads" value={stats.comms} icon={MessageSquare} color="sky" live={true} compact={compact} />
-        <PulseCard title="Runs" value={stats.aiRuns} icon={BrainIcon} color="cyan" live={false} compact={compact} />
-      </div>
-    </div>
-  );
-};
-
-/**
- * MAIN MODULE
- */
-const SignalsModule = () => {
+export default function SignalsModule() {
   const { openAIAssist } = useAIAssist();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ contacts: 0, pipeline: 0, comms: 0, aiRuns: 0 });
+  const { showNotice } = useNotice();
   const [signals, setSignals] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedSignalId, setSelectedSignalId] = useState('');
+  const [busySignalId, setBusySignalId] = useState('');
+  const [busyActionType, setBusyActionType] = useState('');
+
+  const selectedSignal = useMemo(
+    () => signals.find((signal) => signal.id === selectedSignalId) || signals[0] || null,
+    [selectedSignalId, signals],
+  );
 
   useEffect(() => {
-    const loadEngineData = async () => {
-      setLoading(true);
+    let cancelled = false;
+
+    const loadSignals = async (isRefresh = false) => {
       try {
-        const [contactsRes, commsRes, aiRunsRes, bookingsRes] = await Promise.all([
-          getContactsApi().catch(() => []),
-          getCommsSnapshotApi().catch(() => ({ threads: [] })),
-          getAiRunsApi(50).catch(() => []),
-          getCalendarEventsApi().catch(() => []),
-        ]);
-
-        const rawData = {
-          contacts: contactsRes || [],
-          threads: commsRes?.threads || commsRes?.allThreads || [],
-          aiRuns: aiRunsRes || [],
-          bookings: bookingsRes || [],
-        };
-
-        const generatedSignals = mapDataToSignals(rawData);
-
-        setStats({
-          contacts: rawData.contacts.length,
-          pipeline: rawData.contacts.filter(c => c.pipelineStage && !['Closed Won', 'Closed Lost'].includes(c.pipelineStage)).length,
-          comms: rawData.threads.length,
-          aiRuns: rawData.aiRuns.length,
+        if (!isRefresh) setLoading(true);
+        if (isRefresh) setRefreshing(true);
+        const nextSignals = await getSignalsApi();
+        if (cancelled) return;
+        setSignals(Array.isArray(nextSignals) ? nextSignals : []);
+        setSelectedSignalId((current) => {
+          if (current && nextSignals.some((signal) => signal.id === current)) {
+            return current;
+          }
+          return nextSignals[0]?.id || '';
         });
-
-        setSignals(generatedSignals);
-        setHistory(generatedSignals.sort((a, b) => b.timestamp - a.timestamp));
-
-      } catch (err) {
-        console.error('Signal load failed:', err);
+      } catch (error) {
+        if (cancelled) return;
+        showNotice({
+          type: 'error',
+          message: error.message || 'Signals failed to load.',
+        });
       } finally {
+        if (cancelled) return;
         setLoading(false);
+        setRefreshing(false);
       }
     };
 
-    loadEngineData();
+    loadSignals(false);
+    const timer = window.setInterval(() => loadSignals(true), 45000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
+  const reloadSignals = async (isRefresh = true) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const nextSignals = await getSignalsApi();
+      setSignals(Array.isArray(nextSignals) ? nextSignals : []);
+      setSelectedSignalId((current) => {
+        if (current && nextSignals.some((signal) => signal.id === current)) {
+          return current;
+        }
+        return nextSignals[0]?.id || '';
+      });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error.message || 'Signals failed to refresh.',
+        persistent: true,
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleAction = async (action, signal) => {
+    if (!action || !signal) {
+      return;
+    }
+
+    if (action.actionType === 'view_detail') {
+      setSelectedSignalId(signal.id);
+      return;
+    }
+
+    if (action.actionType === 'open_comms') {
+      window.dispatchEvent(new CustomEvent('aio:navigate', {
+        detail: {
+          module: 'chat',
+          threadId: action.payload?.threadId || signal.context?.entityId || null,
+        },
+      }));
+      return;
+    }
+
+    if (action.actionType === 'fix_config') {
+      window.dispatchEvent(new CustomEvent('aio:navigate', {
+        detail: {
+          module: 'integrations',
+          integrationCategory: action.payload?.integrationCategory || 'llms',
+        },
+      }));
+      return;
+    }
+
+    setBusySignalId(signal.id);
+    setBusyActionType(action.actionType);
+    try {
+      if (action.actionType === 'run_flow') {
+        const payload = action.payload && typeof action.payload === 'object' ? action.payload : {};
+        await triggerFlowManualApi(payload.flowId, {
+          command: payload.command || `Signals retry for ${signal.title}`,
+          context: payload.context || {},
+        });
+        setNotice({
+          type: 'success',
+          message: 'Flow triggered successfully.',
+          persistent: false,
+        });
+      } else if (action.actionType === 'retry') {
+        await retrySignal(action.payload || {});
+        setNotice({
+          type: 'success',
+          message: 'Retry dispatched successfully.',
+          persistent: false,
+        });
+      } else {
+        throw new Error(`Unsupported action: ${action.actionType}`);
+      }
+      await reloadSignals(true);
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error.message || 'Action failed.',
+        persistent: true,
+      });
+    } finally {
+      setBusySignalId('');
+      setBusyActionType('');
+    }
+  };
+
+  const counts = useMemo(() => {
+    const base = { critical: 0, high: 0, medium: 0, low: 0 };
+    signals.forEach((signal) => {
+      const key = String(signal.severity || '').toLowerCase();
+      if (key in base) base[key] += 1;
+    });
+    return base;
+  }, [signals]);
+
+  const toolbarSummary = `${signals.length} actionable • ${counts.critical} critical • ${counts.high} high`;
+
   return (
-    <div className="h-full min-h-0 flex flex-col gap-4 overflow-hidden relative">
+    <div className="relative flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <ModuleHeader
         showTitle={false}
         leftActions={[
-          { 
-            label: '+ ADD CONTACT', 
-            icon: Users, 
-            onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'crm' } }),
-            variant: 'primary' 
-          },
-          { 
-            label: '+ ADD DEAL', 
-            icon: Plus, 
-            onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'pipelines' } }),
-            variant: 'secondary' 
-          },
-          { 
-            label: 'OPEN COMMS', 
-            icon: Send, 
-            onClick: () => runSignalAction({ type: 'open_module', payload: { module: 'chat' } }),
-            variant: 'secondary' 
+          {
+            label: 'Refresh',
+            icon: RefreshCw,
+            onClick: () => reloadSignals(true),
+            variant: 'secondary',
           },
         ]}
-        toolbarLeftSlot={(
-          <div className="ml-2 flex items-center">
-            <PulseBand stats={stats} compact />
-          </div>
-        )}
         toolbarCenterSlot={(
-          <div className="flex min-w-0 items-center overflow-x-auto no-scrollbar">
-            {!loading ? <SignalSummaryStrip signals={signals} compact /> : null}
+          <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
+            {refreshing ? 'Refreshing signals' : toolbarSummary}
           </div>
         )}
-        onModuleAi={() => openAIAssist({ context: { module: 'signals', surface: 'toolbar_heuristics', stats } })}
+        onModuleAi={() => openAIAssist({ context: { module: 'signals', surface: 'action-feed', signalCount: signals.length } })}
         hasSelection={false}
       />
 
-      <div className="flex-1 min-h-0 p-6 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/[0.02] pointer-events-none" />
-        
+      {notice ? (
+        <div
+          className={`pointer-events-none absolute right-6 top-4 z-20 max-w-[440px] transition-all duration-300 ${
+            notice.persistent ? 'translate-x-0 opacity-100' : 'translate-x-[300px] opacity-0'
+          }`}
+        >
+          <div
+            className={`pointer-events-auto rounded-[var(--radius-outer)] border px-4 py-3 shadow-island ${
+              notice.type === 'error'
+                ? 'border-red-500/30 bg-red-500/[0.08] text-red-100'
+                : 'border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-100'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold">{notice.message}</p>
+              {notice.persistent ? (
+                <button
+                  type="button"
+                  onClick={() => setNotice(null)}
+                  className="rounded-full border border-white/15 px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white/80"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-[var(--color-text-tertiary)]">
-            <RefreshCw className="animate-spin" size={24} />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em]">Syncing signal feeds...</p>
+          <div className="flex h-full items-center justify-center">
+            <div className="inline-flex items-center gap-3 rounded-[var(--radius-inner)] border border-white/10 bg-black/20 px-5 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
+              <RefreshCw size={14} className="animate-spin" />
+              Loading signals
+            </div>
           </div>
         ) : (
-          <div className="relative z-10 grid h-full min-h-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] max-w-[1600px] mx-auto">
-            {/* Main Intelligence Grid */}
-            <div className="min-h-0 overflow-y-auto no-scrollbar pr-1">
-              <div className="space-y-10">
-                <section className="space-y-8">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-1.5 h-6 bg-[var(--color-primary)] shadow-[0_0_12px_var(--color-primary)]/30" />
-                      <h2 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.4em]">Priority Signals</h2>
-                    </div>
-                    <span className="text-[9px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">{signals.length} Signals</span>
+          <div className="grid h-full min-h-0 grid-cols-1 gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-h-0 overflow-y-auto pr-1">
+              {signals.length ? (
+                <div className="space-y-4">
+                  {signals.map((signal) => (
+                    <SignalCard
+                      key={signal.id}
+                      signal={signal}
+                      busyActionType={busySignalId === signal.id ? busyActionType : ''}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-full min-h-[280px] items-center justify-center rounded-[var(--radius-inner)] border border-dashed border-white/10 bg-black/20">
+                  <div className="text-center">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Signals Clear</p>
+                    <p className="mt-3 text-sm font-semibold text-[var(--color-text-secondary)]">No actionable items are waiting right now.</p>
                   </div>
-                  
-                  <div className="space-y-6">
-                    {signals.length > 0 ? (
-                      signals.map(signal => (
-                        <SignalCard key={signal.id} signal={signal} />
-                      ))
-                    ) : (
-                      <div className="py-20 rounded-3xl border border-dashed border-[var(--color-border)] flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-4">
-                        <TrendingUp size={48} className="opacity-20" />
-                        <div className="text-center">
-                          <p className="text-sm font-black uppercase tracking-widest">Signals Clear</p>
-                          <p className="text-[10px] uppercase tracking-widest opacity-50">No urgent items detected.</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </div>
+                </div>
+              )}
             </div>
-
-            {/* Intelligence Feed */}
-            <div className="min-h-0 overflow-y-auto no-scrollbar pl-1">
-              <SignalHistory signals={history} />
+            <div className="min-h-0 overflow-y-auto pl-1">
+              <DetailInspector signal={selectedSignal} />
             </div>
           </div>
         )}
       </div>
     </div>
   );
-};
-
-export default SignalsModule;
+}

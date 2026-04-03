@@ -2733,14 +2733,15 @@ class AuthStore:
                 email_signature = str(email_signature).strip()
             else:
                 email_signature = user["emailSignature"]
+            avatar_url = payload.get("avatarUrl")
 
             conn.execute(
                 """
                 UPDATE app_users
-                SET displayName = ?, phone = ?, locale = ?, timezone = ?, emailSignature = ?, updatedAt = ?
+                SET displayName = ?, phone = ?, locale = ?, timezone = ?, emailSignature = ?, avatarUrl = ?, updatedAt = ?
                 WHERE id = ?
                 """,
-                (display_name, phone, locale, timezone_value, email_signature, utcnow_iso(), user["id"]),
+                (display_name, phone, locale, timezone_value, email_signature, avatar_url, utcnow_iso(), user["id"]),
             )
             conn.commit()
         updated = self.get_session(token)

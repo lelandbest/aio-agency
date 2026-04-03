@@ -372,9 +372,13 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                         aria-expanded={showProfileDropdown}
                         aria-haspopup="true"
                     >
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-[var(--radius-card)] flex items-center justify-center text-white">
-                            <User size={18} />
-                        </div>
+                        {user?.avatarUrl ? (
+                            <img src={user.avatarUrl} alt={user.name || 'User'} className="w-8 h-8 rounded-[var(--radius-card)] object-cover" />
+                        ) : (
+                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-[var(--radius-card)] flex items-center justify-center text-white">
+                                <User size={18} />
+                            </div>
+                        )}
                     </button>
 
                     {showProfileDropdown && (

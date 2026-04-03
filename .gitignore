@@ -70,6 +70,19 @@ chainlit.md
 # Data and databases
 agenthub/agents/youtube/db
 
+# Generated media outputs (ignore contents, preserve structure)
+backend/data/audio/
+backend/data/video/
+backend/data/image/
+backend/data/models/
+!backend/data/audio/.gitkeep
+!backend/data/video/.gitkeep
+!backend/data/image/.gitkeep
+!backend/data/models/.gitkeep
+
+# Workflow exports (root level dump)
+New folder/
+
 # Archive files and large assets
 **/*.zip
 **/*.tar.gz
@@ -91,3 +104,27 @@ backend/data/*.db
 backend/*.db
 -e 
 nul
+
+# logs
+*.log
+*.log.*
+
+# Codex/runtime logs
+.codex-runtime/
+.codex/
+
+# runtime state (specific files, not broad pattern)
+backend/data/media_engine_state.json
+backend/data/*_debug.json
+backend/data/*prepurge*.json
+
+# validation logs
+frontend/frontend_runtime_validation.log
+
+# media / outputs
+*.mp4
+
+# local artifacts
+*.tmp
+*.bak
+*.backup

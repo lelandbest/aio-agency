@@ -4,12 +4,13 @@
  * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, CalendarDays, CheckCircle2, Mail, RefreshCw, ShieldCheck, Trash2, X, Zap } from 'lucide-react';
+import { Bot, CalendarDays, CheckCircle2, LogOut, Mail, RefreshCw, ShieldCheck, Trash2, Zap } from 'lucide-react';
 import IntegrationCard from '../components/IntegrationCard';
 import { IntegrationProviderSelector } from '../components/AddIntegrationPanel';
 import { getAllCategories, getProviderConfig, getProvidersByCategory, INTEGRATION_CATEGORIES, normalizeAiField } from '../utils/integrationConfigs';
 import { getBrandIcon } from '../utils/brandIcons.jsx';
 import ModuleHeader from '../../../components/ModuleHeader';
+import { useNotice } from '../../../contexts/NoticeContext';
 import {
   deleteAutomationProviderConfigApi,
   deleteAiProviderConfigApi,
@@ -361,10 +362,10 @@ const resolveCanonicalStatus = (resource = {}) => {
 };
 
 const buildCanonicalStateMeta = (machine, { connectedLabel, disconnectedLabel, needsConfigDetail, reconnectDetail, unauthorizedDetail, connectedDetail }) => {
-  if (machine === 'disconnected') {
+  if (machine === 'disconnected' || machine === 'not_connected') {
     return {
-      machine: 'disconnected',
-      label: 'Disconnected',
+      machine: 'not_connected',
+      label: 'Not Connected',
       detail: disconnectedLabel,
       tone: 'warning',
       authActionsDisabled: true,
@@ -373,24 +374,12 @@ const buildCanonicalStateMeta = (machine, { connectedLabel, disconnectedLabel, n
     };
   }
 
-  if (machine === 'reconnect_required') {
+  if (machine === 'reconnect_required' || machine === 'unauthorized') {
     return {
       machine: 'reconnect_required',
       label: 'Reconnect Required',
-      detail: reconnectDetail,
+      detail: reconnectDetail || unauthorizedDetail,
       tone: 'warning',
-      authActionsDisabled: true,
-      saveDisabled: true,
-      primaryActionLabel: 'Reconnect'
-    };
-  }
-
-  if (machine === 'unauthorized') {
-    return {
-      machine: 'unauthorized',
-      label: 'Unauthorized',
-      detail: unauthorizedDetail,
-      tone: 'error',
       authActionsDisabled: true,
       saveDisabled: true,
       primaryActionLabel: 'Reconnect'
@@ -447,8 +436,8 @@ const getMailboxStateMeta = (mailbox = {}) => {
 
   if (rawStatus === 'disconnected') {
     return {
-      machine: 'disconnected',
-      label: 'Disconnected',
+      machine: 'not_connected',
+      label: 'Not Connected',
       detail: 'Mailbox is not connected to a live provider.',
       tone: 'warning',
       authActionsDisabled: true,
@@ -471,10 +460,10 @@ const getMailboxStateMeta = (mailbox = {}) => {
 
   if (hasAuthFailure) {
     return {
-      machine: 'unauthorized',
-      label: 'Unauthorized',
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
       detail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
-      tone: 'error',
+      tone: 'warning',
       authActionsDisabled: true,
       saveDisabled: true,
       primaryActionLabel: 'Reconnect'
@@ -535,8 +524,8 @@ const getCalendarSourceStateMeta = (source = {}) => {
 
   if (rawStatus === 'disconnected') {
     return {
-      machine: 'disconnected',
-      label: 'Disconnected',
+      machine: 'not_connected',
+      label: 'Not Connected',
       detail: 'Calendar source is not connected to a live provider.',
       tone: 'warning',
       authActionsDisabled: true,
@@ -559,10 +548,10 @@ const getCalendarSourceStateMeta = (source = {}) => {
 
   if (hasAuthFailure) {
     return {
-      machine: 'unauthorized',
-      label: 'Unauthorized',
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
       detail: lastError || 'OAuth authorization failed or expired. Reconnect to restore access.',
-      tone: 'error',
+      tone: 'warning',
       authActionsDisabled: true,
       saveDisabled: true,
       primaryActionLabel: 'Reconnect'
@@ -594,35 +583,87 @@ const getCalendarSourceStateMeta = (source = {}) => {
 
 const createEmailVerifierDraft = (config = {}) => ({
   apiKey: '',
-  enabled: !!config.enabled,
+  enabled: config.hasApiKey ? !!config.enabled : false,
   autoVerifyContacts: config.autoVerifyContacts !== false,
   defaultMode: config.defaultMode === 'power' ? 'power' : 'quick',
 });
 
 const getEmailVerifierStatusMeta = (config = {}) => {
+  const lastError = String(config?.lastError || '').trim();
   if (!config?.hasApiKey) {
-    return { label: 'Disconnected', tone: 'disconnected' };
-  }
-  if (!config?.enabled) {
-    return { label: 'Disabled', tone: 'disabled' };
+    return {
+      machine: 'not_connected',
+      label: 'Not Connected',
+      tone: 'disconnected',
+      detail: 'Add a Reoon API key to enable tenant-scoped email verification.',
+    };
   }
   if (config?.status === 'error') {
-    return { label: 'Test Failed', tone: 'error' };
+    return {
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
+      tone: 'error',
+      detail: lastError || 'The saved Reoon connection failed validation. Update the key and test again.',
+    };
   }
-  return { label: 'Connected', tone: 'connected' };
+  if (!config?.enabled) {
+    return {
+      machine: 'needs_config',
+      label: 'Needs Config',
+      tone: 'warning',
+      detail: 'Config is saved but verification is disabled for this tenant.',
+    };
+  }
+  return {
+    machine: 'connected',
+    label: 'Connected',
+    tone: 'connected',
+    detail: 'Used by CRM single verify, bulk verify, and flow nodes through the existing verifier runtime.',
+  };
 };
 
 const getEmailVerifierDetail = (config = {}) => {
-  if (config?.status === 'error') {
-    return config?.lastError || 'The last connection test failed.';
+  return getEmailVerifierStatusMeta(config).detail;
+};
+
+const getAutomationProviderStateMeta = (config = null, catalogEntry = null) => {
+  if (!config) {
+    return {
+      machine: 'not_connected',
+      label: 'Not Connected',
+      detail: catalogEntry?.description || 'No automation provider is configured for this workspace yet.',
+    };
   }
-  if (!config?.hasApiKey) {
-    return 'Add a Reoon API key to enable tenant-scoped email verification.';
+  const lastError = String(config?.lastError || '').trim();
+  const requiresApiKey = Boolean(catalogEntry?.fields?.find((field) => field.name === 'apiKey')?.required);
+  const missingBaseUrl = !hasConfigValue(config?.baseUrl);
+  const missingApiKey = requiresApiKey && !Boolean(config?.apiKeyPresent);
+  if (String(config?.status || '').trim().toLowerCase() === 'error') {
+    return {
+      machine: 'reconnect_required',
+      label: 'Reconnect Required',
+      detail: lastError || 'The automation endpoint or credentials failed validation. Update config and test again.',
+    };
+  }
+  if (missingBaseUrl || missingApiKey) {
+    return {
+      machine: 'needs_config',
+      label: 'Needs Config',
+      detail: lastError || 'A base URL or required credentials are still missing.',
+    };
   }
   if (!config?.enabled) {
-    return 'Config is saved but verification is currently disabled for this tenant.';
+    return {
+      machine: 'needs_config',
+      label: 'Needs Config',
+      detail: 'Config is saved but the automation provider is disabled for this workspace.',
+    };
   }
-  return 'Used by CRM single verify, bulk verify, and flow nodes through the existing verifier runtime.';
+  return {
+    machine: 'connected',
+    label: 'Connected',
+    detail: lastError || config?.baseUrl || 'Automation provider is ready.',
+  };
 };
 
 const readErrorMessage = (error) => {
@@ -661,13 +702,6 @@ const useTransientSaveFeedback = (duration = 1400) => {
 
 const saveButtonClassName = (baseClassName, isSaved) => `${baseClassName} save-feedback-btn${isSaved ? ' is-saved' : ''}`;
 const SaveFeedbackNote = ({ visible, label = 'Saved' }) => visible ? <span className="save-feedback-note"><CheckCircle2 size={14} /> {label}</span> : null;
-
-const toneClass = (tone) => ({
-  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
-  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-  error: 'border-red-500/30 bg-red-500/10 text-red-200',
-  info: 'border-sky-500/30 bg-sky-500/10 text-sky-200'
-}[tone] || 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]');
 
 const providerStateDetail = (config = {}, fallback) => config.lastError || config.connectedIdentity || config.connectedCalendar || fallback;
 
@@ -712,13 +746,12 @@ const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, sel
 );
 
 export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AUTOMATION }) => {
+  const { showNotice } = useNotice();
   const [integrations, setIntegrations] = useState([]);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [selectorProviderKey, setSelectorProviderKey] = useState(null);
   const [legacyActivationSelections, setLegacyActivationSelections] = useState({});
   const [loading, setLoading] = useState(true);
-  const [notice, setRawNotice] = useState(null);
-  const [noticeVisible, setNoticeVisible] = useState(false);
 
   const [mailboxes, setMailboxes] = useState([]);
   const [mailboxProviders, setMailboxProviders] = useState(DEFAULT_MAILBOX_PROVIDERS);
@@ -773,56 +806,9 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
   const [busyAction, setBusyAction] = useState('');
-  const noticeTimersRef = useRef({ hide: null, clear: null });
   const configuredEmailVerifierCount = emailVerifierConfig?.hasApiKey ? 1 : 0;
   const activeEmailVerifierCount = emailVerifierConfig?.hasApiKey && emailVerifierConfig?.enabled ? 1 : 0;
 
-  const clearNoticeTimers = useCallback(() => {
-    if (noticeTimersRef.current.hide) {
-      window.clearTimeout(noticeTimersRef.current.hide);
-      noticeTimersRef.current.hide = null;
-    }
-    if (noticeTimersRef.current.clear) {
-      window.clearTimeout(noticeTimersRef.current.clear);
-      noticeTimersRef.current.clear = null;
-    }
-  }, []);
-
-  const setNotice = useCallback((nextNotice) => {
-    clearNoticeTimers();
-    if (!nextNotice) {
-      setNoticeVisible(false);
-      setRawNotice(null);
-      return;
-    }
-
-    const normalizedNotice = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      persistent: Boolean(nextNotice.persistent) || nextNotice.tone === 'error',
-      ...nextNotice,
-    };
-
-    setRawNotice(normalizedNotice);
-    setNoticeVisible(false);
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        setNoticeVisible(true);
-      });
-    });
-
-    if (!normalizedNotice.persistent) {
-      noticeTimersRef.current.hide = window.setTimeout(() => {
-        setNoticeVisible(false);
-      }, 2400);
-      noticeTimersRef.current.clear = window.setTimeout(() => {
-        setRawNotice((current) => (current?.id === normalizedNotice.id ? null : current));
-      }, 2900);
-    }
-  }, [clearNoticeTimers]);
-
-  useEffect(() => () => {
-    clearNoticeTimers();
-  }, [clearNoticeTimers]);
   const standardCalendarSources = useMemo(
     () => calendarSources.filter((source) => !isVideoConferencingProvider(source.provider)),
     [calendarSources]
@@ -974,7 +960,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setPaymentProviderConfigs([]);
     }
 
-    setNotice(nextNotice);
+    showNotice(nextNotice);
     setLoading(false);
   };
 
@@ -1070,7 +1056,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     } catch (error) {
       setCalendarOptions([]);
       if (!silent) {
-        setNotice({ tone: 'error', message: readErrorMessage(error) });
+        showNotice({ tone: 'error', message: readErrorMessage(error) });
       }
       return [];
     } finally {
@@ -1096,6 +1082,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const selectedAutomationProviderConfig = useMemo(
     () => automationProviderConfigs.find((provider) => provider.providerKey === selectedAutomationProviderKey) || null,
     [automationProviderConfigs, selectedAutomationProviderKey]
+  );
+  const selectedAutomationProviderStateMeta = useMemo(
+    () => getAutomationProviderStateMeta(selectedAutomationProviderConfig, selectedAutomationProviderCatalog),
+    [selectedAutomationProviderCatalog, selectedAutomationProviderConfig]
   );
 
   const paymentProviderCatalog = useMemo(
@@ -1519,42 +1509,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const aiProviderConfigLocked = !!selectedAiProviderConfig && !aiProviderConfigEditing;
   const dataStoreConfigLocked = !!selectedDataStoreProviderConfig && !dataStoreConfigEditing;
   const paymentConfigLocked = !!selectedPaymentProviderConfig && !paymentConfigEditing;
-  const moduleAlerts = useMemo(() => {
-    const alerts = [];
-    if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
-      mailboxes.forEach((mailbox) => {
-        const meta = mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox);
-        if (meta.machine === 'reconnect_required' || meta.machine === 'unauthorized' || meta.machine === 'needs_config') {
-          alerts.push({
-            key: `mailbox-${mailbox.id}`,
-            tone: meta.tone,
-            message: `${mailbox.name}: ${meta.detail}`
-          });
-        }
-      });
-      if (emailVerifierConfig?.status === 'error') {
-        alerts.push({
-          key: 'email-verifier-error',
-          tone: 'error',
-          message: emailVerifierConfig.lastError || 'Email verification provider test failed.'
-        });
-      }
-    }
-    if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR || activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
-      scopedCalendarSources.forEach((source) => {
-        const meta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
-        if (meta.machine === 'reconnect_required' || meta.machine === 'unauthorized' || meta.machine === 'needs_config') {
-          alerts.push({
-            key: `calendar-${source.id}`,
-            tone: meta.tone,
-            message: `${source.name}: ${meta.detail}`
-          });
-        }
-      });
-    }
-    return alerts.slice(0, 4);
-  }, [activeCategory, calendarSourceStateMetaById, emailVerifierConfig, mailboxStateMetaById, mailboxes, scopedCalendarSources]);
-
   const currentCategory = categories.find((category) => category.id === activeCategory);
   const currentCategoryIntegrations = integrations.filter((integration) => integration.category === activeCategory);
   const selectedLegacyProvider = useMemo(() => {
@@ -1646,35 +1600,35 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       ...current,
       [activeCategory]: selectedLegacyProvider.id,
     }));
-    setNotice({
+    showNotice({
       tone: 'success',
       message: `${selectedLegacyProvider.name} is now locked in as the pending ${currentCategory.name.toLowerCase()} activation.`,
     });
   };
 
   const handleToggleIntegration = async (integrationId) => {
-    setNotice({ tone: 'warning', message: 'Legacy integration toggles are disabled until backed by workspace APIs.' });
+    showNotice({ tone: 'warning', message: 'Legacy integration toggles are disabled until backed by workspace APIs.' });
   };
 
   const handleRemoveIntegration = async (integrationId) => {
     if (!window.confirm('Delete this integration?')) return;
-    setNotice({ tone: 'warning', message: 'Legacy integration removal is disabled until backed by workspace APIs.' });
+    showNotice({ tone: 'warning', message: 'Legacy integration removal is disabled until backed by workspace APIs.' });
   };
 
   const handleSaveMailbox = async () => {
     if (!selectedMailbox?.id) return;
     if (selectedMailboxStateMeta.saveDisabled) {
-      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
+      showNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
       setMailboxConfigEditing(false);
-      setNotice({ tone: 'success', message: 'Mailbox saved.' });
+      showNotice({ tone: 'success', message: 'Mailbox saved.' });
       triggerSavedAction('mailbox-save');
       loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -1686,21 +1640,24 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         name: mailboxDraft.name.trim(),
         address: mailboxDraft.address.trim()
       });
-      setNotice({ tone: 'success', message: 'Mailbox created.' });
+      showNotice({ tone: 'success', message: 'Mailbox created.' });
       setShowMailboxComposer(false);
       setMailboxDraft(createMailboxDraft());
       await loadAll();
       setSelectedMailboxId(mailbox?.id || null);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleSaveEmailVerifier = async () => {
     try {
+      const currentApiKey = emailVerifierForm.apiKey || emailVerifierConfig?.apiKey || '';
+      const hasNewApiKey = emailVerifierForm.apiKey && emailVerifierForm.apiKey.length > 0;
+      const shouldAutoEnable = hasNewApiKey && !emailVerifierForm.enabled;
       const saved = await updateEmailVerifierConfigApi({
-        apiKey: emailVerifierForm.apiKey || undefined,
-        enabled: !!emailVerifierForm.enabled,
+        apiKey: currentApiKey,
+        enabled: shouldAutoEnable ? true : (emailVerifierForm.enabled || false),
         autoVerifyContacts: !!emailVerifierForm.autoVerifyContacts,
         defaultMode: emailVerifierForm.defaultMode,
       });
@@ -1708,23 +1665,29 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
       setEmailVerifierConfigEditing(false);
       setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
-      setNotice({ tone: 'success', message: 'Reoon configuration saved.' });
+      showNotice({
+        tone: 'success',
+        message: `Reoon ${emailVerifierConfig?.hasApiKey ? 'saved' : 'activated'} for this workspace.`,
+      });
       triggerSavedAction('email-verifier-save');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleTestEmailVerifier = async () => {
     setBusyAction('email-verifier-test');
     try {
-      if (emailVerifierForm.apiKey) {
+      const currentApiKey = emailVerifierForm.apiKey || emailVerifierConfig?.apiKey || '';
+      if (currentApiKey) {
+        const hasNewApiKey = emailVerifierForm.apiKey && emailVerifierForm.apiKey.length > 0;
+        const shouldAutoEnable = hasNewApiKey && !emailVerifierForm.enabled;
         const saved = await updateEmailVerifierConfigApi({
-          apiKey: emailVerifierForm.apiKey,
-          enabled: !!emailVerifierForm.enabled,
-      autoVerifyContacts: !!emailVerifierForm.autoVerifyContacts,
-      defaultMode: emailVerifierForm.defaultMode,
+          apiKey: currentApiKey,
+          enabled: shouldAutoEnable ? true : (emailVerifierForm.enabled || false),
+          autoVerifyContacts: !!emailVerifierForm.autoVerifyContacts,
+          defaultMode: emailVerifierForm.defaultMode,
         });
         setEmailVerifierConfig(saved);
         setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
@@ -1735,11 +1698,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         setEmailVerifierConfig(config);
         setEmailVerifierForm(createEmailVerifierDraft(config));
       }
-      setNotice({ tone: 'success', message: response?.result?.message || 'Reoon connection verified.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'Reoon connection verified.' });
       triggerSavedAction('email-verifier-test');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
       await loadAll();
     } finally {
       setBusyAction('');
@@ -1753,10 +1716,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       setEmailVerifierConfig(cleared);
       setEmailVerifierForm(createEmailVerifierDraft(cleared || {}));
       setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
-      setNotice({ tone: 'success', message: 'Reoon disconnected.' });
+      showNotice({ tone: 'success', message: 'Reoon disconnected.' });
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -1764,29 +1727,33 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!selectedMailbox?.id || !isMailboxOauthProvider(mailboxForm.provider)) return;
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      const result = await openOAuthPopup(getMailboxAuthorizeUrl(selectedMailbox.id), 'mailbox');
-      setNotice({ tone: 'success', message: `${selectedMailbox.name} connected via ${result.provider || selectedMailboxProvider.label}.` });
-      loadAll();
+      const authorizeUrl = await getMailboxAuthorizeUrl(selectedMailbox.id);
+      if (!authorizeUrl) {
+        throw new Error('Failed to get authorization URL');
+      }
+      const result = await openOAuthPopup(authorizeUrl, 'mailbox');
+      showNotice({ tone: 'success', message: `${selectedMailbox.name} connected via ${result.provider || selectedMailboxProvider.label}.` });
+      await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleTestMailbox = async () => {
     if (!selectedMailbox?.id) return;
     if (selectedMailboxStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
+      showNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     setBusyAction('mailbox-test');
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
       const response = await testMailboxConnectionApi(selectedMailbox.id);
-      setNotice({ tone: response?.result?.status === 'ok' ? 'success' : 'warning', message: response?.result?.message || 'Mailbox test completed.' });
+      showNotice({ tone: response?.result?.status === 'ok' ? 'success' : 'warning', message: response?.result?.message || 'Mailbox test completed.' });
       triggerSavedAction('mailbox-test');
       loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyAction('');
     }
@@ -1795,22 +1762,22 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const handleSyncMailbox = async () => {
     if (!selectedMailbox?.id) return;
     if (selectedMailboxStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
+      showNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     try {
       const response = await syncMailboxApi(selectedMailbox.id);
-      setNotice({ tone: 'success', message: response?.result?.message || 'Mailbox synced.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'Mailbox synced.' });
       loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleDeleteMailbox = async () => {
     if (!selectedMailbox?.id) return;
     if (mailboxes.length <= 1) {
-      setNotice({ tone: 'warning', message: 'You need to keep at least one mailbox.' });
+      showNotice({ tone: 'warning', message: 'You need to keep at least one mailbox.' });
       return;
     }
     const fallbackMailbox = mailboxDeleteTarget;
@@ -1818,49 +1785,49 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!window.confirm(`Delete ${selectedMailbox.name}?${fallbackLabel}`)) return;
     try {
       const response = camelizeData(await deleteMailboxApi(selectedMailbox.id, fallbackMailbox?.id));
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${response?.deletedMailboxName || selectedMailbox.name} deleted.${response?.reassignedThreads ? ` ${response.reassignedThreads} thread(s) moved to ${response?.fallbackMailboxName || fallbackMailbox?.name}.` : ''}`
       });
       await loadAll();
       setSelectedMailboxId(response?.fallbackMailboxId || fallbackMailbox?.id || null);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleDisconnectMailbox = async () => {
     if (!selectedMailbox?.id) return;
     if (selectedMailboxStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
+      showNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
     if (!window.confirm(`Disconnect ${selectedMailbox.name}? OAuth/session state will be cleared and the mailbox will require reconnect before use.`)) return;
     try {
       const response = await disconnectMailboxApi(selectedMailbox.id);
-      setNotice({ tone: 'success', message: `${response?.mailbox?.name || selectedMailbox.name} disconnected.` });
+      showNotice({ tone: 'success', message: `${response?.mailbox?.name || selectedMailbox.name} disconnected.` });
       await loadAll();
       setSelectedMailboxId(selectedMailbox.id);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleSaveCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     if (selectedCalendarSourceStateMeta.saveDisabled) {
-      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
+      showNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     try {
       await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
       setCalendarConfigEditing(false);
-      setNotice({ tone: 'success', message: 'Calendar source saved.' });
+      showNotice({ tone: 'success', message: 'Calendar source saved.' });
       triggerSavedAction('calendar-save');
       await loadAll();
       await loadCalendarOptions(selectedCalendarSource.id);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -1868,13 +1835,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!calendarSourceDraft.name.trim()) return;
     try {
       const source = await createCalendarSourceApi(calendarSourceDraft);
-      setNotice({ tone: 'success', message: 'Calendar source created.' });
+      showNotice({ tone: 'success', message: 'Calendar source created.' });
       setShowCalendarComposer(false);
       setCalendarSourceDraft(createCalendarSourceDraft());
       await loadAll();
       setSelectedCalendarSourceId(source?.id || null);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -1882,8 +1849,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!selectedCalendarSource?.id || !isCalendarOauthProvider(calendarSourceForm.provider)) return;
     try {
       await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
-      const result = await openOAuthPopup(getCalendarSourceAuthorizeUrl(selectedCalendarSource.id), 'calendar');
-      setNotice({
+      const authorizeUrl = await getCalendarSourceAuthorizeUrl(selectedCalendarSource.id);
+      if (!authorizeUrl) {
+        throw new Error('Failed to get authorization URL');
+      }
+      const result = await openOAuthPopup(authorizeUrl, 'calendar');
+      showNotice({
         tone: 'success',
         message: result?.calendarSelectionRequired
           ? `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarProvider.label}. Select the active calendar before testing or sync.`
@@ -1892,26 +1863,26 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       await loadAll();
       await loadCalendarOptions(selectedCalendarSource.id);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleTestCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     if (selectedCalendarSourceStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
+      showNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     setBusyAction('calendar-test');
     try {
       await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
       const response = await testCalendarSourceApi(selectedCalendarSource.id);
-      setNotice({ tone: 'success', message: response?.result?.message || 'Calendar source tested.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'Calendar source tested.' });
       triggerSavedAction('calendar-test');
       await loadAll();
       await loadCalendarOptions(selectedCalendarSource.id);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyAction('');
     }
@@ -1920,28 +1891,28 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
   const handleSyncCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     if (selectedCalendarSourceStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
+      showNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     try {
       const response = await syncCalendarSourceApi(selectedCalendarSource.id);
-      setNotice({ tone: 'success', message: response?.result?.message || 'Calendar source synced.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'Calendar source synced.' });
       loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleImportCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     if (selectedCalendarSourceStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
+      showNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     try {
       const response = camelizeData(await importCalendarSourceApi(selectedCalendarSource.id));
       const conflicts = response?.result?.conflictedCount || 0;
-      setNotice({
+      showNotice({
         tone: conflicts ? 'warning' : 'success',
         message: conflicts
           ? `${response?.result?.importedCount || 0} events imported. ${conflicts} need review.`
@@ -1949,7 +1920,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       });
       loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -1960,32 +1931,32 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!window.confirm(`Delete ${selectedCalendarSource.name}?${fallbackLabel}`)) return;
     try {
       const response = camelizeData(await deleteCalendarSourceApi(selectedCalendarSource.id, fallbackSource?.id));
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${response?.deletedSourceName || selectedCalendarSource.name} deleted.${response?.reassignedEvents ? ` ${response.reassignedEvents} event(s) moved to ${response?.fallbackSourceName || fallbackSource?.name}.` : response?.clearedEvents ? ` ${response.clearedEvents} event(s) were detached from that source.` : ''}`
       });
       await loadAll();
       setSelectedCalendarSourceId(response?.fallbackSourceId || fallbackSource?.id || null);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
   const handleDisconnectCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     if (selectedCalendarSourceStateMeta.authActionsDisabled) {
-      setNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
+      showNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
     if (!window.confirm(`Disconnect ${selectedCalendarSource.name}? OAuth/feed sync state will be cleared and the source will require reconnect before use.`)) return;
     try {
       const response = await disconnectCalendarSourceApi(selectedCalendarSource.id);
-      setNotice({ tone: 'success', message: `${response?.source?.name || selectedCalendarSource.name} disconnected.` });
+      showNotice({ tone: 'success', message: `${response?.source?.name || selectedCalendarSource.name} disconnected.` });
       await loadAll();
       setCalendarOptions([]);
       setSelectedCalendarSourceId(selectedCalendarSource.id);
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2013,11 +1984,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         },
       });
       setAiProviderConfigEditing(false);
-      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} saved.` });
+      showNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} saved.` });
       triggerSavedAction('ai-provider-save');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2046,11 +2017,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         },
       });
       const response = await testAiProviderConfigApi(saved.id);
-      setNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
       triggerSavedAction('ai-provider-test');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyAction('');
     }
@@ -2061,10 +2032,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!window.confirm(`Disconnect ${selectedAiProviderCatalog.label}? Saved credentials and runtime preference will be removed for this workspace.`)) return;
     try {
       await deleteAiProviderConfigApi(selectedAiProviderConfig.id);
-      setNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} removed from this workspace.` });
+      showNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} removed from this workspace.` });
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2080,11 +2051,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         config: automationProviderForm.config || {},
       });
       setAutomationConfigEditing(false);
-      setNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog.name} saved.` });
+      showNotice({
+        tone: 'success',
+        message: `${selectedAutomationProviderCatalog.name} ${selectedAutomationProviderConfig ? 'saved' : 'activated'} for this workspace.`,
+      });
       triggerSavedAction('automation-save');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2101,11 +2075,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         config: automationProviderForm.config || {},
       });
       const response = await testAutomationProviderConfigApi(saved.id);
-      setNotice({ tone: 'success', message: response?.result?.message || 'Automation provider test completed.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'Automation provider test completed.' });
       triggerSavedAction('automation-test');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyAction('');
     }
@@ -2116,10 +2090,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!window.confirm(`Disconnect ${selectedAutomationProviderCatalog?.name || 'this automation provider'} from this workspace?`)) return;
     try {
       await deleteAutomationProviderConfigApi(selectedAutomationProviderConfig.id);
-      setNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog?.name || 'Automation provider'} removed from this workspace.` });
+      showNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog?.name || 'Automation provider'} removed from this workspace.` });
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2136,11 +2110,11 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       };
       await upsertPaymentProviderConfigApi(selectedPaymentProviderCatalog.id, payload);
       setPaymentConfigEditing(false);
-      setNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog.name} payment settings saved.` });
+      showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog.name} payment settings saved.` });
       triggerSavedAction('payment-save');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2149,10 +2123,10 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     if (!window.confirm(`Disconnect ${selectedPaymentProviderCatalog?.name || 'this payment provider'} from this workspace?`)) return;
     try {
       await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
-      setNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
+      showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2167,14 +2141,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         config: dataStoreProviderForm.config || {},
       });
       setDataStoreConfigEditing(false);
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${selectedDataStoreProviderCatalog.name} ${selectedDataStoreProviderConfig ? 'saved' : 'activated'} for this workspace.`,
       });
       triggerSavedAction('data-store-save');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2190,14 +2164,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         config: dataStoreProviderForm.config || {},
       });
       const response = await testDataStoreProviderConfigApi(selectedDataStoreProviderCatalog.id);
-      setNotice({
+      showNotice({
         tone: response?.lastError ? 'warning' : 'success',
         message: response?.lastError || `${selectedDataStoreProviderCatalog.name} connection verified.`,
       });
       triggerSavedAction('data-store-test');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyAction('');
     }
@@ -2210,13 +2184,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       await deleteDataStoreProviderConfigApi(selectedDataStoreProviderConfig.providerKey);
       setDataStoreConfigEditing(true);
       setDataStoreProviderForm(createDataStoreProviderDraft(selectedDataStoreProviderCatalog));
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${selectedDataStoreProviderCatalog?.name || 'Data store'} removed from this workspace.`,
       });
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2231,14 +2205,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         config: mediaProviderForm.config || {},
       });
       setMediaConfigEditing(false);
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${selectedMediaProviderCatalog.name} ${selectedMediaProviderConfig ? 'saved' : 'activated'} for this workspace.`,
       });
       triggerSavedAction('media-save');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2254,14 +2228,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         config: mediaProviderForm.config || {},
       });
       await testMediaProviderConfigApi(saved?.id || selectedMediaProviderConfig?.id);
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${selectedMediaProviderCatalog.name} connection verified.`,
       });
       triggerSavedAction('media-test');
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyAction('');
     }
@@ -2274,13 +2248,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
       await deleteMediaProviderConfigApi(selectedMediaProviderConfig.id);
       setMediaConfigEditing(true);
       setMediaProviderForm(createMediaProviderDraft(selectedMediaProviderCatalog));
-      setNotice({
+      showNotice({
         tone: 'success',
         message: `${selectedMediaProviderCatalog?.name || 'Media provider'} removed from this workspace.`,
       });
       await loadAll();
     } catch (error) {
-      setNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
 
@@ -2293,6 +2267,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
         </div>
         {automationProviderCatalog.map((provider) => {
           const config = automationProviderConfigs.find((item) => item.providerKey === provider.id);
+          const providerStateMeta = getAutomationProviderStateMeta(config, provider);
           return (
             <ResourceCard
               key={provider.id}
@@ -2300,14 +2275,14 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               logoId={provider.id}
               title={config?.label || provider.name}
               subtitle={provider.id}
-              status={config?.status || 'not configured'}
-              detail={config?.lastError || provider.description}
+              status={providerStateMeta.label}
+              detail={providerStateMeta.detail}
               selected={selectedAutomationProviderKey === provider.id}
               onClick={() => setSelectedAutomationProviderKey(provider.id)}
               chips={[
                 config?.enabled ? 'enabled' : 'disabled',
-                    config?.config?.outboundWebhookUrl ? 'outbound webhook' : 'no outbound hook',
-                    config?.config?.inboundWebhookUrl ? 'inbound webhook' : 'no inbound hook',
+                config?.config?.outboundWebhookUrl ? 'outbound webhook' : 'no outbound hook',
+                config?.config?.inboundWebhookUrl ? 'inbound webhook' : 'no inbound hook',
               ]}
             />
           );
@@ -2329,14 +2304,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                   {busyAction === 'automation-test' ? 'Testing...' : savedAction === 'automation-test' ? 'Tested' : 'TEST CONNECT'}
                 </button>
                 <button onClick={handleSaveAutomationProvider} disabled={automationConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'automation-save')}>
-                  {savedAction === 'automation-save' ? 'Saved' : 'Save'}
+                  {savedAction === 'automation-save' ? 'Saved' : selectedAutomationProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
-                {selectedAutomationProviderConfig ? <button onClick={handleDeleteAutomationProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300"><Trash2 size={14} />Delete</button> : null}
               </div>
             </div>
 
             <div className={compactMetaGridClass}>
-              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.status || 'standby'}</div></div>
+              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderStateMeta.label}</div></div>
               <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{automationProviderForm.enabled ? 'Enabled' : 'Disabled'}</div></div>
               <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-xs font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.lastTestedAt ? new Date(selectedAutomationProviderConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
               <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Delivery</div><div className="mt-1 text-xs font-semibold text-[var(--color-text-primary)]">{selectedAutomationProviderConfig?.config?.lastDeliveryAt ? new Date(selectedAutomationProviderConfig.config.lastDeliveryAt).toLocaleString() : 'No delivery yet'}</div></div>
@@ -2372,6 +2346,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <SaveFeedbackNote visible={savedAction === 'automation-save'} label="Saved" />
               <SaveFeedbackNote visible={savedAction === 'automation-test'} label="Connection OK" />
             </div>
+            {selectedAutomationProviderConfig ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteAutomationProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Automation Provider</button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -2382,13 +2362,7 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
     <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.75fr)_minmax(420px,2.25fr)]">
       {(() => {
         const emailVerifierStatusMeta = getEmailVerifierStatusMeta(emailVerifierConfig || {});
-        const emailVerifierDetail = emailVerifierConfig?.status === 'error'
-          ? 'The last verification provider test failed. Update the API key and test again.'
-          : (!emailVerifierConfig?.hasApiKey
-            ? 'Add a Reoon API key to enable tenant-scoped email verification.'
-            : (!emailVerifierConfig?.enabled
-              ? 'Config is saved but verification is disabled for this tenant.'
-              : 'Used by CRM verification and flow nodes through the existing verifier runtime.'));
+        const emailVerifierDetail = getEmailVerifierDetail(emailVerifierConfig || {});
         return (
           <>
       <div className="min-h-0 space-y-2.5 overflow-y-auto no-scrollbar pr-1">
@@ -2482,9 +2456,8 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 {emailVerifierConfig?.hasApiKey ? <button onClick={() => setEmailVerifierConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button> : null}
                 <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
-                <button onClick={handleSaveEmailVerifier} disabled={emailVerifierConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSaveEmailVerifier} disabled={emailVerifierConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : emailVerifierConfig?.hasApiKey ? 'SAVE' : 'ADD ACTIVATION'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} label="Saved" />
-                {emailVerifierConfig?.hasApiKey ? <button onClick={handleDeleteEmailVerifier} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />Disconnect</button> : null}
               </div>
             </div>
             {emailVerifierConfig?.status === 'error' ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">Last connection test failed. Update the API key and run a new test.</div> : null}
@@ -2500,13 +2473,19 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <fieldset disabled={emailVerifierConfigLocked} className="space-y-3 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.apiKey} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={emailVerifierConfig?.hasApiKey ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.defaultMode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick</option><option value="power">Power</option></select></label>
+              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.defaultMode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick (Single/Flows)</option><option value="power">Power (Bulk Import)</option></select></label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 text-sm text-[var(--color-text-secondary)]">
               <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.enabled} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this tenant</label>
               <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.autoVerifyContacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, autoVerifyContacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
             </div>
             </fieldset>
+            {emailVerifierConfig?.hasApiKey ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteEmailVerifier} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Reoon Integration</button>
+              </div>
+            ) : null}
           </div>
         ) : selectedMailbox ? (
           <div className={compactControlPlaneClass}>
@@ -2515,20 +2494,17 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setMailboxConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
                 {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
-                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Disconnect</button> : null}
                 <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
                 <button onClick={handleSyncMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
                 <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled || mailboxConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-save'} label="Saved" />
-                <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />{selectedMailboxStateMeta.authActionsDisabled ? 'Delete / Reset' : 'Delete'}</button>
               </div>
             </div>
             {mailboxForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{mailboxForm.config.lastError}</div> : null}
             {selectedMailboxStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedMailboxStateMeta.tone)}`}>{selectedMailboxStateMeta.detail} Test, sync, save, and disconnect are disabled until recovery.</div> : null}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               This page is for connection management. The actual mail reader is the thread workspace in <span className="font-medium text-[var(--color-text-primary)]">Comms</span>.
-              {mailboxDeleteTarget ? ` Deleting this mailbox will reassign any linked threads to ${mailboxDeleteTarget.name}.` : ' The last remaining mailbox cannot be deleted.'}
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
@@ -2551,6 +2527,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             {selectedMailboxProvider.fields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedMailboxProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={mailboxForm.config?.[field.key] || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
             <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]"><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.inboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.outboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label></div>
             </fieldset>
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+              <div className="flex flex-wrap gap-2">
+                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><LogOut size={14} />Disconnect</button> : null}
+                <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />Delete Mailbox</button>
+              </div>
+            </div>
           </div>
         ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">Create or select a mailbox to manage credentials and sync behavior.</div>}
       </div>
@@ -2632,20 +2615,18 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => setCalendarConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
                 {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
-                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-200 disabled:cursor-not-allowed disabled:opacity-50">Disconnect</button> : null}
                 <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
                 <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
                 <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
                 <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled || calendarConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-save'} label="Saved" />
-                <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300"><Trash2 size={14} />{selectedCalendarSourceStateMeta.authActionsDisabled ? 'Delete / Reset' : 'Delete'}</button>
               </div>
             </div>
             {calendarSourceForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{calendarSourceForm.config.lastError}</div> : null}
             {selectedCalendarSourceStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedCalendarSourceStateMeta.tone)}`}>{selectedCalendarSourceStateMeta.detail} Test, sync, import, save, and disconnect are disabled until recovery.</div> : null}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-              {calendarSourceDeleteTarget ? `Deleting this source will move any linked events to ${calendarSourceDeleteTarget.name}.` : 'If this is the last source, linked events will simply be detached from it.'}
+              This page manages calendar source connections. Use sync to update events from this source.
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.label}</div></div>
@@ -2671,6 +2652,13 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             {selectedCalendarProviderFields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedCalendarProviderFields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceForm.config?.[field.key] || ''} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
             </fieldset>
             <div className="flex flex-wrap gap-2 text-xs text-[var(--color-text-secondary)]"><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Authority {sourceRuleLabels[selectedCalendarSource.authorityMode] || selectedCalendarSource.authorityMode}</span><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Import {sourceRuleLabels[selectedCalendarSource.importPolicy] || selectedCalendarSource.importPolicy}</span></div>
+            <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+              <div className="flex flex-wrap gap-2">
+                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><LogOut size={14} />Disconnect</button> : null}
+                <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Delete Source</button>
+              </div>
+            </div>
           </div>
         ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">{emptyStateCopy}</div>}
       </div>
@@ -2763,7 +2751,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-test'} label="Provider OK" />
                 <button onClick={handleSaveAiProvider} disabled={aiProviderConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : selectedAiProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}</button>
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-save'} label="Saved" />
-                {selectedAiProviderConfig ? <button onClick={handleDeleteAiProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300"><Trash2 size={14} />Delete</button> : null}
               </div>
           </div>
           <div className={compactMetaGridClass}>
@@ -2858,7 +2845,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
               Use the raw Ollama daemon URL, like <span className="font-medium text-[var(--color-text-primary)]">http://localhost:11434</span> or <span className="font-medium text-[var(--color-text-primary)]">http://LAN-IP:11434</span>. If your Ollama host sits behind a proxy, ensure the Base URL and optional credentials are correct so model refresh and test function as expected.
             </div>
           ) : null}
-
+          {selectedAiProviderConfig ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteAiProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove AI Provider</button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="h-full rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex flex-col items-center justify-center p-8 text-center">
@@ -2951,7 +2943,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleSaveDataStoreProvider} disabled={dataStoreConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'data-store-save')}>
                   {savedAction === 'data-store-save' ? 'Saved' : selectedDataStoreProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
-                {selectedDataStoreProviderConfig ? <button onClick={handleDeleteDataStoreProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300"><Trash2 size={14} />Delete</button> : null}
               </div>
             </div>
 
@@ -3013,6 +3004,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               Protected credentials and target identifiers do not round-trip back into the UI. Re-enter them here when rotating secrets or changing the live target.
             </div>
+            {selectedDataStoreProviderConfig ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteDataStoreProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Data Store</button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 py-16 text-center">
@@ -3103,7 +3100,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleSaveMediaProvider} disabled={!!selectedMediaProviderConfig && !mediaConfigEditing} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'media-save')}>
                   {savedAction === 'media-save' ? 'Saved' : selectedMediaProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
-                {selectedMediaProviderConfig ? <button onClick={handleDeleteMediaProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300"><Trash2 size={14} />Delete</button> : null}
               </div>
             </div>
 
@@ -3174,6 +3170,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               Use ElevenLabs Scribe for external transcription and ElevenLabs Voice for speech output. Charlie voice routing can be staged here now and expanded to additional operator voices later.
             </div>
+            {selectedMediaProviderConfig ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteMediaProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Media Provider</button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 py-16 text-center">
@@ -3330,7 +3332,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
                 <button onClick={handleSavePaymentProvider} disabled={paymentConfigLocked} className={saveButtonClassName("rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-on-primary)] disabled:cursor-not-allowed disabled:opacity-50", savedAction === 'payment-save')}>
                   {savedAction === 'payment-save' ? 'Saved' : 'Save'}
                 </button>
-                {selectedPaymentProviderConfig ? <button onClick={handleDeletePaymentProvider} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300"><Trash2 size={14} />Delete</button> : null}
               </div>
             </div>
 
@@ -3378,6 +3379,12 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
             <div className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
               <SaveFeedbackNote visible={savedAction === 'payment-save'} label="Saved" />
             </div>
+            {selectedPaymentProviderConfig ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeletePaymentProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Payment Provider</button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -3386,34 +3393,6 @@ export const ActiveIntegrations = ({ initialCategory = INTEGRATION_CATEGORIES.AU
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
-      {(moduleAlerts.length || notice) ? (
-        <div className="pointer-events-none absolute right-6 top-4 z-20 flex w-full max-w-[420px] flex-col gap-2">
-          {moduleAlerts.map((alert) => (
-            <div key={alert.key} className={`pointer-events-auto rounded-lg border px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.28)] ${toneClass(alert.tone)}`}>
-              {alert.message}
-            </div>
-          ))}
-          {notice ? (
-            <div
-              className={`pointer-events-auto rounded-lg border px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.28)] transition-all duration-300 ${toneClass(notice.tone)} ${noticeVisible ? 'translate-x-0 opacity-100' : 'translate-x-[250px] opacity-0'}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>{notice.message}</div>
-                {(notice.persistent || notice.tone === 'error') ? (
-                  <button
-                    type="button"
-                    aria-label="Dismiss notice"
-                    onClick={() => setNotice(null)}
-                    className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 text-current/80 transition hover:text-current"
-                  >
-                    <X size={14} />
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
       <ModuleHeader
         showTitle={false}
         className="mx-6 mt-3 bg-transparent"
