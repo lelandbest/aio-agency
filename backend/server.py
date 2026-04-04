@@ -5650,10 +5650,43 @@ async def ingest_meeting_media(request: Request, payload: MediaIngestRequest):
 async def create_publish_job(request: Request, payload: MediaPublishRequest):
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create publish jobs.")
     tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
+    publish_target = payload.publishTarget or payload.publish_target or ""
+    INTERNAL_TARGETS = {"", "internal.media", "local", "null", "none"}
+    if publish_target and publish_target.lower() not in INTERNAL_TARGETS:
+        try:
+            auth_store = get_auth_store()
+            config = auth_store.get_social_provider_config(tenant_id, publish_target)
+        except Exception:
+            config = None
+        if not config:
+            return JSONResponse({
+                "status": "blocked",
+                "reason": "provider_missing",
+                "providerKey": publish_target,
+                "providerStatus": "notConnected",
+                "message": f"Provider '{publish_target}' is not configured.",
+            }, status_code=422)
+        canonical_status = (config.get("status") or "").strip().lower()
+        if canonical_status != "connected":
+            reason_map = {
+                "configured": "provider_configured_not_connected",
+                "needsconfig": "provider_needs_config",
+                "notconnected": "provider_not_connected",
+                "reconnectrequired": "provider_reconnect_required",
+                "disconnected": "provider_not_connected",
+            }
+            return JSONResponse({
+                "status": "blocked",
+                "reason": reason_map.get(canonical_status, "provider_not_connected"),
+                "providerKey": publish_target,
+                "providerStatus": canonical_status or "unknown",
+                "message": f"Provider '{publish_target}' is {canonical_status or 'unknown'} (not connected).",
+            }, status_code=422)
     try:
         result = get_media_engine().publish_asset(
             payload.model_dump(exclude_none=True),
-            tenant_id=tenant.get("id"),
+            tenant_id=tenant_id,
             context={},
         )
         return {"data": result}
