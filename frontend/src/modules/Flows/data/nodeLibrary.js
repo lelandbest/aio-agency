@@ -4,6 +4,7 @@
  * AI Agent nodes loaded from registry (data-driven, not hardcoded)
  */
 
+import React from 'react';
 import {
   Play,
   Clock,
