@@ -17,6 +17,8 @@ import OperatorAssistDock from './components/OperatorAssistDock';
 import { AIAssistProvider } from './contexts/AIAssistContext';
 import { SignalProvider } from './contexts/SignalContext';
 import { NoticeProvider, GlobalNoticeViewport } from './contexts/NoticeContext';
+import { VTTProvider } from './contexts/VTTContext';
+import VoiceCommandModule from './modules/VoiceCommand';
 import StatusBar from './components/StatusBar';
 
 // Lazy load modules for code splitting
@@ -804,6 +806,9 @@ const App = () => {
         </AuthContext.Provider>
         </OrchestrationProvider>
         </AIAssistProvider>
+        <VTTProvider>
+          <VoiceCommandModule />
+        </VTTProvider>
         <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
         <GlobalNoticeViewport />
       </BrandProvider>

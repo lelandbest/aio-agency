@@ -69,6 +69,7 @@ try:
     from backend.media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
     from backend.media_library_service import get_media_library_item, list_media_library_items
     from backend.auth_store import get_auth_store
+    from backend.vtt_service import process_transcript
     from backend.data_store_adapters import (
         create_data_store_record,
         read_data_store_records,
@@ -3861,6 +3862,65 @@ async def ai_command(request: Request, payload: AICommandRequest):
     return {"status": response_status, "result": response, "message": response_message}
 
 
+class VTTRequest(BaseModel):
+    transcript: str
+    context: dict[str, Any] = {}
+    voiceEnabled: bool = False
+    voiceProvider: str = "system"
+    voiceAutoPlay: bool = False
+
+
+@app.post("/api/vtt/command")
+async def vtt_command(request: Request, payload: VTTRequest = None):
+    """
+    Phase 1: Parse voice transcript through command registry.
+    Exact-match commands → execute.
+    Conversational → forward to /api/ai/command (Charlie).
+    """
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can use voice commands.")
+    session = request.state.session or {}
+    tenant  = session.get("tenant") or {}
+    raw = (payload.transcript if payload else "").strip()
+    if not raw:
+        return {"status": "error", "message": "Empty transcript."}
+
+    tenant_id = tenant.get("id")
+    result = process_transcript(raw, tenant_id=tenant_id, context=payload.context if payload else None)
+
+    if result.get("action") == "conversational":
+        audio_url = None
+        voice_enabled = bool(payload.voiceEnabled) if payload else False
+        if voice_enabled:
+            response_text = result.get("text", raw)
+            voice_provider = payload.voiceProvider if payload else "system"
+            if voice_provider == "elevenlabs":
+                from backend.vtt_service import synthesize_voice
+                audio_url = synthesize_voice(response_text)
+        return {
+            "status": "success",
+            "type": "conversational",
+            "command": result,
+            "forwardTo": "/api/ai/command",
+            "audioUrl": audio_url,
+        }
+
+    return {"status": "success", "type": "command", "command": result}
+
+
+@app.get("/api/vtt/providers")
+async def list_vtt_commands(request: Request):
+    """Return the active command registry."""
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view voice commands.")
+    from backend.vtt_service import DEFAULT_REGISTRY, _load_registry
+    active = _load_registry()
+    return {
+        "data": {
+            "registry": [{"phrase": e["phrase"], "type": e["type"], "target": e["target"]} for e in active],
+            "defaults": [{"phrase": e["phrase"], "type": e["type"], "target": e["target"]} for e in DEFAULT_REGISTRY],
+        }
+    }
+
+
 @app.get("/api/ai/providers/catalog")
 async def list_ai_provider_catalog(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI provider options.")
@@ -5315,6 +5375,13 @@ async def serve_media_image(filename: str, request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access image files.")
     media_path = _resolve_media_file_path("image", filename)
     return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "image/png")
+
+
+@app.get("/api/media/voice/{filename}")
+async def serve_media_voice(filename: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access voice files.")
+    media_path = _resolve_media_file_path("voice", filename)
+    return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "audio/mpeg")
 
 
 def _extract_uploaded_file_from_multipart(content_type: str, body: bytes, field_name: str = "file") -> tuple[str, str | None, bytes]:

@@ -1,0 +1,249 @@
+"""
+VTT Service — Voice-to-Command + Conversational (Charlie)
+
+Command types:
+  interrupt  — stop / abort running operations
+  immediate  — escape / cancel UI state
+  navigation — open module
+  workflow   — start / stop named workflow
+  staged    — send email, create image/video, summarize
+  confirmed  — run flow (requires confirmation)
+"""
+
+from typing import Any
+import os
+
+DEFAULT_REGISTRY: list[dict[str, Any]] = [
+    # ── Reserved (locked) ──────────────────────────────────────────────
+    {"phrase": "stop",       "type": "interrupt",   "target": "system:stop",              "requiresPayload": False},
+    {"phrase": "escape",     "type": "immediate",   "target": "ui:escape",               "requiresPayload": False},
+    {"phrase": "cancel",     "type": "immediate",   "target": "ui:cancel",              "requiresPayload": False},
+    {"phrase": "abort",       "type": "interrupt",   "target": "system:stop",              "requiresPayload": False},
+    # ── Navigation ────────────────────────────────────────────────────
+    {"phrase": "open brain",       "type": "navigation", "target": "route:/aio-brain"},
+    {"phrase": "open crm",          "type": "navigation", "target": "route:/crm"},
+    {"phrase": "open forms",        "type": "navigation", "target": "route:/forms"},
+    {"phrase": "open form builder",  "type": "navigation", "target": "route:/forms/builder"},
+    {"phrase": "open flows",        "type": "navigation", "target": "route:/flows"},
+    {"phrase": "open flow builder", "type": "navigation", "target": "route:/flows/builder"},
+    {"phrase": "open media",        "type": "navigation", "target": "route:/media"},
+    {"phrase": "open integrations", "type": "navigation", "target": "route:/integrations"},
+    {"phrase": "open signals",      "type": "navigation", "target": "route:/signals"},
+    {"phrase": "open comms",        "type": "navigation", "target": "route:/comms"},
+    {"phrase": "open pipeline",     "type": "navigation", "target": "route:/pipeline"},
+    {"phrase": "open orders",        "type": "navigation", "target": "route:/orders"},
+    {"phrase": "open help",         "type": "navigation", "target": "route:/help"},
+    {"phrase": "open contacts",     "type": "navigation", "target": "route:/crm"},
+    # ── Workflow ─────────────────────────────────────────────────────
+    {"phrase": "start postbot",         "type": "workflow", "target": "workflow:start_postbot"},
+    {"phrase": "start script generator", "type": "workflow", "target": "workflow:start_script_generator"},
+    {"phrase": "stop script generator", "type": "workflow", "target": "workflow:stop_script_generator"},
+    {"phrase": "start podcast",         "type": "workflow", "target": "workflow:start_podcast"},
+    # ── Staged ────────────────────────────────────────────────────────
+    {"phrase": "send email",     "type": "staged", "target": "system:send_email"},
+    {"phrase": "create image",   "type": "staged", "target": "system:create_image"},
+    {"phrase": "create video",   "type": "staged", "target": "system:create_video"},
+    {"phrase": "summarize",      "type": "staged", "target": "system:summarize"},
+    {"phrase": "transcribe media", "type": "staged", "target": "system:transcribe_media"},
+    # ── Confirmed ────────────────────────────────────────────────────
+    {"phrase": "run flow",  "type": "confirmed", "target": "workflow:run_flow", "requiresPayload": True},
+    {"phrase": "search contacts", "type": "navigation", "target": "route:/crm/search"},
+]
+
+_ROUTE_MAP: dict[str, str] = {
+    "route:/aio-brain":      "aio-brain",
+    "route:/crm":            "crm",
+    "route:/crm/search":     "crm",
+    "route:/forms":          "forms",
+    "route:/forms/builder":  "forms",
+    "route:/flows":          "flows",
+    "route:/flows/builder":  "flows",
+    "route:/media":          "media",
+    "route:/integrations":   "integrations",
+    "route:/signals":        "signals",
+    "route:/comms":          "comms",
+    "route:/pipeline":       "pipeline",
+    "route:/orders":         "orders",
+    "route:/help":           "help",
+}
+
+_RESERVED_PHRASES: set[str] = {"stop", "escape", "cancel", "abort"}
+
+_user_registry: list[dict[str, Any]] | None = None
+
+
+def _load_registry() -> list[dict[str, Any]]:
+    """Load user-editable registry from VTT_COMMANDS env var or defaults."""
+    global _user_registry
+    if _user_registry is not None:
+        return _user_registry
+    env_val = os.environ.get("VTT_COMMANDS", "")
+    if env_val:
+        phrases = [p.strip() for p in env_val.split(",") if p.strip()]
+        _user_registry = [r for r in DEFAULT_REGISTRY if r["phrase"] in phrases]
+    else:
+        _user_registry = list(DEFAULT_REGISTRY)
+    return _user_registry
+
+
+def parse_command(raw: str) -> dict[str, Any]:
+    """
+    Parse raw transcript text through the command hierarchy.
+    Returns {"type": "command", ...} or {"type": "conversational", "text": raw}.
+    Exact match only. prefix match only when requiresPayload is True.
+    """
+    normalized = raw.strip().lower()
+    if not normalized:
+        return {"type": "conversational", "text": raw}
+
+    if normalized in _RESERVED_PHRASES:
+        for entry in DEFAULT_REGISTRY:
+            if entry["phrase"] == normalized:
+                return {"type": "command", **entry, "matched": normalized}
+        return {"type": "conversational", "text": raw}
+
+    registry = _load_registry()
+
+    for entry in registry:
+        phrase = entry["phrase"]
+        requires_payload = entry.get("requiresPayload", False)
+        if phrase == normalized:
+            return {"type": "command", **entry, "matched": normalized}
+        if requires_payload and normalized.startswith(phrase + " "):
+            payload = normalized[len(phrase) + 1:].strip()
+            return {
+                "type": "command",
+                **entry,
+                "matched": phrase,
+                "payload": payload,
+            }
+
+    return {"type": "conversational", "text": raw}
+
+
+def execute_command(parsed: dict[str, Any], tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """
+    Execute a parsed command.
+    Returns {"action": "navigate"|"system"|"workflow"|"confirmed"|"immediate"|"interrupt", ...}
+    """
+    if parsed.get("type") != "command":
+        return {"action": "conversational", "text": parsed.get("text", "")}
+
+    cmd_type  = parsed.get("type", "")
+    target    = parsed.get("target", "")
+    phrase    = parsed.get("phrase", "")
+    payload   = parsed.get("payload")
+
+    if target == "system:stop":
+        return {"action": "interrupt", "phrase": phrase, "target": target}
+
+    if target in ("ui:escape", "ui:cancel"):
+        return {"action": "immediate", "phrase": phrase, "target": target}
+
+    if target.startswith("route:"):
+        module = _ROUTE_MAP.get(target, "")
+        return {"action": "navigate", "phrase": phrase, "target": target, "module": module}
+
+    if target.startswith("workflow:"):
+        workflow_name = target.split(":", 1)[1] if ":" in target else ""
+        return {
+            "action": "workflow",
+            "phrase": phrase,
+            "target": target,
+            "workflowName": workflow_name,
+            "payload": payload,
+        }
+
+    if target.startswith("system:"):
+        system_action = target.split(":", 1)[1] if ":" in target else ""
+        return {"action": "staged", "phrase": phrase, "target": target, "systemAction": system_action}
+
+    return {"action": "unknown", "phrase": phrase}
+
+
+def process_transcript(
+    raw: str,
+    tenant_id: str | None = None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Main entry point. Parse then execute.
+    If conversational, returns {"action": "conversational", "text": raw}
+    so caller can forward to Charlie (/api/ai/command).
+    """
+    parsed   = parse_command(raw)
+    executed = execute_command(parsed, tenant_id, context)
+    return {
+        "input":    raw,
+        "type":     parsed.get("type", "unknown"),
+        "matched":  parsed.get("matched"),
+        "phrase":   parsed.get("phrase"),
+        "payload":  parsed.get("payload"),
+        "action":   executed.get("action", "unknown"),
+        "result":   executed,
+    }
+
+
+def synthesize_voice(text: str, voice: str | None = None) -> str | None:
+    """
+    Synthesize text to audio via ElevenLabs. Returns an audio URL or None.
+    Text must be <= 600 characters. Falls back gracefully on any error.
+    """
+    MAX_CHARS = 600
+    if not text or len(text) > MAX_CHARS:
+        return None
+
+    try:
+        import os
+        import urllib.request
+        import urllib.error
+        import json
+        from pathlib import Path
+
+        api_key = os.environ.get("ELEVEN_LABS_API_KEY") or os.environ.get("ELEVEN_LABS_TTS_API_KEY")
+        if not api_key:
+            return None
+
+        VOICE_ID_MAP = {
+            "rachel": "21m00Tcm4TlvDq8ikWAM",
+            "domi":    "AZnzlk1XvdvUeBnXmlld",
+            "bella":   "EXAVITQu4vr4xnSDxMaL",
+            "adam":    "pNInz6obpgDQGcFmaJgB",
+            "antoni":  "ErXwobaYiN019PkySvjV",
+        }
+        voice_id = VOICE_ID_MAP.get((voice or "rachel").strip().lower(), "21m00Tcm4TlvDq8ikWAM")
+
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        body = json.dumps({
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            url, data=body,
+            headers={
+                "xi-api-key": api_key,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            },
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            audio_bytes = resp.read()
+
+        if not audio_bytes:
+            return None
+
+        audio_dir = Path(__file__).resolve().parent / "data" / "voice"
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        from datetime import datetime
+        token = hashlib.sha256((text + datetime.utcnow().isoformat()).encode()).hexdigest()[:16]
+        filename = f"vtt_{token}.mp3"
+        (audio_dir / filename).write_bytes(audio_bytes)
+        return f"/api/media/voice/{filename}"
+
+    except Exception:
+        return None
