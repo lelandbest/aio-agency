@@ -58,6 +58,8 @@ import {
   testDataStoreProviderConfigApi,
   getPaymentProviderConfigsApi,
   upsertPaymentProviderConfigApi,
+  getSocialProviderConfigsApi,
+  upsertSocialProviderConfigApi,
   deletePaymentProviderConfigApi
 } from '../../../services/backendApi';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
@@ -800,7 +802,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const [mediaConfigEditing, setMediaConfigEditing] = useState(false);
 
   const [paymentProviderConfigs, setPaymentProviderConfigs] = useState([]);
+  const [socialProviderConfigs, setSocialProviderConfigs] = useState([]);
   const [selectedPaymentProviderKey, setSelectedPaymentProviderKey] = useState('stripe');
+  const [selectedSocialProviderKey, setSelectedSocialProviderKey] = useState('youtube');
   const [paymentProviderForm, setPaymentProviderForm] = useState(() => createPaymentProviderDraft(getProviderConfig('stripe')));
   const [paymentConfigEditing, setPaymentConfigEditing] = useState(false);
 
@@ -862,6 +866,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       if (cat.id === INTEGRATION_CATEGORIES.DATA_STORES) count = dataStoreProviderConfigs.length;
       if (cat.id === INTEGRATION_CATEGORIES.MEDIA) count = mediaProviderConfigs.length;
       if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) count = paymentProviderConfigs.length;
+      if (cat.id === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) count = socialProviderConfigs.filter((p) => p.enabled || p.configured).length;
       // SMS and Tracking are currently placeholders/empty in this version
       if (cat.id === INTEGRATION_CATEGORIES.SMS || cat.id === INTEGRATION_CATEGORIES.TRACKING) count = 0;
       
@@ -967,6 +972,12 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       setPaymentProviderConfigs((await getPaymentProviderConfigsApi()).map(camelizeData));
     } catch (error) {
       setPaymentProviderConfigs([]);
+    }
+
+    try {
+      setSocialProviderConfigs((await getSocialProviderConfigsApi()).map(camelizeData));
+    } catch (error) {
+      setSocialProviderConfigs([]);
     }
 
     showNotice(nextNotice);
@@ -2135,6 +2146,55 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     try {
       await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
       showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  // Social Networks state
+  const [socialConfigEditing, setSocialConfigEditing] = useState(false);
+  const [socialProviderForm, setSocialProviderForm] = useState({ label: '', enabled: false });
+  const socialProviderCatalog = useMemo(
+    () => getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS).find((p) => p.id === selectedSocialProviderKey) || getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS)[0] || null,
+    [selectedSocialProviderKey]
+  );
+  const selectedSocialProviderConfig = useMemo(
+    () => socialProviderConfigs.find((p) => p.providerKey === selectedSocialProviderKey) || null,
+    [socialProviderConfigs, selectedSocialProviderKey]
+  );
+  useEffect(() => {
+    if (selectedSocialProviderConfig) {
+      setSocialProviderForm({
+        label: selectedSocialProviderConfig.label || '',
+        enabled: !!selectedSocialProviderConfig.enabled,
+        ...(selectedSocialProviderConfig.config || {}),
+      });
+    } else {
+      const defaults = {};
+      (socialProviderCatalog?.fields || []).forEach(f => { if (f.default !== undefined) defaults[f.name] = f.default; });
+      setSocialProviderForm({ label: socialProviderCatalog?.name || '', enabled: false, ...defaults });
+    }
+    setSocialConfigEditing(false);
+  }, [selectedSocialProviderKey, selectedSocialProviderConfig]);
+
+  const handleSaveSocialProvider = async () => {
+    if (!socialProviderCatalog?.id) return;
+    try {
+      const fieldNames = (socialProviderCatalog.fields || []).map(f => f.name);
+      const config = {};
+      fieldNames.forEach(name => {
+        if (socialProviderForm[name] !== undefined) config[name] = socialProviderForm[name];
+      });
+      const payload = {
+        label: (socialProviderForm.label || socialProviderCatalog.name).trim(),
+        enabled: !!socialProviderForm.enabled,
+        config,
+      };
+      await upsertSocialProviderConfigApi(socialProviderCatalog.id, payload);
+      setSocialConfigEditing(false);
+      showNotice({ tone: 'success', message: `${socialProviderCatalog.name} social settings saved.` });
+      triggerSavedAction('social-save');
       await loadAll();
     } catch (error) {
       showNotice({ tone: 'error', message: readErrorMessage(error) });
@@ -3402,6 +3462,108 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     </div>
   );
 
+  const renderSocialNetworksAdmin = () => (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.75fr)_minmax(420px,2.25fr)]">
+      <div className="space-y-2.5 overflow-auto">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Social Networks</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Connect destinations for asset distribution and publishing.</div>
+        </div>
+        {getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS).map((provider) => {
+          const config = socialProviderConfigs.find((item) => item.providerKey === provider.id);
+          const isStub = provider.stub;
+          return (
+            <ResourceCard
+              key={provider.id}
+              icon={Share2}
+              logoId={provider.id}
+              title={config?.label || provider.name}
+              subtitle={provider.id}
+              status={isStub ? 'stub / not active' : config ? 'configured' : 'not configured'}
+              detail={provider.description}
+              selected={selectedSocialProviderKey === provider.id}
+              onClick={() => !isStub && setSelectedSocialProviderKey(provider.id)}
+              chips={[
+                isStub ? 'stub' : config?.enabled ? 'enabled' : 'disabled',
+              ]}
+            />
+          );
+        })}
+      </div>
+
+      <div className={compactPanelClass}>
+        {selectedSocialProviderCatalog ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Social Control Plane</div>
+                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{socialProviderForm.label || selectedSocialProviderCatalog.name}</h3>
+                <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedSocialProviderCatalog.description}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedSocialProviderConfig ? <button onClick={() => setSocialConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
+                <button onClick={handleSaveSocialProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'social-save')}>
+                  {savedAction === 'social-save' ? 'Saved' : 'Save'}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedSocialProviderConfig ? 'Configured' : 'Standby'}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedSocialProviderCatalog.name}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Distribution</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Future Relay</div></div>
+            </div>
+
+            <div className="space-y-3">
+              {(selectedSocialProviderCatalog.fields || []).map((field) => (
+                <div key={field.name}>
+                  <label className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</label>
+                  {field.type === 'textarea' ? (
+                    <textarea
+                      value={socialProviderForm[field.name] || ''}
+                      onChange={(e) => setSocialProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      rows={2}
+                      placeholder={field.placeholder}
+                    />
+                  ) : field.type === 'select' ? (
+                    <select
+                      value={socialProviderForm[field.name] || field.default || ''}
+                      onChange={(e) => setSocialProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                    >
+                      {(field.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : field.type === 'password' ? (
+                    <input
+                      type="password"
+                      value={socialProviderForm[field.name] || ''}
+                      onChange={(e) => setSocialProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      placeholder={field.placeholder}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={socialProviderForm[field.name] || ''}
+                      onChange={(e) => setSocialProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      placeholder={field.placeholder}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-tertiary)]">
+            Select a provider to configure
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
       <ModuleHeader
@@ -3464,7 +3626,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                         ? renderMediaAdmin()
                       : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS
                         ? renderPaymentsAdmin()
-                        : null}
+                        : activeCategory === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS
+                          ? renderSocialNetworksAdmin()
+                          : null}
               </>
               ) : null}
               {showSplash && (

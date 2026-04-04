@@ -2222,6 +2222,12 @@ class FlowDraftRequest(BaseModel):
 class FlowManualTriggerRequest(BaseModel):
     command: str | None = None
     context: dict[str, Any] | None = None
+    runId: str | None = None
+
+
+class FlowImportRequest(BaseModel):
+    source: str
+    templateJson: dict[str, Any]
 
 
 class MediaRenderRequest(BaseModel):
@@ -4984,8 +4990,25 @@ async def list_contact_form_submissions(contact_id: str):
 
 
 @app.get("/api/companies")
-async def list_companies():
+async def list_companies(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view companies.")
     return {"data": provider.list_companies()}
+
+
+@app.get("/api/companies/{company_id}")
+async def get_company(company_id: str, request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view companies.")
+    company = provider.get_company(company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found.")
+    return {"data": company}
+
+
+@app.patch("/api/companies/{company_id}")
+async def update_company(company_id: str, request: Request, payload: dict[str, Any]):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update companies.")
+    updated = provider.update_company(company_id, payload)
+    return {"data": updated}
 
 
 @app.get("/api/flows")
@@ -5018,6 +5041,16 @@ async def save_flow(flow_id: str, request: Request, payload: FlowSaveRequest):
         raise HTTPException(status_code=400, detail=f"Active flow validation failed: {'; '.join(preflight['blockers'])}")
     saved = provider.save_flow(flow_payload)
     return {"data": {**saved, "validation": preflight}}
+
+
+@app.post("/api/flows/import-template")
+async def import_flow_template(request: Request, payload: FlowImportRequest):
+    """Convert n8n/Make workflow JSON into preview-ready AIO flow draft. No DB writes, no execution."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can import flow templates.")
+    from flow_importer import parse_external_template, normalize_to_aio_flow
+    parsed = parse_external_template(payload.source, payload.templateJson)
+    result = normalize_to_aio_flow(parsed)
+    return result
 
 
 @app.post("/api/flows/{flow_id}/trigger/manual")
@@ -5084,6 +5117,7 @@ async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowMan
         context=flow_context,
         actor=user,
         tenant=tenant,
+        run_id=payload.runId,
     )
     return {"data": {**result, "validation": preflight}}
 
@@ -6918,6 +6952,49 @@ async def test_payment_provider_config(config_id: str, request: Request):
     if not config:
         raise HTTPException(status_code=404, detail="Payment provider config not found")
     return {"result": {"success": True, "message": "Payment provider routed (Simulation)."}, "data": config}
+
+
+# --- Social Network Provider Config APIs ---
+
+class SocialProviderUpsertRequest(BaseModel):
+    label: str | None = None
+    enabled: bool = False
+    config: dict[str, Any] | None = None
+
+
+@app.get("/api/social-networks/providers")
+async def list_social_provider_configs(request: Request):
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view social network providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return {"data": auth_store.list_social_provider_configs(token, tenant_id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.put("/api/social-networks/providers/{provider_key}")
+async def upsert_social_provider_config(provider_key: str, request: Request, payload: SocialProviderUpsertRequest):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage social network providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        config = auth_store.upsert_social_provider_config(token, tenant_id, provider_key, payload.model_dump())
+        return {"data": config}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/api/social-networks/providers/{config_id}")
+async def delete_social_provider_config(config_id: str, request: Request):
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete social network providers.")
+    token = extract_session_token(request)
+    tenant_id = (session.get("tenant") or {}).get("id")
+    try:
+        return auth_store.delete_social_provider_config(token, tenant_id, config_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
 
 class NotificationCreateRequest(BaseModel):
     type: str

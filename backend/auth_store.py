@@ -248,6 +248,19 @@ class AuthStore:
                     UNIQUE(tenantId, providerKey)
                 );
 
+                CREATE TABLE IF NOT EXISTS social_provider_configs (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    providerKey TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'disconnected',
+                    configJson TEXT,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, providerKey)
+                );
+
                 CREATE TABLE IF NOT EXISTS media_provider_configs (
                     id TEXT PRIMARY KEY,
                     tenantId TEXT NOT NULL,
@@ -3978,6 +3991,103 @@ class AuthStore:
             if not row:
                 raise ValueError("Payment provider config not found.")
             conn.execute("DELETE FROM payment_provider_configs WHERE id = ?", (config_id,))
+            conn.commit()
+        return {"deletedId": config_id, "providerKey": row["providerKey"]}
+
+    # --- Social Network Provider Configs ---
+    @staticmethod
+    def _social_provider_record(row: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
+        record = dict(row)
+        try:
+            config = json.loads(record.get("configJson") or "{}")
+        except Exception:
+            config = {}
+        result = {
+            "id": record.get("id"),
+            "tenantId": record.get("tenantId"),
+            "providerKey": record.get("providerKey"),
+            "label": record.get("label"),
+            "enabled": bool(record.get("enabled")),
+            "status": record.get("status"),
+            "config": config,
+            "createdAt": record.get("createdAt"),
+            "updatedAt": record.get("updatedAt"),
+        }
+        if not include_secret:
+            if "config" in result and isinstance(result["config"], dict):
+                for secret_field in ("streamKey", "apiKey", "secretKey", "webhookSecret"):
+                    if result["config"].get(secret_field):
+                        result["config"][secret_field] = "••••••••"
+        return result
+
+    def list_social_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM social_provider_configs WHERE tenantId = ? ORDER BY updatedAt DESC, createdAt DESC",
+                (tenant_id,),
+            ).fetchall()
+        return [self._social_provider_record(row) for row in rows]
+
+    def list_social_provider_configs(self, token: str | None, tenant_id: str) -> list[dict[str, Any]]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin", "staff", "viewer"})
+        return self.list_social_provider_configs_for_tenant(tenant_id)
+
+    def upsert_social_provider_config(self, token: str | None, tenant_id: str, provider_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        normalized_provider = (provider_key or "").strip().lower()
+        if not normalized_provider:
+            raise ValueError("Provider key is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            existing = conn.execute(
+                "SELECT * FROM social_provider_configs WHERE tenantId = ? AND providerKey = ? LIMIT 1",
+                (tenant_id, normalized_provider),
+            ).fetchone()
+            now = utcnow_iso()
+            label = (payload.get("label") or normalized_provider.replace("-", " ").title()).strip()
+            config = payload.get("config") or {}
+            enabled = 1 if payload.get("enabled") else 0
+            status = (payload.get("status") or (existing["status"] if existing else ("configured" if enabled else "disconnected"))).strip()
+            if existing:
+                conn.execute(
+                    "UPDATE social_provider_configs SET label = ?, enabled = ?, status = ?, configJson = ?, updatedAt = ? WHERE id = ?",
+                    (label, enabled, status, json.dumps(config), now, existing["id"]),
+                )
+                config_id = existing["id"]
+            else:
+                config_id = f"social-provider-{secrets.token_hex(8)}"
+                conn.execute(
+                    "INSERT INTO social_provider_configs (id, tenantId, providerKey, label, enabled, status, configJson, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (config_id, tenant_id, normalized_provider, label, enabled, status, json.dumps(config), now, now),
+                )
+            conn.commit()
+        return next((item for item in self.list_social_provider_configs_for_tenant(tenant_id) if item["id"] == config_id), None)
+
+    def delete_social_provider_config(self, token: str | None, tenant_id: str, config_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            row = conn.execute(
+                "SELECT * FROM social_provider_configs WHERE id = ? AND tenantId = ? LIMIT 1",
+                (config_id, tenant_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Social provider config not found.")
+            conn.execute("DELETE FROM social_provider_configs WHERE id = ?", (config_id,))
             conn.commit()
         return {"deletedId": config_id, "providerKey": row["providerKey"]}
 

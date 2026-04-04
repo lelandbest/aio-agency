@@ -17,8 +17,8 @@ export const templates = [
       { id: 'crm-update', type: 'action', data: { label: 'Update CRM', iconName: 'Database' }, position: { x: 700, y: 200 } }
     ],
     edges: [
-      { id: 'e1-2', source: 'trigger', target: 'ai-qualifier', animated: true },
-      { id: 'e2-3', source: 'ai-qualifier', target: 'crm-update', animated: true }
+      { id: 'e1-2', source: 'trigger', target: 'ai-qualifier', animated: false },
+      { id: 'e2-3', source: 'ai-qualifier', target: 'crm-update', animated: false }
     ],
     placeholders: ['{{agent_prompt}}', '{{contact_phone}}']
   },
@@ -35,8 +35,8 @@ export const templates = [
       { id: 'sms', type: 'action', data: { label: 'Send SMS', iconName: 'MessageSquare' }, position: { x: 700, y: 200 } }
     ],
     edges: [
-      { id: 'e1-2', source: 'trigger', target: 'wait', animated: true },
-      { id: 'e2-3', source: 'wait', target: 'sms', animated: true }
+      { id: 'e1-2', source: 'trigger', target: 'wait', animated: false },
+      { id: 'e2-3', source: 'wait', target: 'sms', animated: false }
     ],
     placeholders: ['{{customer_name}}', '{{checkout_url}}']
   },
@@ -52,7 +52,7 @@ export const templates = [
       { id: 'alert', type: 'action', data: { label: 'Send Alert', iconName: 'Bell' }, position: { x: 400, y: 200 } }
     ],
     edges: [
-      { id: 'e1-2', source: 'trigger', target: 'alert', animated: true }
+      { id: 'e1-2', source: 'trigger', target: 'alert', animated: false }
     ],
     placeholders: ['{{webhook_url}}', '{{alert_channel}}']
   },
@@ -167,11 +167,11 @@ export const templates = [
       }
     ],
     edges: [
-      { id: 'podcast-e1', source: 'podcast-trigger', target: 'podcast-script', animated: true },
-      { id: 'podcast-e2', source: 'podcast-script', target: 'podcast-tts', animated: true },
-      { id: 'podcast-e3', source: 'podcast-tts', target: 'podcast-thumbnail', animated: true },
-      { id: 'podcast-e4', source: 'podcast-thumbnail', target: 'podcast-video', animated: true },
-      { id: 'podcast-e5', source: 'podcast-video', target: 'podcast-publish', animated: true }
+      { id: 'podcast-e1', source: 'podcast-trigger', target: 'podcast-script', animated: false },
+      { id: 'podcast-e2', source: 'podcast-script', target: 'podcast-tts', animated: false },
+      { id: 'podcast-e3', source: 'podcast-tts', target: 'podcast-thumbnail', animated: false },
+      { id: 'podcast-e4', source: 'podcast-thumbnail', target: 'podcast-video', animated: false },
+      { id: 'podcast-e5', source: 'podcast-video', target: 'podcast-publish', animated: false }
     ],
     placeholders: []
   },
@@ -243,8 +243,8 @@ export const templates = [
       },
     ],
     edges: [
-      { id: 'no-e1', source: 'podcast-intake-trigger', target: 'generate-run-of-show', animated: true },
-      { id: 'no-e2', source: 'generate-run-of-show', target: 'generate-youtube-desc', animated: true },
+      { id: 'no-e1', source: 'podcast-intake-trigger', target: 'generate-run-of-show', animated: false },
+      { id: 'no-e2', source: 'generate-run-of-show', target: 'generate-youtube-desc', animated: false },
     ],
     placeholders: ['{{formData.episodeTitle}}', '{{formData.episodeTopic}}', '{{formData.sourceNotes}}', '{{formData.sourceLinks}}'],
   },
@@ -345,9 +345,9 @@ export const templates = [
       },
     ],
     edges: [
-      { id: 'aio-e1', source: 'aio-podcast-intake-trigger', target: 'resolve-brand-dna', animated: true },
-      { id: 'aio-e2', source: 'resolve-brand-dna', target: 'aio-generate-script', animated: true },
-      { id: 'aio-e3', source: 'aio-generate-script', target: 'aio-generate-youtube-desc', animated: true },
+      { id: 'aio-e1', source: 'aio-podcast-intake-trigger', target: 'resolve-brand-dna', animated: false },
+      { id: 'aio-e2', source: 'resolve-brand-dna', target: 'aio-generate-script', animated: false },
+      { id: 'aio-e3', source: 'aio-generate-script', target: 'aio-generate-youtube-desc', animated: false },
     ],
     placeholders: ['{{formData.episodeTitle}}', '{{formData.episodeTopic}}', '{{brain.profile.brandVoice}}', '{{brain.profile.mission}}'],
   },
@@ -471,12 +471,12 @@ export const templates = [
       },
     ],
     edges: [
-      { id: 'pb-e1', source: 'postbot-trigger', target: 'curate-article', animated: true },
-      { id: 'pb-e2', source: 'curate-article', target: 'facebook-branch', animated: true },
-      { id: 'pb-e3', source: 'curate-article', target: 'instagram-branch', animated: true },
-      { id: 'pb-e4', source: 'curate-article', target: 'x-branch', animated: true },
-      { id: 'pb-e5', source: 'curate-article', target: 'linkedin-branch', animated: true },
-      { id: 'pb-e6', source: 'curate-article', target: 'youtube-audio-branch', animated: true },
+      { id: 'pb-e1', source: 'postbot-trigger', target: 'curate-article', animated: false },
+      { id: 'pb-e2', source: 'curate-article', target: 'facebook-branch', animated: false },
+      { id: 'pb-e3', source: 'curate-article', target: 'instagram-branch', animated: false },
+      { id: 'pb-e4', source: 'curate-article', target: 'x-branch', animated: false },
+      { id: 'pb-e5', source: 'curate-article', target: 'linkedin-branch', animated: false },
+      { id: 'pb-e6', source: 'curate-article', target: 'youtube-audio-branch', animated: false },
     ],
     placeholders: ['{{formData.articleUrl}}', '{{formData.imageStyle}}', '{{formData.platforms}}', '{{previous.articleSummary}}'],
   }

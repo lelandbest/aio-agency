@@ -65,12 +65,12 @@ export const mutateFlowGraph = (currentNodes, currentEdges, action) => {
         ...connection,
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         type: 'smoothstep',
-        animated: true,
+        animated: false,
         style: {
           stroke: 'var(--color-accent)',
           strokeWidth: 2,
-          strokeDasharray: '6 6',
-          filter: 'drop-shadow(0 0 6px var(--color-accent))',
+          strokeDasharray: '8 6',
+          filter: 'none',
           ...(styleParams?.style || {}),
         },
         markerEnd: {

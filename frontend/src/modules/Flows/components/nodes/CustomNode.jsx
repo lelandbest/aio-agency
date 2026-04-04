@@ -8,6 +8,7 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { getIconComponent } from '../../data/nodeLibrary';
+import { Settings } from 'lucide-react';
 
 const nodeColorTokens = {
   trigger: 'var(--node-trigger)',
@@ -44,6 +45,8 @@ const CustomNode = ({ data, selected, isConnectable }) => {
   
   const glowColor = getGlowColor(data.nodeColor, data.type);
 
+  const isProcessing = Boolean(data.isProcessing);
+
   return (
     <div 
       className="relative flex flex-col items-center transition-all"
@@ -65,9 +68,25 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           ringColor: glowColor.primary,
           boxShadow: isGhost ? 'none' : selected 
             ? `0 0 12px ${glowColor.primary}50, 0 0 24px ${glowColor.secondary}25`
-            : `0 0 8px ${glowColor.primary}25, 0 0 16px ${glowColor.secondary}15`,
+            : isProcessing
+              ? `0 0 16px ${glowColor.primary}80, 0 0 32px ${glowColor.secondary}40`
+              : `0 0 8px ${glowColor.primary}25, 0 0 16px ${glowColor.secondary}15`,
         }}
       >
+        {isProcessing && (
+          <>
+            <div className="pointer-events-none absolute inset-[-6px] rounded-full border border-white/15" />
+            <div className="pointer-events-none absolute inset-[-10px] animate-spin">
+              <div
+                className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 rounded-full border border-black/35 shadow-[0_0_10px_rgba(255,255,255,0.18)]"
+                style={{ backgroundColor: glowColor.primary }}
+              />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-[1.5px]">
+              <Settings className="w-7 h-7 text-white/55 animate-spin" style={{ animationDuration: '2.4s' }} />
+            </div>
+          </>
+        )}
         {/* Left Handle (incoming connection) */}
         <Handle
           type="target"

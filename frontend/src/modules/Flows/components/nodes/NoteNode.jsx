@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { NodeResizer } from '@xyflow/react';
 
 const NoteNode = ({ data, selected }) => {
   const noteColor = data?.color || 'var(--color-bg-secondary)';
@@ -23,7 +22,7 @@ const NoteNode = ({ data, selected }) => {
       <div className="text-xs font-semibold uppercase tracking-wide mb-2">
         {data?.label || 'Note'}
       </div>
-      <div className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">
+      <div className="text-sm whitespace-pre-wrap opacity-90">
         {data?.note || 'Add your note...'}
       </div>
     </div>

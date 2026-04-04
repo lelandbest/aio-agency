@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Flow Builder
  * Main orchestrator for the Flow Builder module
  * Manages canvas, nodes, edges, config, persistence
@@ -30,6 +30,8 @@ import {
   Settings,
   Zap,
   Wand2,
+  Play,
+  Target,
 } from 'lucide-react';
 
 import AIAssistButton from '../../components/AIAssistButton';
@@ -39,6 +41,7 @@ import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
 import TemplateLibraryPanel from './components/TemplateLibraryPanel';
+import TemplateLibraryModal from './components/TemplateLibraryModal';
 import FlowInfoPanel from './components/FlowInfoPanel';
 import VariableMappingModal from './components/VariableMappingModal';
 import AiGeneratorModal from './components/AiGeneratorModal';
@@ -57,6 +60,9 @@ import { ingestFlowSource } from './utils/flowIngestion';
 import { mutateFlowGraph } from './utils/flowMutation';
 import { orchestrateFlowIntent } from './orchestration/alphaFlowOrchestrator';
 import { generateFlowFromIntent } from './utils/flowGenerationService';
+import { createDocumentationNoteNodes, getDefaultNoteStyle } from './utils/documentationNotes';
+import { getStoredCustomTemplates, saveStoredCustomTemplate } from './utils/templateLibraryStore';
+import { TM } from '../../utils/text';
 
 // Node type registry
 const nodeTypes = {
@@ -69,12 +75,100 @@ const nodeTypes = {
   note: NoteNode,
 };
 
+const EDGE_DASH_PATTERN = '8 6';
+
+const createClientRunId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `flow-run-${crypto.randomUUID()}`;
+  }
+  return `flow-run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const getStepNodeId = (step) => {
+  const parameters = step?.parameters && typeof step.parameters === 'object' ? step.parameters : {};
+  const nodeId = parameters.node_id || parameters.nodeId || step?.id;
+  return typeof nodeId === 'string' ? nodeId.trim() : '';
+};
+
+const buildExecutionVisualState = (run) => {
+  const steps = Array.isArray(run?.steps) ? run.steps : [];
+  const runStatus = String(run?.status || '').toLowerCase();
+  const currentNodeId = String(run?.currentNodeId || run?.current_node_id || '').trim();
+  const processingNodeIds = new Set();
+  const activeTargetNodeIds = new Set();
+  const runtimeActive = runStatus === 'executing';
+
+  steps.forEach((step) => {
+    const nodeId = getStepNodeId(step);
+    const stepStatus = String(step?.status || '').toLowerCase();
+    if (!nodeId) return;
+    if (runtimeActive && (stepStatus === 'success' || stepStatus === 'skipped' || stepStatus === 'executing')) {
+      activeTargetNodeIds.add(nodeId);
+    }
+    if (runtimeActive && stepStatus === 'executing') {
+      processingNodeIds.add(nodeId);
+    }
+  });
+
+  if (runtimeActive && currentNodeId) {
+    processingNodeIds.add(currentNodeId);
+    activeTargetNodeIds.add(currentNodeId);
+  }
+
+  return {
+    isRuntimeActive: runtimeActive && activeTargetNodeIds.size > 0,
+    processingNodeIds,
+    activeTargetNodeIds,
+  };
+};
+
+const normalizeEdge = (edge, isActive = false) => ({
+  ...edge,
+  animated: false,
+  className: [edge?.className, 'flow-edge', isActive ? 'flow-edge--active' : 'flow-edge--idle'].filter(Boolean).join(' '),
+  style: {
+    ...(edge?.style || {}),
+    stroke: isActive ? '#34d399' : 'var(--color-accent)',
+    strokeWidth: isActive ? 2.5 : 2,
+    strokeDasharray: EDGE_DASH_PATTERN,
+    filter: 'none',
+  },
+});
+
+const normalizeEdges = (edges, activeTargetNodeIds = new Set(), isRuntimeActive = false) => {
+  if (!edges || !Array.isArray(edges)) return [];
+  return edges.map((edge) => normalizeEdge(edge, isRuntimeActive && activeTargetNodeIds.has(edge.target)));
+};
+
+const getDocumentationNoteSourceId = (noteNode, flowNodeIds = new Set()) => {
+  const explicitSourceId = String(noteNode?.data?.sourceNodeId || '').trim();
+  if (explicitSourceId && flowNodeIds.has(explicitSourceId)) {
+    return explicitSourceId;
+  }
+
+  const noteId = String(noteNode?.id || '');
+  if (!noteId.startsWith('doc-note-')) {
+    return '';
+  }
+
+  for (const flowNodeId of flowNodeIds) {
+    if (noteId.startsWith(`doc-note-${flowNodeId}-`)) {
+      return flowNodeId;
+    }
+  }
+
+  return '';
+};
+
 const layoutNodesLeftToRight = (nodes, edges) => {
   if (!nodes || nodes.length === 0) return nodes;
+  const lockedNodes = nodes.filter((node) => node.type === 'frame' || node.type === 'note');
+  const flowNodes = nodes.filter((node) => node.type !== 'frame' && node.type !== 'note');
+  if (flowNodes.length === 0) return nodes;
 
   const adj = new Map();
   const inDeg = new Map();
-  nodes.forEach((node) => {
+  flowNodes.forEach((node) => {
     adj.set(node.id, []);
     inDeg.set(node.id, 0);
   });
@@ -107,25 +201,25 @@ const layoutNodesLeftToRight = (nodes, edges) => {
 
   let maxDepth = 0;
   depth.forEach((value) => { if (value > maxDepth) maxDepth = value; });
-  nodes.forEach((node, index) => {
+  flowNodes.forEach((node, index) => {
     if (!depth.has(node.id)) {
       depth.set(node.id, maxDepth + 1 + index);
     }
   });
 
   const columns = new Map();
-  nodes.forEach((node) => {
+  flowNodes.forEach((node) => {
     const d = depth.get(node.id) || 0;
     if (!columns.has(d)) columns.set(d, []);
     columns.get(d).push(node);
   });
 
-  const xGap = 260;
-  const yGap = 190;
+  const xGap = 130;
+  const yGap = 95;
   const xOffset = 120;
   const yOffset = 120;
 
-  const nextNodes = nodes.map((node) => ({ ...node }));
+  const nextNodes = flowNodes.map((node) => ({ ...node }));
   const nodeIndex = new Map(nextNodes.map((node) => [node.id, node]));
   Array.from(columns.keys()).sort((a, b) => a - b).forEach((col) => {
     const colNodes = columns.get(col) || [];
@@ -140,7 +234,27 @@ const layoutNodesLeftToRight = (nodes, edges) => {
     });
   });
 
-  return nextNodes;
+  const positionedNodes = new Map(nextNodes.map((node) => [node.id, node]));
+  const flowNodeIds = new Set(nextNodes.map((node) => node.id));
+  lockedNodes.forEach((node) => {
+    const anchoredSourceId = node.type === 'note' ? getDocumentationNoteSourceId(node, flowNodeIds) : '';
+    if (anchoredSourceId) {
+      const anchorNode = positionedNodes.get(anchoredSourceId);
+      const noteWidth = Number(node?.data?.width || node?.style?.width || 228);
+      const nextPosition = {
+        x: (anchorNode?.position?.x || 0) - Math.round((noteWidth - 72) / 2),
+        y: (anchorNode?.position?.y || 0) + 110,
+      };
+      positionedNodes.set(node.id, {
+        ...node,
+        position: nextPosition,
+      });
+      return;
+    }
+    positionedNodes.set(node.id, { ...node });
+  });
+
+  return nodes.map((node) => positionedNodes.get(node.id) || { ...node });
 };
 
 const normalizeRunInspector = (result, meta = {}) => {
@@ -156,6 +270,7 @@ const normalizeRunInspector = (result, meta = {}) => {
     triggerType: meta.triggerType || result.triggerType || 'manualTrigger',
     startedAt: stepStartedAt[0] || meta.startedAt || null,
     finishedAt: stepCompletedAt[stepCompletedAt.length - 1] || meta.finishedAt || null,
+    currentNodeId: result.currentNodeId || result.current_node_id || meta.currentNodeId || null,
     error: result.error || meta.error || null,
     steps: steps.map((step, index) => ({
       id: step?.id || `step-${index + 1}`,
@@ -245,6 +360,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [selectedNode, setSelectedNode] = useState(null);
   const [showNodeConfig, setShowNodeConfig] = useState(false);
   const [showNodeModal, setShowNodeModal] = useState(false);
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [leftPanelTab, setLeftPanelTab] = useState('nodes');
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
@@ -281,6 +397,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState([]);
   const [isRunningFlow, setIsRunningFlow] = useState(false);
+  const [liveExecutionRunId, setLiveExecutionRunId] = useState('');
   const [latestRunDetail, setLatestRunDetail] = useState(null);
   const [compareRunDetail, setCompareRunDetail] = useState(null);
   const [flowRunHistory, setFlowRunHistory] = useState([]);
@@ -289,11 +406,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [historyInspectingRunId, setHistoryInspectingRunId] = useState('');
   const [historyComparingRunId, setHistoryComparingRunId] = useState('');
   const [historyRerunningRunId, setHistoryRerunningRunId] = useState('');
+  const isTemplateDerivedFlow = Boolean(flow?.metadata?.sourceTemplateId || flow?.metadata?.createdFromTemplate);
 
   // Terminal logging helper
   const logToTerminal = useCallback((message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setTerminalLogs(prev => [...prev.slice(-99), { timestamp, message, type }]);
+  }, []);
+
+  useEffect(() => {
+    setCustomTemplates(getStoredCustomTemplates());
   }, []);
 
   const buildFlowAssistText = useCallback((kind, overrides = {}) => {
@@ -472,7 +594,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const createGhostStarterNode = () => ({
     id: 'ghost-starter',
     type: 'trigger',
-    position: { x: typeof window !== 'undefined' ? ((window.innerWidth - 256) / 2) - 36 : 360, y: typeof window !== 'undefined' ? (window.innerHeight / 2) - 100 : 200 },
+    position: { x: 132, y: 360 },
     data: {
       label: 'Add your first ...',
       description: '',
@@ -484,6 +606,20 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     sourcePosition: 'right',
     targetPosition: 'left',
   });
+
+  const getViewportPlacement = useCallback((offset = { x: 0, y: 0 }) => {
+    if (reactFlowWrapper.current && reactFlowInstance) {
+      const rect = reactFlowWrapper.current.getBoundingClientRect();
+      return reactFlowInstance.screenToFlowPosition({
+        x: rect.left + (rect.width / 2) + (offset.x || 0),
+        y: rect.top + (rect.height / 2) + (offset.y || 0),
+      });
+    }
+    return {
+      x: 320 + (offset.x || 0),
+      y: 220 + (offset.y || 0),
+    };
+  }, [reactFlowInstance]);
 
   // Initialize flow on mount
   useEffect(() => {
@@ -540,7 +676,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             // Rule: Ghost logic based ONLY on ingested result length
             if (draftResult.nodes.length > 0) {
               setNodes(layoutNodesLeftToRight(draftResult.nodes, draftResult.edges));
-              setEdges(draftResult.edges);
+              setEdges(normalizeEdges(draftResult.edges));
             } else {
               setNodes([createGhostStarterNode()]);
               setEdges([]);
@@ -555,7 +691,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             // Fallback to initialResult
             if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
               setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
-              setEdges(initialResult.edges);
+              setEdges(normalizeEdges(initialResult.edges));
             } else {
               setNodes([createGhostStarterNode()]);
               setEdges([]);
@@ -565,7 +701,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           // Normal hydration
           if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
             setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
-            setEdges(initialResult.edges);
+            setEdges(normalizeEdges(initialResult.edges));
           } else {
             setNodes([createGhostStarterNode()]);
             setEdges([]);
@@ -600,7 +736,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       });
 
       if (result.validation.blockers.length === 0) {
-        setEdges(result.edges);
+        setEdges(normalizeEdges(result.edges));
         setIsDirty(true);
       } else {
         console.error('Connection blocked by validation:', result.validation.blockers);
@@ -669,7 +805,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
     if (result.validation.blockers.length === 0) {
       setNodes(result.nodes);
-      setEdges(result.edges);
+      setEdges(normalizeEdges(result.edges));
       setSelectedNode(null);
       setIsDirty(true);
     } else {
@@ -814,7 +950,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     if (result.validation.blockers.length === 0) {
       if (result.nodes.length > 0) {
         setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
-        setEdges(result.edges);
+        setEdges(normalizeEdges(result.edges));
       } else {
         setNodes([createGhostStarterNode()]);
         setEdges([]);
@@ -893,7 +1029,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       const sanitized = nds.filter(n => !n.data?.isGhost);
       return [...sanitized, ...result.nodes];
     });
-    setEdges((eds) => [...eds, ...result.edges]);
+    setEdges((eds) => normalizeEdges([...eds, ...result.edges]));
     setIsDirty(true);
 
     setShowMappingModal(false);
@@ -925,6 +1061,60 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
   }, [logToTerminal]);
 
+  const buildPersistableFlow = useCallback(({ asNew = false } = {}) => {
+    if (!flow) return null;
+
+    const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
+    const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
+    const result = validateFlowSpec(spec);
+    setValidationResult(result);
+
+    const now = new Date().toISOString();
+    const resolvedName = String(flow.name || 'Untitled Flow').trim() || 'Untitled Flow';
+    const nextMetadata = {
+      ...(flow.metadata || {}),
+      nodeCount: sanitizedNodes.length,
+    };
+
+    if (asNew) {
+      const originTemplateId = nextMetadata.sourceTemplateId || null;
+      const originTemplateName = nextMetadata.sourceTemplateName || null;
+      const originTemplateCategory = nextMetadata.sourceTemplateCategory || null;
+      delete nextMetadata.sourceTemplateId;
+      delete nextMetadata.sourceTemplateName;
+      delete nextMetadata.sourceTemplateCategory;
+      delete nextMetadata.createdFromTemplate;
+      if (originTemplateId) nextMetadata.originTemplateId = originTemplateId;
+      if (originTemplateName) nextMetadata.originTemplateName = originTemplateName;
+      if (originTemplateCategory) nextMetadata.originTemplateCategory = originTemplateCategory;
+      if (flow.id) nextMetadata.duplicatedFromFlowId = flow.id;
+    }
+
+    return {
+      result,
+      updatedFlow: {
+        ...flow,
+        ...(asNew ? { id: undefined, createdAt: now, status: 'Draft' } : {}),
+        name: asNew ? `${resolvedName} Copy` : resolvedName,
+        nodes: sanitizedNodes,
+        edges: sanitizedEdges,
+        spec,
+        updatedAt: now,
+        lastEditedBy: 'Current User',
+        metadata: nextMetadata,
+      },
+    };
+  }, [flow, getSanitizedGraph]);
+
+  const blockTemplateDerivedSave = useCallback((actionLabel = 'Save') => {
+    const templateName = flow?.metadata?.sourceTemplateName || 'the source template';
+    const message = actionLabel === 'Run'
+      ? `Run blocked. Save ${templateName}-based work as a new flow first.`
+      : `In-place save is locked for ${templateName}-based flows. Use Save As New.`;
+    logToTerminal(message, 'warning');
+    showNotice({ type: 'warning', message });
+  }, [flow?.metadata?.sourceTemplateName, logToTerminal, showNotice]);
+
   useEffect(() => {
     if (!flow) return;
     setValidationResult(collectValidation());
@@ -933,31 +1123,21 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   // Handle save flow
   const handleSaveFlow = useCallback(async () => {
     if (!flow) return;
+    if (isTemplateDerivedFlow) {
+      blockTemplateDerivedSave('Save');
+      return;
+    }
 
-    const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
-    const result = validateFlowSpec(buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges }));
-    setValidationResult(result);
+    const preparedFlow = buildPersistableFlow();
+    if (!preparedFlow) return;
+    const { result, updatedFlow } = preparedFlow;
     if (result.blockers.length > 0) {
       pushValidationToTerminal('Save blocked', result);
+      showNotice({ type: 'error', message: 'Save blocked. Review the validation messages in the terminal.' });
       return;
     }
 
     try {
-      const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
-      const updatedFlow = {
-        ...flow,
-        nodes: sanitizedNodes,
-        edges: sanitizedEdges,
-        spec,
-        status: flow.status,
-        updatedAt: new Date().toISOString(),
-        lastEditedBy: 'Current User',
-        metadata: {
-          ...flow.metadata,
-          nodeCount: sanitizedNodes.length,
-        },
-      };
-
       const savedFlow = await flowRepository.saveFlow(updatedFlow);
       const persistedFlow = savedFlow || updatedFlow;
       setFlow(persistedFlow);
@@ -965,6 +1145,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
       }
       setIsDirty(false);
+      showNotice({ type: 'success', message: `Saved ${persistedFlow?.name || updatedFlow.name}.` });
       if (result.warnings.length > 0) {
         pushValidationToTerminal('Saved with warnings', result);
       } else {
@@ -973,35 +1154,73 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     } catch (error) {
       console.error('Failed to save flow:', error);
       logToTerminal(`Save failed: ${error.message || 'Unknown error.'}`, 'error');
+      showNotice({ type: 'error', message: error.message || 'Save failed.' });
       setTerminalOpen(true);
     }
-  }, [flow, nodes, edges, getSanitizedGraph, logToTerminal, onFlowContextChange, pushValidationToTerminal]);
+  }, [blockTemplateDerivedSave, buildPersistableFlow, flow, isTemplateDerivedFlow, logToTerminal, onFlowContextChange, pushValidationToTerminal, showNotice]);
+
+  const handleSaveAsNewFlow = useCallback(async () => {
+    if (!flow) return;
+
+    const preparedFlow = buildPersistableFlow({ asNew: true });
+    if (!preparedFlow) return;
+    const { result, updatedFlow } = preparedFlow;
+    if (result.blockers.length > 0) {
+      pushValidationToTerminal('Save As New blocked', result);
+      showNotice({ type: 'error', message: 'Save As New blocked. Review the validation messages in the terminal.' });
+      return;
+    }
+
+    try {
+      const savedFlow = await flowRepository.saveFlow(updatedFlow);
+      const persistedFlow = savedFlow || updatedFlow;
+      setFlow(persistedFlow);
+      if (persistedFlow?.id) {
+        onFlowContextChange?.({ flowId: persistedFlow.id, action: null, intent: null });
+      }
+      setIsDirty(false);
+      showNotice({ type: 'success', message: `Saved new flow ${persistedFlow?.name || updatedFlow.name}.` });
+      logToTerminal(`Saved new flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+      if (result.warnings.length > 0) {
+        pushValidationToTerminal('Saved as new with warnings', result);
+      }
+    } catch (error) {
+      console.error('Failed to save flow as new:', error);
+      logToTerminal(`Save As New failed: ${error.message || 'Unknown error.'}`, 'error');
+      showNotice({ type: 'error', message: error.message || 'Save As New failed.' });
+      setTerminalOpen(true);
+    }
+  }, [buildPersistableFlow, flow, logToTerminal, onFlowContextChange, pushValidationToTerminal, showNotice]);
+
+  const handleCreateNewFlow = useCallback(async () => {
+    try {
+      const createdFlow = await flowRepository.createNewFlow();
+      if (createdFlow?.id) {
+        onFlowContextChange?.({ flowId: createdFlow.id, action: null, intent: null });
+      }
+      showNotice({ type: 'success', message: `Opened new flow ${createdFlow?.name || 'Untitled Flow'}.` });
+    } catch (error) {
+      console.error('Failed to create new flow:', error);
+      logToTerminal(`New flow failed: ${error.message || 'Unknown error.'}`, 'error');
+      showNotice({ type: 'error', message: error.message || 'Unable to create a new flow.' });
+    }
+  }, [logToTerminal, onFlowContextChange, showNotice]);
 
   const persistCurrentFlow = useCallback(async ({ silentSuccess = false } = {}) => {
     if (!flow) return null;
-
-    const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
-    const result = validateFlowSpec(buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges }));
-    setValidationResult(result);
-    if (result.blockers.length > 0) {
-      pushValidationToTerminal('Run blocked', result);
+    if (isTemplateDerivedFlow) {
+      blockTemplateDerivedSave('Run');
       return null;
     }
 
-    const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
-    const updatedFlow = {
-      ...flow,
-      nodes: sanitizedNodes,
-      edges: sanitizedEdges,
-      spec,
-      status: flow.status,
-      updatedAt: new Date().toISOString(),
-      lastEditedBy: 'Current User',
-      metadata: {
-        ...flow.metadata,
-        nodeCount: sanitizedNodes.length,
-      },
-    };
+    const preparedFlow = buildPersistableFlow();
+    if (!preparedFlow) return null;
+    const { result, updatedFlow } = preparedFlow;
+    if (result.blockers.length > 0) {
+      pushValidationToTerminal('Run blocked', result);
+      showNotice({ type: 'error', message: 'Run blocked. Review the validation messages in the terminal.' });
+      return null;
+    }
 
     const savedFlow = await flowRepository.saveFlow(updatedFlow);
     const persistedFlow = savedFlow || updatedFlow;
@@ -1015,10 +1234,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         pushValidationToTerminal('Saved with warnings', result);
       } else {
         logToTerminal(`Saved flow ${persistedFlow?.name || updatedFlow.name}.`, 'success');
+        showNotice({ type: 'success', message: `Saved ${persistedFlow?.name || updatedFlow.name}.` });
       }
     }
     return persistedFlow;
-  }, [flow, getSanitizedGraph, logToTerminal, onFlowContextChange, pushValidationToTerminal]);
+  }, [blockTemplateDerivedSave, buildPersistableFlow, flow, isTemplateDerivedFlow, logToTerminal, onFlowContextChange, pushValidationToTerminal, showNotice]);
 
   const logFlowRunResult = useCallback((result) => {
     if (!result) return;
@@ -1094,6 +1314,67 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     loadFlowRunHistory(flow.id);
   }, [flow?.id, loadFlowRunHistory]);
 
+  const resetExecutionVisuals = useCallback(() => {
+    setNodes((currentNodes) => currentNodes.map((node) => ({
+      ...node,
+      data: {
+        ...(node.data || {}),
+        isProcessing: false,
+        isCompleted: false,
+      },
+    })));
+    setEdges((currentEdges) => normalizeEdges(currentEdges));
+  }, [setEdges, setNodes]);
+
+  const applyExecutionVisuals = useCallback((run) => {
+    const executionState = buildExecutionVisualState(run);
+    setNodes((currentNodes) => currentNodes.map((node) => ({
+      ...node,
+      data: {
+        ...(node.data || {}),
+        isProcessing: executionState.processingNodeIds.has(node.id),
+        isCompleted: false,
+      },
+    })));
+    setEdges((currentEdges) => normalizeEdges(currentEdges, executionState.activeTargetNodeIds, executionState.isRuntimeActive));
+  }, [setEdges, setNodes]);
+
+  useEffect(() => {
+    if (!liveExecutionRunId || !isRunningFlow) return undefined;
+
+    let cancelled = false;
+    let timeoutId = null;
+
+    const pollLiveRun = async () => {
+      try {
+        const storedRun = await getAiRunApi(liveExecutionRunId);
+        if (cancelled || !storedRun) return;
+
+        setLatestRunDetail(normalizeRunInspector(storedRun, {
+          triggerType: deriveRunTriggerType(storedRun),
+          startedAt: storedRun.createdAt || storedRun.created_at || null,
+          finishedAt: storedRun.updatedAt || storedRun.updated_at || null,
+          error: deriveRunError(storedRun),
+          currentNodeId: storedRun.currentNodeId || storedRun.current_node_id || null,
+        }));
+        applyExecutionVisuals(storedRun);
+      } catch {
+        // The run may not exist yet on the first poll cycle.
+      } finally {
+        if (!cancelled) {
+          timeoutId = setTimeout(pollLiveRun, 450);
+        }
+      }
+    };
+
+    pollLiveRun();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [applyExecutionVisuals, isRunningFlow, liveExecutionRunId]);
+
   const inspectStoredRun = useCallback(async (historyRun) => {
     if (!historyRun?.id) return;
     setHistoryInspectingRunId(historyRun.id);
@@ -1104,17 +1385,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }
       setLatestRunDetail(normalizeRunInspector(storedRun, {
         triggerType: deriveRunTriggerType(storedRun),
-        startedAt: storedRun.created_at || historyRun.created_at || null,
-        finishedAt: storedRun.updated_at || historyRun.updated_at || null,
+        startedAt: storedRun.createdAt || storedRun.created_at || historyRun.createdAt || historyRun.created_at || null,
+        finishedAt: storedRun.updatedAt || storedRun.updated_at || historyRun.updatedAt || historyRun.updated_at || null,
         error: deriveRunError(storedRun),
+        currentNodeId: storedRun.currentNodeId || storedRun.current_node_id || null,
       }));
+      applyExecutionVisuals(storedRun);
     } catch (error) {
       logToTerminal(`Inspect run failed: ${error.message || 'Unknown error.'}`, 'error');
       setTerminalOpen(true);
     } finally {
       setHistoryInspectingRunId('');
     }
-  }, [logToTerminal]);
+  }, [applyExecutionVisuals, logToTerminal]);
 
   const compareStoredRun = useCallback(async (historyRun) => {
     if (!historyRun?.id) return;
@@ -1130,9 +1413,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }
       setCompareRunDetail(normalizeRunInspector(storedRun, {
         triggerType: deriveRunTriggerType(storedRun),
-        startedAt: storedRun.created_at || historyRun.created_at || null,
-        finishedAt: storedRun.updated_at || historyRun.updated_at || null,
+        startedAt: storedRun.createdAt || storedRun.created_at || historyRun.createdAt || historyRun.created_at || null,
+        finishedAt: storedRun.updatedAt || storedRun.updated_at || historyRun.updatedAt || historyRun.updated_at || null,
         error: deriveRunError(storedRun),
+        currentNodeId: storedRun.currentNodeId || storedRun.current_node_id || null,
       }));
     } catch (error) {
       logToTerminal(`Compare run failed: ${error.message || 'Unknown error.'}`, 'error');
@@ -1146,12 +1430,27 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     if (!flow || isRunningFlow) return;
     setTerminalOpen(true);
     setIsRunningFlow(true);
+    resetExecutionVisuals();
     const runStartedAt = new Date().toISOString();
+    const runId = createClientRunId();
+    setLiveExecutionRunId(runId);
+    setLatestRunDetail(normalizeRunInspector({
+      runId,
+      status: 'executing',
+      steps: [],
+    }, {
+      triggerType: 'manual_trigger',
+      startedAt: runStartedAt,
+      currentNodeId: null,
+    }));
     try {
       const persistedFlow = await persistCurrentFlow({ silentSuccess: true });
       if (!persistedFlow?.id) {
+        resetExecutionVisuals();
+        setLatestRunDetail(null);
         return;
       }
+
       logToTerminal(`Starting manual run for ${persistedFlow.name || 'Untitled Flow'}...`, 'info');
       const result = await triggerFlowManualApi(persistedFlow.id, {
         command: `Manual run for flow ${persistedFlow.name || 'Untitled Flow'}`,
@@ -1159,16 +1458,20 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           flowId: persistedFlow.id,
           flowName: persistedFlow.name || 'Untitled Flow',
         },
+        runId,
       });
       setLatestRunDetail(normalizeRunInspector(result, {
         triggerType: 'manual_trigger',
         startedAt: runStartedAt,
         finishedAt: new Date().toISOString(),
+        currentNodeId: result?.currentNodeId || result?.current_node_id || null,
       }));
       setCompareRunDetail(null);
+      applyExecutionVisuals(result);
       logFlowRunResult(result);
       await loadFlowRunHistory(persistedFlow.id);
     } catch (error) {
+      resetExecutionVisuals();
       setLatestRunDetail(normalizeRunInspector({
         runId: null,
         status: 'failed',
@@ -1183,20 +1486,25 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setCompareRunDetail(null);
       logToTerminal(`Run failed: ${error.message || 'Unknown error.'}`, 'error');
     } finally {
+      setLiveExecutionRunId('');
       setIsRunningFlow(false);
       setTerminalOpen(true);
     }
-  }, [flow, isRunningFlow, loadFlowRunHistory, logFlowRunResult, logToTerminal, persistCurrentFlow]);
+  }, [applyExecutionVisuals, flow, isRunningFlow, loadFlowRunHistory, logFlowRunResult, logToTerminal, persistCurrentFlow, resetExecutionVisuals]);
 
   const rerunStoredRun = useCallback(async (historyRun) => {
     if (!flow || isRunningFlow || !historyRun?.id) return;
     setTerminalOpen(true);
     setIsRunningFlow(true);
     setHistoryRerunningRunId(historyRun.id);
+    resetExecutionVisuals();
     const runStartedAt = new Date().toISOString();
+    const runId = createClientRunId();
+    setLiveExecutionRunId(runId);
     try {
       const persistedFlow = await persistCurrentFlow({ silentSuccess: true });
       if (!persistedFlow?.id) {
+        resetExecutionVisuals();
         return;
       }
       const command = historyRun.command_text || `Rerun for flow ${persistedFlow.name || 'Untitled Flow'}`;
@@ -1204,16 +1512,20 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       const result = await triggerFlowManualApi(persistedFlow.id, {
         command,
         context: buildRerunContext(historyRun, persistedFlow),
+        runId,
       });
       setLatestRunDetail(normalizeRunInspector(result, {
         triggerType: deriveRunTriggerType(historyRun),
         startedAt: runStartedAt,
         finishedAt: new Date().toISOString(),
+        currentNodeId: result?.currentNodeId || result?.current_node_id || null,
       }));
       setCompareRunDetail(null);
+      applyExecutionVisuals(result);
       logFlowRunResult(result);
       await loadFlowRunHistory(persistedFlow.id);
     } catch (error) {
+      resetExecutionVisuals();
       setLatestRunDetail(normalizeRunInspector({
         runId: null,
         status: 'failed',
@@ -1229,10 +1541,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       logToTerminal(`Rerun failed: ${error.message || 'Unknown error.'}`, 'error');
     } finally {
       setHistoryRerunningRunId('');
+      setLiveExecutionRunId('');
       setIsRunningFlow(false);
       setTerminalOpen(true);
     }
-  }, [flow, isRunningFlow, loadFlowRunHistory, logFlowRunResult, logToTerminal, persistCurrentFlow]);
+  }, [applyExecutionVisuals, flow, isRunningFlow, loadFlowRunHistory, logFlowRunResult, logToTerminal, persistCurrentFlow, resetExecutionVisuals]);
 
   const handleSaveAsTemplate = useCallback(() => {
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
@@ -1267,13 +1580,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       placeholders: Array.from(placeholders)
     };
 
-    setCustomTemplates(prev => [newTemplate, ...prev]);
-    showNotice({ type: 'success', message: 'Flow saved as a reusable template!' });
-  }, [flow, getSanitizedGraph]);
+    const nextTemplates = saveStoredCustomTemplate(newTemplate);
+    setCustomTemplates(nextTemplates);
+    showNotice({ type: 'success', message: 'Flow saved as a reusable template.' });
+  }, [flow, getSanitizedGraph, showNotice]);
 
   // Handle toggle flow status
   const handleToggleStatus = useCallback(async () => {
     if (!flow) return;
+    if (isTemplateDerivedFlow) {
+      blockTemplateDerivedSave('Activation');
+      return;
+    }
     if (flow.status === 'Active') {
       setShowDeactivateModal(true);
       return;
@@ -1286,7 +1604,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       pushValidationToTerminal('Activation check', result);
     }
     setShowActivateModal(true);
-  }, [flow, nodes, edges, getSanitizedGraph, pushValidationToTerminal]);
+  }, [blockTemplateDerivedSave, flow, getSanitizedGraph, isTemplateDerivedFlow, pushValidationToTerminal]);
 
   const confirmActivate = useCallback(() => {
     if (!flow) return;
@@ -1382,12 +1700,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         }
         .flow-control-dock {
           position: absolute;
-          right: 20px;
+          left: 20px;
           bottom: 20px;
           z-index: 50;
           display: flex;
           flex-direction: column;
-          align-items: flex-end;
+          align-items: flex-start;
           gap: 12px;
           pointer-events: none;
         }
@@ -1405,10 +1723,35 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         }
         .react-flow__controls.flow-controls-buttons {
           margin: 0 !important;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
           border-radius: 8px !important;
           overflow: hidden !important;
           border: 1px solid var(--color-border) !important;
+          background: var(--color-bg-tertiary) !important;
+        }
+        .react-flow__controls.flow-controls-buttons button {
+          background: var(--color-bg-secondary) !important;
+          border-bottom: 1px solid var(--color-border) !important;
+          color: var(--color-text-primary) !important;
+        }
+        .react-flow__controls.flow-controls-buttons button:hover {
+          background: var(--color-hover) !important;
+        }
+        .react-flow__controls.flow-controls-buttons button svg {
+          stroke: var(--color-text-primary) !important;
+        }
+        .react-flow__edge.flow-edge--idle .react-flow__edge-path,
+        .react-flow__edge.flow-edge--active .react-flow__edge-path {
+          stroke-linecap: round;
+          stroke-dasharray: ${EDGE_DASH_PATTERN};
+        }
+        .react-flow__edge.flow-edge--active .react-flow__edge-path {
+          animation: flow-edge-dash 0.72s linear infinite;
+        }
+        @keyframes flow-edge-dash {
+          to {
+            stroke-dashoffset: -14;
+          }
         }
       `}</style>
 
@@ -1416,9 +1759,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         flowName={flow?.name}
         status={flow?.status}
         onExit={onExit}
+        onCreateNewFlow={handleCreateNewFlow}
         onToggleDetails={() => setRightPanelOpen(!rightPanelOpen)}
         isDetailsOpen={rightPanelOpen}
         onSave={handleSaveFlow}
+        onSaveAsNew={handleSaveAsNewFlow}
+        onBrowseTemplates={() => setShowTemplateLibrary(true)}
       />
 
       {assistError && (
@@ -1437,13 +1783,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
             <button
               onClick={() => setLeftPanelTab('nodes')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Nodes
             </button>
             <button
               onClick={() => setLeftPanelTab('templates')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Templates
             </button>
@@ -1452,9 +1798,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="p-2 border-b border-[var(--color-border)] px-3">
             <button
               onClick={() => setShowAiModal(true)}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg hover:shadow-sky-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="btn-secondary w-full flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest"
             >
-              <Wand2 className="w-3.5 h-3.5" />
+              <Target className="w-3.5 h-3.5 text-sky-400" />
               AI Generate Flow
             </button>
           </div>
@@ -1506,12 +1852,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             proOptions={{ hideAttribution: true }}
             defaultEdgeOptions={{
               type: 'smoothstep',
-              animated: true,
+              animated: false,
               style: {
                 stroke: 'var(--color-accent)',
                 strokeWidth: 2,
-                strokeDasharray: '6 6',
-                filter: 'drop-shadow(0 0 6px var(--color-accent))',
+                strokeDasharray: EDGE_DASH_PATTERN,
+                filter: 'none',
               },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
@@ -1541,13 +1887,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] shrink-0">
             <button 
               onClick={() => setRightPanelTab('details')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Details
             </button>
             <button 
               onClick={() => setRightPanelTab('history')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[var(--color-primary)] text-white shadow-sm' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               History
             </button>
@@ -1564,6 +1910,17 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 showDetails={true}
               />
               <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
+                <div className="rounded-xl border border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.6))] px-4 py-4 text-center shadow-[0_14px_32px_rgba(2,6,23,0.28)]">
+                  <div
+                    className="text-[16px] font-black uppercase tracking-[0.28em] text-slate-100/90"
+                    style={{ fontFamily: '"Ethnocentric", "Inter", sans-serif' }}
+                  >
+                    {`AIO Flows${TM}`}
+                  </div>
+                  <div className="mt-2 text-[8px] font-bold uppercase tracking-[0.28em] text-slate-400">
+                    Builder Workspace
+                  </div>
+                </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-primary)]">MiniMap</span>
                 <div className="w-full overflow-hidden rounded-xl border border-[var(--color-border)]">
                   <MiniMap nodeColor={(node) => {
@@ -1628,22 +1985,34 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       </div>
 
       {/* Floating Toolbar */}
-      <div className="pointer-events-none absolute left-1/2 bottom-4 -translate-x-1/2 z-40">
-        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md border border-[var(--color-border)]/50 rounded-xl px-2 py-1.5 shadow-island-sm">
+      <div className="pointer-events-none absolute left-1/2 bottom-4 -translate-x-1/2 z-40 w-[min(calc(100%-2rem),fit-content)]">
+        <div className="pointer-events-auto flex w-full flex-nowrap items-center justify-center gap-1.5 overflow-x-auto crm-scroll-hidden bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md border border-[var(--color-border)]/50 rounded-xl px-2 py-1.5 shadow-island-sm">
           <button
             type="button"
             onClick={handleRunFlow}
             disabled={isRunningFlow}
-            className={`btn-primary-skeuo h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2 ${isRunningFlow ? 'opacity-60 cursor-wait' : ''}`}
+            className={`h-8 px-4 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2 transition-all shadow-lg ${isRunningFlow ? 'opacity-60 cursor-wait' : 'hover:brightness-110'}`}
+            style={{
+              background: isRunningFlow
+                ? 'linear-gradient(180deg, #059669 0%, #047857 100%)'
+                : 'linear-gradient(180deg, #10b981 0%, #059669 100%)',
+              border: '1px solid rgba(0,0,0,0.8)',
+              borderTop: '1px solid rgba(255,255,255,0.25)',
+              borderBottom: '2px solid rgba(0,0,0,0.9)',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.15), 0 0 12px rgba(16,185,129,0.3)',
+              color: '#fff',
+            }}
           >
+            <Play className="w-3.5 h-3.5" />
             {isRunningFlow ? 'Running...' : 'Run Flow'}
           </button>
 
           <button
             type="button"
             onClick={handleSaveFlow}
-            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight flex items-center gap-2 whitespace-nowrap"
           >
+            <Save className="w-3.5 h-3.5 text-sky-400" />
             Save
           </button>
 
@@ -1651,7 +2020,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             <button
               type="button"
               onClick={() => flow?.id && onSelectForAgents(flow)}
-              className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight text-[var(--color-primary)]"
+              className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight text-[var(--color-primary)] whitespace-nowrap"
             >
               Use In Agents
             </button>
@@ -1676,36 +2045,36 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
           <div className="w-[1px] h-4 bg-[var(--color-border)]/50 mx-1" />
 
-          <button
-            type="button"
-            onClick={() => {
-              openNodeLibrary();
-            }}
-            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
+            <button
+              type="button"
+              onClick={() => {
+                openNodeLibrary();
+              }}
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Add Node
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setLeftPanelOpen(true);
-              setLeftPanelTab('templates');
-            }}
-            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
+            <button
+              type="button"
+              onClick={() => {
+                setLeftPanelOpen(true);
+                setLeftPanelTab('templates');
+              }}
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Templates
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
-              if (result.validation.blockers.length === 0) {
-                setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
-              }
-            }}
-            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
+            <button
+              type="button"
+              onClick={() => {
+                const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
+                if (result.validation.blockers.length === 0) {
+                  setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
+                }
+              }}
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Align Nodes
           </button>
@@ -1713,7 +2082,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <button
             type="button"
             onClick={() => setShowNoteModal(true)}
-            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight"
+            className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Add Note
           </button>
@@ -3054,7 +3423,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 });
                 if (result.validation.blockers.length === 0) {
                   setNodes(result.nodes);
-                  setEdges(result.edges);
+                  setEdges(normalizeEdges(result.edges));
                 }
                 setNodeMenu(null);
               }}
@@ -3111,7 +3480,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               </button>
               <button
                 onClick={() => {
-                  const position = reactFlowInstance?.screenToFlowPosition({ x: 260, y: 220 }) || { x: 260, y: 220 };
+                  const noteStyle = getDefaultNoteStyle();
+                  const position = getViewportPlacement({ x: 0, y: 80 });
 
                   // Rule: Use mutateFlowGraph for runtime additions
                   const result = mutateFlowGraph(nodes, edges, {
@@ -3124,8 +3494,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                           label: noteDraft.label,
                           note: noteDraft.note,
                           color: noteDraft.color,
+                          borderColor: noteStyle.borderColor,
+                          textColor: noteStyle.textColor,
+                          width: noteStyle.width,
+                          height: noteStyle.height,
                         },
-                        style: { zIndex: -1, width: 280, height: 160 },
+                        style: { zIndex: -1, width: noteStyle.width, height: noteStyle.height },
                       },
                       position
                     }
@@ -3133,6 +3507,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
                   if (result.validation.blockers.length === 0) {
                     setNodes(result.nodes);
+                    setIsDirty(true);
                     setShowNoteModal(false);
                   }
                 }}
@@ -3301,7 +3676,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   });
 
                   if (result.validation.blockers.length === 0) {
-                    setEdges(result.edges);
+                    setEdges(normalizeEdges(result.edges));
                     setEdgeFilterModal(null);
                   } else {
                     console.error('Edge filter update blocked by validation:', result.validation.blockers);
@@ -3345,7 +3720,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 onClick={() => setTerminalOpen(false)}
                 className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
               >
-                ×
+                x
               </button>
             </div>
           </div>
@@ -3416,13 +3791,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
           // Generate simple linear edges
           for (let i = 0; i < nodes.length - 1; i++) {
-            edges.push({ id: `e${i}-${i + 1}`, source: nodes[i].id, target: nodes[i + 1].id, animated: true });
+            edges.push({ id: `e${i}-${i + 1}`, source: nodes[i].id, target: nodes[i + 1].id, animated: false });
           }
+
+          const documentationNotes = createDocumentationNoteNodes(nodes);
 
           const aiTemplate = {
             id: 'ai-gen',
             name: 'AI Generated Flow',
-            nodes,
+            nodes: [...nodes, ...documentationNotes],
             edges,
             placeholders: []
           };
@@ -3430,12 +3807,23 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           // Rule: Strict gating for AI-generated flows
           const result = ingestFlowSource(aiTemplate, { source: 'ai' });
           if (result.validation.blockers.length === 0) {
-            setNodes(result.nodes);
-            setEdges(result.edges);
+            setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
+            setEdges(normalizeEdges(result.edges));
             setShowAiModal(false);
           } else {
             console.error('AI Flow ingestion blocked by validation:', result.validation.blockers);
           }
+        }}
+      />
+
+      {/* Template Library Modal */}
+      <TemplateLibraryModal
+        isOpen={showTemplateLibrary}
+        onClose={() => setShowTemplateLibrary(false)}
+        customTemplates={customTemplates}
+        onSelectTemplate={(template) => {
+          setShowTemplateLibrary(false);
+          applyTemplate(template);
         }}
       />
     </div>

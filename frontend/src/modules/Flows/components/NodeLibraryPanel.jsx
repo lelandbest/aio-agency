@@ -12,7 +12,7 @@ import { nodeLibrary, getIconComponent, triggerNodes } from '../data/nodeLibrary
 const NodeLibraryPanel = ({ embedded = false, openOnlyCategory = null, onAddNode = null, onAddNodeAtViewport = null }) => {
   const [expandedCategories, setExpandedCategories] = useState(
     Object.keys(nodeLibrary).reduce((acc, category) => {
-      acc[category] = category === 'Webhook/API' || category === 'AI Agents';
+      acc[category] = category === 'Webhook/API';
       return acc;
     }, {})
   );
@@ -95,6 +95,8 @@ const NodeLibraryPanel = ({ embedded = false, openOnlyCategory = null, onAddNode
     );
   };
 
+  const [triggersExpanded, setTriggersExpanded] = useState(false);
+
   return (
     <div className={`${embedded ? 'w-full border-none' : 'w-64 border-r'} bg-[var(--color-bg-primary)] border-[var(--color-border)] overflow-y-auto flex-shrink-0 flex flex-col`}>
       {!embedded && (
@@ -112,12 +114,25 @@ const NodeLibraryPanel = ({ embedded = false, openOnlyCategory = null, onAddNode
         <div className="p-2 space-y-1">
           {!openOnlyCategory && triggers.length > 0 && (
             <div className="mb-2">
-              <div className="px-2 py-1.5 text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
-                Triggers
-              </div>
-              <div className="space-y-1 mt-1">
-                {triggers.map(renderNodeCard)}
-              </div>
+              <button
+                onClick={() => setTriggersExpanded(!triggersExpanded)}
+                className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-[var(--color-hover)] transition-colors"
+              >
+                <span className="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                  Triggers ({triggers.length})
+                </span>
+                {triggersExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+                )}
+              </button>
+
+              {triggersExpanded && (
+                <div className="space-y-1 mt-1 ml-1">
+                  {triggers.map(renderNodeCard)}
+                </div>
+              )}
             </div>
           )}
 

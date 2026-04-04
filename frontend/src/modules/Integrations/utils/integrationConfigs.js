@@ -20,6 +20,7 @@ export const INTEGRATION_CATEGORIES = {
   PAYMENTS: 'payments',
   MEDIA: 'media',
   PROPOSALS: 'proposals',
+  SOCIAL_NETWORKS: 'social-networks',
 };
 
 export const integrationConfigs = {
@@ -572,6 +573,108 @@ export const integrationConfigs = {
           { name: 'apiKey', label: 'API Key', type: 'password', required: true },
           { name: 'apiSecret', label: 'API Secret', type: 'password', required: true },
         ],
+        logo: null,
+      },
+    ]
+  },
+  [INTEGRATION_CATEGORIES.SOCIAL_NETWORKS]: {
+    id: INTEGRATION_CATEGORIES.SOCIAL_NETWORKS,
+    name: 'Social Networks',
+    icon: 'share',
+    description: 'Connect destinations for asset distribution and publishing.',
+    providers: [
+      {
+        id: 'youtube',
+        name: 'YouTube',
+        icon: 'youtube',
+        description: 'Publish videos to YouTube. OAuth connection required.',
+        fields: [
+          { name: 'channelId', label: 'Channel ID', type: 'text', required: false, placeholder: 'UC...' },
+          { name: 'privacyDefault', label: 'Default Privacy', type: 'select', options: ['private', 'unlisted', 'public'], default: 'private' },
+          { name: 'category', label: 'Default Category', type: 'text', required: false, placeholder: 'Science & Technology' },
+        ],
+        status: 'needsConfig',
+        logo: null,
+      },
+      {
+        id: 'facebook',
+        name: 'Facebook',
+        icon: 'facebook',
+        description: 'Publish posts and media to Facebook Pages. OAuth connection required.',
+        fields: [
+          { name: 'pageId', label: 'Page ID', type: 'text', required: false, placeholder: 'Page ID or URL' },
+        ],
+        status: 'needsConfig',
+        logo: null,
+      },
+      {
+        id: 'linkedin',
+        name: 'LinkedIn',
+        icon: 'linkedin',
+        description: 'Publish posts to LinkedIn profiles and organizations. OAuth connection required.',
+        fields: [
+          { name: 'profileType', label: 'Profile Type', type: 'select', options: ['personal', 'organization'], default: 'personal' },
+          { name: 'organizationId', label: 'Organization URN', type: 'text', required: false, placeholder: 'urn:li:organization:...' },
+        ],
+        status: 'needsConfig',
+        logo: null,
+      },
+      {
+        id: 'tiktok',
+        name: 'TikTok',
+        icon: 'tiktok',
+        description: 'Publish videos to TikTok. OAuth connection required.',
+        fields: [
+          { name: 'accountId', label: 'Account ID', type: 'text', required: false, placeholder: 'TikTok account identifier' },
+          { name: 'privacyDefault', label: 'Default Privacy', type: 'select', options: ['SELF_ONLY', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'PUBLIC_TO_EVERYONE'], default: 'SELF_ONLY' },
+        ],
+        status: 'needsConfig',
+        logo: null,
+      },
+      {
+        id: 'x',
+        name: 'X',
+        icon: 'twitter',
+        description: 'Publish posts to X (formerly Twitter). API authentication required.',
+        fields: [
+          { name: 'handle', label: 'Handle', type: 'text', required: false, placeholder: '@handle' },
+        ],
+        status: 'needsConfig',
+        logo: null,
+      },
+      {
+        id: 'custom-rtmp',
+        name: 'Custom RTMP',
+        icon: 'broadcast',
+        description: 'Custom RTMP destinations for encoder/ffmpeg-based delivery. Supports future Relay distribution workflows.',
+        fields: [
+          { name: 'label', label: 'Destination Label', type: 'text', required: true, placeholder: 'e.g. Main Stream, Backup' },
+          { name: 'rtmpUrl', label: 'RTMP URL', type: 'text', required: true, placeholder: 'rtmp://live.example.com/app' },
+          { name: 'streamKey', label: 'Stream Key', type: 'password', required: true, placeholder: 'sk-...' },
+          { name: 'backupUrl', label: 'Backup URL (optional)', type: 'text', required: false, placeholder: 'rtmp://backup.example.com/app' },
+          { name: 'notes', label: 'Notes', type: 'textarea', required: false, placeholder: 'Purpose, schedule, or operational notes.' },
+        ],
+        status: 'needsConfig',
+        logo: null,
+      },
+      {
+        id: 'instagram',
+        name: 'Instagram',
+        icon: 'instagram',
+        description: 'Publish to Instagram. Not yet active.',
+        fields: [],
+        status: 'notConnected',
+        stub: true,
+        logo: null,
+      },
+      {
+        id: 'pinterest',
+        name: 'Pinterest',
+        icon: 'pinterest',
+        description: 'Publish to Pinterest. Not yet active.',
+        fields: [],
+        status: 'notConnected',
+        stub: true,
         logo: null,
       },
     ]

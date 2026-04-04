@@ -1797,9 +1797,65 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
                   </p>
                 )}
               </div>
-            </div>
+              </div>
 
-            <div className="grid grid-cols-3 gap-2 border-t border-[var(--color-border)] pt-3">
+              {/* Client Brand Profile */}
+              <div className="border-t border-[var(--color-border)] pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Client Brand Profile</label>
+                  {isEditingContact && (
+                    <button
+                      onClick={() => handleFieldChange('brandProfile', currentContact.brandProfile ? null : { enabled: true, brandName: currentContact.company || '', brandVoice: '', valueProp: '', differentiation: '', idealCustomer: '', painPoints: '', marketingStrategy: '', toneDirectives: '', notes: '' })}
+                      className="text-[9px] font-bold text-[var(--color-primary)] hover:underline"
+                    >
+                      {currentContact.brandProfile ? 'Remove' : 'Add Profile'}
+                    </button>
+                  )}
+                </div>
+                {currentContact.brandProfile ? (
+                  <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3">
+                    {isEditingContact ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-bold text-[var(--color-text-tertiary)] uppercase">Enabled</span>
+                          <button
+                            onClick={() => handleFieldChange('brandProfile', { ...currentContact.brandProfile, enabled: !currentContact.brandProfile.enabled })}
+                            className={`w-8 h-4 rounded-full transition-all ${currentContact.brandProfile.enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'}`}
+                          >
+                            <div className={`w-3 h-3 rounded-full bg-white transition-all mt-0.5 ${currentContact.brandProfile.enabled ? 'ml-4' : 'ml-0.5'}`} />
+                          </button>
+                        </div>
+                        {['brandName', 'brandVoice', 'valueProp', 'differentiation', 'idealCustomer', 'painPoints', 'marketingStrategy', 'toneDirectives', 'notes'].map(field => (
+                          <div key={field}>
+                            <label className="text-[8px] font-bold uppercase tracking-widest text-[var(--color-text-tertiary)]">{field.replace(/([A-Z])/g, ' $1').trim()}</label>
+                            <textarea
+                              value={currentContact.brandProfile[field] || ''}
+                              onChange={(e) => handleFieldChange('brandProfile', { ...currentContact.brandProfile, [field]: e.target.value })}
+                              className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none resize-none"
+                              rows={field === 'brandVoice' ? 3 : 1}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${currentContact.brandProfile.enabled ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                          <span className="text-xs font-semibold text-[var(--color-text-primary)]">{currentContact.brandProfile.brandName || 'Unnamed Brand'}</span>
+                          <span className="text-[9px] text-[var(--color-text-tertiary)]">({currentContact.brandProfile.enabled ? 'Active' : 'Disabled'})</span>
+                        </div>
+                        {currentContact.brandProfile.brandVoice && (
+                          <p className="text-[10px] text-[var(--color-text-secondary)] italic line-clamp-2">"{currentContact.brandProfile.brandVoice.slice(0, 120)}..."</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-[var(--color-text-tertiary)] italic">No brand profile configured. Enable to set client-specific brand voice.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 border-t border-[var(--color-border)] pt-3">
               <div className={innerPanelClass + ' p-3'}>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Meetings</div>
                 <div className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{meetingActivities.length}</div>

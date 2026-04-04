@@ -77,18 +77,18 @@ const FlowInfoPanel = ({
                       </div>
                     </div>
                   ) : (
-                    <h1 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{flow.name}</h1>
+                    <div className="flex items-center gap-1.5">
+                      <h1 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{flow.name}</h1>
+                      <button onClick={() => setIsEditingName(true)} className="p-1 hover:bg-[var(--color-hover)] rounded transition-all flex-shrink-0">
+                        <Edit2 className="w-3 h-3 text-[var(--color-text-tertiary)]" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 {!isEditingName && (
-                  <div className="flex-shrink-0 flex items-end gap-3">
-                    <div className="text-right">
-                      <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide font-bold">Total Nodes</p>
-                      <p className="text-lg font-black text-[var(--color-text-primary)] leading-none">{flow.nodes?.length || 0}</p>
-                    </div>
-                    <button onClick={() => setIsEditingName(true)} className="p-1.5 hover:bg-[var(--color-hover)] rounded-lg transition-all flex-shrink-0">
-                      <Edit2 className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
-                    </button>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide font-bold">Total Nodes</p>
+                    <p className="text-lg font-black text-[var(--color-text-primary)] leading-none">{flow.nodes?.length || 0}</p>
                   </div>
                 )}
               </div>

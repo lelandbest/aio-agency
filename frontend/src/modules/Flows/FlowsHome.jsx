@@ -6,8 +6,9 @@ import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
-import TemplateGallery from './components/TemplateGallery';
+import TemplateLibraryModal from './components/TemplateLibraryModal';
 import flowRepository from './utils/flowRepository';
+import { getStoredCustomTemplates } from './utils/templateLibraryStore';
 import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi } from '../../services/backendApi';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
@@ -56,6 +57,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   const [renameValue, setRenameValue] = useState('');
   const [selectedFlowIds, setSelectedFlowIds] = useState([]);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState([]);
   const [busyAction, setBusyAction] = useState('');
   const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
   const [savedFlowsExpanded, setSavedFlowsExpanded] = useState(true);
@@ -82,6 +84,16 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   useEffect(() => {
     loadFlows();
   }, [loadFlows]);
+
+  useEffect(() => {
+    setCustomTemplates(getStoredCustomTemplates());
+  }, []);
+
+  useEffect(() => {
+    if (showTemplateGallery) {
+      setCustomTemplates(getStoredCustomTemplates());
+    }
+  }, [showTemplateGallery]);
 
   const totalTemplatesUsed = useMemo(
     () => flows.filter((flow) => Boolean(flow?.metadata?.sourceTemplateId)).length,
@@ -254,7 +266,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               <button
                 type="button"
                 onClick={() => saveRename(flow)}
-                className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+                className="btn-toolbar-lead !px-3 !py-2 !text-xs"
               >
                 Save
               </button>
@@ -376,7 +388,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               <button
                 type="button"
                 onClick={() => onOpenFlow?.(flow)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+                className="btn-toolbar-lead !px-3 !py-2 !text-xs inline-flex items-center gap-2"
               >
                 Open
                 <ArrowRight size={14} />
@@ -482,7 +494,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
                   <div className="min-w-0">
                     <div className="truncate font-medium">{flow.name || 'Untitled Flow'}</div>
                     <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                      {(flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0)} nodes • {flow.status || 'Draft'}
+                      {(flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0)} nodes | {flow.status || 'Draft'}
                     </div>
                   </div>
                 </button>
@@ -541,9 +553,11 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       </div>
 
       {showTemplateGallery && (
-        <TemplateGallery
+        <TemplateLibraryModal
+          isOpen={showTemplateGallery}
           onClose={() => setShowTemplateGallery(false)}
           onSelectTemplate={handleCreateFromTemplate}
+          customTemplates={customTemplates}
         />
       )}
       <SystemConfirmModal

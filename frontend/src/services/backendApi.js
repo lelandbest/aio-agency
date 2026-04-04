@@ -1178,6 +1178,19 @@ export async function getCompaniesApi() {
   return response.data || [];
 }
 
+export async function getCompanyApi(companyId) {
+  const response = await request(`/api/companies/${encodeURIComponent(companyId)}`);
+  return response.data || null;
+}
+
+export async function updateCompanyApi(companyId, payload) {
+  const response = await request(`/api/companies/${encodeURIComponent(companyId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
 export async function getCalendarsApi() {
   const response = await request('/api/calendars');
   return response.data || [];
@@ -1655,6 +1668,27 @@ export async function testPaymentProviderConfigApi(configId) {
     method: 'POST'
   });
   return response.data;
+}
+
+// --- Social Network Provider APIs ---
+
+export async function getSocialProviderConfigsApi() {
+  const response = await request('/api/social-networks/providers');
+  return response.data || [];
+}
+
+export async function upsertSocialProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/social-networks/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function deleteSocialProviderConfigApi(configId) {
+  return request(`/api/social-networks/providers/${encodeURIComponent(configId)}`, {
+    method: 'DELETE'
+  });
 }
 
 // --- Help Desk APIs ---

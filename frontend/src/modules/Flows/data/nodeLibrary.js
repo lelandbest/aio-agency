@@ -735,7 +735,12 @@ export const createNode = (nodeTemplate, position) => {
     logic: 'Logic',
     webhook: 'Webhook',
     socket: 'Socket',
+    note: 'Note',
+    frame: 'Frame',
   };
+
+  const templateData = (nodeTemplate.data && typeof nodeTemplate.data === 'object') ? nodeTemplate.data : {};
+  const templateStyle = (nodeTemplate.style && typeof nodeTemplate.style === 'object') ? nodeTemplate.style : {};
 
   return {
     id: nodeId,
@@ -744,18 +749,23 @@ export const createNode = (nodeTemplate, position) => {
     sourcePosition: 'right',
     targetPosition: 'left',
     data: {
+      ...templateData,
       templateId: nodeTemplate.id,
-      label: nodeTemplate.label,
-      description: nodeTemplate.description,
-      typeLabel: typeLabelMap[nodeTemplate.type] || 'Node',
-      nodeColor: nodeTemplate.nodeColor || 'action',
-      iconName: nodeTemplate.iconName || 'Play',
+      label: templateData.label || nodeTemplate.label,
+      description: templateData.description || nodeTemplate.description,
+      typeLabel: templateData.typeLabel || typeLabelMap[nodeTemplate.type] || 'Node',
+      nodeColor: templateData.nodeColor || nodeTemplate.nodeColor || 'action',
+      iconName: templateData.iconName || nodeTemplate.iconName || 'Play',
       isSocket: nodeTemplate.isSocket || false,
+      ...(templateStyle.width ? { width: templateData.width || templateStyle.width } : {}),
+      ...(templateStyle.height ? { height: templateData.height || templateStyle.height } : {}),
       config: {
         ...(nodeTemplate.event ? { event: nodeTemplate.event } : {}),
         ...(nodeTemplate.actionType ? { actionType: nodeTemplate.actionType } : {}),
+        ...((templateData.config && typeof templateData.config === 'object') ? templateData.config : {}),
         ...((nodeTemplate.config && typeof nodeTemplate.config === 'object') ? nodeTemplate.config : {}),
       },
     },
+    ...(Object.keys(templateStyle).length > 0 ? { style: templateStyle } : {}),
   };
 };

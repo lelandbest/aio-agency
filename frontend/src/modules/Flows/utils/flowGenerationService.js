@@ -6,6 +6,7 @@
 import { generateULID } from './ulid';
 import { createNode } from '../data/nodeLibrary';
 import flowDraftRepository from './flowDraftRepository';
+import { createDocumentationNoteNodes } from './documentationNotes';
 
 const NODE_TEMPLATES = {
   // Triggers
@@ -39,16 +40,16 @@ export const generateFlowFromIntent = async (alphaPlan) => {
 
   // Trigger Node
   const triggerTemplate = NODE_TEMPLATES[trigger] || NODE_TEMPLATES['manual-trigger'];
-  const triggerNode = createNode(triggerTemplate, { x: 100, y: 160 });
+  const triggerNode = createNode(triggerTemplate, { x: 120, y: 160 });
   nodes.push(triggerNode);
 
   // Action Nodes
-  let currentX = 360;
+  let currentX = 250;
   let lastNodeId = triggerNode.id;
 
   actions.forEach((actionKey, index) => {
     const actionTemplate = NODE_TEMPLATES[actionKey] || NODE_TEMPLATES['send-email'];
-    const actionNode = createNode(actionTemplate, { x: currentX, y: 160 + (index * 40) }); // Slight offset
+    const actionNode = createNode(actionTemplate, { x: currentX, y: 160 + (index * 28) });
     nodes.push(actionNode);
 
     // Create Edge from last node
@@ -62,8 +63,10 @@ export const generateFlowFromIntent = async (alphaPlan) => {
     });
 
     lastNodeId = actionNode.id;
-    currentX += 260;
+    currentX += 130;
   });
+
+  nodes.push(...createDocumentationNoteNodes(nodes));
 
   const draft = {
     id: draftId,

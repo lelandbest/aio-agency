@@ -4,19 +4,22 @@
  */
 
 import React from 'react';
-import { ArrowLeft, Info, History, Save, Upload, Download, PanelRightClose, PanelRight } from 'lucide-react';
+import { ArrowLeft, Save, Upload, Download, PanelRightClose, PanelRight, Layers, Copy, Plus } from 'lucide-react';
 
 const FlowBuilderHeader = ({
   flowName = 'Untitled Flow',
   status = 'Draft',
   onExit,
+  onCreateNewFlow,
   onSave,
+  onSaveAsNew,
   onToggleDetails,
   isDetailsOpen = false,
   onOpenHistory,
   aiAssistSlot = null,
   onImport,
   onExport,
+  onBrowseTemplates,
 }) => {
   return (
     <div className="h-12 shrink-0 flex items-center justify-between gap-4 px-5 mx-1 mt-1 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-hidden rounded-xl shadow-island-sm transition-all duration-300">
@@ -32,10 +35,30 @@ const FlowBuilderHeader = ({
             <span>Back to List</span>
           </button>
         )}
+        {onCreateNewFlow && (
+          <button
+            type="button"
+            onClick={onCreateNewFlow}
+            className="btn-secondary h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
+          >
+            <Plus className="w-3.5 h-3.5 text-sky-400" />
+            <span>New Flow</span>
+          </button>
+        )}
       </div>
 
       {/* Right: Actions */}
       <div className="flex flex-wrap items-center justify-end gap-1.5 h-full flex-shrink-0">
+        {onBrowseTemplates && (
+          <button
+            type="button"
+            onClick={onBrowseTemplates}
+            className="btn-toolbar-lead h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Browse Templates</span>
+          </button>
+        )}
         {onImport && (
           <button
             type="button"
@@ -56,13 +79,23 @@ const FlowBuilderHeader = ({
             <span>Export</span>
           </button>
         )}
+        {onSaveAsNew && (
+          <button
+            type="button"
+            onClick={onSaveAsNew}
+            className="btn-secondary h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
+          >
+            <Copy className="w-3.5 h-3.5 text-sky-400" />
+            <span>Save As New</span>
+          </button>
+        )}
         {onSave && (
           <button
             type="button"
             onClick={onSave}
-            className="btn-primary-skeuo h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
+            className="btn-secondary h-8 flex items-center gap-2 whitespace-nowrap text-[10px] px-3 font-bold uppercase tracking-tight"
           >
-            <Save className="w-3.5 h-3.5" />
+            <Save className="w-3.5 h-3.5 text-sky-400" />
             <span>Save</span>
           </button>
         )}

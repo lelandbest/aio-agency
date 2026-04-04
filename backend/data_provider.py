@@ -4224,6 +4224,7 @@ class SQLiteProvider(BaseProvider):
                     size TEXT,
                     website TEXT,
                     owner TEXT,
+                    brandProfile TEXT,
                     tenantId TEXT
                 );
 
@@ -4769,6 +4770,7 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "mailboxes", "configJson", "TEXT")
             self._ensure_column(conn, "contacts", "tenantId", "TEXT")
             self._ensure_column(conn, "companies", "tenantId", "TEXT")
+            self._ensure_column(conn, "companies", "brandProfile", "TEXT")
             self._ensure_column(conn, "tags", "prefix", "TEXT")
             self._ensure_column(conn, "tags", "label", "TEXT")
             self._ensure_column(conn, "tags", "description", "TEXT")
@@ -5996,6 +5998,47 @@ class SQLiteProvider(BaseProvider):
 
     def list_companies(self) -> list[dict[str, Any]]:
         return self._tenant_rows("SELECT * FROM companies WHERE tenantId = ? ORDER BY name ASC")
+
+    def get_company(self, company_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM companies WHERE id = ? AND tenantId = ?",
+                (company_id, self._tenantId()),
+            ).fetchone()
+        if row:
+            d = dict(row)
+            bp = d.get("brandProfile") or d.get("brand_profile")
+            if isinstance(bp, str) and bp.strip():
+                try:
+                    d["brandProfile"] = json.loads(bp)
+                except Exception:
+                    d["brandProfile"] = None
+            return d
+        return None
+
+    def update_company(self, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        existing = self.get_company(company_id)
+        if not existing:
+            raise ValueError(f"Company {company_id} not found.")
+        bp = payload.get("brandProfile") or payload.get("brand_profile")
+        if isinstance(bp, dict):
+            bp = json.dumps(bp)
+        fields = {}
+        for key in ["name", "industry", "size", "website", "owner", "brandProfile"]:
+            snake = key.replace("brandProfile", "brand_profile")
+            if key in payload and payload[key] is not None:
+                fields[key if key != "brandProfile" else "brand_profile"] = payload[key]
+        if not fields:
+            return existing
+        fields["updatedAt"] = utcnow()
+        assignments = ", ".join(f"{k} = ?" for k in fields.keys())
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE companies SET {assignments} WHERE id = ? AND tenantId = ?",
+                (*fields.values(), company_id, self._tenantId()),
+            )
+            conn.commit()
+        return self.get_company(company_id)
 
     def list_tags(self) -> list[dict[str, Any]]:
         return self._tenant_rows("SELECT * FROM tags WHERE tenantId = ? ORDER BY name ASC")
@@ -7733,12 +7776,17 @@ class SQLiteProvider(BaseProvider):
         row = next((item for item in self._rows("SELECT * FROM flows WHERE id = ? AND tenantId = ? LIMIT 1", (flow_id, self._tenantId(),))), None)
         if not row:
             return None
+        edges = json_loads(row["edgesJson"], [])
+        # Normalize: strip animation from edges (only execution should animate)
+        for e in edges:
+            if isinstance(e, dict):
+                e["animated"] = False
         return {
             "id": row["id"],
             "name": row["name"],
             "status": row["status"],
             "nodes": json_loads(row["nodesJson"], []),
-            "edges": json_loads(row["edgesJson"], []),
+            "edges": edges,
             "spec": json_loads(row["specJson"], None),
             "metadata": json_loads(row["metadataJson"], {}),
             "createdAt": row["createdAt"],

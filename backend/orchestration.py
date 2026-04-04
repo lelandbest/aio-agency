@@ -737,6 +737,71 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
     return artifacts
 
 
+def resolve_brand_profile(provider: Any, company_id: str | None = None, tenant_id: str | None = None) -> dict[str, Any]:
+    """
+    Resolve brand profile with deterministic fallback chain:
+    1. Client-level brand profile (company.brandProfile JSON, if enabled)
+    2. Global Brain/Cortex DNA (brain_profiles table)
+    3. Empty defaults
+
+    Returns camelCase dict suitable for prompt injection.
+    """
+    # Priority 1: Client-level brand profile
+    if company_id and provider:
+        try:
+            company = provider.get_company(company_id)
+            if company:
+                bp_raw = company.get("brandProfile") or company.get("brand_profile")
+                if isinstance(bp_raw, str):
+                    bp_raw = json.loads(bp_raw) if bp_raw.strip() else None
+                if isinstance(bp_raw, dict) and bp_raw.get("enabled"):
+                    return {
+                        "brandName": clean_text(bp_raw.get("brandName") or bp_raw.get("brand_name") or company.get("name")),
+                        "brandVoice": clean_text(bp_raw.get("brandVoice") or bp_raw.get("brand_voice")),
+                        "valueProp": clean_text(bp_raw.get("valueProp") or bp_raw.get("value_prop")),
+                        "differentiation": clean_text(bp_raw.get("differentiation")),
+                        "idealCustomer": clean_text(bp_raw.get("idealCustomer") or bp_raw.get("ideal_customer")),
+                        "painPoints": clean_text(bp_raw.get("painPoints") or bp_raw.get("pain_points")),
+                        "marketingStrategy": clean_text(bp_raw.get("marketingStrategy") or bp_raw.get("marketing_strategy")),
+                        "toneDirectives": clean_text(bp_raw.get("toneDirectives") or bp_raw.get("tone_directives")),
+                        "notes": clean_text(bp_raw.get("notes")),
+                    }
+        except Exception:
+            pass
+
+    # Priority 2: Global Brain/Cortex DNA
+    if provider:
+        try:
+            profile = provider.get_brain_profile()
+            if profile:
+                return {
+                    "brandName": clean_text(profile.get("companyName") or profile.get("company_name") or profile.get("primaryBrand") or profile.get("primary_brand")),
+                    "brandVoice": clean_text(profile.get("brandVoice") or profile.get("brand_voice")),
+                    "valueProp": clean_text(profile.get("valueProp") or profile.get("value_prop")),
+                    "differentiation": clean_text(profile.get("differentiation")),
+                    "idealCustomer": clean_text(profile.get("idealCustomer") or profile.get("ideal_customer")),
+                    "painPoints": clean_text(profile.get("painPoints") or profile.get("pain_points")),
+                    "marketingStrategy": clean_text(profile.get("marketingStrategy") or profile.get("marketing_strategy")),
+                    "toneDirectives": "",
+                    "notes": "",
+                }
+        except Exception:
+            pass
+
+    # Priority 3: Empty defaults
+    return {
+        "brandName": "",
+        "brandVoice": "",
+        "valueProp": "",
+        "differentiation": "",
+        "idealCustomer": "",
+        "painPoints": "",
+        "marketingStrategy": "",
+        "toneDirectives": "",
+        "notes": "",
+    }
+
+
 def normalize_postbot_input(raw: dict[str, Any], trigger_type: str = "manual") -> dict[str, Any]:
     """
     Normalize any trigger source into the canonical PostBot input contract.
@@ -2932,6 +2997,19 @@ class StepExecutor:
         ideal_customer = clean_text(node_config.get("idealCustomer") or node_config.get("ideal_customer"))
         pain_points = clean_text(node_config.get("painPoints") or node_config.get("pain_points"))
 
+        # Resolve brand profile: client-level → global Cortex → defaults
+        company_id = clean_text(node_config.get("companyId") or node_config.get("company_id"))
+        tenant_id = clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None
+        brand = resolve_brand_profile(self.provider, company_id, tenant_id)
+
+        # Override with explicitly passed values (node config takes priority over resolved profile)
+        brand_voice = brand_voice or brand.get("brandVoice") or ""
+        mission = mission or brand.get("brandName") or ""
+        value_prop = value_prop or brand.get("valueProp") or ""
+        differentiation = differentiation or brand.get("differentiation") or ""
+        ideal_customer = ideal_customer or brand.get("idealCustomer") or ""
+        pain_points = pain_points or brand.get("painPoints") or ""
+
         if not episode_title and not episode_topic:
             return self._service_error(step, "Podcast script generation requires an episode title or topic.", data={"artifact": None})
 
@@ -3160,9 +3238,19 @@ class StepExecutor:
         if not target_platforms:
             return self._service_error(step, "PostBot requires at least one target platform.", data={"artifact": None})
 
-        brand_voice = clean_text(node_config.get("brandVoice") or node_config.get("brand_voice"))
-        mission = clean_text(node_config.get("mission"))
-        value_prop = clean_text(node_config.get("valueProp") or node_config.get("value_prop"))
+        # Resolve brand profile: explicit config → client brand → global Cortex → defaults
+        company_id = clean_text(node_config.get("companyId") or node_config.get("company_id") or canonical.get("sourceFormId"))
+        tenant_id = clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None
+        brand = resolve_brand_profile(self.provider, company_id, tenant_id)
+
+        # Explicit node config overrides resolved profile
+        brand_voice = clean_text(node_config.get("brandVoice") or node_config.get("brand_voice") or brand.get("brandVoice"))
+        value_prop = clean_text(node_config.get("valueProp") or node_config.get("value_prop") or brand.get("valueProp"))
+        differentiation = clean_text(node_config.get("differentiation") or brand.get("differentiation"))
+        ideal_customer = clean_text(node_config.get("idealCustomer") or node_config.get("ideal_customer") or brand.get("idealCustomer"))
+        pain_points = clean_text(node_config.get("painPoints") or node_config.get("pain_points") or brand.get("painPoints"))
+        marketing_strategy = clean_text(node_config.get("marketingStrategy") or node_config.get("marketing_strategy") or brand.get("marketingStrategy"))
+        tone_directives = clean_text(node_config.get("toneDirectives") or node_config.get("tone_directives") or brand.get("toneDirectives"))
 
         platform_outputs = {}
         for plat in target_platforms:
@@ -3224,6 +3312,26 @@ class StepExecutor:
 
             if custom_instructions:
                 user_prompt += f"\n\nAdditional instructions: {custom_instructions}"
+
+            # Inject brand context when available (non-empty values only)
+            brand_context_parts = []
+            if brand_voice:
+                brand_context_parts.append(f"Brand voice: {brand_voice}")
+            if value_prop:
+                brand_context_parts.append(f"Value proposition: {value_prop}")
+            if differentiation:
+                brand_context_parts.append(f"What makes this brand different: {differentiation}")
+            if ideal_customer:
+                brand_context_parts.append(f"Target audience: {ideal_customer}")
+            if pain_points:
+                brand_context_parts.append(f"Audience pain points: {pain_points}")
+            if marketing_strategy:
+                brand_context_parts.append(f"Marketing approach: {marketing_strategy}")
+            if tone_directives:
+                brand_context_parts.append(f"Tone guidance: {tone_directives}")
+
+            if brand_context_parts:
+                user_prompt += f"\n\nBrand context: {'; '.join(brand_context_parts)}"
 
             result = get_media_engine().generate_script(
                 {
@@ -4854,6 +4962,9 @@ class ExecutionEngine:
             "pause_state": {},
         }
         for step in steps:
+            if not step.get("status"):
+                step["status"] = "pending"
+        for step in steps:
             params = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
             node_id = clean_text(params.get("node_id") or step.get("id"))
             outgoing_edges = params.get("outgoing_edges") if isinstance(params.get("outgoing_edges"), list) else []
@@ -4863,6 +4974,31 @@ class ExecutionEngine:
                     for edge in outgoing_edges
                     if clean_text(edge.get("target"))
                 ]
+
+        def persist_runtime_state(status_override: str | None = None) -> None:
+            persisted_context = self._serialize_runtime_context(context, runtime, tenant)
+            pause_state = runtime.get("pause_state") if isinstance(runtime.get("pause_state"), dict) else {}
+            self._persist_run(
+                final_run_id,
+                command,
+                mode,
+                status_override or run_state_status,
+                steps,
+                artifacts,
+                routing,
+                trace,
+                actor,
+                tenant,
+                persisted_context,
+                pause_reason=pause_state.get("pause_reason"),
+                resume_at=pause_state.get("resume_at"),
+                next_node_id=pause_state.get("next_node_id"),
+                current_node_id=pause_state.get("current_node_id") or runtime.get("current_node_id"),
+                locked_until=None,
+                last_error=pause_state.get("last_error") or next((s.get("error") for s in reversed(steps) if s.get("error")), None),
+            )
+
+        persist_runtime_state("executing")
         resume_pending = bool(resume_node_id)
         resume_found = not resume_pending
         for step in steps:
@@ -4894,6 +5030,7 @@ class ExecutionEngine:
                     "last_error": None,
                 }
                 self._audit_log(final_run_id, step, "blocked", "awaiting_approval")
+                persist_runtime_state("blocked")
                 break
                 
             step["status"] = "executing"
@@ -4902,6 +5039,7 @@ class ExecutionEngine:
             runtime["current_node_id"] = node_id
             
             self._audit_log(final_run_id, step, "execution_started", "pending")
+            persist_runtime_state("executing")
             res = self.executor.execute(step, context, runtime)
             
             ended_at = time.time()
@@ -4984,12 +5122,16 @@ class ExecutionEngine:
             if step["status"] == "paused":
                 run_state_status = "paused"
                 self._audit_log(final_run_id, step, "execution_paused", (step.get("data") or {}).get("pauseReason") or "paused")
+                persist_runtime_state("paused")
                 break
 
             if step["status"] in {"error", "failed"}:
                 run_state_status = "failed"
                 self._audit_log(final_run_id, step, "execution_failed", step["error"])
+                persist_runtime_state("failed")
                 break
+
+            persist_runtime_state("executing")
 
         if resume_pending and resume_node_id and not resume_found:
             run_state_status = "failed"
