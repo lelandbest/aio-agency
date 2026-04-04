@@ -74,9 +74,31 @@ export default function VoiceCommandModule() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [voiceProvider, setVoiceProvider] = useState('system');
   const [voiceAutoPlay, setVoiceAutoPlay] = useState(false);
+  const [voices, setVoices] = useState([]);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const audioRef  = useRef(null);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const v = speechSynthesis.getVoices();
+      if (v.length) setVoices(v);
+    };
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+    return () => { speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+  const speakWithSystemVoice = useCallback((text) => {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const preferred =
+      voices.find(v => v.name === 'Google UK English Female') ||
+      voices.find(v => v.name.includes('Google UK English')) ||
+      voices.find(v => v.name.includes('Google'));
+    if (preferred) utterance.voice = preferred;
+    speechSynthesis.speak(utterance);
+  }, [voices]);
 
   const playAudio = useCallback((url) => {
     if (!url) return;
@@ -117,8 +139,7 @@ export default function VoiceCommandModule() {
             if (voiceEnabled && voiceAutoPlay && !data.audioUrl) {
               const msg = charlieResult?.result?.message || charlieResult?.result?.suggestion || '';
               if (msg && msg.length <= 600) {
-                const fallback = new SpeechSynthesisUtterance(msg);
-                speechSynthesis.speak(fallback);
+                speakWithSystemVoice(msg);
               }
             }
           } catch {
@@ -133,7 +154,7 @@ export default function VoiceCommandModule() {
     } finally {
       setLoading(false);
     }
-  }, [clearTranscript, addCommandMessage, addCharlieMessage, setIsListening, voiceEnabled, voiceProvider, voiceAutoPlay, playAudio]);
+  }, [clearTranscript, addCommandMessage, addCharlieMessage, setIsListening, voiceEnabled, voiceProvider, voiceAutoPlay, playAudio, speakWithSystemVoice]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -187,14 +208,15 @@ export default function VoiceCommandModule() {
           </button>
           <button onClick={closeVTT} className="text-slate-500 hover:text-slate-300 transition-colors">
             <X size={12} />
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 min-h-0 max-h-64 overflow-y-auto no-scrollbar px-3 py-2 flex flex-col gap-2">
         {messages.length === 0 && (
           <div className="text-[9px] text-slate-600 text-center mt-4">
-            Hold <kbd className="px-1 py-0.5 rounded border border-slate-700 bg-black/40 text-slate-500 font-mono">SPACE</kbd> to speak,<br />or type below.
+            Hold <kbd className="px-1 py-0.5 rounded border border-slate-700 bg-black/40 text-slate-500 font-mono">CTRL</kbd> to speak,<br />or type below.
           </div>
         )}
         {messages.map((msg) => (
@@ -237,7 +259,7 @@ export default function VoiceCommandModule() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type or hold Space to speak..."
+          placeholder="Type or hold CTRL to speak..."
           className="flex-1 bg-black/40 border border-[#1E2024] rounded px-2 py-1 text-[9px] text-slate-300 placeholder-slate-700 focus:outline-none focus:border-cyan-500/50"
         />
         <button
@@ -246,12 +268,6 @@ export default function VoiceCommandModule() {
           className="text-cyan-400 hover:text-cyan-300 disabled:text-slate-700 transition-colors"
         >
           <Send size={12} />
-        </button>
-        <button
-          onClick={() => setIsListening(true)}
-          className={`transition-colors ${isListening ? 'text-rose-400 animate-pulse' : 'text-slate-500 hover:text-cyan-400'}`}
-        >
-          {isListening ? <MicOff size={12} /> : <Mic size={12} />}
         </button>
       </div>
 
