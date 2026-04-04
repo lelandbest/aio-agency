@@ -4259,6 +4259,17 @@ class SQLiteProvider(BaseProvider):
                     mission TEXT,
                     brandVoice TEXT,
                     idealCustomer TEXT,
+                    valueProp TEXT,
+                    differentiation TEXT,
+                    painPoints TEXT,
+                    competitors TEXT,
+                    marketingStrategy TEXT,
+                    workflow TEXT,
+                    legalEntity TEXT,
+                    primaryBrand TEXT,
+                    brandArchitecture TEXT,
+                    legacyBrandNotes TEXT,
+                    brandUsageRules TEXT,
                     createdAt TEXT,
                     updatedAt TEXT
                 );
@@ -4765,6 +4776,17 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "tags", "isLocked", "INTEGER DEFAULT 0")
             self._ensure_column(conn, "tags", "tenantId", "TEXT")
             self._ensure_column(conn, "brain_profiles", "tenantId", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "valueProp", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "differentiation", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "painPoints", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "competitors", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "marketingStrategy", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "workflow", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "legalEntity", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "primaryBrand", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "brandArchitecture", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "legacyBrandNotes", "TEXT")
+            self._ensure_column(conn, "brain_profiles", "brandUsageRules", "TEXT")
             self._ensure_column(conn, "brain_sources", "tenantId", "TEXT")
             self._ensure_column(conn, "brain_items", "tenantId", "TEXT")
             self._ensure_column(conn, "brain_links", "tenantId", "TEXT")
@@ -6184,6 +6206,17 @@ class SQLiteProvider(BaseProvider):
             "mission": record.get("mission"),
             "brand_voice": record.get("brandVoice"),
             "ideal_customer": record.get("idealCustomer"),
+            "value_prop": record.get("valueProp"),
+            "differentiation": record.get("differentiation"),
+            "pain_points": record.get("painPoints"),
+            "competitors": record.get("competitors"),
+            "marketing_strategy": record.get("marketingStrategy"),
+            "workflow": record.get("workflow"),
+            "legal_entity": record.get("legalEntity"),
+            "primary_brand": record.get("primaryBrand"),
+            "brand_architecture": record.get("brandArchitecture"),
+            "legacy_brand_notes": record.get("legacyBrandNotes"),
+            "brand_usage_rules": record.get("brandUsageRules"),
             "createdAt": record.get("createdAt"),
             "updatedAt": record.get("updatedAt"),
         }
@@ -6294,6 +6327,17 @@ class SQLiteProvider(BaseProvider):
             "mission": "",
             "brand_voice": "",
             "ideal_customer": "",
+            "value_prop": "",
+            "differentiation": "",
+            "pain_points": "",
+            "competitors": "",
+            "marketing_strategy": "",
+            "workflow": "",
+            "legal_entity": "",
+            "primary_brand": "",
+            "brand_architecture": "",
+            "legacy_brand_notes": "",
+            "brand_usage_rules": "",
             "createdAt": now,
             "updatedAt": now,
         }
@@ -6301,8 +6345,11 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO brain_profiles (
-                    id, tenantId, companyName, website, industry, overview, mission, brandVoice, idealCustomer, createdAt, updatedAt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, tenantId, companyName, website, industry, overview, mission, brandVoice, idealCustomer,
+                    valueProp, differentiation, painPoints, competitors, marketingStrategy, workflow,
+                    legalEntity, primaryBrand, brandArchitecture, legacyBrandNotes, brandUsageRules,
+                    createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     profile["id"],
@@ -6314,6 +6361,17 @@ class SQLiteProvider(BaseProvider):
                     profile["mission"],
                     profile["brand_voice"],
                     profile["ideal_customer"],
+                    profile["value_prop"],
+                    profile["differentiation"],
+                    profile["pain_points"],
+                    profile["competitors"],
+                    profile["marketing_strategy"],
+                    profile["workflow"],
+                    profile["legal_entity"],
+                    profile["primary_brand"],
+                    profile["brand_architecture"],
+                    profile["legacy_brand_notes"],
+                    profile["brand_usage_rules"],
                     profile["createdAt"],
                     profile["updatedAt"],
                 ),
@@ -6324,7 +6382,9 @@ class SQLiteProvider(BaseProvider):
     def update_brain_profile(self, updates: dict[str, Any]) -> dict[str, Any]:
         existing = self.get_brain_profile()
         payload = {}
-        for key in ["company_name", "website", "industry", "overview", "mission", "brand_voice", "ideal_customer"]:
+        for key in ["company_name", "website", "industry", "overview", "mission", "brand_voice", "ideal_customer",
+                     "value_prop", "differentiation", "pain_points", "competitors", "marketing_strategy", "workflow",
+                     "legal_entity", "primary_brand", "brand_architecture", "legacy_brand_notes", "brand_usage_rules"]:
             if key in updates and updates[key] is not None:
                 payload[key] = updates[key]
         if not payload:
@@ -6337,6 +6397,17 @@ class SQLiteProvider(BaseProvider):
             "mission": "mission",
             "brand_voice": "brandVoice",
             "ideal_customer": "idealCustomer",
+            "value_prop": "valueProp",
+            "differentiation": "differentiation",
+            "pain_points": "painPoints",
+            "competitors": "competitors",
+            "marketing_strategy": "marketingStrategy",
+            "workflow": "workflow",
+            "legal_entity": "legalEntity",
+            "primary_brand": "primaryBrand",
+            "brand_architecture": "brandArchitecture",
+            "legacy_brand_notes": "legacyBrandNotes",
+            "brand_usage_rules": "brandUsageRules",
             "updatedAt": "updatedAt",
         }
         payload["updatedAt"] = utcnow()

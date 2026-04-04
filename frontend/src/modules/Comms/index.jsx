@@ -24,7 +24,7 @@ import ModuleHeader from '../../components/ModuleHeader';
 import EmptyState from '../../components/EmptyState';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
-import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE } from '../Agents/data/agentRegistry';
+import { SPECIALIST_REGISTRY, VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import {
   advanceThreadStageApi,
   assignThreadApi,

@@ -68,6 +68,8 @@ DIRECT_EXECUTION_INTENTS = {
     "text_to_speech",
     "generate_thumbnail",
     "generate_video",
+    "generate_podcast_script",
+    "generate_postbot_content",
     "transcribe_media",
     "transcribe-media",
     "ingest_meeting_artifacts",
@@ -734,6 +736,56 @@ def normalize_execution_artifacts(step: dict[str, Any], raw_result: Any) -> list
         })
     return artifacts
 
+
+def normalize_postbot_input(raw: dict[str, Any], trigger_type: str = "manual") -> dict[str, Any]:
+    """
+    Normalize any trigger source into the canonical PostBot input contract.
+    All trigger paths (manual, form, feed) must pass through this function
+    before reaching the PostBot engine.
+    """
+    # Shape B — Form submission payload: flatten formData.fields.* into root
+    form_data = raw.get("formData")
+    if isinstance(form_data, dict):
+        form_fields = form_data.get("fields") or form_data.get("data") or form_data.get("submission") or {}
+        if isinstance(form_fields, dict):
+            raw = {**form_fields, **raw}
+        if isinstance(form_data.get("formId"), str):
+            raw.setdefault("formId", form_data["formId"])
+        if isinstance(form_data.get("id"), str):
+            raw.setdefault("formId", form_data["id"])
+
+    if isinstance(raw.get("targetPlatforms"), str):
+        platforms = [p.strip().lower() for p in raw["targetPlatforms"].split(",") if p.strip()]
+    elif isinstance(raw.get("targetPlatforms"), list):
+        platforms = [str(p).strip().lower() for p in raw["targetPlatforms"] if str(p).strip()]
+    else:
+        raw_platforms = raw.get("platforms") or raw.get("platform") or ""
+        if isinstance(raw_platforms, list):
+            platforms = [str(p).strip().lower() for p in raw_platforms if str(p).strip()]
+        elif isinstance(raw_platforms, str):
+            platforms = [p.strip().lower() for p in raw_platforms.split(",") if p.strip()]
+        else:
+            platforms = []
+
+    return {
+        "articleUrl": clean_text(raw.get("articleUrl") or raw.get("article_url") or raw.get("sourceUrl") or raw.get("source_url") or raw.get("url")),
+        "articleTitle": clean_text(raw.get("articleTitle") or raw.get("article_title") or raw.get("title")),
+        "articleSummary": clean_text(raw.get("articleSummary") or raw.get("article_summary") or raw.get("summary") or raw.get("content") or raw.get("sourceContent") or raw.get("source_content")),
+        "sourceContent": clean_text(raw.get("sourceContent") or raw.get("source_content") or raw.get("fullContent") or raw.get("full_content")),
+        "targetPlatforms": platforms,
+        "imageStyle": clean_text(raw.get("imageStyle") or raw.get("image_style") or "Artstyle Pop Art"),
+        "customInstructions": clean_text(raw.get("customInstructions") or raw.get("custom_instructions")),
+        "outputNotes": clean_text(raw.get("outputNotes") or raw.get("output_notes")),
+        "generateAudio": clean_text(raw.get("generateAudio") or raw.get("generate_audio") or "No").lower() == "yes",
+        "generateShorts": clean_text(raw.get("generateShorts") or raw.get("generate_shorts") or "No").lower() == "yes",
+        "publishToYouTube": clean_text(raw.get("publishToYouTube") or raw.get("publish_to_youtube") or "No").lower() == "yes",
+        "sourceType": clean_text(raw.get("sourceType") or raw.get("source_type") or trigger_type),
+        "sourceFormId": clean_text(raw.get("sourceFormId") or raw.get("source_form_id") or raw.get("formId") or raw.get("form_id")),
+        "sourceFeedId": clean_text(raw.get("sourceFeedId") or raw.get("source_feed_id") or raw.get("feedId") or raw.get("feed_id")),
+        "triggerType": clean_text(trigger_type),
+    }
+
+
 class StepExecutor:
     def __init__(self, provider: Any) -> None:
         self.provider = provider
@@ -797,6 +849,8 @@ class StepExecutor:
             "text_to_speech": self._generate_voice,
             "generate_thumbnail": self._generate_thumbnail,
             "generate_video": self._generate_video,
+            "generate_podcast_script": self._generate_podcast_script,
+            "generate_postbot_content": self._generate_postbot_content,
             "transcribe_media": self._transcribe_media,
             "transcribe-media": self._transcribe_media,
             "ingest_meeting_artifacts": self._ingest_meeting_artifacts,
@@ -2847,6 +2901,498 @@ class StepExecutor:
         job = result.get("job") or {}
         status = "success" if clean_text(job.get("status")) == "complete" else "failed"
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _generate_podcast_script(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        """Generate a broadcast-ready podcast script with YouTube metadata and encoder handoff scaffold."""
+        node_config = step.get("config") or {}
+        brand_key = clean_text(node_config.get("brandKey") or node_config.get("brand_key") or "unknown")
+        episode_title = clean_text(node_config.get("episodeTitle") or node_config.get("episode_title") or node_config.get("topic"))
+        episode_topic = clean_text(node_config.get("episodeTopic") or node_config.get("episode_topic") or node_config.get("topic"))
+        episode_summary = clean_text(node_config.get("episodeSummary") or node_config.get("episode_summary"))
+        target_audience = clean_text(node_config.get("targetAudience") or node_config.get("target_audience"))
+        episode_goal = clean_text(node_config.get("episodeGoal") or node_config.get("episode_goal"))
+        source_transcript = clean_text(node_config.get("sourceTranscript") or node_config.get("source_transcript"))
+        source_notes = clean_text(node_config.get("sourceNotes") or node_config.get("source_notes"))
+        source_links = clean_text(node_config.get("sourceLinks") or node_config.get("source_links"))
+        key_points = clean_text(node_config.get("keyPoints") or node_config.get("key_points"))
+        guest_name = clean_text(node_config.get("guestName") or node_config.get("guest_name"))
+        guest_title = clean_text(node_config.get("guestTitle") or node_config.get("guest_title"))
+        guest_bio = clean_text(node_config.get("guestBio") or node_config.get("guest_bio"))
+        tone_direction = clean_text(node_config.get("toneDirection") or node_config.get("tone_direction"))
+        segment_structure = clean_text(node_config.get("segmentStructure") or node_config.get("segment_structure"))
+        call_to_action = clean_text(node_config.get("callToAction") or node_config.get("call_to_action"))
+        desired_length = clean_text(node_config.get("desiredLength") or node_config.get("desired_length") or "20-30 min")
+        include_intro = clean_text(node_config.get("includeIntro") or node_config.get("include_intro") or "Yes").lower() == "yes"
+        include_sponsor = clean_text(node_config.get("includeSponsorBreak") or node_config.get("include_sponsor_break") or "No").lower() == "yes"
+        include_outro = clean_text(node_config.get("includeOutro") or node_config.get("include_outro") or "Yes").lower() == "yes"
+        brand_voice = clean_text(node_config.get("brandVoice") or node_config.get("brand_voice"))
+        mission = clean_text(node_config.get("mission"))
+        value_prop = clean_text(node_config.get("valueProp") or node_config.get("value_prop"))
+        differentiation = clean_text(node_config.get("differentiation"))
+        ideal_customer = clean_text(node_config.get("idealCustomer") or node_config.get("ideal_customer"))
+        pain_points = clean_text(node_config.get("painPoints") or node_config.get("pain_points"))
+
+        if not episode_title and not episode_topic:
+            return self._service_error(step, "Podcast script generation requires an episode title or topic.", data={"artifact": None})
+
+        ai_trends = clean_text(node_config.get("aiTrends") or node_config.get("ai_trends"))
+        easy_site_updates = clean_text(node_config.get("easySiteUpdates") or node_config.get("easy_site_updates"))
+        new_oaks_updates = clean_text(node_config.get("newOaksUpdates") or node_config.get("new_oaks_updates"))
+
+        system_prompt = (
+            f"You are a podcast scriptwriter for {brand_key}. "
+        )
+        if brand_key == "aioBestAiPodcast":
+            system_prompt += (
+                f"Brand voice: {brand_voice or 'Commanding, intelligent, direct, high-trust, execution-driven.'} "
+                f"Mission: {mission or 'Build AI-native systems that eliminate software sprawl.'} "
+                f"Value proposition: {value_prop or 'An AI-first execution platform.'} "
+                f"Differentiation: {differentiation or 'System-native architecture.'} "
+                f"Target audience: {ideal_customer or 'Founder-operators and lean teams.'} "
+                f"Pain points: {pain_points or 'Tool sprawl and fragmented workflows.'} "
+                "Never sound hypey, corporate-generic, or overly cheerful. "
+                "Prefer strong positioning, plain language, sharp contrast, and execution authority."
+            )
+        elif brand_key == "newOaksPodcast":
+            system_prompt += (
+                "Professional, informative, and authoritative. "
+                "Structure content clearly with section headers. "
+                "Use markdown formatting (H1, H2, H3, lists, bold)."
+            )
+
+        user_prompt_parts = []
+        if include_intro:
+            user_prompt_parts.append("## INTRO\nGenerate a compelling intro hook for this episode.")
+        if ai_trends or source_notes:
+            user_prompt_parts.append(f"## AI TREND SPOTLIGHT\nSource material: {ai_trends or source_notes}")
+        if easy_site_updates:
+            user_prompt_parts.append(f"## FEATURE UPDATES\nSource material: {easy_site_updates}")
+        if new_oaks_updates:
+            user_prompt_parts.append(f"## PLATFORM UPDATES\nSource material: {new_oaks_updates}")
+        if key_points:
+            user_prompt_parts.append(f"## KEY POINTS\n{key_points}")
+        if guest_name:
+            user_prompt_parts.append(f"## GUEST\nName: {guest_name}, Title: {guest_title or 'N/A'}, Bio: {guest_bio or 'N/A'}")
+        if include_sponsor:
+            user_prompt_parts.append("## SPONSOR BREAK\nInclude a natural sponsor read transition.")
+        if include_outro:
+            user_prompt_parts.append(f"## OUTRO\nWrap up the episode. Call to action: {call_to_action or 'Subscribe and follow.'}")
+
+        user_prompt = "\n\n".join(user_prompt_parts)
+
+        result = get_media_engine().generate_script(
+            {
+                "title": episode_title or episode_topic,
+                "topic": episode_topic or episode_title,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "episode_summary": episode_summary,
+                "target_audience": target_audience,
+                "episode_goal": episode_goal,
+                "source_transcript": source_transcript,
+                "source_links": source_links,
+                "tone_direction": tone_direction,
+                "segment_structure": segment_structure,
+                "desired_length": desired_length,
+                "brand_key": brand_key,
+                "provider": clean_text(node_config.get("provider")) or "stub-script",
+            },
+            tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+            context={
+                "run_id": runtime.get("runId"),
+                "flow_name": context.get("flow_name"),
+                "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+            },
+        )
+        job = result.get("job") or {}
+        script_text = job.get("result") or job.get("script") or ""
+        status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+
+        # Parse scriptText into structured segments
+        parsed_script = self._parse_script_segments(script_text)
+
+        youtube_title = f"{brand_key} Podcast – {episode_title or episode_topic}"
+        youtube_desc = f"Episode: {episode_title or episode_topic}\n\nTopic: {episode_topic or episode_title}\n\n"
+        if episode_summary:
+            youtube_desc += f"{episode_summary}\n\n"
+        if key_points:
+            youtube_desc += f"Key Points:\n{key_points}\n\n"
+        youtube_desc += f"#{brand_key.replace(' ', '')} #AI #Podcast"
+
+        form_submission_id = clean_text(runtime.get("formData", {}).get("id") or runtime.get("form_submission_id"))
+        artifact = {
+            "brandKey": brand_key,
+            "episode": {
+                "title": episode_title or episode_topic,
+                "topic": episode_topic or episode_title,
+                "summary": episode_summary,
+                "targetAudience": target_audience,
+                "goal": episode_goal,
+            },
+            "script": parsed_script,
+            "youtube": {
+                "videoTitle": youtube_title,
+                "description": youtube_desc,
+                "tags": [brand_key.replace(" ", ""), "AI", "Podcast", episode_topic.replace(" ", "-")][:10],
+                "category": "Science & Technology",
+                "visibility": "private",
+                "scheduledStartTime": "",
+                "thumbnailRef": "",
+            },
+            "broadcast": {
+                "title": youtube_title,
+                "description": episode_summary or episode_topic,
+                "privacyStatus": "private",
+                "scheduledStartTime": "",
+                "streamConfig": {
+                    "encoder": "vmix",
+                    "resolution": "1920x1080",
+                    "frameRate": 30,
+                    "bitrate": "6000",
+                },
+                "rtmp": {
+                    "ingestServer": "",
+                    "streamKey": "",
+                },
+                "status": "draft",
+            },
+            "artifacts": {
+                "scriptText": script_text,
+                "youtubeDescription": youtube_desc,
+            },
+            "generationMeta": {
+                "brandSource": brand_key,
+                "formSubmissionId": form_submission_id,
+                "timestamp": datetime_now(),
+            },
+        }
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": status,
+            "data": {"job": job, "artifact": artifact},
+            "error": job.get("last_error"),
+        }
+
+    @staticmethod
+    def _parse_script_segments(script_text: str) -> dict[str, Any]:
+        """Parse raw script text into structured intro/segments/outro."""
+        if not script_text or not script_text.strip():
+            return {"intro": "", "segments": [], "outro": "", "callToAction": ""}
+
+        # Split on markdown headers (## or #)
+        header_pattern = re.compile(r'^#{1,3}\s+(.+)$', re.MULTILINE)
+        sections = header_pattern.split(script_text.strip())
+
+        if len(sections) >= 4:
+            # Has headers: sections[0] = pre-header text, sections[1] = header1 title, sections[2] = header1 content, etc.
+            parsed_sections = []
+            i = 0
+            if sections[0].strip():
+                parsed_sections.append({"title": "Opening", "content": sections[0].strip()})
+            i = 1
+            while i < len(sections) - 1:
+                title = sections[i].strip()
+                content = sections[i + 1].strip() if i + 1 < len(sections) else ""
+                if title or content:
+                    parsed_sections.append({"title": title, "content": content})
+                i += 2
+
+            if len(parsed_sections) == 1:
+                return {"intro": parsed_sections[0]["content"], "segments": [], "outro": "", "callToAction": ""}
+
+            intro = parsed_sections[0]["content"]
+            outro = parsed_sections[-1]["content"]
+            middle = parsed_sections[1:-1]
+            segments = [{"title": s["title"], "content": s["content"]} for s in middle if s["content"].strip()]
+
+            return {"intro": intro, "segments": segments, "outro": outro, "callToAction": ""}
+
+        # No headers: split by percentage
+        lines = script_text.strip().split("\n\n")
+        total = len(lines)
+        if total <= 2:
+            return {"intro": script_text.strip(), "segments": [], "outro": "", "callToAction": ""}
+
+        intro_size = max(1, total // 5)
+        outro_size = max(1, total // 5)
+        intro = "\n\n".join(lines[:intro_size]).strip()
+        outro = "\n\n".join(lines[-outro_size:]).strip()
+        middle_lines = lines[intro_size:total - outro_size]
+
+        # Split middle into 2-4 segments
+        seg_count = min(4, max(2, len(middle_lines)))
+        seg_size = max(1, len(middle_lines) // seg_count)
+        segments = []
+        for idx in range(seg_count):
+            start = idx * seg_size
+            end = start + seg_size if idx < seg_count - 1 else len(middle_lines)
+            seg_content = "\n\n".join(middle_lines[start:end]).strip()
+            if seg_content:
+                segments.append({"title": f"Segment {idx + 1}", "content": seg_content})
+
+        return {"intro": intro, "segments": segments, "outro": outro, "callToAction": ""}
+
+    def _generate_postbot_content(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        """
+        Generate platform-optimized social content from canonical PostBot input.
+        Engine accepts ONLY canonical input — all trigger normalization happens upstream.
+        """
+        node_config = step.get("config") or {}
+        trigger_type = clean_text(node_config.get("triggerType") or node_config.get("trigger_type") or runtime.get("triggerType") or "manual")
+
+        # Normalize raw config into canonical contract
+        canonical = normalize_postbot_input(node_config, trigger_type)
+
+        article_url = canonical["articleUrl"]
+        article_summary = canonical["articleSummary"]
+        target_platforms = canonical["targetPlatforms"]
+        image_style = canonical["imageStyle"]
+        custom_instructions = canonical["customInstructions"]
+        generate_audio = canonical["generateAudio"]
+        generate_shorts = canonical["generateShorts"]
+        publish_to_youtube = canonical["publishToYouTube"]
+
+        if not article_summary and not article_url:
+            return self._service_error(step, "PostBot requires an article URL or summary.", data={"artifact": None})
+
+        if not target_platforms:
+            return self._service_error(step, "PostBot requires at least one target platform.", data={"artifact": None})
+
+        brand_voice = clean_text(node_config.get("brandVoice") or node_config.get("brand_voice"))
+        mission = clean_text(node_config.get("mission"))
+        value_prop = clean_text(node_config.get("valueProp") or node_config.get("value_prop"))
+
+        platform_outputs = {}
+        for plat in target_platforms:
+            plat = plat.lower()
+            system_prompt = "You are an expert social media copywriter specializing in SEO and platform-native content."
+            user_prompt = ""
+
+            if plat == "facebook":
+                system_prompt = "You are an expert in social media management specializing in SEO and Facebook content strategy."
+                user_prompt = (
+                    f"Generate a Facebook post about this article summary: {article_summary}\n\n"
+                    f"The post should engage the audience with a compelling introductory hook, "
+                    f"provide essential details, and encourage interaction through likes, comments, and shares. "
+                    f"End with a clear call to action to follow @BestAITV on YouTube. "
+                    f"Use the hashtags #BLTV #BestAiTV #BestAiPodcast and include any other relevant hashtags.\n"
+                    f"Add a link to the original article: {article_url}"
+                )
+            elif plat == "instagram":
+                system_prompt = "You are a digital marketing specialist with expertise in Instagram and SEO."
+                user_prompt = (
+                    f"Create a viral Instagram post about this article summary: {article_summary}\n\n"
+                    f"Ensure the content is visually appealing and includes an inspirational message. "
+                    f"Use emojis to enhance engagement.\n"
+                    f"Limit post to a maximum of 2000 characters. Include a link to https://bestai.tv\n"
+                    f"Use the hashtags #BLTV #BestAiTV #BestAiPodcast. Include other relevant hashtags as necessary."
+                )
+            elif plat == "x":
+                system_prompt = "You are a social media marketing manager with expert SEO skills."
+                user_prompt = (
+                    f"Write a Twitter/X post about this article summary: {article_summary}\n\n"
+                    f"The post should be concise, impactful, and highlight an important aspect or benefit. "
+                    f"Include an element of curiosity. Post limit: 240 characters. "
+                    f"Add a call-to-action link at the end using either https://aiochatbots.com or https://bestai.tv.\n"
+                    f"Use the hashtags #BLTV #BestAiTV #BestAiPodcast #AIOChatbots"
+                )
+            elif plat == "linkedin":
+                system_prompt = "You are an AI industry expert and automations specialist."
+                user_prompt = (
+                    f"Produce a LinkedIn post discussing the key points from this article summary: {article_summary}\n\n"
+                    f"The post should provide insightful analysis, connect with current industry trends, "
+                    f"and encourage professional engagement or discussions. "
+                    f"Highlight any notable implications for the industry. "
+                    f"Ensure it is informative and structured. "
+                    f"Include a link to the original article: {article_url}\n"
+                    f"Add a call-to-action link using either https://aiochatbots.com or https://bestai.tv (use only one). "
+                    f"Use the hashtags #BLTV #BestAiTV #BestAiPodcast and other relevant hashtags and emojis.\n\n"
+                    f"Do not give any type of content or image suggestions in the result. Only the post."
+                )
+            elif plat == "youtube":
+                system_prompt = "You are an expert YouTube video producer with a knack for SEO."
+                user_prompt = (
+                    f"Generate a compelling YouTube video title and a 3-minute video script for this article summary: {article_summary}\n\n"
+                    f"The script should engage the audience with a compelling introductory hook, "
+                    f"provide essential details, cover industry impacts, include rhetorical questions, "
+                    f"and end with a clear call to action encouraging interaction through likes, comments, and shares. "
+                    f"The information should be easily readable by an AI voice synthesizer.\n\n"
+                    f"Negative Prompt: No emojis or side notes, suggestions, etc. in the result. The podcast content only."
+                )
+
+            if custom_instructions:
+                user_prompt += f"\n\nAdditional instructions: {custom_instructions}"
+
+            result = get_media_engine().generate_script(
+                {
+                    "title": f"PostBot: {plat}",
+                    "topic": article_summary[:200] if article_summary else "Social Content",
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "image_style": image_style if plat in ("facebook", "instagram", "linkedin") else None,
+                    "platform": plat,
+                    "article_url": article_url,
+                    "provider": clean_text(node_config.get("provider")) or "stub-script",
+                },
+                tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+                context={
+                    "run_id": runtime.get("runId"),
+                    "flow_name": context.get("flow_name"),
+                    "thread_id": context.get("thread_id") or self._trigger_payload(context).get("thread_id"),
+                    "contact_id": context.get("contact_id") or self._trigger_payload(context).get("contact_id"),
+                },
+            )
+            job = result.get("job") or {}
+            plat_status = "success" if clean_text(job.get("status")) == "complete" else "failed"
+            platform_outputs[plat] = {
+                "content": job.get("result") or job.get("script") or "",
+                "status": plat_status,
+                "imagePrompt": self._postbot_image_prompt(plat, article_summary, image_style) if plat in ("facebook", "instagram", "linkedin") else None,
+            }
+
+        # --- Media Lanes: Narration, Shorts, YouTube Handoff ---
+        narration_asset_id = None
+        narration_status = None
+        shorts_assets = []
+        shorts_status = None
+        youtube_payload = {}
+        youtube_status = None
+
+        youtube_content = platform_outputs.get("youtube", {}).get("content") or ""
+        youtube_title = ""
+        if youtube_content:
+            # Extract title from first line if it looks like a title
+            first_line = youtube_content.split("\n")[0].strip()
+            if first_line and len(first_line) < 200 and not first_line.startswith("#"):
+                youtube_title = first_line
+            else:
+                youtube_title = f"PostBot: {article_url or article_summary[:80]}"
+
+        # Lane 1: ElevenLabs Narration
+        if generate_audio and youtube_content:
+            try:
+                tts_result = get_media_engine().render_audio(
+                    {
+                        "text": youtube_content,
+                        "provider": "elevenlabs_tts",
+                        "voice_id": clean_text(node_config.get("narrationVoiceId") or node_config.get("narration_voice_id")),
+                        "model_id": clean_text(node_config.get("narrationModelId") or node_config.get("narration_model_id") or "eleven_turbo_v2"),
+                        "voice_settings": {
+                            "stability": float(node_config.get("narrationStability") or node_config.get("narration_stability") or 0.5),
+                            "similarity_boost": float(node_config.get("narrationSimilarity") or node_config.get("narration_similarity") or 0.75),
+                        },
+                    },
+                    tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None,
+                )
+                tts_job = tts_result.get("job") or {}
+                if clean_text(tts_job.get("status")) == "complete":
+                    narration_asset_id = tts_job.get("id") or tts_job.get("asset_id")
+                    narration_status = "success"
+                else:
+                    narration_status = "failed"
+            except Exception:
+                narration_status = "failed"
+        elif generate_audio:
+            narration_status = "skipped"
+
+        # Lane 2: Shorts Generation (structured output only)
+        if generate_shorts:
+            source_text = youtube_content or article_summary
+            if source_text:
+                # Split into hook-driven short-form blocks
+                paragraphs = [p.strip() for p in source_text.split("\n\n") if p.strip()]
+                if not paragraphs:
+                    paragraphs = [source_text]
+
+                for idx, para in enumerate(paragraphs[:4]):
+                    hook = para[:100] + "..." if len(para) > 100 else para
+                    shorts_assets.append({
+                        "title": f"Short {idx + 1}: {hook[:50]}",
+                        "script": para,
+                        "durationEstimate": f"{max(15, min(60, len(para.split()) * 0.5)):.0f}s",
+                    })
+                shorts_status = "success" if shorts_assets else "empty"
+            else:
+                shorts_status = "skipped"
+
+        # Lane 3: YouTube Handoff Payload
+        if publish_to_youtube:
+            youtube_payload = {
+                "title": youtube_title,
+                "description": f"Generated by AIO PostBot™\n\n{article_summary[:500] if article_summary else ''}\n\nSource: {article_url}",
+                "tags": ["AIO", "PostBot", "AI", "Tech"] + [p.replace(" ", "") for p in target_platforms[:3]],
+                "script": youtube_content,
+                "audioAssetId": narration_asset_id,
+                "privacy": "private",
+            }
+            youtube_status = "ready"
+
+        artifact = {
+            "contentPack": {
+                "platforms": platform_outputs,
+                "articleUrl": article_url,
+                "articleSummary": article_summary,
+                "imageStyle": image_style,
+            },
+            "narration": {
+                "enabled": generate_audio,
+                "assetId": narration_asset_id,
+                "status": narration_status,
+            },
+            "shorts": {
+                "enabled": generate_shorts,
+                "assets": shorts_assets,
+                "status": shorts_status,
+            },
+            "youtubeHandoff": {
+                "enabled": publish_to_youtube,
+                "status": youtube_status,
+                "payload": youtube_payload,
+            },
+            "generationMeta": {
+                "platforms": target_platforms,
+                "timestamp": datetime_now(),
+                "formSubmissionId": canonical["sourceFormId"],
+                "feedId": canonical["sourceFeedId"],
+                "triggerType": canonical["triggerType"],
+            },
+        }
+
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "success",
+            "data": {"artifact": artifact},
+            "error": None,
+        }
+
+    def _postbot_image_prompt(self, platform: str, content: str, style: str) -> str:
+        """Generate a platform-appropriate DALL-E image prompt. Normalized from n8n workflow prompts."""
+        if platform == "facebook":
+            return (
+                f"Create a visually appealing, engaging image relevant to this content: {content[:500]}\n"
+                f"The image should be 1200x630 pixels, suitable for Facebook. "
+                f"Use bright colors, clear focal points, and element overlays to capture attention in the news feed. "
+                f"Negative prompt: No text in image."
+            )
+        elif platform == "instagram":
+            return (
+                f"Generate a square image (1080x1080 pixels) in the style of {style} "
+                f"that is highly visual and aesthetically pleasing for Instagram. "
+                f"The image should be directly relevant to this content: {content[:500]}. "
+                f"Focus on strong visuals. Negative prompt: No text in image."
+            )
+        elif platform == "linkedin":
+            return (
+                f"Create a professional and polished image in the style of {style} "
+                f"with dimensions of 800x600 pixels, suitable for LinkedIn. "
+                f"The image should relate to this content: {content[:500]}, "
+                f"using a clean and modern design with muted colors for a professional image. "
+                f"Negative prompt: No text in image."
+            )
+        return ""
 
     def _merge_transcript_metadata(self, metadata: dict[str, Any] | None, asset: dict[str, Any] | None) -> dict[str, Any]:
         merged = safe_clone(metadata) if isinstance(metadata, dict) else {}

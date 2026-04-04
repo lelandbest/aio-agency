@@ -81,23 +81,33 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
           {showFormSelect && (
             <div>
               <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                Select Form
+                Select Form{config.formIds?.length > 1 ? 's' : ''}
               </label>
               {loadingForms ? (
                 <div className="flex items-center gap-2 text-sm text-[var(--color-text-tertiary)]">
                   <Loader2 size={14} className="animate-spin" /> Loading forms...
                 </div>
               ) : forms.length > 0 ? (
-                <select
-                  value={config.formId || ''}
-                  onChange={(e) => handleInputChange('formId', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                >
-                  <option value="">Any form</option>
-                  {forms.map(form => (
-                    <option key={form.id} value={form.id}>{form.name}</option>
-                  ))}
-                </select>
+                <div className="space-y-1">
+                  <select
+                    multiple
+                    value={config.formIds || (config.formId ? [config.formId] : [])}
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.selectedOptions, opt => opt.value);
+                      handleInputChange('formIds', selected);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                    size={Math.min(forms.length + 1, 6)}
+                  >
+                    <option value="">Any form</option>
+                    {forms.map(form => (
+                      <option key={form.id} value={form.id}>{form.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-[var(--color-text-tertiary)]">
+                    Hold Ctrl/Cmd to select multiple forms.
+                  </p>
+                </div>
               ) : (
                 <div className="text-sm text-[var(--color-text-tertiary)]">
                   No forms found. Create forms in the Forms module.
@@ -109,7 +119,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
             </div>
           )}
 
-          {config.event === 'form_submitted' && config.formId && (
+          {config.event === 'form_submitted' && (config.formIds?.length > 0 || config.formId) && (
             <div>
               <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
                 Captured Variables

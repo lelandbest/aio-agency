@@ -1026,7 +1026,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         or data.get("logicType")
         or ""
     ).strip().lower()
-    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "rss_ingest", "generate_image"}:
+    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "rss_ingest", "generate_image", "generate_podcast_script", "generate_postbot_content"}:
         return action_type
     if action_type in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
         return action_type
@@ -1036,7 +1036,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         return "time_delay"
     if template_id in {"filter", "switch"}:
         return template_id
-    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "rss_ingest", "generate_image"}:
+    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "rss_ingest", "generate_image", "generate_podcast_script", "generate_postbot_content"}:
         return template_id
     if node_type == "webhook" and template_id == "webhook":
         return "webhook"
@@ -1589,6 +1589,17 @@ class BrainProfileUpdateRequest(BaseModel):
     mission: str | None = None
     brandVoice: str | None = None
     idealCustomer: str | None = None
+    valueProp: str | None = None
+    differentiation: str | None = None
+    painPoints: str | None = None
+    competitors: str | None = None
+    marketingStrategy: str | None = None
+    workflow: str | None = None
+    legalEntity: str | None = None
+    primaryBrand: str | None = None
+    brandArchitecture: str | None = None
+    legacyBrandNotes: str | None = None
+    brandUsageRules: str | None = None
 
 
 class BrainSourceRequest(BaseModel):
@@ -1683,6 +1694,17 @@ def _serialize_brain_profile(record: dict[str, Any] | None) -> dict[str, Any]:
         "mission": source.get("mission") or "",
         "brandVoice": _brain_value(source, "brandVoice", "brand_voice") or "",
         "idealCustomer": _brain_value(source, "idealCustomer", "ideal_customer") or "",
+        "valueProp": _brain_value(source, "valueProp", "value_prop") or "",
+        "differentiation": _brain_value(source, "differentiation") or "",
+        "painPoints": _brain_value(source, "painPoints", "pain_points") or "",
+        "competitors": _brain_value(source, "competitors") or "",
+        "marketingStrategy": _brain_value(source, "marketingStrategy", "marketing_strategy") or "",
+        "workflow": _brain_value(source, "workflow") or "",
+        "legalEntity": _brain_value(source, "legalEntity", "legal_entity") or "",
+        "primaryBrand": _brain_value(source, "primaryBrand", "primary_brand") or "",
+        "brandArchitecture": _brain_value(source, "brandArchitecture", "brand_architecture") or "",
+        "legacyBrandNotes": _brain_value(source, "legacyBrandNotes", "legacy_brand_notes") or "",
+        "brandUsageRules": _brain_value(source, "brandUsageRules", "brand_usage_rules") or "",
         "activeProvider": _brain_value(source, "activeProvider", "active_provider"),
         "activeModel": _brain_value(source, "activeModel", "active_model"),
         "createdAt": source.get("createdAt"),
@@ -1803,6 +1825,17 @@ def _brain_profile_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "mission": source.get("mission"),
         "brand_voice": source.get("brandVoice"),
         "ideal_customer": source.get("idealCustomer"),
+        "value_prop": source.get("valueProp"),
+        "differentiation": source.get("differentiation"),
+        "pain_points": source.get("painPoints"),
+        "competitors": source.get("competitors"),
+        "marketing_strategy": source.get("marketingStrategy"),
+        "workflow": source.get("workflow"),
+        "legal_entity": source.get("legalEntity"),
+        "primary_brand": source.get("primaryBrand"),
+        "brand_architecture": source.get("brandArchitecture"),
+        "legacy_brand_notes": source.get("legacyBrandNotes"),
+        "brand_usage_rules": source.get("brandUsageRules"),
         "active_provider": source.get("activeProvider"),
         "active_model": source.get("activeModel"),
     }

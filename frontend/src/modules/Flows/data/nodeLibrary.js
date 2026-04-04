@@ -93,9 +93,9 @@ const iconRegistry = {
   'Trash2': Trash2,
   'ExternalLink': ExternalLink,
   'Save': Save,
-  'Edit2': Edit2,
+  'Edit2': Edit,
   'User': User,
-  'Users': Users,
+  'Users': User,
   'Mail': Mail,
   'MessageSquare': MessageSquare,
   'Phone': Phone,
@@ -204,6 +204,9 @@ export const triggerNodes = [
     nodeColor: 'trigger',
     status: 'live',
     event: 'form_submitted',
+    config: {
+      formIds: [],
+    },
   },
   {
     id: 'contact-created-trigger',

@@ -66,6 +66,14 @@ const EMPTY_PROFILE = {
   brandVoice: '',
   painPoints: '',
   marketingStrategy: '',
+  competitors: '',
+  differentiation: '',
+  workflow: '',
+  legalEntity: '',
+  primaryBrand: '',
+  brandArchitecture: '',
+  legacyBrandNotes: '',
+  brandUsageRules: '',
 };
 
 const SubPanelHeader = ({ title, icon: Icon }) => (
@@ -1287,11 +1295,11 @@ const Cortex = () => {
         <aside className={`fixed top-0 right-0 bottom-0 w-[420px] z-[100] border-l border-[var(--color-border)] bg-[var(--color-bg-primary)] transition-transform duration-500 shadow-island ${showProfileDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="h-full flex flex-col relative">
             <button onClick={() => setShowProfileDrawer(!showProfileDrawer)} className="absolute -left-8 top-[75%] -translate-y-1/2 h-16 w-8 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-l-[var(--radius-panel)] flex items-center justify-center text-[var(--color-text-tertiary)] z-50 shadow-island-sm transition"><ChevronRight size={18} className={showProfileDrawer ? '' : 'rotate-180'} /></button>
-            <div className="p-6 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm"><Shield size={18} /></div><div><div className="text-xs font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Business DNA Profile</div><div className="text-[6px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest mt-0.5">Operational Registry</div></div></div>
+            <div className="p-5 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm"><Shield size={18} /></div><div><div className="text-sm font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Business DNA Profile</div><div className="text-[10px] font-medium text-[var(--color-text-tertiary)] mt-0.5">Operational Registry</div></div></div>
             <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
-              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-black text-[var(--color-text-secondary)]">{profile.companyName || 'Unidentified'}</div></section>
-              <section className="space-y-2"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Mission DNA</div><div className="p-4 rounded-[var(--radius-card)] bg-white/[0.01] border border-white/5 italic text-[12px] text-[var(--color-text-secondary)] leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
-              <section className="space-y-3"><div className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-2"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-primary)] mb-0.5">Target Audience (ICP)</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.idealCustomer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-[9px] font-black uppercase tracking-widest text-magenta-400 mb-0.5">Voice & Tone</div><div className="text-[12px] text-[var(--color-text-secondary)] font-medium">{profile.brandVoice || 'Not defined'}</div></div></div></section>
+              <section className="space-y-2"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-bold text-[var(--color-text-secondary)] leading-snug">{profile.companyName || 'Unidentified'}</div></section>
+              <section className="space-y-2"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Mission DNA</div><div className="p-4 rounded-[var(--radius-card)] bg-white/[0.01] border border-white/5 italic text-sm text-[var(--color-text-secondary)] leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
+              <section className="space-y-3"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-3"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)] mb-1">Target Audience (ICP)</div><div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{profile.idealCustomer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-xs font-semibold uppercase tracking-wide text-magenta-400 mb-1">Voice & Tone</div><div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{profile.brandVoice || 'Not defined'}</div></div></div></section>
             </div>
             <div className="p-6 border-t border-[var(--color-border)] bg-black/40"><button onClick={() => setShowBrandForm(true)} className={COMMS_TOOLBAR_PRIMARY + " w-full !h-12 !rounded-[var(--radius-card)] !text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 shadow-island-sm"}><PenTool size={14} /> Update Operations DNA</button></div>
           </div>

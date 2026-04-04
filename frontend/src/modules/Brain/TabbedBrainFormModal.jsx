@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Save, Shield, Users, Rocket, Zap, User, Briefcase } from 'lucide-react';
+import { X, Shield, Users, Rocket, Zap, User, Briefcase, Fingerprint } from 'lucide-react';
 import { processFormSubmission } from '../../services/formProcessor';
 
 const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
@@ -34,22 +34,22 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
     };
 
     const renderField = (id, label, type = 'text', placeholder = '') => (
-        <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-tertiary)]">{label}</label>
+        <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 block">{label}</label>
             {type === 'textarea' ? (
                 <textarea
                     value={formData[id] || ''}
                     onChange={(e) => handleChange(id, e.target.value)}
-                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none transition-all shadow-island-sm"
+                    className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-slate-200 focus:border-cyan-500/40 focus:outline-none transition-all placeholder:text-slate-600 resize-none"
                     placeholder={placeholder}
-                    rows={3}
+                    rows={4}
                 />
             ) : (
                 <input
                     type="text"
                     value={formData[id] || ''}
                     onChange={(e) => handleChange(id, e.target.value)}
-                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none transition-all shadow-island-sm"
+                    className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm text-slate-200 focus:border-cyan-500/40 focus:outline-none transition-all placeholder:text-slate-600"
                     placeholder={placeholder}
                 />
             )}
@@ -57,33 +57,48 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
     );
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[3000] p-4">
-            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-2xl h-[600px] overflow-hidden flex flex-col shadow-island animate-in zoom-in duration-300">
-                {/* Header with Tabs */}
-                <div className="p-1 px-4 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-tertiary)] flex-shrink-0">
-                    <div className="flex gap-1">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === tab.id ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'}`}
-                            >
-                                <tab.icon size={14} />
-                                {tab.label}
-                            </button>
-                        ))}
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[3000] p-4">
+            <div className="bg-[#0D0F13] border border-white/10 rounded-xl w-full max-w-2xl h-[600px] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in duration-200">
+                {/* Header */}
+                <div className="px-5 py-3.5 border-b border-white/8 flex items-center justify-between flex-shrink-0 bg-[#0A0C10]">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded bg-cyan-500/10 border border-cyan-500/20">
+                            <Fingerprint size={16} className="text-cyan-400" />
+                        </div>
+                        <div>
+                            <div className="text-sm font-bold text-slate-200">Business DNA Registry</div>
+                            <div className="text-[10px] font-medium text-slate-500 mt-0.5">Cortex Operational Profile</div>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="p-2 text-[var(--color-text-tertiary)] hover:text-white transition-colors">
-                        <X size={20} />
+                    <button onClick={onClose} className="p-1.5 rounded hover:bg-white/5 text-slate-500 hover:text-slate-300 transition">
+                        <X size={18} />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto no-scrollbar p-8">
+                {/* Tabs */}
+                <div className="px-5 pt-1.5 border-b border-white/5 flex items-end gap-1 flex-shrink-0 bg-[#0A0C10]">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-all border-b-2 ${activeTab === tab.id
+                                ? 'border-cyan-500/60 text-cyan-400 bg-cyan-500/5'
+                                : 'border-transparent text-slate-500 hover:text-slate-300'
+                            }`}
+                        >
+                            <tab.icon size={13} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto no-scrollbar p-6">
                     {activeTab === 'identity' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <div className="flex items-center gap-3 mb-2">
-                                <Briefcase className="text-[var(--color-primary)]" size={18} />
-                                <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Brand Identity</h4>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-200">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Briefcase size={14} className="text-cyan-500" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-400">Brand Identity</h4>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {renderField('companyName', 'Business Name', 'text', 'e.g. AIO BrandMaster™')}
@@ -94,10 +109,10 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                     )}
 
                     {activeTab === 'mission' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <div className="flex items-center gap-3 mb-2">
-                                <Rocket className="text-[var(--color-primary)]" size={18} />
-                                <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Operational Mission</h4>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-200">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Rocket size={14} className="text-cyan-500" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-400">Operational Mission</h4>
                             </div>
                             {renderField('mission', 'Mission Statement', 'textarea', 'Describe your core purpose...')}
                             {renderField('differentiation', 'Differentiators', 'textarea', 'What sets you apart?')}
@@ -105,10 +120,10 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                     )}
 
                     {activeTab === 'audience' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <div className="flex items-center gap-3 mb-2">
-                                <User className="text-[var(--color-primary)]" size={18} />
-                                <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Target Audience (ICP)</h4>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-200">
+                            <div className="flex items-center gap-2 mb-1">
+                                <User size={14} className="text-cyan-500" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-400">Target Audience (ICP)</h4>
                             </div>
                             {renderField('idealCustomer', 'Customer Profile', 'textarea', 'Describe your ideal buyer...')}
                             {renderField('painPoints', 'Customer Pain Points', 'textarea', 'Add primary friction points identified...')}
@@ -116,32 +131,33 @@ const TabbedBrainFormModal = ({ onClose, onSuccess, initialData = {} }) => {
                     )}
 
                     {activeTab === 'market' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <div className="flex items-center gap-3 mb-2">
-                                <Zap className="text-[var(--color-primary)]" size={18} />
-                                <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Market & Competitive Strategy</h4>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-left-2 duration-200">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Zap size={14} className="text-cyan-500" />
+                                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-400">Market & Competitive Strategy</h4>
                             </div>
                             {renderField('competitors', 'Competitor Landscape', 'textarea', 'Identify key competitors and their gaps...')}
                             {renderField('marketingStrategy', 'Marketing Angle', 'textarea', 'Primary marketing analysis/strategy...')}
-                            {renderField('workflow', 'Operational workflow', 'textarea', 'Execution path...')}
+                            {renderField('workflow', 'Operational Workflow', 'textarea', 'Execution path...')}
                         </div>
                     )}
                 </div>
 
-                <div className="p-6 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-end items-center gap-4 flex-shrink-0">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--color-text-tertiary)] mr-auto italic opacity-50">Operational DNA Sync v2.1</p>
+                {/* Footer */}
+                <div className="px-5 py-3.5 border-t border-white/8 flex justify-end items-center gap-3 flex-shrink-0 bg-[#0A0C10]">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-600 mr-auto">DNA Profile v2.1</p>
                     <button
                         onClick={onClose}
-                        className="px-6 py-2.5 rounded-[var(--radius-card)] text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] hover:text-white transition-all border border-transparent hover:border-[var(--color-border)]"
+                        className="px-5 py-2 rounded text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-300 transition border border-transparent hover:border-white/10"
                     >
-                        Discard
+                        Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="flex items-center gap-3 px-8 py-3 bg-[var(--color-primary)] hover:opacity-90 text-[10px] font-black uppercase tracking-widest text-white rounded-[var(--radius-card)] shadow-island disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
+                        className="flex items-center gap-2 px-5 py-2 bg-cyan-600/90 hover:bg-cyan-500/90 text-xs font-semibold uppercase tracking-wide text-white rounded disabled:opacity-40 transition"
                     >
-                        <Save size={14} />
+                        <Shield size={13} />
                         {submitting ? 'Syncing...' : 'Commit to DNA'}
                     </button>
                 </div>
