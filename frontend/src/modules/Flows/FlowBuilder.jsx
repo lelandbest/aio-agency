@@ -350,6 +350,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [flow, setFlow] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [providerStatuses, setProviderStatuses] = useState({});
 
   // Node/Edge state
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -708,6 +709,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           }
         }
         setIsDirty(false);
+
+        // Fetch provider connection statuses for flow nodes
+        if (flowData?.id) {
+          try {
+            const statuses = await getFlowProviderStatusesApi(flowData.id);
+            setProviderStatuses(statuses?.providers || {});
+          } catch (e) {
+            console.warn('Could not load provider statuses:', e);
+          }
+        }
       } catch (error) {
         console.error('Failed to initialize flow:', error);
       } finally {
@@ -1313,6 +1324,32 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
     loadFlowRunHistory(flow.id);
   }, [flow?.id, loadFlowRunHistory]);
+
+  // Inject provider connection status into provider-dependent nodes
+  useEffect(() => {
+    if (!Object.keys(providerStatuses).length) return;
+    const PROVIDER_NODE_INTENTS = new Set(['publish_asset', 'generate_postbot_content', 'postbot_content']);
+    setNodes((currentNodes) => currentNodes.map((node) => {
+      const config = node.data?.config || {};
+      const intent = node.data?.intent || config?.intent || '';
+      if (!PROVIDER_NODE_INTENTS.has(intent)) return node;
+      let providerKey = config?.publishTarget || config?.publish_target || '';
+      if (providerKey && providerKey !== 'internal.media' && providerKey !== 'local') {
+        const status = providerStatuses[providerKey];
+        if (status && status !== 'connected') {
+          return { ...node, data: { ...node.data, providerStatus: status, providerKey } };
+        }
+      }
+      const platforms = config?.targetPlatforms || config?.target_platforms || [];
+      for (const plat of platforms) {
+        const status = providerStatuses[String(plat).toLowerCase()];
+        if (status && status !== 'connected') {
+          return { ...node, data: { ...node.data, providerStatus: status, providerKey: String(plat).toLowerCase() } };
+        }
+      }
+      return node;
+    }));
+  }, [providerStatuses, setNodes]);
 
   const resetExecutionVisuals = useCallback(() => {
     setNodes((currentNodes) => currentNodes.map((node) => ({

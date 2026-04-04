@@ -38,6 +38,14 @@ except ModuleNotFoundError:
         get_transcription_provider_lock,
         resolve_transcription_provider_id_from_lock,
     )
+    from backend.auth_store import get_auth_store
+except ModuleNotFoundError:
+    from media_engine import (
+        get_media_engine,
+        get_transcription_provider_lock,
+        resolve_transcription_provider_id_from_lock,
+    )
+    from auth_store import get_auth_store
 
 logger = logging.getLogger(__name__)
 
@@ -3212,6 +3220,56 @@ class StepExecutor:
 
         return {"intro": intro, "segments": segments, "outro": outro, "callToAction": ""}
 
+    def _check_provider_connected(self, tenant_id: str | None, provider_key: str) -> dict[str, Any] | None:
+        """
+        Returns None if provider is connected.
+        Returns a blocked response dict if not connected.
+        """
+        if not tenant_id or not provider_key:
+            return {
+                "status": "blocked",
+                "reason": "provider_not_configured",
+                "providerKey": provider_key,
+                "providerStatus": "notConnected",
+                "message": f"Provider '{provider_key}' is not configured.",
+            }
+        try:
+            auth_store = get_auth_store()
+            config = auth_store.get_social_provider_config(tenant_id, provider_key)
+        except Exception:
+            return {
+                "status": "blocked",
+                "reason": "provider_config_error",
+                "providerKey": provider_key,
+                "providerStatus": "unknown",
+                "message": f"Could not retrieve config for '{provider_key}'.",
+            }
+        if not config:
+            return {
+                "status": "blocked",
+                "reason": "provider_not_found",
+                "providerKey": provider_key,
+                "providerStatus": "notConnected",
+                "message": f"Provider '{provider_key}' is not connected.",
+            }
+        canonical_status = (config.get("status") or "").strip().lower()
+        if canonical_status == "connected":
+            return None
+        reason_map = {
+            "configured": "provider_configured_not_connected",
+            "needsconfig": "provider_needs_config",
+            "notconnected": "provider_not_connected",
+            "reconnectrequired": "provider_reconnect_required",
+            "disconnected": "provider_not_connected",
+        }
+        return {
+            "status": "blocked",
+            "reason": reason_map.get(canonical_status, "provider_not_connected"),
+            "providerKey": provider_key,
+            "providerStatus": canonical_status or "unknown",
+            "message": f"Provider '{provider_key}' is {canonical_status or 'unknown'} (not connected).",
+        }
+
     def _generate_postbot_content(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         """
         Generate platform-optimized social content from canonical PostBot input.
@@ -3255,6 +3313,10 @@ class StepExecutor:
         platform_outputs = {}
         for plat in target_platforms:
             plat = plat.lower()
+            block = self._check_provider_connected(tenant_id, plat)
+            if block:
+                platform_outputs[plat] = {**block, "content": None, "imagePrompt": None}
+                continue
             system_prompt = "You are an expert social media copywriter specializing in SEO and platform-native content."
             user_prompt = ""
 
@@ -3494,6 +3556,11 @@ class StepExecutor:
             import json
             import urllib.request
             import urllib.error
+
+            tenant_id = clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None
+            yt_block = self._check_provider_connected(tenant_id, "youtube")
+            if yt_block:
+                return {"attempted": False, "status": "blocked", "videoId": None, "error": yt_block.get("message", "YouTube provider not connected")}
 
             api_key = clean_text(os.environ.get("YOUTUBE_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
             if not api_key:
@@ -4187,6 +4254,19 @@ class StepExecutor:
         publish_target = clean_text(payload.get("publishTarget") or payload.get("publish_target") or payload.get("attachTarget") or payload.get("outputTarget"))
         if not publish_target:
             return self._service_error(step, "Publish Asset requires a publishTarget.", data={"job": None, "artifact": None})
+        tenant_id = clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None
+        target_block = self._check_provider_connected(tenant_id, publish_target)
+        if target_block:
+            return {
+                "stepId": step.get("id"),
+                "intent": step.get("intent"),
+                "status": "blocked",
+                "data": None,
+                "error": target_block.get("message"),
+                "providerKey": target_block.get("providerKey"),
+                "providerStatus": target_block.get("providerStatus"),
+                "reason": target_block.get("reason"),
+            }
         if not asset_ids and not artifact_ids:
             return self._service_error(step, "Publish Asset requires an upstream asset or artifact.", data={"job": None, "artifact": None})
         result = get_media_engine().publish_asset(

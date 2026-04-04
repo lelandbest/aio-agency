@@ -580,6 +580,11 @@ export async function getFlowApi(flowId) {
   return response.data || null;
 }
 
+export async function getFlowProviderStatusesApi(flowId) {
+  const response = await request(`/api/flows/${encodeURIComponent(flowId)}/provider-statuses`);
+  return response.data || {};
+}
+
 export async function saveFlowApi(flowId, payload) {
   const response = await request(`/api/flows/${encodeURIComponent(flowId)}`, {
     method: 'PUT',

@@ -68,6 +68,7 @@ try:
     )
     from backend.media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
     from backend.media_library_service import get_media_library_item, list_media_library_items
+    from backend.auth_store import get_auth_store
     from backend.data_store_adapters import (
         create_data_store_record,
         read_data_store_records,
@@ -96,6 +97,7 @@ except ModuleNotFoundError:
     )
     from media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
     from media_library_service import get_media_library_item, list_media_library_items
+    from auth_store import get_auth_store
     from data_store_adapters import (
         create_data_store_record,
         read_data_store_records,
@@ -5024,6 +5026,43 @@ async def get_flow(flow_id: str, request: Request):
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found.")
     return {"data": flow}
+
+
+@app.get("/api/flows/{flow_id}/provider-statuses")
+async def get_flow_provider_statuses(flow_id: str, request: Request):
+    """Return the connection status of all social providers referenced in a flow."""
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view flows.")
+    flow = provider.get_flow(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found.")
+    tenant_id = (request.state.session or {}).get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Tenant context required.")
+    SOCIAL_PROVIDER_NODES = {"publish_asset", "generate_postbot_content", "postbot_content"}
+    steps = flow.get("steps") or []
+    provider_keys = set()
+    for step in steps:
+        config = step.get("config") or {}
+        intent = step.get("intent") or ""
+        if intent in SOCIAL_PROVIDER_NODES:
+            pt = config.get("publishTarget") or config.get("publish_target")
+            if pt and pt not in {"internal.media", "local"}:
+                provider_keys.add(pt)
+        for plat in (config.get("targetPlatforms") or []):
+            provider_keys.add(str(plat).lower())
+        yt = config.get("publishToYouTube")
+        if yt:
+            provider_keys.add("youtube")
+    statuses = {}
+    try:
+        auth_store = get_auth_store()
+        for key in sorted(provider_keys):
+            config = auth_store.get_social_provider_config(tenant_id, key)
+            statuses[key] = config.get("status") if config else "notConnected"
+    except Exception:
+        for key in sorted(provider_keys):
+            statuses[key] = "unknown"
+    return {"data": {"providers": statuses}}
 
 
 @app.put("/api/flows/{flow_id}")

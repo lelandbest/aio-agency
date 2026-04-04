@@ -4020,6 +4020,19 @@ class AuthStore:
                         result["config"][secret_field] = "••••••••"
         return result
 
+    def get_social_provider_config(self, tenant_id: str, provider_key: str) -> dict[str, Any] | None:
+        normalized = (provider_key or "").strip().lower()
+        if not normalized:
+            return None
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM social_provider_configs WHERE tenantId = ? AND providerKey = ? LIMIT 1",
+                (tenant_id, normalized),
+            ).fetchone()
+        if not row:
+            return None
+        return self._social_provider_record(row)
+
     def list_social_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(

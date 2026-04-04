@@ -8,7 +8,7 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { getIconComponent } from '../../data/nodeLibrary';
-import { Settings } from 'lucide-react';
+import { Settings, AlertTriangle } from 'lucide-react';
 
 const nodeColorTokens = {
   trigger: 'var(--node-trigger)',
@@ -142,6 +142,12 @@ const CustomNode = ({ data, selected, isConnectable }) => {
         <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wide mt-0.5">
           {data.typeLabel || data.type}
         </p>
+        {data.providerStatus && data.providerStatus !== 'connected' && (
+          <div className="mt-0.5 flex items-center justify-center gap-0.5 aio-tooltip" data-tooltip={`${data.providerKey}: ${data.providerStatus.replace('_', ' ')}`}>
+            <AlertTriangle size={9} className="text-amber-400" />
+            <span className="text-[8px] text-amber-400 font-bold uppercase tracking-tight">{data.providerKey}</span>
+          </div>
+        )}
       </div>
     </div>
   );
