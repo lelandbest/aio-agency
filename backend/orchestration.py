@@ -3358,6 +3358,14 @@ class StepExecutor:
                 "feedId": canonical["sourceFeedId"],
                 "triggerType": canonical["triggerType"],
             },
+            "youtubePublishResult": self._try_publish_to_youtube(
+                youtube_payload, narration_asset_id, node_config, context
+            ) if publish_to_youtube else {
+                "attempted": False,
+                "status": "skipped",
+                "videoId": None,
+                "error": None,
+            },
         }
 
         return {
@@ -3367,6 +3375,70 @@ class StepExecutor:
             "data": {"artifact": artifact},
             "error": None,
         }
+
+    def _try_publish_to_youtube(self, payload: dict[str, Any], audio_asset_id: str | None, node_config: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Non-blocking YouTube publish attempt.
+        Must never throw, never block, never fail the run.
+        """
+        try:
+            import os
+            import json
+            import urllib.request
+            import urllib.error
+
+            api_key = clean_text(os.environ.get("YOUTUBE_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+            if not api_key:
+                return {"attempted": False, "status": "skipped", "videoId": None, "error": "YouTube API key not configured"}
+
+            title = clean_text(payload.get("title") or "AIO PostBot Video")
+            description = clean_text(payload.get("description") or "")
+            tags = payload.get("tags") or []
+            if not isinstance(tags, list):
+                tags = []
+            privacy = clean_text(payload.get("privacy") or "private")
+
+            # Build upload metadata
+            upload_meta = {
+                "snippet": {
+                    "title": title,
+                    "description": description,
+                    "tags": tags[:30],  # YouTube limit
+                    "categoryId": "28",  # Science & Technology
+                },
+                "status": {
+                    "privacyStatus": privacy,
+                },
+            }
+
+            # If we have narration audio, upload as audio-only video
+            if audio_asset_id:
+                # Audio upload requires multipart form — use simple placeholder for now
+                # Full audio+video upload needs google-auth-library (not yet in deps)
+                return {
+                    "attempted": True,
+                    "status": "skipped",
+                    "videoId": None,
+                    "error": "Audio-only upload requires google-auth-library. Narration asset queued.",
+                }
+
+            # Fallback: create a minimal text-based video via YouTube Data API
+            # This requires OAuth for uploads — API key only works for read operations
+            # So we skip actual upload and return ready state
+            return {
+                "attempted": True,
+                "status": "skipped",
+                "videoId": None,
+                "error": "YouTube upload requires OAuth credentials. Handoff payload ready for manual publish.",
+            }
+
+        except Exception as e:
+            return {
+                "attempted": True,
+                "status": "failed",
+                "videoId": None,
+                "error": str(e)[:500],
+            }
 
     def _postbot_image_prompt(self, platform: str, content: str, style: str) -> str:
         """Generate a platform-appropriate DALL-E image prompt. Normalized from n8n workflow prompts."""

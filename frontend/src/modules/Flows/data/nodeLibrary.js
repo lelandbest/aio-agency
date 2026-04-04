@@ -4,7 +4,6 @@
  * AI Agent nodes loaded from registry (data-driven, not hardcoded)
  */
 
-import React from 'react';
 import {
   Play,
   Clock,
@@ -82,7 +81,6 @@ import {
   ChevronRight,
   ChevronUp,
   UploadCloud,
-  BarChart3,
 } from 'lucide-react';
 import { toolNodeTemplates } from './toolTemplates';
 
@@ -98,7 +96,7 @@ const iconRegistry = {
   'Users': User,
   'Mail': Mail,
   'MessageSquare': MessageSquare,
-  'Phone': Phone,
+  'Phone': MessageSquare,
   'FileText': FileText,
   'Box': Box,
   'Briefcase': Briefcase,
@@ -136,7 +134,7 @@ const iconRegistry = {
   'AlignRight': AlignRight,
   'GitMerge': GitMerge,
   'Database': Database,
-  'Download': Download,
+  'Download': UploadCloud,
   'Search': Search,
   'Filter': Filter,
   'Edit2': Edit,
@@ -145,9 +143,9 @@ const iconRegistry = {
   'Eye': Eye,
   'TrendingUp': TrendingUp,
   'Zap': Zap,
-  'Activity': Activity,
+  'Activity': TrendingUp,
   'Clock': Clock,
-  'BarChart3': BarChart3,
+  'BarChart3': TrendingUp,
   'Play': Play,
   'Square': Square,
   'Grid3x3': Grid3X3,
