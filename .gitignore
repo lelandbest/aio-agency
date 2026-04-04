@@ -113,6 +113,9 @@ nul
 .codex-runtime/
 .codex/
 
+# Agent tool directories
+.opencode/
+
 # runtime state (specific files, not broad pattern)
 backend/data/media_engine_state.json
 backend/data/*_debug.json

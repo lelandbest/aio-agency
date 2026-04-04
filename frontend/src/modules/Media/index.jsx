@@ -261,7 +261,7 @@ function normalizeMediaArtifactDeleteType(value) {
 }
 
 const MEDIA_PILL_BASE =
-  'inline-flex min-h-7 items-center gap-2 rounded-full border px-3 py-1 text-[8px] font-black uppercase leading-none tracking-[0.24em]';
+  'inline-flex min-h-3 items-center gap-1 rounded-full border px-1.5 py-px text-[5px] font-black uppercase leading-none tracking-[0.24em]';
 
 function mediaStatusPillTone(status) {
   const normalized = String(status || '').trim().toLowerCase();
@@ -1506,6 +1506,17 @@ const MediaModule = () => {
               <span className="text-[9px] font-mono text-cyan-500">{workspace.counts.jobs}</span>
             </div>
           }
+          toolbarRightSlot={
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] font-black text-cyan-400 uppercase tracking-[0.24em]">UPLINK</span>
+              {INGESTION_SOURCES.map((source) => (
+                <div key={source.id} className="inline-flex items-center gap-2 rounded-full border border-white/5 bg-black/30 px-2.5 py-1 text-[7px] text-slate-300 font-black uppercase tracking-[0.18em]">
+                  <div className={`h-1.5 w-1.5 rounded-full ${source.color}`} />
+                  {source.label}
+                </div>
+              ))}
+            </div>
+          }
           onModuleAi={handleModuleAiAssist}
           actions={[
             {
@@ -1516,27 +1527,6 @@ const MediaModule = () => {
             }
           ]}
         />
-        <div
-          className="pointer-events-none absolute inset-y-0 hidden lg:block"
-          style={{ left: 'calc((((100% - 404px) * 6) / 11) + 202px)' }}
-        >
-          <div className="pointer-events-auto flex h-full -translate-x-1/2 items-center justify-center">
-            <div
-              className="flex items-center justify-center gap-3 rounded-lg border border-white/5 bg-black/25 px-3 py-1.5 aio-tooltip"
-              data-tooltip={`Monitoring for Zoom, Meet,\nand Jitsi. Active API\nintegrations are required to\nperform proper ingestion / sync.`}
-            >
-              <span className="text-[8px] font-black text-cyan-500/70 uppercase tracking-[0.28em]">UPLINK STATUS</span>
-              <div className="flex items-center gap-3 cursor-help">
-                {INGESTION_SOURCES.map((source) => (
-                  <div key={source.id} className={`${MEDIA_PILL_BASE} min-h-6 gap-1.5 border-white/5 bg-black/30 px-2.5 py-1 text-[7px] text-slate-300`}>
-                    <div className={`h-1.5 w-1.5 rounded-full ${source.color} shadow-[0_0_5px_rgba(0,0,0,0.5)]`} />
-                    <span className="font-bold uppercase tracking-[0.18em]">{source.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="flex-1 min-h-0 flex gap-4 pe-4 py-4 bg-[#08080A]">
@@ -1552,20 +1542,20 @@ const MediaModule = () => {
             {activeOutput?.sourceUrl ? (
               <>
                 <div className="absolute top-2 left-2 right-2 flex items-center justify-center gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => window.open(activeOutputPlaybackUrl, '_blank')} className={`${MEDIA_PILL_BASE} border-cyan-500/30 bg-black/75 px-3 py-1 text-cyan-300 hover:bg-black`}>
+                  <button onClick={() => window.open(activeOutputPlaybackUrl, '_blank')} className={`${MEDIA_PILL_BASE} border-cyan-500/30 bg-black/75 text-cyan-300 hover:bg-black`}>
                     <ExternalLink size={10} /> OPEN
                   </button>
-                  <a href={activeOutputPlaybackUrl} download={activeOutput.title || 'download'} className={`${MEDIA_PILL_BASE} border-emerald-500/30 bg-black/75 px-3 py-1 text-emerald-300 hover:bg-black`}>
+                  <a href={activeOutputPlaybackUrl} download={activeOutput.title || 'download'} className={`${MEDIA_PILL_BASE} border-emerald-500/30 bg-black/75 text-emerald-300 hover:bg-black`}>
                     <Download size={10} /> DOWNLOAD
                   </a>
                   <button
                     onClick={() => handleProbeAsset(activeOutput)}
                     disabled={probePending}
-                    className={`${MEDIA_PILL_BASE} border-amber-500/30 bg-black/75 px-3 py-1 text-amber-300 hover:bg-black disabled:opacity-40`}
+                    className={`${MEDIA_PILL_BASE} border-amber-500/30 bg-black/75 text-amber-300 hover:bg-black disabled:opacity-40`}
                   >
                     {probePending ? <Loader2 size={10} className="animate-spin" /> : <Waves size={10} />} PROBE
                   </button>
-                  <button onClick={(e) => handleDeleteOutput(activeOutput, e)} className={`${MEDIA_PILL_BASE} border-red-500/30 bg-black/75 px-3 py-1 text-red-300 hover:bg-black`}>
+                  <button onClick={(e) => handleDeleteOutput(activeOutput, e)} className={`${MEDIA_PILL_BASE} border-red-500/30 bg-black/75 text-red-300 hover:bg-black`}>
                     <Trash2 size={10} /> DELETE
                   </button>
                 </div>
@@ -1723,7 +1713,7 @@ const MediaModule = () => {
                 <span className="text-[8px] font-mono text-slate-500">{formatDuration(playerState.currentTime)}</span>
                 <span className="text-[7px] font-mono text-slate-700">/</span>
                 <span className="text-[8px] font-mono text-slate-500">{formatDuration(playerState.duration)}</span>
-                <div className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-cyan-500/15 bg-cyan-500/5 px-2.5 py-1 text-[7px] text-cyan-400 ml-2`}>
+                <div className={`${MEDIA_PILL_BASE} gap-1 border-cyan-500/15 bg-cyan-500/5 text-cyan-400 ml-2`}>
                   {formatTimecode(playerState.currentTime)}
                 </div>
               </div>
@@ -1734,13 +1724,13 @@ const MediaModule = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-[9px] text-cyan-500 font-mono uppercase tracking-[0.22em]">{activeOutput?.title || 'NO ASSET'}</div>
               {probeData?.duration && (
-                <div className={`${MEDIA_PILL_BASE} min-h-6 gap-1.5 border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[7px] text-emerald-300`}>
+                <div className={`${MEDIA_PILL_BASE} gap-1 border-emerald-500/20 bg-emerald-500/5 text-emerald-300`}>
                   <span className="text-slate-500">DUR</span>
                   <span>{formatDuration(probeData.duration)}</span>
                 </div>
               )}
               {probeData?.codecSummary && (
-                <div className={`${MEDIA_PILL_BASE} min-h-6 gap-1.5 border-sky-500/20 bg-sky-500/5 px-2.5 py-1 text-[7px] text-sky-300`}>
+                <div className={`${MEDIA_PILL_BASE} gap-1 border-sky-500/20 bg-sky-500/5 text-sky-300`}>
                   <span className="text-slate-500">CODEC</span>
                   <span>{probeData.codecSummary.toUpperCase()}</span>
                 </div>
@@ -1758,7 +1748,7 @@ const MediaModule = () => {
                 <AudioLines size={12} className="text-emerald-500" />
                 <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">AUDIO MONITOR</span>
               </div>
-              <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[7px] text-emerald-300`}>MONITORING</span>
+              <span className={`${MEDIA_PILL_BASE} gap-1 border-emerald-500/20 bg-emerald-500/5 text-emerald-300`}>MONITORING</span>
             </div>
 
             {/* Asset ticker */}
@@ -1802,18 +1792,18 @@ const MediaModule = () => {
                 <div className="flex gap-2 text-slate-700 flex-wrap">
                   {probeData?.probeStatus === 'ok' ? (
                     <>
-                      {probeData.width && probeData.height && <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-slate-700 bg-black/40 px-2 py-1 text-[7px] text-slate-400`}>{probeData.width}×{probeData.height}</span>}
-                      {probeData.codecSummary && <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-slate-700 bg-black/40 px-2 py-1 text-[7px] text-slate-400`}>{probeData.codecSummary.toUpperCase()}</span>}
+                      {probeData.width && probeData.height && <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/40 text-slate-400`}>{probeData.width}×{probeData.height}</span>}
+                      {probeData.codecSummary && <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/40 text-slate-400`}>{probeData.codecSummary.toUpperCase()}</span>}
                     </>
                   ) : probeData?.probeStatus === 'ffprobe_not_installed' ? (
-                    <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone('loading')} min-h-6 px-2 py-1 text-[7px]`}>FFPROBE NOT AVAILABLE</span>
+                    <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone('loading')}`}>FFPROBE NOT AVAILABLE</span>
                   ) : probeData ? (
-                    <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone('failed')} min-h-6 px-2 py-1 text-[7px]`}>{probeData.probeStatus?.toUpperCase()}</span>
+                    <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone('failed')}`}>{probeData.probeStatus?.toUpperCase()}</span>
                   ) : (
-                    <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-slate-700 bg-black/30 px-2 py-1 text-[7px] text-slate-600`}>PROBE NOT RUN</span>
+                    <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/30 text-slate-600`}>PROBE NOT RUN</span>
                   )}
                 </div>
-                <span className={`${MEDIA_PILL_BASE} ${playerState.isPlaying ? mediaStatusPillTone('live') : 'border-slate-700 bg-black/30 text-slate-600'} min-h-6 px-2 py-1 text-[7px]`}>
+                <span className={`${MEDIA_PILL_BASE} ${playerState.isPlaying ? mediaStatusPillTone('live') : 'border-slate-700 bg-black/30 text-slate-600'}`}>
                   {playerState.isPlaying ? 'LIVE' : 'IDLE'}
                 </span>
               </div>
@@ -1960,13 +1950,13 @@ const MediaModule = () => {
                   <span className="text-[9px] font-black text-sky-700 uppercase tracking-widest">TXT READOUT</span>
                 </div>
                 <div className="flex items-center gap-2 text-[7px] font-mono font-black text-slate-600 uppercase tracking-widest flex-wrap justify-end">
-                  <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-slate-700 bg-black/40 px-2.5 py-1 text-[7px] text-slate-400`}>
+                  <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/40 text-slate-400`}>
                     TARGET {activeOutput?.metadata?.publishTarget || 'UNKNOWN'}
                   </span>
-                  <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(activeOutput?.status || 'unknown')} min-h-6 gap-1 px-2.5 py-1 text-[7px]`}>
+                  <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(activeOutput?.status || 'unknown')} gap-1`}>
                     STATUS {activeOutput?.status || 'UNKNOWN'}
                   </span>
-                  <button className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-sky-500/30 bg-sky-500/5 px-2.5 py-1 text-[7px] text-sky-400`}>COPY DATA</button>
+                  <button className={`${MEDIA_PILL_BASE} gap-1 border-sky-500/30 bg-sky-500/5 text-sky-400`}>COPY DATA</button>
                   <button
                     onClick={() => {
                       const saved = transcriptSavedStateRef.current;
@@ -1984,7 +1974,7 @@ const MediaModule = () => {
                       }
                       setIsTranscriptModalOpen(true);
                     }}
-                    className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-cyan-500/30 bg-cyan-500/5 px-2.5 py-1 text-[7px] text-cyan-400 hover:bg-cyan-500/10 transition`}
+                    className={`${MEDIA_PILL_BASE} gap-1 border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/10 transition`}
                   >
                     OPEN EDITOR
                   </button>
@@ -2005,15 +1995,17 @@ const MediaModule = () => {
                       <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">JOB QUEUE</span>
                       <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
                         {workspace.jobs.slice(0, 10).map(j => (
-                          <div key={j.id} className="p-2 rounded bg-black/40 border border-[#1E2024] flex items-center justify-between group">
-                            <div className="flex flex-col min-w-0">
+                          <div key={j.id} className="p-2 rounded bg-black/40 border border-[#1E2024] flex flex-col gap-1 group">
+                            <div className="flex items-center justify-between">
                               <span className="text-[9px] font-bold text-slate-500 truncate uppercase">{j.title}</span>
-                              <span className="text-[6px] font-mono text-slate-700 uppercase">{j.type}</span>
+                              <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(j.status || 'complete')} gap-1`}>{j.status || 'COMPLETE'}</span>
                             </div>
-                            <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(j.status || 'complete')} min-h-6 gap-1 px-2 py-1 text-[7px]`}>{j.status || 'COMPLETE'}</span>
-                            <button onClick={(e) => handleDeleteJob(j, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                              <Trash2 size={10} />
-                            </button>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[6px] font-mono text-slate-600 uppercase tracking-widest">{j.type} {j.createdAt ? new Date(j.createdAt).toLocaleTimeString([], { hour12: false }) : ''}</span>
+                              <button onClick={(e) => handleDeleteJob(j, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2021,22 +2013,23 @@ const MediaModule = () => {
                     <div className="flex-1 flex flex-col min-w-0 border-l border-[#1E2024] pl-2">
                       <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">ASSET CACHE</span>
                       <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
-                        {workspace.outputs.slice(0, 10).map((o, idx) => (
-                          <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
-                            <div className="flex justify-between items-start">
-                              <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
-                              {idx === 0 && <span className={`${MEDIA_PILL_BASE} min-h-5 gap-1 border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[6px] text-emerald-400`}>LATEST</span>}
-                              {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
-                              <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                                <Trash2 size={10} />
-                              </button>
+                          {workspace.outputs.slice(0, 10).map((o, idx) => (
+                            <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                              <div className="flex justify-between items-start">
+                                <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                                <div className="flex items-center gap-1">
+                                  {idx === 0 && <span className={`${MEDIA_PILL_BASE} gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-400`}>LATEST</span>}
+                                  {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center mt-0.5">
+                                <span className="text-[6px] font-mono text-slate-600 uppercase tracking-widest">{o.type} {new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
+                                <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
-                              <span>{o.type}</span>
-                              <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   </>
@@ -2048,13 +2041,12 @@ const MediaModule = () => {
                         <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
                           <div className="flex justify-between items-start">
                             <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                          </div>
+                          <div className="flex justify-between items-center mt-0.5">
+                            <span className="text-[6px] font-mono text-slate-600 uppercase tracking-widest">{o.type} {new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
                             <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
                               <Trash2 size={10} />
                             </button>
-                          </div>
-                          <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
-                            <span>{o.type}</span>
-                            <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
                           </div>
                         </div>
                       ))}
@@ -2072,17 +2064,17 @@ const MediaModule = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 {activeOutput ? (
                   <>
-                    <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 px-2.5 py-1 text-[7px] border-cyan-500/20 bg-cyan-500/5 text-cyan-300`}>{activeOutput.type.toUpperCase()}</span>
-                    <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(activeOutput.status?.toLowerCase() || 'unknown')} min-h-6 gap-1 px-2.5 py-1 text-[7px]`}>STATUS {activeOutput.status?.toUpperCase() || 'UNKNOWN'}</span>
+                    <span className={`${MEDIA_PILL_BASE} gap-1 border-cyan-500/20 bg-cyan-500/5 text-cyan-300`}>{activeOutput.type.toUpperCase()}</span>
+                    <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(activeOutput.status?.toLowerCase() || 'unknown')} gap-1`}>STATUS {activeOutput.status?.toUpperCase() || 'UNKNOWN'}</span>
                   </>
                 ) : (
                   <>
-                    <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 px-2.5 py-1 text-[7px] border-slate-700 bg-black/30 text-slate-600`}>NO OUTPUT</span>
-                    <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 px-2.5 py-1 text-[7px] border-slate-700 bg-black/30 text-slate-600`}>STATUS --</span>
+                    <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/30 text-slate-600`}>NO OUTPUT</span>
+                    <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/30 text-slate-600`}>STATUS --</span>
                   </>
                 )}
               </div>
-              <div className={`${MEDIA_PILL_BASE} min-h-6 gap-2 px-2.5 py-1 text-[7px] border-cyan-500/20 bg-cyan-500/5 text-cyan-300`}>
+              <div className={`${MEDIA_PILL_BASE} gap-2 border-cyan-500/20 bg-cyan-500/5 text-cyan-300`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></div>
                 <span>AI ASSIST ENABLED</span>
               </div>

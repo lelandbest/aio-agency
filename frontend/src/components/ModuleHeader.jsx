@@ -146,7 +146,7 @@ const ModuleHeader = ({
       </div>
 
       {toolbarCenterSlot && (
-        <div className="hidden lg:flex flex-1 justify-center items-center h-full min-w-0">{toolbarCenterSlot}</div>
+        <div className="flex flex-1 justify-center items-center h-full min-w-0">{toolbarCenterSlot}</div>
       )}
 
       <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
