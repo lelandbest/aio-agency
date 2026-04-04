@@ -32,6 +32,7 @@ import ModuleHeader from '../../components/ModuleHeader';
 import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { useNotice } from '../../contexts/NoticeContext';
 import { 
   Users, Plus, Mail, Phone, Search, ChevronDown, Tag, 
   Trash2, X, Download, MessageCircle, Calendar, Zap,
@@ -42,6 +43,7 @@ import {
 const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
   const { tenant, tenants = [], switchTenant } = useAuth();
   const { openAIAssist } = useAIAssist();
+  const { showNotice } = useNotice();
   const importInputRef = useRef(null);
   // State Management
   const [contacts, setContacts] = useState([]);
@@ -86,6 +88,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
   const [bulkVerificationSubmitting, setBulkVerificationSubmitting] = useState(false);
   const [verifyingContactIds, setVerifyingContactIds] = useState(new Set());
   const [emailVerificationNotice, setEmailVerificationNotice] = useState(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, ids: [], names: '' });
   
   // Resizing state
   const [leftPanelWidth, setLeftPanelWidth] = useState(640);
@@ -779,7 +782,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       }));
     }
     navigateToCommsThread(threads[0], channelType);
-    alert('Opened ' + threads.length + ' ' + channelType.toUpperCase() + ' thread(s) in Comms');
+    showNotice({ type: 'success', message: `Opened ${threads.length} ${channelType.toUpperCase()} thread(s) in Comms` });
   };
 
   // Bulk actions
@@ -787,20 +790,19 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
     const selectedIds = targetIds || Array.from(selectedContacts);
     
     if (selectedIds.length === 0) {
-      alert('Please select contacts first');
+      showNotice({ type: 'warning', message: 'Please select contacts first' });
       return;
     }
 
     switch (action) {
       case 'delete':
-        if (confirm(`Delete ${selectedIds.length} contact(s)?`)) {
-          for (const id of selectedIds) {
-            await updateContactApi(id, { deletedAt: new Date().toISOString() });
-          }
-          await loadData();
-          setSelectedContacts(new Set());
-          alert('Contacts deleted successfully');
-        }
+        setDeleteConfirmModal({ 
+          open: true, 
+          ids: selectedIds, 
+          names: selectedIds.length === 1 
+            ? `${contacts.find(c => c.id === selectedIds[0])?.firstName} ${contacts.find(c => c.id === selectedIds[0])?.lastName}`
+            : `${selectedIds.length} contact(s)`
+        });
         break;
       
       case 'addTag':
@@ -874,7 +876,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       }
       
       default:
-        alert(`${action} - Coming soon!`);
+        showNotice({ type: 'info', message: `${action} - Coming soon!` });
     }
   };
 
@@ -924,10 +926,10 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       await createContactApi(newContact);
       await loadData();
       setShowCreateModal(false);
-      alert('Contact created successfully!');
+      showNotice({ type: 'success', message: 'Contact created successfully!' });
     } catch (error) {
       console.error('Error creating contact:', error);
-      alert('Error creating contact');
+      showNotice({ type: 'error', message: 'Error creating contact' });
     }
   };
 
@@ -1104,9 +1106,9 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
         });
       }
       await loadData();
-      alert('Contacts imported successfully.');
+      showNotice({ type: 'success', message: 'Contacts imported successfully.' });
     } catch (error) {
-      alert(error.message || 'Unable to import contacts.');
+      showNotice({ type: 'error', message: error.message || 'Unable to import contacts.' });
     } finally {
       event.target.value = '';
     }
@@ -1130,7 +1132,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
         return;
       }
     }
-    alert('Select a contact first to launch CRM assist.');
+    showNotice({ type: 'warning', message: 'Select a contact first to launch CRM assist.' });
   };
 
   const openUserAccessModal = () => {
@@ -1150,7 +1152,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       }));
       setShowUserAccessModal(false);
     } catch (error) {
-      alert(error.message || 'Unable to switch workspace.');
+      showNotice({ type: 'error', message: error.message || 'Unable to switch workspace.' });
     }
   };
 
@@ -1304,9 +1306,11 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`Delete ${contact.firstName} ${contact.lastName}?`)) {
-                                  handleBulkAction('delete', [contact.id]);
-                                }
+                                setDeleteConfirmModal({ 
+                                  open: true, 
+                                  ids: [contact.id], 
+                                  names: `${contact.firstName} ${contact.lastName}` 
+                                });
                               }}
                               className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-tertiary)] hover:text-red-500 rounded hover:bg-[var(--color-hover)] transition"
                             >
@@ -1538,16 +1542,14 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       setEditedContact(prev => ({...prev, [field]: value}));
     };
 
-    const handleDeleteContact = async () => {
+    const handleDeleteContact = () => {
       const contactToDelete = selectedContact;
       if (!contactToDelete) return;
-      if (!confirm(`Delete ${contactToDelete.firstName} ${contactToDelete.lastName}?`)) {
-        return;
-      }
-      await updateContactApi(contactToDelete.id, { deletedAt: new Date().toISOString() });
-      selectContact(null);
-      setIsEditingContact(false);
-      await loadData();
+      setDeleteConfirmModal({ 
+        open: true, 
+        ids: [contactToDelete.id], 
+        names: `${contactToDelete.firstName} ${contactToDelete.lastName}` 
+      });
     };
 
     const handleAddTag = async (tag) => {
@@ -2280,7 +2282,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
         setUserAccess(refreshedAccess || null);
         setShowCreateModal(false);
         const workspaceName = response?.workspace?.name || currentWorkspace.name || 'Current System';
-        alert(`User created successfully.\nLogin: ${data.email.trim()}\nWorkspace: ${workspaceName}`);
+        showNotice({ type: 'success', message: `User created successfully. Login: ${data.email.trim()}, Workspace: ${workspaceName}` });
       } catch (error) {
         setUserError(error.message || 'Unable to create user login.');
       } finally {
@@ -2934,6 +2936,108 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
     );
   };
 
+  const DeleteConfirmModal = () => {
+    const { open, ids, names } = deleteConfirmModal;
+    if (!open) return null;
+
+    const closeDeleteModal = () => setDeleteConfirmModal({ open: false, ids: [], names: '' });
+
+    const handleDelete = async () => {
+      try {
+        const deletedIds = [...ids];
+        for (const id of ids) {
+          await updateContactApi(id, { deletedAt: new Date().toISOString() });
+        }
+        await loadData();
+        setSelectedContacts(new Set());
+        setIsEditingContact(false);
+        if (selectedContact && ids.includes(selectedContact.id)) {
+          selectContact(null);
+        }
+        closeDeleteModal();
+        showNotice({
+          type: 'warning',
+          message: `Contact(s) soft-deleted.`,
+          persistent: true,
+          dismissible: true,
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              for (const id of deletedIds) {
+                await restoreContactApi(id);
+              }
+              await loadData();
+              showNotice({ type: 'success', message: 'Contact(s) restored.' });
+            },
+            dismissAfter: false
+          }
+        });
+      } catch (error) {
+        showNotice({ type: 'error', message: 'Failed to delete records' });
+      }
+    };
+
+    useEffect(() => {
+      const handleEsc = (e) => {
+        if (e.key === 'Escape') closeDeleteModal();
+      };
+      document.addEventListener('keydown', handleEsc);
+      return () => document.removeEventListener('keydown', handleEsc);
+    }, []);
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        {/* Scrim */}
+        <div 
+          className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-300" 
+          onClick={closeDeleteModal}
+        />
+        
+        {/* Modal Surface */}
+        <div className="relative w-full max-w-sm rounded-[var(--radius-panel)] border border-[var(--color-border)]/50 bg-[var(--color-bg-secondary)]/80 backdrop-blur-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[var(--color-border)]/30 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
+                <Trash2 size={18} />
+              </div>
+              <h3 className="text-base font-bold text-[var(--color-text-primary)] uppercase tracking-tight">Confirm Deletion</h3>
+            </div>
+            <button 
+              onClick={closeDeleteModal}
+              className="p-1.5 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-tertiary)] opacity-60 hover:opacity-100 transition"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed font-medium">
+              Are you sure you want to delete <span className="font-semibold text-red-300">{names}</span>? This will soft-delete the record and can be restored from the deleted contacts view.
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end items-center gap-3 bg-[var(--color-bg-tertiary)]/30 px-5 py-4 border-t border-[var(--color-border)]/30 backdrop-blur-sm">
+            <button
+              onClick={closeDeleteModal}
+              className="px-5 py-2.5 rounded-[var(--radius-panel)] text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-all uppercase tracking-widest border border-transparent hover:border-[var(--color-border)]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              className="px-6 py-2.5 rounded-[var(--radius-panel)] text-xs font-black uppercase tracking-widest transition-all shadow-lg bg-red-500 hover:bg-red-600 border border-red-400 text-white shadow-red-500/20"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // MAIN RENDER
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden relative">
@@ -3052,6 +3156,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       {showCreateModal && <CreateContactModal />}
       {showUserAccessModal && <UserAccessModal />}
       {bulkActionModal.open && <BulkActionModal />}
+      {deleteConfirmModal.open && <DeleteConfirmModal />}
     </div>
   );
 };

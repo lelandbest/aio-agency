@@ -23,6 +23,7 @@ import {
 import ModuleHeader from '../../components/ModuleHeader';
 import EmptyState from '../../components/EmptyState';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { useNotice } from '../../contexts/NoticeContext';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import {
   advanceThreadStageApi,
@@ -507,7 +508,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const [mailboxTestResult, setMailboxTestResult] = useState(null);
   const [isMailboxComposerOpen, setIsMailboxComposerOpen] = useState(false);
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
-  const [actionNotice, setActionNotice] = useState(null);
+  const { showNotice } = useNotice();
   const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1600 : window.innerWidth));
   const [leftPanelWidth, setLeftPanelWidth] = useState(296);
@@ -525,7 +526,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       });
     } catch (error) {
       setSnapshot(EMPTY_SNAPSHOT);
-      setActionNotice({ tone: 'error', message: 'Comms requires the local backend. Backend snapshot could not be loaded.' });
+      showNotice({ tone: 'error', message: 'Comms requires the local backend. Backend snapshot could not be loaded.' });
     }
   };
 
@@ -744,7 +745,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       await action();
       refresh();
     } catch (error) {
-      setActionNotice({ tone: 'error', message: readErrorMessage(error) });
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
     } finally {
       setBusyLabel('');
     }
@@ -832,7 +833,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       if (response?.thread?.id) {
         setSelectedThreadId(response.thread.id);
       }
-      setActionNotice({
+      showNotice({
         tone: 'success',
         message: field === 'summary'
           ? 'AI brief refreshed from the active thread context.'
@@ -867,7 +868,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
       const result = await testMailboxConnectionApi(selectedMailbox.id);
       setMailboxTestResult(result.result || null);
-      setActionNotice({
+      showNotice({
         tone: result.result?.status === 'ok' ? 'success' : 'warning',
         message: result.result?.message || 'Mailbox test completed.'
       });
@@ -880,7 +881,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
       const result = await openOAuthPopup(getMailboxAuthorizeUrl(selectedMailbox.id), 'mailbox');
       setMailboxTestResult({ status: 'ok', message: `${selectedProvider.label} connected successfully.` });
-      setActionNotice({
+      showNotice({
         tone: 'success',
         message: `${selectedMailbox.name} connected via ${result.provider || selectedProvider.label}.`
       });
@@ -917,7 +918,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id) return;
     await runAction('Creating deal', async () => {
       await createDealFromThreadApi(selectedThread.id);
-      setActionNotice({ tone: 'success', message: 'Deal shell created from the active thread.' });
+      showNotice({ tone: 'success', message: 'Deal shell created from the active thread.' });
     });
   };
 
@@ -925,7 +926,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id) return;
     await runAction('Advancing stage', async () => {
       await advanceThreadStageApi(selectedThread.id);
-      setActionNotice({ tone: 'success', message: 'Pipeline stage advanced from Comms.' });
+      showNotice({ tone: 'success', message: 'Pipeline stage advanced from Comms.' });
     });
   };
 
@@ -933,7 +934,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id) return;
     await runAction('Scheduling meeting', async () => {
       await scheduleThreadMeetingApi(selectedThread.id);
-      setActionNotice({ tone: 'success', message: 'Meeting follow-up scheduled from the active thread.' });
+      showNotice({ tone: 'success', message: 'Meeting follow-up scheduled from the active thread.' });
     });
   };
   const handleCreateReport = async (kind) => {
@@ -941,7 +942,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     const label = kind === 'executive' ? 'Creating executive report' : 'Creating operator report';
     await runAction(label, async () => {
       await createThreadReportApi(selectedThread.id, kind);
-      setActionNotice({
+      showNotice({
         tone: 'success',
         message: kind === 'executive' ? 'Executive report artifact created.' : 'Operator report artifact created.'
       });
@@ -951,14 +952,14 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id) return;
     await runAction('Archiving thread', async () => {
       await updateThreadStatusApi(selectedThread.id, 'archived');
-      setActionNotice({ tone: 'success', message: 'Thread archived from active queues.' });
+      showNotice({ tone: 'success', message: 'Thread archived from active queues.' });
     });
   };
   const handleDeleteThread = async () => {
     if (!selectedThread?.id) return;
     await runAction('Deleting thread', async () => {
       await deleteThreadApi(selectedThread.id);
-      setActionNotice({ tone: 'warning', message: 'Thread deleted from Comms. Mailbox-side deletion is still separate.' });
+      showNotice({ tone: 'warning', message: 'Thread deleted from Comms. Mailbox-side deletion is still separate.' });
     });
   };
   const handleAssignThread = async (assigneeName) => {
@@ -968,26 +969,26 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     }
     await runAction('Assigning', async () => {
       await assignThreadApi(selectedThread.id, assigneeName);
-      setActionNotice({ tone: 'success', message: `Thread assigned to ${assigneeName}.` });
+      showNotice({ tone: 'success', message: `Thread assigned to ${assigneeName}.` });
       setIsAssigneeMenuOpen(false);
     });
   };
   const handleUpdateCalendarArtifact = async (eventId, updates, label, successMessage) => {
     await runAction(label, async () => {
       await updateCalendarEventApi(eventId, updates);
-      setActionNotice({ tone: 'success', message: successMessage });
+      showNotice({ tone: 'success', message: successMessage });
     });
   };
   const handlePushCalendarArtifact = async (eventId) => {
     await runAction('Pushing meeting', async () => {
       await pushCalendarEventApi(eventId);
-      setActionNotice({ tone: 'success', message: 'Meeting pushed to the active calendar source.' });
+      showNotice({ tone: 'success', message: 'Meeting pushed to the active calendar source.' });
     });
   };
   const handleReconcileCalendarArtifact = async (eventId, strategy) => {
     await runAction('Reconciling meeting', async () => {
       const response = await reconcileCalendarEventApi(eventId, strategy);
-      setActionNotice({ tone: 'success', message: response?.result?.message || 'Meeting conflict reconciled.' });
+      showNotice({ tone: 'success', message: response?.result?.message || 'Meeting conflict reconciled.' });
     });
   };
 
@@ -1231,18 +1232,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         .comms-thread-strip::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(96,165,250,0.75),rgba(59,130,246,0.58));border-radius:999px;border:2px solid rgba(15,23,42,0.34);}
         .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
       `}</style>
-      <div className="flex h-full min-h-0 flex-col gap-3 relative">
-        {actionNotice && (
-          <div className={`absolute top-0 left-0 right-0 z-50 rounded-xl border px-3 py-2.5 text-sm ${actionNotice.tone === 'success'
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-              : actionNotice.tone === 'warning'
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                : 'border-red-500/30 bg-red-500/10 text-red-200'
-            }`}>
-            {actionNotice.message}
-          </div>
-        )}
-
+      <div className="flex h-full min-h-0 flex-col gap-3">
         <ModuleHeader
           showTitle={false}
           leftActions={primaryHeaderActions}

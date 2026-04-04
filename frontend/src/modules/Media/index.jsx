@@ -52,6 +52,7 @@ import {
   getApiBaseUrl,
   probeMediaAssetApi,
   withSessionToken,
+  saveTranscriptApi,
 } from '../../services/backendApi';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import { templates } from '../Flows/data/templates';
@@ -362,6 +363,22 @@ const MediaModule = () => {
   const [nexusDragActive, setNexusDragActive] = useState(false);
   const [formState, setFormState] = useState(DEFAULT_FORM_STATE);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
+  const [transcriptState, setTranscriptState] = useState({
+    title: '',
+    transcript: '',
+    executiveSummary: '',
+    keyDecisions: [],
+    actionItems: [],
+    discussionHighlights: [],
+    notesAndObservations: [],
+    intentHint: '',
+    purposeNote: '',
+    priority: '',
+    status: 'Draft',
+  });
+  const transcriptSavedStateRef = useRef(null); // Last saved state for dirty detection + reopen
+  const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [launchingAction, setLaunchingAction] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [isRunPending, setIsRunPending] = useState(false);
@@ -557,12 +574,12 @@ const MediaModule = () => {
 
           const stateMap = { queued: 'ACCEPTED', accepted: 'ACCEPTED', processing: 'RUNNING', complete: 'COMPLETE', failed: 'FAILED' };
           const displayStatus = stateMap[job.status] || job.status.toUpperCase();
-          
+
           setLastAction(prev => ({
             ...prev,
             status: displayStatus === 'FAILED' ? 'failed' : (displayStatus === 'COMPLETE' ? 'success' : 'running'),
-            result: displayStatus === 'FAILED' 
-              ? `ERROR: ${job.lastError}` 
+            result: displayStatus === 'FAILED'
+              ? `ERROR: ${job.lastError}`
               : (job.result?.message || job.result || `JOB ID [${job.id.slice(-8)}] — ${displayStatus}`) + (displayStatus === 'COMPLETE' && completedArtifactId ? ` // ARTIFACT [${String(completedArtifactId).slice(-8)}]` : ''),
             error: job.lastError
           }));
@@ -673,7 +690,7 @@ const MediaModule = () => {
     if (audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume();
     }
-    el.play().catch(() => {});
+    el.play().catch(() => { });
   }, []);
 
   const handlePause = useCallback(() => {
@@ -955,14 +972,14 @@ const MediaModule = () => {
   }, [nexusMode, setDroppedPayload, syncMediaMutation]);
 
   const handleSubmitQuickAction = useCallback(async () => {
-      if (!selectedAction) {
-        if (nexusMode === 'file') {
-          fileInputRef.current?.click();
-          return;
-        }
-        setLaunchingAction('nexus');
-        setLastAction({ type: 'NEXUS INGEST', status: 'running', result: null, error: null, timestamp: Date.now() });
-        setError('');
+    if (!selectedAction) {
+      if (nexusMode === 'file') {
+        fileInputRef.current?.click();
+        return;
+      }
+      setLaunchingAction('nexus');
+      setLastAction({ type: 'NEXUS INGEST', status: 'running', result: null, error: null, timestamp: Date.now() });
+      setError('');
       try {
         await handleNexusIngest('NEXUS INGEST');
         setFormState((current) => ({ ...current, mediaUrl: '', rawPayload: '', meetingId: '', meetingTitle: '', title: '' }));
@@ -998,18 +1015,18 @@ const MediaModule = () => {
       } else if (selectedAction === 'ingestMeetingArtifacts') {
         const ingestPayload = formState.rawPayload
           ? normalizeIngestPayload(formState.rawPayload, {
-              provider: formState.meetingProvider,
-              meetingId: formState.meetingId,
-              meetingTitle: formState.meetingTitle,
-              title: formState.title || formState.meetingTitle,
-            })
+            provider: formState.meetingProvider,
+            meetingId: formState.meetingId,
+            meetingTitle: formState.meetingTitle,
+            title: formState.title || formState.meetingTitle,
+          })
           : buildUrlIngestPayload({
-              provider: formState.meetingProvider,
-              meetingId: formState.meetingId,
-              meetingTitle: formState.meetingTitle,
-              title: formState.title || formState.meetingTitle,
-              mediaUrl: formState.mediaUrl,
-            });
+            provider: formState.meetingProvider,
+            meetingId: formState.meetingId,
+            meetingTitle: formState.meetingTitle,
+            title: formState.title || formState.meetingTitle,
+            mediaUrl: formState.mediaUrl,
+          });
         if (!ingestPayload) {
           throw new Error('Provide a media URL or raw JSON payload to ingest meeting artifacts.');
         }
@@ -1022,9 +1039,9 @@ const MediaModule = () => {
       setError(e.message);
       setLastAction(prev => ({ ...prev, status: 'failed', error: e.message || 'ACTION FAILED' }));
     } finally {
-        setLaunchingAction('');
-      }
-    }, [activeAction, formState, handleNexusIngest, nexusMode, resetActionForm, selectedAction, selectedSourceAsset, syncMediaMutation]);
+      setLaunchingAction('');
+    }
+  }, [activeAction, formState, handleNexusIngest, nexusMode, resetActionForm, selectedAction, selectedSourceAsset, syncMediaMutation]);
 
   const handleDeleteOutput = useCallback(async (output, e) => {
     e?.stopPropagation();
@@ -1473,12 +1490,12 @@ const MediaModule = () => {
           title="Media Workstation"
           showTitle={false}
           leftActions={[
-          {
-            label: 'OPEN FLOWS',
-            icon: GitMerge,
-            onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'flows' } })),
-            variant: 'secondary',
-          },
+            {
+              label: 'OPEN FLOWS',
+              icon: GitMerge,
+              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'flows' } })),
+              variant: 'secondary',
+            },
           ]}
           toolbarLeftSlot={
             <div className="ml-4 flex items-center gap-2">
@@ -1501,20 +1518,20 @@ const MediaModule = () => {
           style={{ left: 'calc((((100% - 404px) * 6) / 11) + 202px)' }}
         >
           <div className="pointer-events-auto flex h-full -translate-x-1/2 items-center justify-center">
-                <div
-                  className="flex items-center justify-center gap-3 rounded-lg border border-white/5 bg-black/25 px-3 py-1.5 aio-tooltip"
-                  data-tooltip={`Monitoring for Zoom, Meet,\nand Jitsi. Active API\nintegrations are required to\nperform proper ingestion / sync.`}
-                >
-                <span className="text-[8px] font-black text-cyan-500/70 uppercase tracking-[0.28em]">UPLINK STATUS</span>
-                <div className="flex items-center gap-3 cursor-help">
-                  {INGESTION_SOURCES.map((source) => (
-                    <div key={source.id} className={`${MEDIA_PILL_BASE} min-h-6 gap-1.5 border-white/5 bg-black/30 px-2.5 py-1 text-[7px] text-slate-300`}>
-                      <div className={`h-1.5 w-1.5 rounded-full ${source.color} shadow-[0_0_5px_rgba(0,0,0,0.5)]`} />
-                      <span className="font-bold uppercase tracking-[0.18em]">{source.label}</span>
-                    </div>
-                    ))}
+            <div
+              className="flex items-center justify-center gap-3 rounded-lg border border-white/5 bg-black/25 px-3 py-1.5 aio-tooltip"
+              data-tooltip={`Monitoring for Zoom, Meet,\nand Jitsi. Active API\nintegrations are required to\nperform proper ingestion / sync.`}
+            >
+              <span className="text-[8px] font-black text-cyan-500/70 uppercase tracking-[0.28em]">UPLINK STATUS</span>
+              <div className="flex items-center gap-3 cursor-help">
+                {INGESTION_SOURCES.map((source) => (
+                  <div key={source.id} className={`${MEDIA_PILL_BASE} min-h-6 gap-1.5 border-white/5 bg-black/30 px-2.5 py-1 text-[7px] text-slate-300`}>
+                    <div className={`h-1.5 w-1.5 rounded-full ${source.color} shadow-[0_0_5px_rgba(0,0,0,0.5)]`} />
+                    <span className="font-bold uppercase tracking-[0.18em]">{source.label}</span>
                   </div>
-                </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1533,11 +1550,11 @@ const MediaModule = () => {
               <>
                 <div className="absolute top-2 left-2 right-2 flex items-center justify-center gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => window.open(activeOutputPlaybackUrl, '_blank')} className={`${MEDIA_PILL_BASE} border-cyan-500/30 bg-black/75 px-3 py-1 text-cyan-300 hover:bg-black`}>
-                      <ExternalLink size={10} /> OPEN
-                    </button>
-                   <a href={activeOutputPlaybackUrl} download={activeOutput.title || 'download'} className={`${MEDIA_PILL_BASE} border-emerald-500/30 bg-black/75 px-3 py-1 text-emerald-300 hover:bg-black`}>
-                      <Download size={10} /> DOWNLOAD
-                    </a>
+                    <ExternalLink size={10} /> OPEN
+                  </button>
+                  <a href={activeOutputPlaybackUrl} download={activeOutput.title || 'download'} className={`${MEDIA_PILL_BASE} border-emerald-500/30 bg-black/75 px-3 py-1 text-emerald-300 hover:bg-black`}>
+                    <Download size={10} /> DOWNLOAD
+                  </a>
                   <button
                     onClick={() => handleProbeAsset(activeOutput)}
                     disabled={probePending}
@@ -1731,37 +1748,34 @@ const MediaModule = () => {
             </div>
           </div>
 
-          {/* AUDIO WORKSTATION ISLAND */}
+          {/* AUDIO WORKSTATION ISLAND — MONITORING ONLY */}
           <div className="w-full flex-1 min-h-[124px] bg-[#0A0A0C] rounded-xl border border-[#1E2024] flex flex-col p-2.5 gap-2.5 overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <div className="flex items-center gap-2">
                 <AudioLines size={12} className="text-emerald-500" />
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">AUDIO WORKSTATION</span>
+                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">AUDIO MONITOR</span>
               </div>
               <span className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-[7px] text-emerald-300`}>MONITORING</span>
             </div>
-            
+
+            {/* Asset ticker */}
+            {activeOutput && (
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-[7px] font-black text-slate-700 uppercase tracking-widest">SRC</span>
+                <span className="text-[8px] font-mono text-cyan-400 truncate">{activeOutput.title || 'Source Audio'}</span>
+              </div>
+            )}
+
             <div className="flex-1 flex flex-col gap-2.5">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-9 h-9 bg-[#1E2024] rounded-md flex items-center justify-center shrink-0 border border-white/5 active:scale-95 transition-transform cursor-pointer group"
-                  onClick={playerState.isPlaying ? handlePause : handlePlay}
-                >
-                  {playerState.isPlaying
-                    ? <Pause size={14} className="text-cyan-400" />
-                    : <Play size={14} className="text-emerald-500 group-hover:text-cyan-400 ml-0.5 transition-colors" />
-                  }
-                </div>
-                {/* TRUTHFUL REAL-TIME OSCILLOSCOPE — canvas-based analysis */}
-                <div className="flex-1 h-9 bg-black/40 rounded border border-white/5 relative overflow-hidden flex items-center shadow-inner">
-                  <canvas ref={canvasRef} width={200} height={40} className="w-full h-full" />
-                  {!playerState.isPlaying && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-[7px] font-mono text-slate-700 uppercase tracking-widest">INACTIVE — MONITORING DISABLED</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20 pointer-events-none" />
-                </div>
+              {/* TRUTHFUL REAL-TIME OSCILLOSCOPE — canvas-based analysis */}
+              <div className="flex-1 h-9 bg-black/40 rounded border border-white/5 relative overflow-hidden flex items-center shadow-inner">
+                <canvas ref={canvasRef} width={200} height={40} className="w-full h-full" />
+                {!playerState.isPlaying && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-[7px] font-mono text-slate-700 uppercase tracking-widest">NO SIGNAL — IDLE</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20 pointer-events-none" />
               </div>
 
               <div className="flex-1 flex flex-col justify-end gap-1.5">
@@ -1823,10 +1837,10 @@ const MediaModule = () => {
                 <div className="flex flex-col gap-1">
                   {[
                     { key: 'brightness', label: 'BRI', min: 0, max: 200, unit: '%', default: 100 },
-                    { key: 'contrast',   label: 'CON', min: 0, max: 200, unit: '%', default: 100 },
+                    { key: 'contrast', label: 'CON', min: 0, max: 200, unit: '%', default: 100 },
                     { key: 'saturation', label: 'SAT', min: 0, max: 200, unit: '%', default: 100 },
-                    { key: 'hue',        label: 'HUE', min: -180, max: 180, unit: '°', default: 0 },
-                    { key: 'opacity',    label: 'OPA', min: 0, max: 100, unit: '%', default: 100 },
+                    { key: 'hue', label: 'HUE', min: -180, max: 180, unit: '°', default: 0 },
+                    { key: 'opacity', label: 'OPA', min: 0, max: 100, unit: '%', default: 100 },
                   ].map((adj) => (
                     <div key={adj.key} className="flex items-center gap-2 group">
                       <span className="w-6 text-[6px] font-black text-slate-600 tracking-tight uppercase group-hover:text-slate-400 transition-colors shrink-0">{adj.label}</span>
@@ -1844,7 +1858,7 @@ const MediaModule = () => {
                       </span>
                     </div>
                   ))}
-                  {Object.values(imgAdj).some((v, i) => v !== [100,100,100,0,100][i]) && (
+                  {Object.values(imgAdj).some((v, i) => v !== [100, 100, 100, 0, 100][i]) && (
                     <button
                       onClick={() => setImgAdj({ brightness: 100, contrast: 100, saturation: 100, hue: 0, opacity: 100 })}
                       className="mt-1 text-[6px] font-black uppercase tracking-widest text-slate-700 hover:text-rose-500 py-0.5 border border-white/5 rounded transition-all"
@@ -1861,8 +1875,8 @@ const MediaModule = () => {
               <div className="flex items-center justify-between px-1">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">MATRIX PADS</span>
                 <div className="flex items-center gap-1.5">
-                   <span className="text-[6px] font-mono text-slate-700 uppercase">TARGET //</span>
-                   <span className="text-[6px] font-mono text-cyan-600 truncate max-w-[80px]">{activeOutput?.title || 'GLOBAL_BUS'}</span>
+                  <span className="text-[6px] font-mono text-slate-700 uppercase">TARGET //</span>
+                  <span className="text-[6px] font-mono text-cyan-600 truncate max-w-[80px]">{activeOutput?.title || 'GLOBAL_BUS'}</span>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-2.5">
@@ -1950,6 +1964,27 @@ const MediaModule = () => {
                     STATUS {activeOutput?.status || 'UNKNOWN'}
                   </span>
                   <button className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-sky-500/30 bg-sky-500/5 px-2.5 py-1 text-[7px] text-sky-400`}>COPY DATA</button>
+                  <button
+                    onClick={() => {
+                      const saved = transcriptSavedStateRef.current;
+                      if (saved) {
+                        setTranscriptState(saved);
+                      } else {
+                        const initialState = {
+                          ...transcriptState,
+                          title: activeOutput?.title || '',
+                          transcript: activeOutput?.content || activeOutput?.transcriptText || '',
+                          status: 'Draft',
+                        };
+                        setTranscriptState(initialState);
+                        transcriptSavedStateRef.current = initialState;
+                      }
+                      setIsTranscriptModalOpen(true);
+                    }}
+                    className={`${MEDIA_PILL_BASE} min-h-6 gap-1 border-cyan-500/30 bg-cyan-500/5 px-2.5 py-1 text-[7px] text-cyan-400 hover:bg-cyan-500/10 transition`}
+                  >
+                    OPEN EDITOR
+                  </button>
                 </div>
               </div>
 
@@ -1965,69 +2000,69 @@ const MediaModule = () => {
                   <>
                     <div className="flex-1 flex flex-col min-w-0">
                       <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">JOB QUEUE</span>
-                  <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
-                    {workspace.jobs.slice(0, 10).map(j => (
-                      <div key={j.id} className="p-2 rounded bg-black/40 border border-[#1E2024] flex items-center justify-between group">
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[9px] font-bold text-slate-500 truncate uppercase">{j.title}</span>
-                          <span className="text-[6px] font-mono text-slate-700 uppercase">{j.type}</span>
-                        </div>
-                        <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(j.status || 'complete')} min-h-6 gap-1 px-2 py-1 text-[7px]`}>{j.status || 'COMPLETE'}</span>
-                        <button onClick={(e) => handleDeleteJob(j, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                          <Trash2 size={10} />
-                        </button>
+                      <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
+                        {workspace.jobs.slice(0, 10).map(j => (
+                          <div key={j.id} className="p-2 rounded bg-black/40 border border-[#1E2024] flex items-center justify-between group">
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[9px] font-bold text-slate-500 truncate uppercase">{j.title}</span>
+                              <span className="text-[6px] font-mono text-slate-700 uppercase">{j.type}</span>
+                            </div>
+                            <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(j.status || 'complete')} min-h-6 gap-1 px-2 py-1 text-[7px]`}>{j.status || 'COMPLETE'}</span>
+                            <button onClick={(e) => handleDeleteJob(j, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col min-w-0 border-l border-[#1E2024] pl-2">
-                  <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">ASSET CACHE</span>
-                  <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
-                    {workspace.outputs.slice(0, 10).map((o, idx) => (
-                      <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
-                        <div className="flex justify-between items-start">
-                          <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
-                          {idx === 0 && <span className={`${MEDIA_PILL_BASE} min-h-5 gap-1 border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[6px] text-emerald-400`}>LATEST</span>}
-                          {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
-                          <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                        <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
-                          <span>{o.type}</span>
-                          <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
-                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col min-w-0 border-l border-[#1E2024] pl-2">
+                      <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">ASSET CACHE</span>
+                      <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
+                        {workspace.outputs.slice(0, 10).map((o, idx) => (
+                          <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                            <div className="flex justify-between items-start">
+                              <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                              {idx === 0 && <span className={`${MEDIA_PILL_BASE} min-h-5 gap-1 border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[6px] text-emerald-400`}>LATEST</span>}
+                              {o.mediaType === 'audio' && <AudioLines size={10} className="text-sky-400" />}
+                              <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
+                            <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
+                              <span>{o.type}</span>
+                              <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col min-w-0">
-                  <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">LIBRARY</span>
-                  <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
-                    {workspace.outputs.slice(0, 20).map((o) => (
-                      <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
-                        <div className="flex justify-between items-start">
-                          <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
-                          <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                            <Trash2 size={10} />
-                          </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col min-w-0">
+                    <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">LIBRARY</span>
+                    <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
+                      {workspace.outputs.slice(0, 20).map((o) => (
+                        <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
+                          <div className="flex justify-between items-start">
+                            <span className="text-[9px] font-bold text-slate-300 truncate lowercase">{o.title}</span>
+                            <button onClick={(e) => handleDeleteOutput(o, e)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                          <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
+                            <span>{o.type}</span>
+                            <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between mt-0.5 text-[6px] font-mono text-slate-600 uppercase tracking-widest">
-                          <span>{o.type}</span>
-                          <span>{new Date(o.createdAt).toLocaleTimeString([], { hour12: false })}</span>
-                        </div>
-                      </div>
-                    ))}
-                    {workspace.outputs.length === 0 && (
-                      <div className="text-[10px] text-slate-600 text-center py-8">No items in library</div>
-                    )}
+                      ))}
+                      {workspace.outputs.length === 0 && (
+                        <div className="text-[10px] text-slate-600 text-center py-8">No items in library</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
             {/* LOWER STATUS BAR */}
             <div className="h-9 mt-2 border-t border-[#1E2024] flex items-center justify-between text-[7px] font-black uppercase tracking-[0.2em] px-2 text-slate-600">
@@ -2055,36 +2090,34 @@ const MediaModule = () => {
           <div className="h-[212px] flex-none flex flex-col bg-[#0A0A0C] border border-[#2A2D35] rounded-xl overflow-hidden shadow-2xl relative">
             {/* LAST ACTION SUMMARY — Truthful Execution Feedback */}
             <div className="shrink-0 bg-black/20 border-b border-[#1E2024] px-4 py-3 overflow-hidden">
-               <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                     <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest shrink-0">LAST ACTION //</span>
-                     <span className={`text-[8px] font-bold uppercase tracking-tight truncate ${
-                        lastAction.status === 'success' ? 'text-emerald-500' :
+                    <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest shrink-0">LAST ACTION //</span>
+                    <span className={`text-[8px] font-bold uppercase tracking-tight truncate ${lastAction.status === 'success' ? 'text-emerald-500' :
                         lastAction.status === 'failed' ? 'text-rose-500' :
-                        lastAction.status === 'running' ? 'text-amber-500 animate-pulse' : 'text-slate-500'
-                     }`}>
-                        {lastAction.type ? `${lastAction.type} — ${lastAction.status.toUpperCase()}` : 'SYSTEM READY'}
-                     </span>
+                          lastAction.status === 'running' ? 'text-amber-500 animate-pulse' : 'text-slate-500'
+                      }`}>
+                      {lastAction.type ? `${lastAction.type} — ${lastAction.status.toUpperCase()}` : 'SYSTEM READY'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity whitespace-nowrap overflow-hidden">
-                     <span className="text-[6px] font-mono text-slate-700 uppercase tracking-tighter shrink-0">RESULT BUF //</span>
-                     <span className={`text-[7px] font-mono truncate ${lastAction.status === 'failed' ? 'text-rose-800' : 'text-indigo-400'}`}>
-                        {lastAction.error || lastAction.result || (lastAction.status === 'running' ? 'EXECUTING PIPELINE...' : 'NO ACTION PENDING')}
-                     </span>
+                    <span className="text-[6px] font-mono text-slate-700 uppercase tracking-tighter shrink-0">RESULT BUF //</span>
+                    <span className={`text-[7px] font-mono truncate ${lastAction.status === 'failed' ? 'text-rose-800' : 'text-indigo-400'}`}>
+                      {lastAction.error || lastAction.result || (lastAction.status === 'running' ? 'EXECUTING PIPELINE...' : 'NO ACTION PENDING')}
+                    </span>
                   </div>
-               </div>
-               {lastAction.timestamp && (
+                </div>
+                {lastAction.timestamp && (
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                     <div className="text-[6px] font-mono text-slate-800 uppercase tracking-tighter">TIC_{Math.floor(lastAction.timestamp / 1000)}</div>
-                     <div className={`w-1.5 h-1.5 rounded-full ${
-                        lastAction.status === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                    <div className="text-[6px] font-mono text-slate-800 uppercase tracking-tighter">TIC_{Math.floor(lastAction.timestamp / 1000)}</div>
+                    <div className={`w-1.5 h-1.5 rounded-full ${lastAction.status === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
                         lastAction.status === 'failed' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' :
-                        lastAction.status === 'running' ? 'bg-amber-500 animate-pulse' : 'bg-slate-800'
-                     }`} />
+                          lastAction.status === 'running' ? 'bg-amber-500 animate-pulse' : 'bg-slate-800'
+                      }`} />
                   </div>
-               )}
-            </div>
+                )}
+              </div>
             </div>
 
             <div className="bg-[#111318] h-7 border-b border-[#2A2D35] flex items-center px-4 justify-between">
@@ -2121,47 +2154,47 @@ const MediaModule = () => {
 
         {/* FAR RIGHT: AGENT SIDEBAR (Minimalist Column) */}
         <div className="w-16 flex-none flex flex-col bg-transparent p-0 relative overflow-hidden">
-              <div className="py-2 flex items-center justify-center shrink-0">
-                <span className="text-[7.5px] uppercase tracking-[0.4em] text-slate-700 font-bold">AGENTS</span>
-              </div>
-              <div className="flex-1 overflow-y-auto no-scrollbar pt-0.5">
-                <div className="flex flex-col gap-0">
-                  {VISIBLE_SPECIALIST_KEYS.slice(0, 13).map((key) => {
-                    const isSelected = selectedAgent === key;
-                    let c;
-                    if (key === 'ALPHA') {
-                       c = HQ_AGENT_STYLE;
-                    } else {
-                       const regularKeys = VISIBLE_SPECIALIST_KEYS.filter(k => k !== 'ALPHA' && k !== 'OMEGA');
-                       const idx = regularKeys.indexOf(key);
-                       const row = Math.floor(idx / 4);
-                       const col = idx % 4;
-                       const lane = ROW_COLOR_LANES[row] || ROW_COLOR_LANES[0];
-                       c = lane[col % lane.length] || lane[0];
-                    }
+          <div className="py-2 flex items-center justify-center shrink-0">
+            <span className="text-[7.5px] uppercase tracking-[0.4em] text-slate-700 font-bold">AGENTS</span>
+          </div>
+          <div className="flex-1 overflow-y-auto no-scrollbar pt-0.5">
+            <div className="flex flex-col gap-0">
+              {VISIBLE_SPECIALIST_KEYS.slice(0, 13).map((key) => {
+                const isSelected = selectedAgent === key;
+                let c;
+                if (key === 'ALPHA') {
+                  c = HQ_AGENT_STYLE;
+                } else {
+                  const regularKeys = VISIBLE_SPECIALIST_KEYS.filter(k => k !== 'ALPHA' && k !== 'OMEGA');
+                  const idx = regularKeys.indexOf(key);
+                  const row = Math.floor(idx / 4);
+                  const col = idx % 4;
+                  const lane = ROW_COLOR_LANES[row] || ROW_COLOR_LANES[0];
+                  c = lane[col % lane.length] || lane[0];
+                }
 
-                    return (
-                       <button 
-                          onClick={() => setSelectedAgent(key)} 
-                          key={key} 
-                          title={key}
-                          className={`flex flex-col items-center justify-center px-0.5 py-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}
-                       >
-                          <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
-                             ${isSelected 
-                                ? `${c.bg.replace('950/50', '600/95').replace('950/45', '600/95').replace('900/50', '500/95').replace('900/45', '500/95').replace('800/45', '400/95').replace('500/10', '500/80')} ${c.border.replace('600/40', '400/95').replace('500/40', '400/95').replace('400/40', '300/95')} text-white shadow-[0_0_20px_${c.shadow.replace('0.2', '0.5')}] scale-110 ring-1 ring-white/20` 
-                                : `opacity-60 group-hover:opacity-100 ${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] group-hover:shadow-[0_0_15px_${c.shadow.replace('0.2', '0.4')}] group-hover:scale-105`
-                             } text-[9px] font-black tracking-tighter shrink-0`}>
-                             {key.substring(0, 2).toUpperCase()}
-                          </div>
-                          <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelected ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
-                            {key}
-                          </span>
-                       </button>
-                    );
-                 })}
-              </div>
-           </div>
+                return (
+                  <button
+                    onClick={() => setSelectedAgent(key)}
+                    key={key}
+                    title={key}
+                    className={`flex flex-col items-center justify-center px-0.5 py-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                  >
+                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
+                             ${isSelected
+                        ? `${c.bg.replace('950/50', '600/95').replace('950/45', '600/95').replace('900/50', '500/95').replace('900/45', '500/95').replace('800/45', '400/95').replace('500/10', '500/80')} ${c.border.replace('600/40', '400/95').replace('500/40', '400/95').replace('400/40', '300/95')} text-white shadow-[0_0_20px_${c.shadow.replace('0.2', '0.5')}] scale-110 ring-1 ring-white/20`
+                        : `opacity-60 group-hover:opacity-100 ${c.bg} ${c.border} ${c.icon || c.text} shadow-[0_0_8px_${c.shadow}] group-hover:shadow-[0_0_15px_${c.shadow.replace('0.2', '0.4')}] group-hover:scale-105`
+                      } text-[9px] font-black tracking-tighter shrink-0`}>
+                      {key.substring(0, 2).toUpperCase()}
+                    </div>
+                    <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelected ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
+                      {key}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2203,6 +2236,280 @@ const MediaModule = () => {
             <div className="flex gap-2">
               <button onClick={() => setPendingDelete(null)} className="flex-1 h-10 rounded bg-black border border-[#2A2D35] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-[#1A1C21] transition-all">CANCEL</button>
               <button onClick={() => pendingDelete.isJob ? confirmDeleteJob() : confirmDeleteOutput()} className="flex-1 h-10 rounded bg-red-900/50 border border-red-500/50 text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-900/70 transition-all">DELETE</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TRANSCRIPT EDITOR MODAL */}
+      {isTranscriptModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-[#111318] border border-[#1E2024] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#1E2024] px-5 py-3 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-tight">Transcript Editor</h3>
+                  <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">{transcriptState.status}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const isDirty = JSON.stringify(transcriptState) !== JSON.stringify(transcriptSavedStateRef.current);
+                  if (isDirty) {
+                    if (confirm('Unsaved changes will be lost. Discard and close?')) {
+                      setIsTranscriptModalOpen(false);
+                    }
+                  } else {
+                    setIsTranscriptModalOpen(false);
+                  }
+                }}
+                className="p-1.5 rounded-lg hover:bg-[var(--color-hover)] text-[var(--color-text-tertiary)] opacity-60 hover:opacity-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* Asset info */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">TITLE</label>
+                  <input
+                    value={transcriptState.title}
+                    onChange={(e) => setTranscriptState(s => ({ ...s, title: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition font-mono"
+                    placeholder="Meeting title..."
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">INTENT</label>
+                  <select
+                    value={transcriptState.intentHint}
+                    onChange={(e) => setTranscriptState(s => ({ ...s, intentHint: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition"
+                  >
+                    <option value="">Auto</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="interview">Interview</option>
+                    <option value="presentation">Presentation</option>
+                    <option value="call">Call</option>
+                    <option value="document">Document</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Executive Summary */}
+              <div>
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">EXECUTIVE SUMMARY</label>
+                <textarea
+                  value={transcriptState.executiveSummary}
+                  onChange={(e) => setTranscriptState(s => ({ ...s, executiveSummary: e.target.value, status: 'Draft' }))}
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none"
+                  rows={2}
+                  placeholder="Brief summary..."
+                />
+              </div>
+
+              {/* Key Decisions */}
+              <div>
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">KEY DECISIONS</label>
+                <textarea
+                  value={transcriptState.keyDecisions.join('\n')}
+                  onChange={(e) => setTranscriptState(s => ({ ...s, keyDecisions: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  rows={2}
+                  placeholder="One per line..."
+                />
+              </div>
+
+              {/* Action Items */}
+              <div>
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">ACTION ITEMS</label>
+                <textarea
+                  value={transcriptState.actionItems.join('\n')}
+                  onChange={(e) => setTranscriptState(s => ({ ...s, actionItems: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  rows={2}
+                  placeholder="One per line..."
+                />
+              </div>
+
+              {/* Transcript body */}
+              <div>
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">TRANSCRIPT</label>
+                <textarea
+                  value={transcriptState.transcript}
+                  onChange={(e) => setTranscriptState(s => ({ ...s, transcript: e.target.value, status: 'Draft' }))}
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  rows={6}
+                  placeholder="Full transcript text..."
+                />
+              </div>
+
+              {/* Discussion Highlights */}
+              <div>
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">DISCUSSION HIGHLIGHTS</label>
+                <textarea
+                  value={transcriptState.discussionHighlights.join('\n')}
+                  onChange={(e) => setTranscriptState(s => ({ ...s, discussionHighlights: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  rows={2}
+                  placeholder="One per line..."
+                />
+              </div>
+
+              {/* Notes & Observations */}
+              <div>
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">NOTES & OBSERVATIONS</label>
+                <textarea
+                  value={transcriptState.notesAndObservations.join('\n')}
+                  onChange={(e) => setTranscriptState(s => ({ ...s, notesAndObservations: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  rows={2}
+                  placeholder="One per line..."
+                />
+              </div>
+
+              {/* Purpose & Priority */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">PURPOSE NOTE</label>
+                  <input
+                    value={transcriptState.purposeNote}
+                    onChange={(e) => setTranscriptState(s => ({ ...s, purposeNote: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition font-mono"
+                    placeholder="Optional context..."
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">PRIORITY</label>
+                  <select
+                    value={transcriptState.priority}
+                    onChange={(e) => setTranscriptState(s => ({ ...s, priority: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition"
+                  >
+                    <option value="">None</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Action bar */}
+            <div className="flex items-center justify-end gap-2 border-t border-[#1E2024] px-5 py-3 flex-shrink-0 bg-[#0A0A0C]">
+              <button
+                onClick={() => {
+                  const s = transcriptState;
+                  const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(s.title || 'Transcript')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:0.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:0.25rem}.meta{color:#666;font-size:0.85rem}</style></head><body><h1>${escapeHtml(s.title || 'Untitled Transcript')}</h1>${s.intentHint ? `<p class="meta">Intent: ${escapeHtml(s.intentHint)}${s.priority ? ` · Priority: ${escapeHtml(s.priority)}` : ''}</p>` : ''}${s.executiveSummary ? `<h2>Executive Summary</h2><p>${escapeHtml(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><pre style="white-space:pre-wrap;background:#f5f5f5;padding:1rem;border-radius:4px">${escapeHtml(s.transcript)}</pre>` : ''}${s.discussionHighlights.length ? `<h2>Discussion Highlights</h2><ul>${s.discussionHighlights.map(h => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}${s.notesAndObservations.length ? `<h2>Notes & Observations</h2><ul>${s.notesAndObservations.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}</body></html>`;
+                  const blob = new Blob([html], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${(s.title || 'transcript').replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
+              >
+                Export .html
+              </button>
+              <button
+                onClick={() => {
+                  const md = [
+                    `# ${transcriptState.title || 'Untitled Transcript'}`,
+                    '',
+                    transcriptState.executiveSummary ? `## Executive Summary\n${transcriptState.executiveSummary}` : '',
+                    transcriptState.keyDecisions.length ? `## Key Decisions\n${transcriptState.keyDecisions.map(d => `- ${d}`).join('\n')}` : '',
+                    transcriptState.actionItems.length ? `## Action Items\n${transcriptState.actionItems.map(a => `- ${a}`).join('\n')}` : '',
+                    transcriptState.transcript ? `## Transcript\n${transcriptState.transcript}` : '',
+                    transcriptState.discussionHighlights.length ? `## Discussion Highlights\n${transcriptState.discussionHighlights.map(h => `- ${h}`).join('\n')}` : '',
+                    transcriptState.notesAndObservations.length ? `## Notes & Observations\n${transcriptState.notesAndObservations.map(n => `- ${n}`).join('\n')}` : '',
+                  ].filter(Boolean).join('\n\n');
+                  const blob = new Blob([md], { type: 'text/markdown' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${(transcriptState.title || 'transcript').replace(/[^a-zA-Z0-9]/g, '_')}.md`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
+              >
+                Export .md
+              </button>
+              <button
+                onClick={() => {
+                  const json = JSON.stringify(transcriptState, null, 2);
+                  const blob = new Blob([json], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${(transcriptState.title || 'transcript').replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
+              >
+                Export .json
+              </button>
+              <button
+                onClick={async () => {
+                  if (transcriptSaving) return;
+                  setTranscriptSaving(true);
+                  try {
+                    const payload = {
+                      title: transcriptState.title || 'Meeting Transcript',
+                      transcript: transcriptState.transcript,
+                      executiveSummary: transcriptState.executiveSummary,
+                      keyDecisions: transcriptState.keyDecisions,
+                      actionItems: transcriptState.actionItems,
+                      discussionHighlights: transcriptState.discussionHighlights,
+                      notesAndObservations: transcriptState.notesAndObservations,
+                      intentHint: transcriptState.intentHint || undefined,
+                      purposeNote: transcriptState.purposeNote || undefined,
+                      priority: transcriptState.priority || undefined,
+                      assetId: activeOutput?.assetId,
+                      filename: activeOutput?.title,
+                    };
+                    const result = await saveTranscriptApi(payload);
+                    if (!result) {
+                      showNotice({ type: 'error', message: 'Save failed — push aborted.' });
+                      setTranscriptSaving(false);
+                      return;
+                    }
+                    transcriptSavedStateRef.current = { ...transcriptState, status: 'Pushed' };
+                    setTranscriptState(s => ({ ...s, status: 'Pushed' }));
+                    showNotice({ type: 'success', message: 'Transcript pushed to Brain.' });
+                  } catch (e) {
+                    showNotice({ type: 'error', message: e.message || 'Failed to save transcript.' });
+                  } finally {
+                    setTranscriptSaving(false);
+                  }
+                }}
+                disabled={transcriptSaving}
+                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px] disabled:opacity-50"
+              >
+                {transcriptSaving ? 'PUSHING...' : 'PUSH TO BRAIN'}
+              </button>
+              <button
+                onClick={() => {
+                  transcriptSavedStateRef.current = { ...transcriptState, status: 'Draft' };
+                  setTranscriptState(s => ({ ...s, status: 'Draft' }));
+                  showNotice({ type: 'success', message: 'Draft saved locally.' });
+                }}
+                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px]"
+                title="Stores draft locally. Use 'Push to Brain' to persist."
+              >
+                SAVE DRAFT
+              </button>
             </div>
           </div>
         </div>

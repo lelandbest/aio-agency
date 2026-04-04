@@ -51,10 +51,10 @@ const CMSView = ({ onBack }) => {
 
     return (
         <div className="h-full bg-[var(--color-bg-secondary)] rounded-[var(--radius-panel)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island">
-            <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex justify-between items-center shadow-premium">
-                <div className="flex items-center gap-4">
-                    <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                        <Database size={20} className="text-[var(--color-primary)]" />
+            <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/90 backdrop-blur-sm">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-tight flex items-center gap-2">
+                        <Database size={14} className="text-[var(--color-primary)]" />
                         CMS Data
                     </h2>
                 </div>
@@ -68,45 +68,46 @@ const CMSView = ({ onBack }) => {
                                 onBack();
                             }
                         }}
-                        className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm flex items-center gap-1"
+                        className="text-[10px] font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] uppercase tracking-widest transition flex items-center gap-1"
                     >
-                        {selectedCmsTable ? '← Back to Tables' : '← Back'}
+                        <ArrowLeft size={12} />
+                        {selectedCmsTable ? 'Back to Tables' : 'Back'}
                     </button>
                 )}
             </div>
 
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 min-h-0 overflow-auto p-4">
                 {!selectedCmsTable ? (
                     // CMS Tables Grid
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {cmsTables.map(table => (
                             <div
                                 key={table.id}
-                                className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 p-6 rounded-[var(--radius-card)] transition-all shadow-island-sm hover:-translate-y-1"
+                                className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 p-4 rounded-[var(--radius-card)] transition-all shadow-island-sm hover:-translate-y-0.5"
                             >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="w-10 h-10 bg-[var(--color-primary)]/10 rounded-[var(--radius-card)] flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-premium">
-                                        <Table size={20} />
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="w-9 h-9 bg-[var(--color-primary)]/10 rounded-[var(--radius-card)] flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm">
+                                        <Table size={18} />
                                     </div>
-                                    <span className="px-2 py-1 rounded-[var(--radius-card)] text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] uppercase font-bold border border-[var(--color-accent)]/20 shadow-premium">
+                                    <span className="px-2 py-0.5 rounded-[var(--radius-pill)] text-[9px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] uppercase font-bold border border-[var(--color-accent)]/20">
                                         {table.record_count} Records
                                     </span>
                                 </div>
-                                <h3 className="text-[var(--color-text-primary)] font-bold mb-2">{table.name}</h3>
-                                <p className="text-[var(--color-text-tertiary)] text-xs mb-4">{table.description}</p>
+                                <h3 className="text-[var(--color-text-primary)] font-bold mb-1 text-sm">{table.name}</h3>
+                                <p className="text-[var(--color-text-tertiary)] text-[11px] mb-3">{table.description}</p>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => loadCmsTableData(table)}
-                                        className="flex-1 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] px-3 py-2 rounded-[var(--radius-card)] text-sm font-medium transition-all shadow-premium"
+                                        className="btn-toolbar-lead flex-1 !text-xs"
                                     >
                                         View Data
                                     </button>
                                     <button
                                         onClick={() => handleExportCMS(table)}
-                                        className="bg-[var(--color-hover)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] px-3 py-2 rounded-[var(--radius-card)] text-sm transition-all shadow-premium"
+                                        className="btn-secondary !px-2.5 !py-2"
                                         title="Export CSV"
                                     >
-                                        <Download size={16} />
+                                        <Download size={14} />
                                     </button>
                                 </div>
                             </div>
@@ -114,25 +115,25 @@ const CMSView = ({ onBack }) => {
                     </div>
                 ) : (
                     // CMS Table Data Viewer
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                            <h3 className="text-xl font-bold text-[var(--color-text-primary)]">{selectedCmsTable.name}</h3>
+                            <h3 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-tight">{selectedCmsTable.name}</h3>
                             <div className="flex gap-2">
                                 <div className="relative">
-                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
                                     <input
                                         type="text"
                                         placeholder="Search..."
                                         value={cmsSearchQuery}
                                         onChange={(e) => setCmsSearchQuery(e.target.value)}
-                                        className="pl-10 pr-4 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] text-[var(--color-text-primary)] text-sm focus:border-[var(--color-primary)] focus:outline-none transition-all shadow-premium"
+                                        className="pl-9 pr-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] text-[var(--color-text-primary)] text-xs focus:border-[var(--color-primary)] focus:outline-none transition-all"
                                     />
                                 </div>
                                 <button
                                     onClick={() => handleExportCMS(selectedCmsTable)}
-                                    className="bg-[var(--color-success)] hover:opacity-90 text-[var(--color-text-on-primary)] px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium flex items-center gap-2 transition-all shadow-premium"
+                                    className="btn-toolbar-lead !text-xs flex items-center gap-1.5"
                                 >
-                                    <Download size={16} /> Export CSV
+                                    <Download size={14} /> Export CSV
                                 </button>
                             </div>
                         </div>

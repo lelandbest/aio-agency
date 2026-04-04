@@ -45,6 +45,7 @@ from auth_store import AuthStore, default_auth_db_path
 from ai_service import ai_assist_service, get_ai_provider_catalog, list_ollama_models
 from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_config
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
+from cortex_normalizer import normalize_ingest_payload
 from orchestration import ExecutionEngine, emit_system_event, run_resume_worker, validate_prepared_flow_steps
 try:
     from backend.planner import create_booking_execution_plan
@@ -6494,6 +6495,23 @@ class CortexReportRequest(BaseModel):
     context: dict[str, Any] | None = None
 
 
+class TranscriptSaveRequest(BaseModel):
+    """Save a structured transcript to the Brain via cortex normalization."""
+    title: str | None = None
+    transcript: str | None = None
+    executiveSummary: str | None = None
+    keyDecisions: list[str] = []
+    actionItems: list[str] = []
+    discussionHighlights: list[str] = []
+    notesAndObservations: list[str] = []
+    tags: list[str] = []
+    intentHint: str | None = None
+    purposeNote: str | None = None
+    priority: str | None = None
+    assetId: str | None = None
+    filename: str | None = None
+
+
 @app.post("/api/cortex/generate-report")
 async def generate_cortex_report(request: Request, payload: CortexReportRequest):
     """Generate AI-powered report using configured provider."""
@@ -6748,6 +6766,72 @@ async def delete_order(request: Request, orderId: str):
     try:
         provider.delete_order(orderId)
         return {"success": True, "deletedId": orderId}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/transcripts/save")
+async def save_transcript(request: Request, payload: TranscriptSaveRequest):
+    """Save a structured transcript to the Brain via cortex normalization."""
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to save transcripts.")
+    try:
+        normalized = normalize_ingest_payload(payload.model_dump(exclude_none=True))
+
+        # Create a brain source for this transcript
+        source_label = normalized["title"] or "Meeting Transcript"
+        source = provider.create_brain_source({
+            "label": source_label,
+            "sourceType": "document",
+            "status": "draft",
+            "notes": f"Transcript ingest — intent: {normalized['type']}",
+        })
+
+        # Create a brain item with the structured content
+        content_parts = []
+        if normalized["executiveSummary"]:
+            content_parts.append(f"## Executive Summary\n{normalized['executiveSummary']}")
+        if normalized["keyDecisions"]:
+            content_parts.append("## Key Decisions\n" + "\n".join(f"- {d}" for d in normalized["keyDecisions"]))
+        if normalized["actionItems"]:
+            content_parts.append("## Action Items\n" + "\n".join(f"- {a}" for a in normalized["actionItems"]))
+        if normalized["discussionHighlights"]:
+            content_parts.append("## Discussion Highlights\n" + "\n".join(f"- {h}" for h in normalized["discussionHighlights"]))
+        if normalized["transcript"]:
+            content_parts.append(f"## Transcript\n{normalized['transcript']}")
+        if normalized["notesAndObservations"]:
+            content_parts.append("## Notes & Observations\n" + "\n".join(f"- {n}" for n in normalized["notesAndObservations"]))
+
+        item = provider.create_brain_item({
+            "title": source_label,
+            "category": normalized["type"],
+            "content": "\n\n".join(content_parts) if content_parts else normalized.get("raw", {}).get("rawTranscript", ""),
+            "sourceId": source["id"],
+            "status": "ready",
+            "tags": normalized["tags"],
+        })
+
+        # Ingest into brain for chunking/search
+        provider.ingest_brain_source({
+            "sourceId": source["id"],
+            "label": source_label,
+            "sourceType": "document",
+            "status": "ready",
+            "location": "",
+            "notes": f"Normalized transcript — {normalized['type']}",
+            "ingestType": "text",
+            "title": source_label,
+            "content": "\n\n".join(content_parts) if content_parts else normalized.get("raw", {}).get("rawTranscript", ""),
+        })
+
+        return {
+            "data": {
+                "normalized": normalized,
+                "source": source,
+                "item": item,
+            }
+        }
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

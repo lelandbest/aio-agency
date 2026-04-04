@@ -36,6 +36,7 @@ export function NoticeProvider({ children }) {
       durationMs = DEFAULT_DURATION_MS,
       dismissible = true,
       source,
+      action = null,
     } = options;
 
     if (!message) return null;
@@ -50,6 +51,7 @@ export function NoticeProvider({ children }) {
       persistent,
       dismissible,
       source,
+      action,
       createdAt: Date.now(),
     };
 
@@ -130,19 +132,33 @@ function NoticeToast({ notice, onDismiss }) {
           ) : null}
           <p className="text-sm">{notice.message}</p>
         </div>
-        {notice.dismissible ? (
-          <button
-            type="button"
-            onClick={() => onDismiss(notice.id)}
-            className={`inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 text-current/80 transition hover:text-current ${iconColors[notice.type] || ''}`}
-            aria-label="Dismiss notice"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {notice.action ? (
+            <button
+              type="button"
+              onClick={() => {
+                notice.action.onClick();
+                if (notice.action.dismissAfter !== false) onDismiss(notice.id);
+              }}
+              className={`text-xs font-semibold underline underline-offset-2 ${iconColors[notice.type] || ''} hover:opacity-80`}
+            >
+              {notice.action.label}
+            </button>
+          ) : null}
+          {notice.dismissible ? (
+            <button
+              type="button"
+              onClick={() => onDismiss(notice.id)}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/10 text-current/80 transition hover:text-current ${iconColors[notice.type] || ''}`}
+              aria-label="Dismiss notice"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

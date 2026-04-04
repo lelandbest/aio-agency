@@ -35,6 +35,7 @@ import {
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import { getAiRunApi, getAiRunsApi, triggerFlowManualApi } from '../../services/backendApi';
+import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';
 import TemplateLibraryPanel from './components/TemplateLibraryPanel';
@@ -221,6 +222,7 @@ const buildRerunContext = (run, flowRecord) => {
 };
 
 const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContextChange = null, onSelectForAgents = null, onExit }) => {
+  const { showNotice } = useNotice();
   const getCssVar = (name, fallback = '') => {
     if (typeof window === 'undefined') return fallback;
     const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1266,7 +1268,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     };
 
     setCustomTemplates(prev => [newTemplate, ...prev]);
-    alert('Flow saved as a reusable template!');
+    showNotice({ type: 'success', message: 'Flow saved as a reusable template!' });
   }, [flow, getSanitizedGraph]);
 
   // Handle toggle flow status

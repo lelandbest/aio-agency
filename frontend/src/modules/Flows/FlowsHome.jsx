@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
 import AIAssistButton from '../../components/AIAssistButton';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { useNotice } from '../../contexts/NoticeContext';
 import TemplateGallery from './components/TemplateGallery';
 import flowRepository from './utils/flowRepository';
 import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi } from '../../services/backendApi';
@@ -47,6 +48,7 @@ const getFlowSourceMeta = (flow) => {
 
 const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlow = null, selectionMode = false }) => {
   const { openAIAssist } = useAIAssist();
+  const { showNotice } = useNotice();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -111,7 +113,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       await renameFlowFolderApi(folderId, newName);
       setBackendFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
     } catch (err) {
-      alert('Rename failed: ' + err.message);
+      showNotice({ type: 'error', message: 'Rename failed: ' + err.message });
     }
   };
 
@@ -122,7 +124,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       await deleteFlowFolderApi(folderId);
       setBackendFolders(prev => prev.filter(f => f.id !== folderId));
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      showNotice({ type: 'error', message: 'Delete failed: ' + err.message });
     }
   };
 
@@ -179,7 +181,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         await createFlowFolderApi(name);
         loadFlows();
       } catch (err) {
-        alert('Failed to create folder: ' + err.message);
+        showNotice({ type: 'error', message: 'Failed to create folder: ' + err.message });
       }
     }
   }, [loadFlows]);

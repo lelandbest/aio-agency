@@ -1064,6 +1064,14 @@ export async function searchBrainMemoryApi(query, limit = 6, options = {}) {
   return response.data || [];
 }
 
+export async function saveTranscriptApi(payload) {
+  const response = await request('/api/transcripts/save', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
 export async function upsertGlobalVariableApi(payload) {
   const response = await request('/api/settings/variables', {
     method: 'POST',
@@ -1121,6 +1129,17 @@ export async function deleteContactApi(contactId) {
   return request(`/api/contacts/${encodeURIComponent(contactId)}`, {
     method: 'DELETE'
   });
+}
+
+export async function restoreContactApi(contactId) {
+  return request(`/api/contacts/${encodeURIComponent(contactId)}/restore`, {
+    method: 'POST'
+  });
+}
+
+export async function listDeletedContactsApi() {
+  const response = await request('/api/contacts/deleted');
+  return response.data || [];
 }
 
 export async function bulkDeleteContactsApi(ids = null) {

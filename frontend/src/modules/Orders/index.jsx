@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Filter, Download, ShoppingCart, Plus, Pencil, Trash2 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { useNotice } from '../../contexts/NoticeContext';
 import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderApi } from '../../services/backendApi';
 
 const OrdersModule = () => {
   const { openAIAssist } = useAIAssist();
+  const { showNotice } = useNotice();
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,7 @@ const OrdersModule = () => {
       await createOrderApi({ contactId: contact, totalAmount: 0, items: [] });
       fetchData('orders');
     } catch (err) {
-      alert('Failed to create order: ' + err.message);
+      showNotice({ type: 'error', message: 'Failed to create order: ' + err.message });
     }
   };
 
@@ -45,7 +47,7 @@ const OrdersModule = () => {
       await deleteOrderApi(orderId);
       fetchData('orders');
     } catch (err) {
-      alert('Failed to delete order: ' + err.message);
+      showNotice({ type: 'error', message: 'Failed to delete order: ' + err.message });
     }
   };
 
