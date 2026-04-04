@@ -4396,5 +4396,15 @@ class AuthStore:
         ]
 
 
+_auth_store = None
+
+
+def get_auth_store():
+    global _auth_store
+    if _auth_store is None:
+        _auth_store = AuthStore(default_auth_db_path())
+    return _auth_store
+
+
 def default_auth_db_path() -> str:
     return os.getenv("AUTH_DB_PATH") or os.getenv("SQLITE_DB_PATH") or str(Path(__file__).resolve().parent / "data" / "aio_crm.db")
