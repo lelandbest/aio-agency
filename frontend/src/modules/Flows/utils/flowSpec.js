@@ -271,6 +271,20 @@ export const validateFlowSpec = (spec) => {
       }
     }
 
+    if (intent === 'rss_ingest') {
+      const feedUrl = String(config.feedUrl || config.feed_url || config.url || '').trim();
+      if (!feedUrl) {
+        blockers.push(`${node?.data?.label || nodeId} is missing an RSS feed URL.`);
+      }
+    }
+
+    if (intent === 'generate_image') {
+      const prompt = String(config.prompt || config.text || config.content || '').trim();
+      if (!prompt) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a prompt.`);
+      }
+    }
+
     if (nodeType === 'logic' && !normalizeNodeKey(config.logicType || node?.data?.logicType || node?.data?.templateId)) {
       blockers.push(`${node?.data?.label || nodeId} is missing a logic type.`);
     }

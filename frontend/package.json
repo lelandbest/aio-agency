@@ -15,10 +15,12 @@
     "@tinymce/tinymce-react": "^6.3.0",
     "@xyflow/react": "^12.0.0",
     "date-fns": "^4.1.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "prop-types": "^15.8.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-quill": "^2.0.0",
     "react-router-dom": "^7.13.0",
     "remotion": "4.0.441"
   },

@@ -1973,6 +1973,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                             const lane = ROW_COLOR_LANES[row] || ROW_COLOR_LANES[0];
                             c = lane[col % lane.length] || lane[0];
                           }
+                          const agentId = SPECIALIST_REGISTRY[agentName]?.agentId || '';
                           return (
                             <button
                               key={agentName}
@@ -1990,6 +1991,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                               <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelectedAgent ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
                                 {agentName}
                               </span>
+                              {agentId && (
+                                <span className={`mt-0 text-[5px] leading-none font-mono tracking-wider ${isSelectedAgent ? 'text-slate-400' : 'text-slate-700 group-hover:text-slate-500'}`}>
+                                  {agentId}
+                                </span>
+                              )}
                             </button>
                           );
                         })}

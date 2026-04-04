@@ -3,6 +3,46 @@
 /* All icons inherit color from parent */
 svg { color: inherit; }
 
+/* Quill dark theme override for transcript editor */
+.transcript-quill-editor .ql-toolbar {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: #2A2D35 !important;
+  border-radius: 0;
+}
+.transcript-quill-editor .ql-container {
+  border-color: #2A2D35 !important;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+.transcript-quill-editor .ql-editor {
+  min-height: 160px;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.transcript-quill-editor .ql-editor.ql-blank::before {
+  color: #475569;
+  font-style: normal;
+  left: 12px;
+}
+.transcript-quill-editor .ql-stroke { stroke: #94a3b8 !important; }
+.transcript-quill-editor .ql-fill { fill: #94a3b8 !important; }
+.transcript-quill-editor .ql-picker-label { color: #94a3b8 !important; }
+.transcript-quill-editor .ql-picker-options { background: #1a1c21 !important; border-color: #2A2D35 !important; }
+.transcript-quill-editor .ql-picker-item { color: #94a3b8 !important; }
+.transcript-quill-editor .ql-active .ql-stroke { stroke: #22d3ee !important; }
+.transcript-quill-editor .ql-active .ql-fill { fill: #22d3ee !important; }
+.transcript-quill-editor .ql-active .ql-picker-label { color: #22d3ee !important; }
+.transcript-quill-editor .ql-toolbar button:hover .ql-stroke { stroke: #e2e8f0 !important; }
+.transcript-quill-editor .ql-toolbar button:hover .ql-fill { fill: #e2e8f0 !important; }
+.transcript-quill-editor .ql-editor h1 { font-size: 1.5em; font-weight: 700; margin: 0.5em 0; }
+.transcript-quill-editor .ql-editor h2 { font-size: 1.25em; font-weight: 600; margin: 0.5em 0; }
+.transcript-quill-editor .ql-editor h3 { font-size: 1.1em; font-weight: 600; margin: 0.5em 0; }
+.transcript-quill-editor .ql-editor ol, .transcript-quill-editor .ql-editor ul { padding-left: 1.5em; }
+
 /**
  * Theme System
  * CSS variables for light/dark mode support

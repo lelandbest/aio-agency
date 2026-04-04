@@ -1026,7 +1026,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         or data.get("logicType")
         or ""
     ).strip().lower()
-    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset"}:
+    if action_type in {"create_booking", "update_booking", "cancel_booking", "get_booking", "verify_email", "verify_email_bulk", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "rss_ingest", "generate_image"}:
         return action_type
     if action_type in {"set_variable", "send_email", "send_sms", "store_data", "http_request"}:
         return action_type
@@ -1036,7 +1036,7 @@ def infer_flow_step_intent(node: dict[str, Any]) -> str:
         return "time_delay"
     if template_id in {"filter", "switch"}:
         return template_id
-    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset"}:
+    if template_id in {"set_variable", "send_email", "send_sms", "store_data", "http_request", "generate_script", "generate_run_of_show", "generate_voice", "text_to_speech", "generate_thumbnail", "generate_video", "transcribe_media", "ingest_meeting_artifacts", "publish_asset", "rss_ingest", "generate_image"}:
         return template_id
     if node_type == "webhook" and template_id == "webhook":
         return "webhook"

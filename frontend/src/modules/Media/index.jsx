@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import {
   AudioLines,
   Clapperboard,
@@ -378,6 +380,7 @@ const MediaModule = () => {
     status: 'Draft',
   });
   const transcriptSavedStateRef = useRef(null); // Last saved state for dirty detection + reopen
+  const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [launchingAction, setLaunchingAction] = useState('');
   const [chatInput, setChatInput] = useState('');
@@ -2339,17 +2342,69 @@ const MediaModule = () => {
                 />
               </div>
 
-              {/* Transcript body */}
+              {/* Transcript body — Rich Text Editor */}
               <div>
-                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">TRANSCRIPT</label>
-                <textarea
-                  value={transcriptState.transcript}
-                  onChange={(e) => setTranscriptState(s => ({ ...s, transcript: e.target.value, status: 'Draft' }))}
-                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
-                  rows={6}
-                  placeholder="Full transcript text..."
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">TRANSCRIPT</label>
+                  <button
+                    onClick={() => setIsEditorFullscreen(f => !f)}
+                    className="text-[7px] font-bold text-slate-600 hover:text-cyan-400 uppercase tracking-widest transition"
+                  >
+                    {isEditorFullscreen ? 'COLLAPSE' : 'EXPAND'}
+                  </button>
+                </div>
+                <div className="rounded border border-[#2A2D35] overflow-hidden bg-black/60">
+                  <ReactQuill
+                    theme="snow"
+                    value={transcriptState.transcript}
+                    onChange={(content) => setTranscriptState(s => ({ ...s, transcript: content, status: 'Draft' }))}
+                    modules={{
+                      toolbar: [
+                        [{ header: [1, 2, 3, false] }],
+                        ['bold', 'italic'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['clean'],
+                      ],
+                    }}
+                    formats={['header', 'bold', 'italic', 'list', 'bullet']}
+                    placeholder="Full transcript text..."
+                    className="transcript-quill-editor"
+                  />
+                </div>
               </div>
+
+              {/* Fullscreen editor overlay */}
+              {isEditorFullscreen && (
+                <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex flex-col p-6" onKeyDown={(e) => { if (e.key === 'Escape') setIsEditorFullscreen(false); }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TRANSCRIPT — FULLSCREEN</span>
+                    <button
+                      onClick={() => setIsEditorFullscreen(false)}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="flex-1 rounded border border-[#2A2D35] overflow-hidden bg-black/60">
+                    <ReactQuill
+                      theme="snow"
+                      value={transcriptState.transcript}
+                      onChange={(content) => setTranscriptState(s => ({ ...s, transcript: content, status: 'Draft' }))}
+                      modules={{
+                        toolbar: [
+                          [{ header: [1, 2, 3, false] }],
+                          ['bold', 'italic'],
+                          [{ list: 'ordered' }, { list: 'bullet' }],
+                          ['clean'],
+                        ],
+                      }}
+                      formats={['header', 'bold', 'italic', 'list', 'bullet']}
+                      placeholder="Full transcript text..."
+                      className="transcript-quill-editor"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Discussion Highlights */}
               <div>
@@ -2408,7 +2463,7 @@ const MediaModule = () => {
                 onClick={() => {
                   const s = transcriptState;
                   const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(s.title || 'Transcript')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:0.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:0.25rem}.meta{color:#666;font-size:0.85rem}</style></head><body><h1>${escapeHtml(s.title || 'Untitled Transcript')}</h1>${s.intentHint ? `<p class="meta">Intent: ${escapeHtml(s.intentHint)}${s.priority ? ` · Priority: ${escapeHtml(s.priority)}` : ''}</p>` : ''}${s.executiveSummary ? `<h2>Executive Summary</h2><p>${escapeHtml(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><pre style="white-space:pre-wrap;background:#f5f5f5;padding:1rem;border-radius:4px">${escapeHtml(s.transcript)}</pre>` : ''}${s.discussionHighlights.length ? `<h2>Discussion Highlights</h2><ul>${s.discussionHighlights.map(h => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}${s.notesAndObservations.length ? `<h2>Notes & Observations</h2><ul>${s.notesAndObservations.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}</body></html>`;
+                  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(s.title || 'Transcript')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:0.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:0.25rem}.meta{color:#666;font-size:0.85rem}</style></head><body><h1>${escapeHtml(s.title || 'Untitled Transcript')}</h1>${s.intentHint ? `<p class="meta">Intent: ${escapeHtml(s.intentHint)}${s.priority ? ` · Priority: ${escapeHtml(s.priority)}` : ''}</p>` : ''}${s.executiveSummary ? `<h2>Executive Summary</h2><p>${escapeHtml(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><div class="transcript-content">${s.transcript}</div>` : ''}${s.discussionHighlights.length ? `<h2>Discussion Highlights</h2><ul>${s.discussionHighlights.map(h => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}${s.notesAndObservations.length ? `<h2>Notes & Observations</h2><ul>${s.notesAndObservations.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}</body></html>`;
                   const blob = new Blob([html], { type: 'text/html' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -2423,13 +2478,41 @@ const MediaModule = () => {
               </button>
               <button
                 onClick={() => {
+                  // Convert HTML transcript to markdown
+                  const htmlToMd = (html) => {
+                    if (!html) return '';
+                    let md = html;
+                    // Headings
+                    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n');
+                    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n');
+                    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n');
+                    // Bold/Italic
+                    md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+                    md = md.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
+                    md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+                    md = md.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
+                    // Lists
+                    md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
+                    md = md.replace(/<\/?(?:ul|ol)[^>]*>/gi, '\n');
+                    // Paragraphs
+                    md = md.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
+                    md = md.replace(/<br\s*\/?>/gi, '\n');
+                    // Strip remaining tags
+                    md = md.replace(/<[^>]+>/g, '');
+                    // Decode entities
+                    md = md.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+                    // Clean up excessive whitespace
+                    md = md.replace(/\n{3,}/g, '\n\n').trim();
+                    return md;
+                  };
+
                   const md = [
                     `# ${transcriptState.title || 'Untitled Transcript'}`,
                     '',
                     transcriptState.executiveSummary ? `## Executive Summary\n${transcriptState.executiveSummary}` : '',
                     transcriptState.keyDecisions.length ? `## Key Decisions\n${transcriptState.keyDecisions.map(d => `- ${d}`).join('\n')}` : '',
                     transcriptState.actionItems.length ? `## Action Items\n${transcriptState.actionItems.map(a => `- ${a}`).join('\n')}` : '',
-                    transcriptState.transcript ? `## Transcript\n${transcriptState.transcript}` : '',
+                    transcriptState.transcript ? `## Transcript\n${htmlToMd(transcriptState.transcript)}` : '',
                     transcriptState.discussionHighlights.length ? `## Discussion Highlights\n${transcriptState.discussionHighlights.map(h => `- ${h}`).join('\n')}` : '',
                     transcriptState.notesAndObservations.length ? `## Notes & Observations\n${transcriptState.notesAndObservations.map(n => `- ${n}`).join('\n')}` : '',
                   ].filter(Boolean).join('\n\n');
@@ -2459,6 +2542,226 @@ const MediaModule = () => {
                 className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
               >
                 Export .json
+              </button>
+              <button
+                onClick={() => {
+                  const stripHtml = (html) => {
+                    if (!html) return '';
+                    let text = html;
+                    text = text.replace(/<br\s*\/?>/gi, '\n');
+                    text = text.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n');
+                    text = text.replace(/<\/?(?:ul|ol|strong|b|em|i|span)[^>]*>/gi, '');
+                    text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+                    text = text.replace(/\n{3,}/g, '\n\n').trim();
+                    return text;
+                  };
+                  const s = transcriptState;
+                  const lines = [];
+                  lines.push(s.title || 'Untitled Transcript');
+                  lines.push('');
+                  if (s.intentHint || s.priority) {
+                    lines.push(`Intent: ${s.intentHint || 'Auto'}${s.priority ? ` | Priority: ${s.priority}` : ''}`);
+                    lines.push('');
+                  }
+                  if (s.executiveSummary) {
+                    lines.push('Executive Summary');
+                    lines.push(s.executiveSummary);
+                    lines.push('');
+                  }
+                  if (s.keyDecisions.length) {
+                    lines.push('Key Decisions');
+                    s.keyDecisions.forEach(d => lines.push(`- ${d}`));
+                    lines.push('');
+                  }
+                  if (s.actionItems.length) {
+                    lines.push('Action Items');
+                    s.actionItems.forEach(a => lines.push(`- ${a}`));
+                    lines.push('');
+                  }
+                  if (s.discussionHighlights.length) {
+                    lines.push('Discussion Highlights');
+                    s.discussionHighlights.forEach(h => lines.push(`- ${h}`));
+                    lines.push('');
+                  }
+                  if (s.transcript) {
+                    lines.push('Transcript');
+                    lines.push(stripHtml(s.transcript));
+                    lines.push('');
+                  }
+                  if (s.notesAndObservations.length) {
+                    lines.push('Notes and Observations');
+                    s.notesAndObservations.forEach(n => lines.push(`- ${n}`));
+                    lines.push('');
+                  }
+                  const txt = lines.join('\n');
+                  const blob = new Blob([txt], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${(s.title || 'transcript').replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
+              >
+                Export .txt
+              </button>
+              <button
+                onClick={async () => {
+                  const { default: JSZip } = await import('jszip');
+                  const stripHtml = (html) => {
+                    if (!html) return '';
+                    let text = html;
+                    text = text.replace(/<br\s*\/?>/gi, '\n');
+                    text = text.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n');
+                    text = text.replace(/<\/?(?:ul|ol|strong|b|em|i|span)[^>]*>/gi, '');
+                    text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+                    text = text.replace(/\n{3,}/g, '\n\n').trim();
+                    return text;
+                  };
+                  const s = transcriptState;
+                  const escapeXml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+                  let contentXml = `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" office:version="1.2">\n<office:body><office:text>\n`;
+                  // Title
+                  contentXml += `<text:h text:outline-level="1">${escapeXml(s.title || 'Untitled Transcript')}</text:h>\n`;
+                  if (s.executiveSummary) {
+                    contentXml += `<text:h text:outline-level="2">Executive Summary</text:h>\n`;
+                    contentXml += `<text:p>${escapeXml(s.executiveSummary)}</text:p>\n`;
+                  }
+                  if (s.keyDecisions.length) {
+                    contentXml += `<text:h text:outline-level="2">Key Decisions</text:h>\n`;
+                    s.keyDecisions.forEach(d => { contentXml += `<text:list><text:list-item><text:p>${escapeXml(d)}</text:p></text:list-item></text:list>\n`; });
+                  }
+                  if (s.actionItems.length) {
+                    contentXml += `<text:h text:outline-level="2">Action Items</text:h>\n`;
+                    s.actionItems.forEach(a => { contentXml += `<text:list><text:list-item><text:p>${escapeXml(a)}</text:p></text:list-item></text:list>\n`; });
+                  }
+                  if (s.discussionHighlights.length) {
+                    contentXml += `<text:h text:outline-level="2">Discussion Highlights</text:h>\n`;
+                    s.discussionHighlights.forEach(h => { contentXml += `<text:list><text:list-item><text:p>${escapeXml(h)}</text:p></text:list-item></text:list>\n`; });
+                  }
+                  if (s.transcript) {
+                    contentXml += `<text:h text:outline-level="2">Transcript</text:h>\n`;
+                    const transcriptText = stripHtml(s.transcript);
+                    transcriptText.split('\n\n').forEach(para => {
+                      if (para.trim()) contentXml += `<text:p>${escapeXml(para.trim())}</text:p>\n`;
+                    });
+                  }
+                  if (s.notesAndObservations.length) {
+                    contentXml += `<text:h text:outline-level="2">Notes and Observations</text:h>\n`;
+                    s.notesAndObservations.forEach(n => { contentXml += `<text:list><text:list-item><text:p>${escapeXml(n)}</text:p></text:list-item></text:list>\n`; });
+                  }
+                  contentXml += `</office:text></office:body></office:document-content>`;
+                  const zip = new JSZip();
+                  zip.file('mimetype', 'application/vnd.oasis.opendocument.text', { compression: 'STORE' });
+                  const metaInf = zip.folder('META-INF');
+                  metaInf.file('manifest.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">\n<manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>\n<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>\n</manifest:manifest>`);
+                  zip.file('content.xml', contentXml);
+                  const blob = await zip.generateAsync({ type: 'blob' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${(s.title || 'transcript').replace(/[^a-zA-Z0-9]/g, '_')}.odt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
+              >
+                Export .odt
+              </button>
+              <button
+                onClick={async () => {
+                  const { default: JSZip } = await import('jszip');
+                  const s = transcriptState;
+                  const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                  const stripHtml = (html) => {
+                    if (!html) return '';
+                    let text = html;
+                    text = text.replace(/<br\s*\/?>/gi, '\n');
+                    text = text.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n');
+                    text = text.replace(/<\/?(?:ul|ol|strong|b|em|i|span)[^>]*>/gi, '');
+                    text = text.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+                    text = text.replace(/\n{3,}/g, '\n\n').trim();
+                    return text;
+                  };
+
+                  const title = escapeHtml(s.title || 'Briefing Document');
+                  const summary = s.executiveSummary ? escapeHtml(s.executiveSummary) : '';
+                  const decisions = s.keyDecisions.length ? s.keyDecisions.map(d => `<li>${escapeHtml(d)}</li>`).join('') : '';
+                  const highlights = s.discussionHighlights.length ? s.discussionHighlights.map(h => `<li>${escapeHtml(h)}</li>`).join('') : '';
+                  const actions = s.actionItems.length ? s.actionItems.map(a => `<li>${escapeHtml(a)}</li>`).join('') : '';
+                  const notes = s.notesAndObservations.length ? s.notesAndObservations.map(n => `<li>${escapeHtml(n)}</li>`).join('') : '';
+                  const transcriptText = s.transcript ? escapeHtml(stripHtml(s.transcript)) : '';
+
+                  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="hero">
+<div class="hero-inner">
+<h1>${title}</h1>
+${summary ? `<p class="hero-sub">${summary}</p>` : ''}
+${s.intentHint || s.priority ? `<p class="hero-meta">${s.intentHint ? `Intent: ${escapeHtml(s.intentHint)}` : ''}${s.priority ? ` &middot; Priority: ${escapeHtml(s.priority)}` : ''}</p>` : ''}
+</div>
+</header>
+<main>
+${summary ? `<section class="section"><h2>Overview</h2><p>${summary}</p></section>` : ''}
+${decisions ? `<section class="section"><h2>Key Decisions</h2><ul class="card-list">${decisions}</ul></section>` : ''}
+${highlights ? `<section class="section"><h2>Discussion Highlights</h2><ul class="card-list">${highlights}</ul></section>` : ''}
+${actions ? `<section class="section section--actions"><h2>Action Items</h2><ul class="card-list">${actions}</ul></section>` : ''}
+${notes ? `<section class="section"><h2>Notes &amp; Observations</h2><ul class="card-list">${notes}</ul></section>` : ''}
+${transcriptText ? `<section class="section section--transcript"><h2>Transcript</h2><div class="transcript-block">${transcriptText}</div></section>` : ''}
+</main>
+<footer class="footer">
+<p>Generated by AIO CRM &middot; ${new Date().toLocaleDateString()}</p>
+</footer>
+<script src="script.js"></script>
+</body>
+</html>`;
+
+                  const css = `*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;color:#1a1a2e;background:#fafafa;line-height:1.7}
+.hero{background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);color:#f8fafc;padding:4rem 2rem;text-align:center}
+.hero-inner{max-width:800px;margin:0 auto}
+.hero h1{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;line-height:1.15}
+.hero-sub{font-size:1.1rem;opacity:0.85;max-width:600px;margin:0 auto 0.75rem;line-height:1.6}
+.hero-meta{font-size:0.8rem;opacity:0.6;text-transform:uppercase;letter-spacing:0.08em}
+main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
+.section{margin-bottom:2.5rem}
+.section h2{font-size:1.25rem;font-weight:700;color:#0f172a;margin-bottom:1rem;padding-bottom:0.5rem;border-bottom:2px solid #e2e8f0;letter-spacing:-0.01em}
+.card-list{list-style:none;padding:0}
+.card-list li{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.5rem;font-size:0.95rem;position:relative;padding-left:1.5rem}
+.card-list li::before{content:'';position:absolute;left:0.6rem;top:1rem;width:6px;height:6px;border-radius:50%;background:#0ea5e9}
+.section--actions{background:linear-gradient(135deg,#ecfdf5,#f0fdf4);border-radius:12px;padding:1.5rem;border:1px solid #bbf7d0}
+.section--actions h2{color:#065f46;border-bottom-color:#86efac}
+.section--actions .card-list li{border-color:#86efac}
+.section--actions .card-list li::before{background:#10b981}
+.section--transcript .transcript-block{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1.5rem;font-size:0.85rem;line-height:1.8;white-space:pre-wrap;color:#334155;max-height:400px;overflow-y:auto}
+.footer{text-align:center;padding:2rem 1rem;color:#94a3b8;font-size:0.8rem;border-top:1px solid #e2e8f0;margin-top:2rem}
+@media(max-width:640px){.hero{padding:3rem 1.5rem}main{padding:1.5rem 1rem}.hero h1{font-size:1.6rem}}`;
+
+                  const js = `document.addEventListener('DOMContentLoaded',function(){const t=document.querySelector('.transcript-block');if(t){t.addEventListener('scroll',function(){t.style.boxShadow=t.scrollTop>0?'inset 0 4px 8px rgba(0,0,0,0.06)':'none'})}});`;
+
+                  const zip = new JSZip();
+                  zip.file('index.html', html);
+                  zip.file('styles.css', css);
+                  zip.file('script.js', js);
+                  const blob = await zip.generateAsync({ type: 'blob' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${(s.title || 'visual-page').replace(/[^a-zA-Z0-9]/g, '_')}.zip`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3 py-1.5 rounded border border-[#2A2D35] text-[10px] font-bold text-slate-400 hover:text-white hover:border-[#3A3D45] transition uppercase tracking-widest"
+              >
+                Visual Page
               </button>
               <button
                 onClick={async () => {

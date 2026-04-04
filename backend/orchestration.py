@@ -72,6 +72,8 @@ DIRECT_EXECUTION_INTENTS = {
     "transcribe-media",
     "ingest_meeting_artifacts",
     "publish_asset",
+    "rss_ingest",
+    "generate_image",
 }
 
 BOOKING_WRITE_INTENTS = {"schedule_calendar", "create_booking", "update_booking", "cancel_booking"}
@@ -799,6 +801,8 @@ class StepExecutor:
             "transcribe-media": self._transcribe_media,
             "ingest_meeting_artifacts": self._ingest_meeting_artifacts,
             "publish_asset": self._publish_asset,
+            "rss_ingest": self._rss_ingest,
+            "generate_image": self._generate_image,
         }
 
     def _merged_step_config(self, step: dict[str, Any]) -> dict[str, Any]:
@@ -3478,6 +3482,118 @@ class StepExecutor:
         job = result.get("job") or {}
         status = "success" if clean_text(job.get("status")) == "complete" else "failed"
         return {"stepId": step.get("id"), "intent": step.get("intent"), "status": status, "data": result, "error": job.get("last_error")}
+
+    def _rss_ingest(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        """Fetch items from an RSS feed and return structured data."""
+        try:
+            import xml.etree.ElementTree as ET
+            import urllib.request
+            import urllib.parse
+        except ImportError:
+            return self._service_error(step, "XML parsing unavailable.", data={"items": [], "feed_title": None, "feed_url": None, "item_count": 0})
+
+        node_config = step.get("config") or {}
+        feed_url = clean_text(node_config.get("feedUrl") or node_config.get("feed_url") or node_config.get("url"))
+        if not feed_url:
+            return self._service_error(step, "RSS Feed URL is required.", data={"items": [], "feed_title": None, "feed_url": None, "item_count": 0})
+        if not feed_url.startswith(("http://", "https://")):
+            return self._service_error(step, f"Invalid RSS URL: {feed_url}", data={"items": [], "feed_title": None, "feed_url": None, "item_count": 0})
+
+        item_limit = max(1, min(50, safe_int(node_config.get("itemLimit") or node_config.get("item_limit") or node_config.get("limit"), 10)))
+
+        try:
+            req = urllib.request.Request(feed_url, headers={"User-Agent": "AIO-CRM-Flow/1.0"})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                raw = response.read().decode("utf-8", errors="replace")
+        except Exception as e:
+            return self._service_error(step, f"Failed to fetch RSS feed: {e}", data={"items": [], "feed_title": None, "feed_url": feed_url, "item_count": 0})
+
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError as e:
+            return self._service_error(step, f"Malformed RSS XML: {e}", data={"items": [], "feed_title": None, "feed_url": feed_url, "item_count": 0})
+
+        items = []
+        feed_title = None
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+
+        # RSS 2.0
+        channel = root.find("channel")
+        if channel is not None:
+            feed_title_el = channel.find("title")
+            feed_title = feed_title_el.text if feed_title_el is not None else None
+            for item_el in channel.findall("item")[:item_limit]:
+                title_el = item_el.find("title")
+                link_el = item_el.find("link")
+                desc_el = item_el.find("description")
+                pub_el = item_el.find("pubDate")
+                items.append({
+                    "title": title_el.text if title_el is not None else "",
+                    "link": link_el.text if link_el is not None else "",
+                    "publishedAt": pub_el.text if pub_el is not None else "",
+                    "summary": (desc_el.text or "")[:500] if desc_el is not None else "",
+                    "feedUrl": feed_url,
+                })
+        # Atom
+        else:
+            feed_title_el = root.find("atom:feed/atom:title", ns) or root.find("{http://www.w3.org/2005/Atom}feed/title") or root.find("title")
+            feed_title = feed_title_el.text if feed_title_el is not None else None
+            entry_tag = "{http://www.w3.org/2005/Atom}entry"
+            for entry_el in root.findall(entry_tag)[:item_limit]:
+                title_el = entry_el.find("{http://www.w3.org/2005/Atom}title")
+                link_el = entry_el.find("{http://www.w3.org/2005/Atom}link")
+                summary_el = entry_el.find("{http://www.w3.org/2005/Atom}summary")
+                pub_el = entry_el.find("{http://www.w3.org/2005/Atom}published") or entry_el.find("{http://www.w3.org/2005/Atom}updated")
+                link_href = link_el.get("href", "") if link_el is not None else ""
+                items.append({
+                    "title": title_el.text if title_el is not None else "",
+                    "link": link_href,
+                    "publishedAt": pub_el.text if pub_el is not None else "",
+                    "summary": (summary_el.text or "")[:500] if summary_el is not None else "",
+                    "feedUrl": feed_url,
+                })
+
+        if not items:
+            return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": {"items": [], "feed_title": feed_title, "feed_url": feed_url, "item_count": 0, "message": "Feed returned no items"}, "error": None}
+
+        return {"stepId": step.get("id"), "intent": step.get("intent"), "status": "success", "data": {"items": items, "feed_title": feed_title, "feed_url": feed_url, "item_count": len(items)}, "error": None}
+
+    def _generate_image(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        """Generate an image from a text prompt via the media engine."""
+        node_config = step.get("config") or {}
+        prompt = clean_text(node_config.get("prompt") or node_config.get("text") or node_config.get("content"))
+        if not prompt:
+            return self._service_error(step, "Prompt is required for image generation.", data={"image_url": None, "provider": None, "status": "not_configured"})
+
+        style = clean_text(node_config.get("style") or node_config.get("variant") or "")
+        size = clean_text(node_config.get("size") or "1024x1024")
+
+        try:
+            media_engine = get_media_engine()
+            result = media_engine.render_media({
+                "media_type": "image",
+                "title": prompt[:80],
+                "prompt": prompt,
+                "style": style,
+                "size": size,
+            }, tenant_id=clean_text((context.get("tenant") or {}).get("id")) if isinstance(context.get("tenant"), dict) else None)
+            job = result.get("job") or {}
+            status = "success" if clean_text(job.get("status")) == "complete" else "running"
+            artifact = result.get("artifact") or {}
+            return {
+                "stepId": step.get("id"),
+                "intent": step.get("intent"),
+                "status": status,
+                "data": {
+                    "image_url": artifact.get("url") or artifact.get("imageUrl") or job.get("result_url"),
+                    "prompt": prompt,
+                    "provider": job.get("provider") or "stub-render",
+                    "job_id": job.get("id"),
+                },
+                "error": job.get("last_error"),
+            }
+        except Exception as e:
+            return self._service_error(step, f"Image generation failed: {e}", data={"image_url": None, "provider": None, "status": "failed"})
 
     def _filter(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         condition = self._extract_if_then_condition(step)
