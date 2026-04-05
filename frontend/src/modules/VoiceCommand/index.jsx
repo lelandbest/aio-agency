@@ -176,9 +176,9 @@ export default function VoiceCommandModule() {
 
   const [input, setInput]         = useState('');
   const [loading, setLoading]     = useState(false);
-  const [voiceEnabled, setVoiceEnabled]   = useState(false);
+  const [voiceEnabled, setVoiceEnabled]   = useState(true);
   const [voiceProvider, setVoiceProvider] = useState('system');
-  const [voiceAutoPlay, setVoiceAutoPlay] = useState(false);
+  const [voiceAutoPlay, setVoiceAutoPlay] = useState(true);
   const [voices, setVoices]       = useState([]);
   const [inputDevices, setInputDevices]   = useState([]);
   const [selectedMicId, setSelectedMicId] = useState(() => localStorage.getItem('aio_mic') || '');
@@ -259,6 +259,7 @@ export default function VoiceCommandModule() {
   const handleTranscript = useCallback(async (raw) => {
     setIsListening(false);
     if (!raw.trim()) return;
+    if (!isOpen) openVTT(); // Auto-open if closed
     setLoading(true);
     clearTranscript();
     try {

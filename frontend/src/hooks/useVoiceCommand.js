@@ -1,11 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-// CTRL hold-to-talk PTT with Robust Shortcut Protection.
-// Strategy:
-//   - Mic starts on KeyDown (trusted event) but stays "silent/backgrounded".
-//   - If any other key is pressed during hold (Ctrl+C, etc.), we abort immediately.
-//   - If hold hits 2s, we play the BEEP and update the UI dot to RED.
-//   - Release after 2s captures. Release before 2s discards.
+// CTRL hold-to-talk PTT with Session-Locked Authorization.
+// 1. Mic starts on KeyDown (pre-warm).
+// 2. After 1s, the CURRENT session is authorized for capture.
+// 3. Release stops mic; the result is processed only if that session was authorized.
 
 /** Play a brief soft open-channel tone so the operator knows the mic is live. */
 function playPTTBeep() {
@@ -29,11 +27,11 @@ function playPTTBeep() {
 const ARM_DELAY_MS = 1000;
 
 export function useVoiceCommand({ onTranscript, onCommand, onConversational, onError, deviceId, setIsListening, inputRef, arm, disarm }) {
-  const isHoldingRef   = useRef(false);
-  const isArmedRef     = useRef(false);
-  const armTimerRef    = useRef(null);
-  const recognitionRef = useRef(null);
-  const isSupported    = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const isHoldingRef     = useRef(false);
+  const sessionActiveRef = useRef(null); // stores the current authorized session ID
+  const armTimerRef      = useRef(null);
+  const recognitionRef   = useRef(null);
+  const isSupported      = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
   const _isInput = (e) => {
     const t = e.target;
@@ -59,26 +57,32 @@ export function useVoiceCommand({ onTranscript, onCommand, onConversational, onE
     rec.continuous = false;
     rec.interimResults = false;
 
-    rec.onstart = () => { 
-      // We don't beep yet — only beep when the 2s timer fires.
-    };
+    // Unique ID for this specific PTT session
+    const sessionId = Date.now();
+    rec._sessionId = sessionId;
+    sessionActiveRef.current = { id: sessionId, authorized: false };
+
+    rec.onstart = () => {};
     rec.onend = () => {
-      recognitionRef.current = null;
+      if (recognitionRef.current?._sessionId === sessionId) {
+        recognitionRef.current = null;
+      }
     };
 
     rec.onerror = (e) => {
-      // ignore 'aborted' errors
       if (e.error !== 'aborted') {
         console.error('VTT ERROR:', e);
         onError?.(e.error);
       }
-      disarm?.();
-      if (setIsListening) setIsListening(false);
+      if (sessionActiveRef.current?.id === sessionId) {
+        disarm?.();
+        if (setIsListening) setIsListening(false);
+      }
     };
 
     rec.onresult = (e) => {
-      // Only process results if we actually reached the armed state
-      if (isArmedRef.current) {
+      // Check if THIS specific session was ever authorized
+      if (sessionActiveRef.current?.id === sessionId && sessionActiveRef.current?.authorized) {
         const text = e.results?.[0]?.[0]?.transcript || '';
         if (text) onTranscript(text);
       }
@@ -93,11 +97,11 @@ export function useVoiceCommand({ onTranscript, onCommand, onConversational, onE
   }, [isSupported, onTranscript, onError, setIsListening, disarm]);
 
   const onKeyDown = useCallback((e) => {
-    // 1. If any key OTHER than Control is pressed while CTRL is held, it's a shortcut.
+    // 1. Shortcut Protection
     if (e.key !== 'Control' && e.ctrlKey) {
       clearTimeout(armTimerRef.current);
-      isArmedRef.current = false;
-      stopRecognition(true); // abort mic immediately
+      if (sessionActiveRef.current) sessionActiveRef.current.authorized = false;
+      stopRecognition(true);
       disarm?.();
       return;
     }
@@ -114,17 +118,15 @@ export function useVoiceCommand({ onTranscript, onCommand, onConversational, onE
     
     if (isHoldingRef.current) return;
     isHoldingRef.current = true;
-    isArmedRef.current = false;
 
-    // Start recognition IMMEDIATELY to preserve the trusted event chain.
-    // It listens silently in the background for 2s.
+    // Pre-warm mic immediately
     startRecognition();
 
     armTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current) {
-        isArmedRef.current = true;
+      if (isHoldingRef.current && sessionActiveRef.current) {
+        sessionActiveRef.current.authorized = true;
         arm?.(); 
-        playPTTBeep(); // Beep fires at 2s mark while holding.
+        playPTTBeep();
         if (setIsListening) setIsListening(true);
       }
     }, ARM_DELAY_MS);
@@ -135,15 +137,14 @@ export function useVoiceCommand({ onTranscript, onCommand, onConversational, onE
     isHoldingRef.current = false;
     clearTimeout(armTimerRef.current);
     
-    if (isArmedRef.current) {
-      stopRecognition(false); // finish capture - result will check isArmedRef
-      // wait a moment before clearing armed state so onresult sees it
+    if (sessionActiveRef.current?.authorized) {
+      stopRecognition(false); // capture
+      // Clean up UI but sessionActiveRef stays valid for onresult
       setTimeout(() => {
-        isArmedRef.current = false;
         disarm?.();
       }, 500);
     } else {
-      stopRecognition(true);  // abort (less than 2s)
+      stopRecognition(true);  // abort early release
       disarm?.();
     }
   }, [stopRecognition, disarm]);
