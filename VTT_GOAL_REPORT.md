@@ -41,6 +41,20 @@ Full-stack implementation of a VTT (Voice-to-Command + Conversational "Charlie")
 - `frontend/src/App.jsx` — VTTProvider + VoiceCommandModule rendered at app root level
 
 ### Voice Wiring — Complete
+- Mic toggle button removed from input area (header voice toggle only)
+- Instruction text updated: `SPACE` → `CTRL`
+- Placeholder text updated: `hold Space` → `hold CTRL`
+- `voices` state + voice load `useEffect` for race condition handling
+- `speakWithSystemVoice()` added: `speechSynthesis.cancel()` guard + Google UK English Female priority
+- `request` exported from `backendApi.js`
+
+### Charlie Behavior Lock — Complete
+- `backend/agent_runtime.py` `_build_prompt_contract`: when `surface == 'vtt'`, appends BOARDROOM OPERATIONS MODE directive
+- Directive classifies into 5 modes: COMMAND / ASSIST / CONFIRMATION / RESULT / CLARIFICATION
+- Tone rules: 1–3 sentences, no over-explanation, no role-play, no filler, no fake success
+- Confirmation style locked: single sentence, prepared state, "Confirm send?" — never "Are you sure you want me to..."
+- Interrupt responses locked: one word only ("Stopped." "Closed." "Canceled.")
+- No chatbot, therapist, or hype-coach tone — executive assistant identity preserved
 - `synthesize_voice` in vtt_service.py — ElevenLabs direct API call, saves to `backend/data/voice/`, returns `/api/media/voice/{filename}`, graceful fallback
 - `voiceEnabled/voiceProvider/voiceAutoPlay` in VTTRequest — gates TTS synthesis
 - Frontend plays `audioUrl` via `<audio>` element; system TTS fallback for `voiceEnabled && voiceAutoPlay` when no `audioUrl`
@@ -79,7 +93,8 @@ Full-stack implementation of a VTT (Voice-to-Command + Conversational "Charlie")
 - `backend/vtt_service.py` — VTT service (command registry, parser, executor, synthesize_voice)
 - `backend/server.py` — VTT endpoints, bypass fix, integrations enforcement, `/api/media/voice/` route
 - `backend/orchestration.py` — `_check_provider_connected`, guarded execution paths
-- `backend/auth_store.py` — `get_social_provider_config` helper
+- `backend/auth_store.py` — `get_auth_store` singleton, `get_social_provider_config` helper
+- `backend/agent_runtime.py` — BOARDROOM OPERATIONS MODE injection for `surface == 'vtt'`
 
 ### Frontend
 - `frontend/src/modules/VoiceCommand/index.jsx` — VTT chat panel
@@ -97,7 +112,7 @@ Full-stack implementation of a VTT (Voice-to-Command + Conversational "Charlie")
 
 ## Current State
 
-All Phase 1 files committed and pushed to `main`.
+All Phase 1 files committed and pushed to `main`. Backend and frontend servers running.
 
 **Remaining for Phase 1:**
 - Ensure `backend/data/voice/` directory exists (mkdir -p on startup or in vtt_service.py)
