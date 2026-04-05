@@ -21,6 +21,8 @@ from threading import Lock
 from typing import Any
 from uuid import uuid4
 
+from backend.utils.provider_normalizer import normalize_provider_key, get_elevenlabs_api_key
+
 
 def utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -1363,6 +1365,7 @@ class RemotionLocalRenderProvider(BaseRenderProvider):
 
 class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
     provider_id = "elevenlabs_scribe"
+    canonical_id = "elevenlabs"
     BASE_URL = "https://api.elevenlabs.io"
 
     def _build_multipart_body(
@@ -1468,13 +1471,12 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
             }
         
         try:
-            import os
-            apiKey = os.getenv("ELEVEN_LABS_API_KEY")
+            apiKey = get_elevenlabs_api_key()
         except Exception:
             apiKey = None
 
         if not apiKey:
-            raise ValueError("ElevenLabs Scribe provider is not configured. Add ELEVEN_LABS_API_KEY to environment.")
+            raise ValueError("ElevenLabs Scribe provider is not configured. Add ELEVENLABS_API_KEY to environment.")
 
         audio_url = clean_text(payload.get("source_url") or payload.get("sourceUrl"))
         prepared_audio_path = clean_text(payload.get("prepared_audio_path") or payload.get("preparedAudioPath"))
@@ -1755,6 +1757,7 @@ class StubRunOfShowProvider(BaseRunOfShowProvider):
 
 class ElevenLabsTTSProvider(BaseAudioRenderProvider):
     provider_id = "elevenlabs_tts"
+    canonical_id = "elevenlabs"
     BASE_URL = "https://api.elevenlabs.io"
     DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
     _VOICE_NAME_MAP: dict[str, str] = {
@@ -1784,12 +1787,12 @@ class ElevenLabsTTSProvider(BaseAudioRenderProvider):
             raise ValueError("Audio render requires text or script input.")
 
         try:
-            apiKey = os.getenv("ELEVEN_LABS_API_KEY")
+            apiKey = get_elevenlabs_api_key()
         except Exception:
             apiKey = None
 
         if not apiKey:
-            raise ValueError("ElevenLabs TTS provider is not configured. Add ELEVEN_LABS_API_KEY to environment.")
+            raise ValueError("ElevenLabs TTS provider is not configured. Add ELEVENLABS_API_KEY to environment.")
 
         voice = clean_text(payload.get("voice")) or "Rachel"
         voice_id = self._resolve_voice_id(voice)
@@ -1873,6 +1876,7 @@ class MediaEngine:
         }
         self.transcription_providers: dict[str, BaseTranscriptionProvider] = {
             ElevenLabsScribeTranscriptionProvider.provider_id: ElevenLabsScribeTranscriptionProvider(),
+            ElevenLabsScribeTranscriptionProvider.canonical_id: ElevenLabsScribeTranscriptionProvider(),
             FfmpegTranscribeProvider.provider_id: FfmpegTranscribeProvider(),
             # Legacy alias only. New settings and active routing must use ffmpeg_transcribe.
             LEGACY_TRANSCRIPTION_PROVIDER_AWS: FfmpegTranscribeProvider(),
@@ -1890,6 +1894,7 @@ class MediaEngine:
         }
         self.audio_render_providers: dict[str, BaseAudioRenderProvider] = {
             ElevenLabsTTSProvider.provider_id: ElevenLabsTTSProvider(),
+            ElevenLabsTTSProvider.canonical_id: ElevenLabsTTSProvider(),
         }
 
     def list_assets(self) -> list[dict[str, Any]]:
@@ -2141,7 +2146,8 @@ class MediaEngine:
             return {"job": failed, "artifact": None}
 
     def render_audio(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        provider_id = clean_text(payload.get("provider")) or ElevenLabsTTSProvider.provider_id
+        provider_id = clean_text(payload.get("provider")) or ElevenLabsTTSProvider.canonical_id
+        provider_id = normalize_provider_key(provider_id)
         provider = self.audio_render_providers.get(provider_id)
         if not provider:
             raise ValueError(f"Unknown audio render provider '{provider_id}'.")
@@ -2318,7 +2324,8 @@ class MediaEngine:
             return {"job": failed, "assets": []}
 
     def transcribe_media(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        provider_id = clean_text(payload.get("provider")) or ElevenLabsScribeTranscriptionProvider.provider_id
+        provider_id = clean_text(payload.get("provider")) or ElevenLabsScribeTranscriptionProvider.canonical_id
+        provider_id = normalize_provider_key(provider_id)
         provider = self.transcription_providers.get(provider_id)
         if not provider:
             raise ValueError(f"Unknown transcription provider '{provider_id}'.")
@@ -2545,7 +2552,7 @@ class MediaEngine:
             return self._process_run_of_show_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
 
         if job_type == "audio":
-            provider_id = job.get("provider") or ElevenLabsTTSProvider.provider_id
+            provider_id = normalize_provider_key(job.get("provider") or ElevenLabsTTSProvider.canonical_id)
             provider = self.audio_render_providers.get(provider_id)
             if not provider: return {"error": f"Provider {provider_id} not found"}
             return self._process_audio_render_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
@@ -2557,7 +2564,7 @@ class MediaEngine:
             return self._process_render_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
 
         if job_type == "transcript":
-            provider_id = job.get("provider") or ElevenLabsScribeTranscriptionProvider.provider_id
+            provider_id = normalize_provider_key(job.get("provider") or ElevenLabsScribeTranscriptionProvider.canonical_id)
             provider = self.transcription_providers.get(provider_id)
             if not provider: return {"error": f"Provider {provider_id} not found"}
             source_asset_ids = [clean_text(item) for item in (payload.get("source_asset_ids") or payload.get("sourceAssetIds") or []) if clean_text(item)]

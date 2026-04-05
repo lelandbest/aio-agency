@@ -145,31 +145,34 @@ export default function VoiceCommandModule() {
   
   const micLevel = useMicLevel(isOpen, selectedMicId);
 
-  const playAudio = useCallback((url, text) => {
-    if (!text && !url) return;
-    
-    const fallback = (t) => {
-      if (!t) return;
-      const utter = new SpeechSynthesisUtterance(t);
-      const v = voices.find(vx => vx.name.includes('Google UK English Female') || vx.name.includes('Zira') || vx.name.includes('Samantha')) || voices[0];
-      if (v) utter.voice = v;
-      utter.volume = 1.0;
-      utter.rate = 1.0;
-      speechSynthesis.cancel();
-      // Required for some chrome versions to unstick
-      setTimeout(() => { speechSynthesis.speak(utter); }, 10);
-    };
-
-    if (url) {
-      const audio = new Audio(url);
-      audio.play().catch((e) => {
-        console.warn('[VTT] Audio play blocked, falling back to synthesis');
-        fallback(text);
-      });
-    } else {
-      fallback(text);
-    }
+  const fallbackSpeak = useCallback((text) => {
+    if (!text || !window.speechSynthesis) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    const v = voices.find(vx => vx.name.includes('Google UK English Female') || vx.name.includes('Zira') || vx.name.includes('Samantha')) || voices.find(vx => vx.lang === 'en-GB') || voices[0];
+    if (v) utter.voice = v;
+    utter.volume = 1.0;
+    utter.rate = 1.0;
+    speechSynthesis.cancel();
+    setTimeout(() => { speechSynthesis.speak(utter); }, 10);
   }, [voices]);
+
+  const playCharlieResponse = useCallback((audioUrl, text) => {
+    console.log("CHARLIE AUDIO URL:", audioUrl);
+    console.log("CHARLIE MESSAGE:", text);
+    if (!text && !audioUrl) return;
+    try {
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => { console.log("[VTT] ElevenLabs audio played successfully"); };
+        audio.onerror = (e) => { console.warn("[VTT] Audio error, falling back:", e); fallbackSpeak(text); };
+        audio.play().catch((e) => { console.warn("[VTT] Audio play blocked, falling back:", e); fallbackSpeak(text); });
+        return;
+      }
+    } catch (e) {
+      console.warn("[VTT] Audio hard fail, falling back:", e);
+    }
+    fallbackSpeak(text);
+  }, [fallbackSpeak]);
 
   const handleTranscript = useCallback(async (raw) => {
     setGhostTranscript('');
@@ -204,7 +207,7 @@ export default function VoiceCommandModule() {
         if (action === 'navigate') navigateToModule(result.module);
         
         const msg = data.response?.message || result.message || '';
-        if (voiceEnabled && voiceAutoPlay && msg) playAudio(data.audioUrl || null, msg);
+        if (voiceEnabled && voiceAutoPlay && msg) playCharlieResponse(data.audioUrl || null, msg);
       } else if (data.type === 'conversational') {
         if (data.forwardTo) {
           try {
@@ -212,7 +215,7 @@ export default function VoiceCommandModule() {
             addCharlieMessage(raw, charlieResult);
             if (voiceEnabled && voiceAutoPlay) {
               const msg = charlieResult?.result?.message || charlieResult?.result?.suggestion || '';
-              if (msg && msg.length <= 600) playAudio(null, msg);
+              if (msg && msg.length <= 600) playCharlieResponse(null, msg);
             }
           } catch {
             addCharlieMessage(raw, { message: 'Charlie unavailable.' });
@@ -220,7 +223,7 @@ export default function VoiceCommandModule() {
         } else {
           const msg = data.command?.message || data.command || '';
           addCharlieMessage(raw, data.command);
-          if (voiceEnabled && voiceAutoPlay && msg) playAudio(null, msg);
+          if (voiceEnabled && voiceAutoPlay && msg) playCharlieResponse(null, msg);
         }
       }
     } catch (e) {
@@ -228,7 +231,7 @@ export default function VoiceCommandModule() {
     } finally {
       setLoading(false);
     }
-  }, [isOpen, openVTT, clearTranscript, addCommandMessage, addCharlieMessage, setIsListening, voiceEnabled, voiceProvider, voiceAutoPlay, playAudio]);
+  }, [isOpen, openVTT, clearTranscript, addCommandMessage, addCharlieMessage, setIsListening, voiceEnabled, voiceProvider, voiceAutoPlay, playCharlieResponse]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -397,7 +400,7 @@ export default function VoiceCommandModule() {
             </span>
           </div>
           <button 
-            onClick={() => playAudio(null, "Charlie voice system operational. High five!")}
+            onClick={() => playCharlieResponse(null, "Charlie voice system operational. High five!")}
             className="text-[6px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors uppercase font-bold"
           >
             <Play size={6} fill="currentColor" /> Test Voice

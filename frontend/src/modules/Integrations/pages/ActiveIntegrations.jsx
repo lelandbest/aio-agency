@@ -772,9 +772,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
   const [emailVerifierConfig, setEmailVerifierConfig] = useState(null);
   const [emailVerifierForm, setEmailVerifierForm] = useState(() => createEmailVerifierDraft());
-  const [emailVerifierConfigEditing, setEmailVerifierConfigEditing] = useState(false);
   const [showMailboxComposer, setShowMailboxComposer] = useState(false);
-  const [mailboxConfigEditing, setMailboxConfigEditing] = useState(false);
 
   const [calendarSources, setCalendarSources] = useState([]);
   const [calendarProviders, setCalendarProviders] = useState(DEFAULT_CALENDAR_PROVIDERS);
@@ -784,29 +782,24 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const [calendarOptions, setCalendarOptions] = useState([]);
   const [calendarOptionsLoading, setCalendarOptionsLoading] = useState(false);
   const [showCalendarComposer, setShowCalendarComposer] = useState(false);
-  const [calendarConfigEditing, setCalendarConfigEditing] = useState(false);
 
   const [automationProviderConfigs, setAutomationProviderConfigs] = useState([]);
   const [selectedAutomationProviderKey, setSelectedAutomationProviderKey] = useState('n8n');
   const [automationProviderForm, setAutomationProviderForm] = useState(() => createAutomationProviderDraft(getProviderConfig('n8n')));
-  const [automationConfigEditing, setAutomationConfigEditing] = useState(false);
 
   const [dataStoreProviderConfigs, setDataStoreProviderConfigs] = useState([]);
   const [selectedDataStoreProviderKey, setSelectedDataStoreProviderKey] = useState('googleSheets');
   const [dataStoreProviderForm, setDataStoreProviderForm] = useState(() => createDataStoreProviderDraft(getProviderConfig('googleSheets')));
-  const [dataStoreConfigEditing, setDataStoreConfigEditing] = useState(false);
 
   const [mediaProviderConfigs, setMediaProviderConfigs] = useState([]);
-  const [selectedMediaProviderKey, setSelectedMediaProviderKey] = useState('elevenlabsScribe');
-  const [mediaProviderForm, setMediaProviderForm] = useState(() => createMediaProviderDraft(getProviderConfig('elevenlabsScribe')));
-  const [mediaConfigEditing, setMediaConfigEditing] = useState(false);
+  const [selectedMediaProviderKey, setSelectedMediaProviderKey] = useState('elevenlabs');
+  const [mediaProviderForm, setMediaProviderForm] = useState(() => createMediaProviderDraft(getProviderConfig('elevenlabs')));
 
   const [paymentProviderConfigs, setPaymentProviderConfigs] = useState([]);
   const [socialProviderConfigs, setSocialProviderConfigs] = useState([]);
   const [selectedPaymentProviderKey, setSelectedPaymentProviderKey] = useState('stripe');
   const [selectedSocialProviderKey, setSelectedSocialProviderKey] = useState('youtube');
   const [paymentProviderForm, setPaymentProviderForm] = useState(() => createPaymentProviderDraft(getProviderConfig('stripe')));
-  const [paymentConfigEditing, setPaymentConfigEditing] = useState(false);
 
 
 
@@ -814,7 +807,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const [aiProviderConfigs, setAiProviderConfigs] = useState([]);
   const [selectedAiProviderKey, setSelectedAiProviderKey] = useState(() => getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]?.id);
   const [aiProviderForm, setAiProviderForm] = useState(() => createAiProviderDraft(getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS)[0]));
-  const [aiProviderConfigEditing, setAiProviderConfigEditing] = useState(false);
   const [ollamaModels, setOllamaModels] = useState([]);
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
@@ -1144,8 +1136,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   );
 
   const selectedMediaProviderConfig = useMemo(
-    () => mediaProviderConfigs.find((provider) => resolveMediaSelectorProvider(provider.providerKey) === selectedMediaProviderKey) || null,
-    [mediaProviderConfigs, selectedMediaProviderKey]
+    () => mediaProviderConfigs.find((provider) => provider.providerKey === 'elevenlabs') || null,
+    [mediaProviderConfigs]
   );
 
   const selectedPaymentProviderConfig = useMemo(
@@ -1287,10 +1279,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   }, [emailVerifierConfig]);
 
   useEffect(() => {
-    setEmailVerifierConfigEditing(!emailVerifierConfig?.hasApiKey);
-  }, [emailVerifierConfig]);
-
-  useEffect(() => {
     if (!selectedCalendarSource) {
       setCalendarSourceForm(createCalendarSourceDraft());
       return;
@@ -1379,10 +1367,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   }, [selectedAiProviderCatalog, selectedAiProviderConfig]);
 
   useEffect(() => {
-    setAiProviderConfigEditing(!selectedAiProviderConfig);
-  }, [selectedAiProviderKey, selectedAiProviderConfig]);
-
-  useEffect(() => {
     const catalogEntry = selectedAutomationProviderCatalog;
     if (!catalogEntry) return;
     const existing = selectedAutomationProviderConfig;
@@ -1407,34 +1391,10 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   }, [selectedAutomationProviderCatalog, selectedAutomationProviderConfig]);
 
   useEffect(() => {
-    setAutomationConfigEditing(!selectedAutomationProviderConfig);
-  }, [selectedAutomationProviderKey, selectedAutomationProviderConfig]);
-
-  useEffect(() => {
-    setDataStoreConfigEditing(!selectedDataStoreProviderConfig);
-  }, [selectedDataStoreProviderConfig, selectedDataStoreProviderKey]);
-
-  useEffect(() => {
-    setMediaConfigEditing(!selectedMediaProviderConfig);
-  }, [selectedMediaProviderConfig, selectedMediaProviderKey]);
-
-  useEffect(() => {
-    setPaymentConfigEditing(!selectedPaymentProviderConfig);
-  }, [selectedPaymentProviderKey, selectedPaymentProviderConfig]);
-
-  useEffect(() => {
-    setMailboxConfigEditing(false);
-  }, [selectedMailboxId]);
-
-  useEffect(() => {
-    setCalendarConfigEditing(false);
-  }, [selectedCalendarSourceId]);
-
-  useEffect(() => {
-    if (emailVerifierConfig && !emailVerifierConfigEditing) {
+    if (emailVerifierConfig) {
       setEmailVerifierForm(createEmailVerifierDraft(emailVerifierConfig));
     }
-  }, [emailVerifierConfig, emailVerifierConfigEditing]);
+  }, [emailVerifierConfig]);
 
   const refreshOllamaModels = async (preferredBaseUrl) => {
     setOllamaModelsLoading(true);
@@ -1522,13 +1482,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const selectedCalendarSourceStateMeta = selectedCalendarSource ? (calendarSourceStateMetaById[selectedCalendarSource.id] || getCalendarSourceStateMeta(selectedCalendarSource)) : getCalendarSourceStateMeta({ provider: calendarSourceForm.provider, config: calendarSourceForm.config, status: selectedCalendarSource?.status });
   const automationNeedsConfig = isNeedsConfigStatus(selectedAutomationProviderConfig?.status);
   const emailVerifierNeedsConfig = emailVerifierConfig?.status === 'error';
-  const automationConfigLocked = !!selectedAutomationProviderConfig && !automationConfigEditing;
-  const emailVerifierConfigLocked = !!emailVerifierConfig?.hasApiKey && !emailVerifierConfigEditing;
-  const mailboxConfigLocked = !!selectedMailbox && !mailboxConfigEditing;
-  const calendarConfigLocked = !!selectedCalendarSource && !calendarConfigEditing;
-  const aiProviderConfigLocked = !!selectedAiProviderConfig && !aiProviderConfigEditing;
-  const dataStoreConfigLocked = !!selectedDataStoreProviderConfig && !dataStoreConfigEditing;
-  const paymentConfigLocked = !!selectedPaymentProviderConfig && !paymentConfigEditing;
   const hasProviderSelected = !!(selectedAutomationProviderConfig || selectedAiProviderConfig || selectedDataStoreProviderConfig || selectedMediaProviderConfig || selectedPaymentProviderConfig || selectedMailbox || selectedCalendarSource);
   const showSplash = !activeCategory || !selectorProviderKey;
   const currentCategory = categories.find((category) => category.id === activeCategory);
@@ -1645,22 +1598,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      setMailboxConfigEditing(false);
-      showNotice({ tone: 'success', message: 'Mailbox saved.' });
-      triggerSavedAction('mailbox-save');
-      loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
-  };
-
-  const handleCreateMailbox = async () => {
-    if (!mailboxDraft.name.trim() || !mailboxDraft.address.trim()) return;
-    try {
-      const mailbox = await createMailboxApi({
-        ...mailboxDraft,
-        name: mailboxDraft.name.trim(),
-        address: mailboxDraft.address.trim()
+      showNotice({
+        tone: 'success',
+        message: `${selectedMailbox.name} connected via ${result.provider || selectedMailboxProvider.label}.`,
       });
       showNotice({ tone: 'success', message: 'Mailbox created.' });
       setShowMailboxComposer(false);
@@ -1685,8 +1625,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       });
       setEmailVerifierConfig(saved);
       setEmailVerifierForm(createEmailVerifierDraft(saved || {}));
-      setEmailVerifierConfigEditing(false);
-      setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
+      setEmailVerifierConfig({ ...emailVerifierConfig, hasApiKey: true });
       showNotice({
         tone: 'success',
         message: `Reoon ${emailVerifierConfig?.hasApiKey ? 'saved' : 'activated'} for this workspace.`,
@@ -1843,44 +1782,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
     try {
       await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
-      setCalendarConfigEditing(false);
-      showNotice({ tone: 'success', message: 'Calendar source saved.' });
-      triggerSavedAction('calendar-save');
-      await loadAll();
-      await loadCalendarOptions(selectedCalendarSource.id);
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
-  };
-
-  const handleCreateCalendarSource = async () => {
-    if (!calendarSourceDraft.name.trim()) return;
-    try {
-      const source = await createCalendarSourceApi(calendarSourceDraft);
-      showNotice({ tone: 'success', message: 'Calendar source created.' });
-      setShowCalendarComposer(false);
-      setCalendarSourceDraft(createCalendarSourceDraft());
-      await loadAll();
-      setSelectedCalendarSourceId(source?.id || null);
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
-  };
-
-  const handleAuthorizeCalendarSource = async () => {
-    if (!selectedCalendarSource?.id || !isCalendarOauthProvider(calendarSourceForm.provider)) return;
-    try {
-      await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
-      const authorizeUrl = await getCalendarSourceAuthorizeUrl(selectedCalendarSource.id);
-      if (!authorizeUrl) {
-        throw new Error('Failed to get authorization URL');
-      }
-      const result = await openOAuthPopup(authorizeUrl, 'calendar');
       showNotice({
         tone: 'success',
-        message: result?.calendarSelectionRequired
-          ? `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarProvider.label}. Select the active calendar before testing or sync.`
-          : `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarProvider.label}.`
+        message: 'Calendar source saved.',
       });
       await loadAll();
       await loadCalendarOptions(selectedCalendarSource.id);
@@ -2005,38 +1909,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           appName: aiProviderForm.appName || 'AIO CRM',
         },
       });
-      setAiProviderConfigEditing(false);
-      showNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} saved.` });
-      triggerSavedAction('ai-provider-save');
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
-  };
-
-  const handleTestAiProvider = async () => {
-    setBusyAction('ai-provider-test');
-    try {
-      const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
-      const providerLabel = selectedAiProviderCatalog.name || selectedAiProviderCatalog.label || selectedAiProviderCatalog.displayName || providerKey;
-      const sanitizedConfig = sanitizeAiProviderConfig(aiProviderForm.config);
-      const saved = await upsertAiProviderConfigApi(providerKey, {
-        label: providerLabel,
-        baseUrl: (aiProviderForm.baseUrl || '').trim(),
-        model: (aiProviderForm.model || '').trim(),
-        apiKey: aiProviderForm.apiKey || undefined,
-        systemGuardrails: aiProviderForm.systemGuardrails || '',
-        taskGuardrails: aiProviderForm.taskGuardrails || '',
-        enabled: !!aiProviderForm.enabled,
-        isDefault: !!aiProviderForm.isDefault,
-        config: {
-          ...sanitizedConfig,
-          temperature: aiProviderForm.temperature || '0.2',
-          username: aiProviderForm.username || '',
-          password: aiProviderForm.password || undefined,
-          siteUrl: aiProviderForm.siteUrl || '',
-          appName: aiProviderForm.appName || 'AIO CRM',
-        },
+      showNotice({
+        tone: 'success',
+        message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} saved.`,
       });
       const response = await testAiProviderConfigApi(saved.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
@@ -2072,10 +1947,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         status: selectedAutomationProviderConfig?.status,
         config: automationProviderForm.config || {},
       });
-      setAutomationConfigEditing(false);
       showNotice({
         tone: 'success',
-        message: `${selectedAutomationProviderCatalog.name} ${selectedAutomationProviderConfig ? 'saved' : 'activated'} for this workspace.`,
+        message: `${selectedAutomationProviderCatalog.name} saved.`,
       });
       triggerSavedAction('automation-save');
       await loadAll();
@@ -2131,52 +2005,16 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         config: paymentProviderForm.config || {},
       };
       await upsertPaymentProviderConfigApi(selectedPaymentProviderCatalog.id, payload);
-      setPaymentConfigEditing(false);
-      showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog.name} payment settings saved.` });
+      showNotice({
+        tone: 'success',
+        message: `${selectedPaymentProviderCatalog.name} payment settings saved.`,
+      });
       triggerSavedAction('payment-save');
       await loadAll();
     } catch (error) {
       showNotice({ tone: 'error', message: readErrorMessage(error) });
     }
   };
-
-  const handleDeletePaymentProvider = async () => {
-    if (!selectedPaymentProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ${selectedPaymentProviderCatalog?.name || 'this payment provider'} from this workspace?`)) return;
-    try {
-      await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
-      showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
-  };
-
-  // Social Networks state
-  const [socialConfigEditing, setSocialConfigEditing] = useState(false);
-  const [socialProviderForm, setSocialProviderForm] = useState({ label: '', enabled: false });
-  const socialProviderCatalog = useMemo(
-    () => getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS).find((p) => p.id === selectedSocialProviderKey) || getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS)[0] || null,
-    [selectedSocialProviderKey]
-  );
-  const selectedSocialProviderConfig = useMemo(
-    () => socialProviderConfigs.find((p) => p.providerKey === selectedSocialProviderKey) || null,
-    [socialProviderConfigs, selectedSocialProviderKey]
-  );
-  useEffect(() => {
-    if (selectedSocialProviderConfig) {
-      setSocialProviderForm({
-        label: selectedSocialProviderConfig.label || '',
-        enabled: !!selectedSocialProviderConfig.enabled,
-        ...(selectedSocialProviderConfig.config || {}),
-      });
-    } else {
-      const defaults = {};
-      (socialProviderCatalog?.fields || []).forEach(f => { if (f.default !== undefined) defaults[f.name] = f.default; });
-      setSocialProviderForm({ label: socialProviderCatalog?.name || '', enabled: false, ...defaults });
-    }
-    setSocialConfigEditing(false);
-  }, [selectedSocialProviderKey, selectedSocialProviderConfig]);
 
   const handleSaveSocialProvider = async () => {
     if (!socialProviderCatalog?.id) return;
@@ -2192,7 +2030,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         config,
       };
       await upsertSocialProviderConfigApi(socialProviderCatalog.id, payload);
-      setSocialConfigEditing(false);
       showNotice({ tone: 'success', message: `${socialProviderCatalog.name} social settings saved.` });
       triggerSavedAction('social-save');
       await loadAll();
@@ -2211,7 +2048,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         enabled: !!dataStoreProviderForm.enabled,
         config: dataStoreProviderForm.config || {},
       });
-      setDataStoreConfigEditing(false);
       showNotice({
         tone: 'success',
         message: `${selectedDataStoreProviderCatalog.name} ${selectedDataStoreProviderConfig ? 'saved' : 'activated'} for this workspace.`,
@@ -2253,7 +2089,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (!window.confirm(`Disconnect ${selectedDataStoreProviderCatalog?.name || 'this data store'} from this workspace?`)) return;
     try {
       await deleteDataStoreProviderConfigApi(selectedDataStoreProviderConfig.providerKey);
-      setDataStoreConfigEditing(true);
       setDataStoreProviderForm(createDataStoreProviderDraft(selectedDataStoreProviderCatalog));
       showNotice({
         tone: 'success',
@@ -2268,17 +2103,16 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const handleSaveMediaProvider = async () => {
     if (!selectedMediaProviderCatalog?.id) return;
     try {
-      await upsertMediaProviderConfigApi(resolveMediaRuntimeProvider(selectedMediaProviderCatalog.id), {
+      await upsertMediaProviderConfigApi('elevenlabs', {
         label: (mediaProviderForm.label || selectedMediaProviderCatalog.name).trim(),
         baseUrl: (mediaProviderForm.baseUrl || '').trim(),
         apiKey: mediaProviderForm.apiKey || undefined,
         enabled: !!mediaProviderForm.enabled,
         config: mediaProviderForm.config || {},
       });
-      setMediaConfigEditing(false);
       showNotice({
         tone: 'success',
-        message: `${selectedMediaProviderCatalog.name} ${selectedMediaProviderConfig ? 'saved' : 'activated'} for this workspace.`,
+        message: `ElevenLabs ${selectedMediaProviderConfig ? 'saved' : 'activated'} for this workspace.`,
       });
       triggerSavedAction('media-save');
       await loadAll();
@@ -2291,7 +2125,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (!selectedMediaProviderCatalog?.id) return;
     setBusyAction('media-test');
     try {
-      const saved = await upsertMediaProviderConfigApi(resolveMediaRuntimeProvider(selectedMediaProviderCatalog.id), {
+      const saved = await upsertMediaProviderConfigApi('elevenlabs', {
         label: (mediaProviderForm.label || selectedMediaProviderCatalog.name).trim(),
         baseUrl: (mediaProviderForm.baseUrl || '').trim(),
         apiKey: mediaProviderForm.apiKey || undefined,
@@ -2301,7 +2135,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       await testMediaProviderConfigApi(saved?.id || selectedMediaProviderConfig?.id);
       showNotice({
         tone: 'success',
-        message: `${selectedMediaProviderCatalog.name} connection verified.`,
+        message: `ElevenLabs connection verified.`,
       });
       triggerSavedAction('media-test');
       await loadAll();
@@ -2314,14 +2148,13 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeleteMediaProvider = async () => {
     if (!selectedMediaProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ${selectedMediaProviderCatalog?.name || 'this media provider'} from this workspace?`)) return;
+    if (!window.confirm(`Disconnect ElevenLabs from this workspace?`)) return;
     try {
       await deleteMediaProviderConfigApi(selectedMediaProviderConfig.id);
-      setMediaConfigEditing(true);
       setMediaProviderForm(createMediaProviderDraft(selectedMediaProviderCatalog));
       showNotice({
         tone: 'success',
-        message: `${selectedMediaProviderCatalog?.name || 'Media provider'} removed from this workspace.`,
+        message: `ElevenLabs removed from this workspace.`,
       });
       await loadAll();
     } catch (error) {
@@ -2370,11 +2203,10 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedAutomationProviderCatalog.description}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedAutomationProviderConfig ? <button onClick={() => setAutomationConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
                 <button onClick={handleTestAutomationProvider} className={saveButtonClassName(compactActionClass, savedAction === 'automation-test')}>
                   {busyAction === 'automation-test' ? 'Testing...' : savedAction === 'automation-test' ? 'Tested' : 'TEST CONNECT'}
                 </button>
-                <button onClick={handleSaveAutomationProvider} disabled={automationConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'automation-save')}>
+                <button onClick={handleSaveAutomationProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'automation-save')}>
                   {savedAction === 'automation-save' ? 'Saved' : selectedAutomationProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
               </div>
@@ -2391,7 +2223,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAutomationProviderConfig.lastError}</div>
             ) : null}
 
-            <fieldset disabled={automationConfigLocked} className="space-y-3 disabled:opacity-70">
+            <fieldset className="space-y-3">
             <div className="grid gap-2.5 sm:grid-cols-2">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={automationProviderForm.label} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, label: event.target.value }))} className={compactInputClass} /></label>
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={automationProviderForm.baseUrl} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, baseUrl: event.target.value }))} className={compactInputClass} /></label>
@@ -2524,10 +2356,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{emailVerifierProviderConfig?.description || 'Tenant-scoped verification provider used by CRM single verify, bulk verify, and flow nodes.'}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {emailVerifierConfig?.hasApiKey ? <button onClick={() => setEmailVerifierConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button> : null}
                 <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
-                <button onClick={handleSaveEmailVerifier} disabled={emailVerifierConfigLocked} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : emailVerifierConfig?.hasApiKey ? 'SAVE' : 'ADD ACTIVATION'}</button>
+                <button onClick={handleSaveEmailVerifier} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : 'SAVE'}</button>
                 <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} label="Saved" />
               </div>
             </div>
@@ -2541,7 +2372,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierConfig?.lastTestedAt ? new Date(emailVerifierConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierForm.enabled ? 'Enabled' : 'Disabled'}</div></div>
             </div>
-            <fieldset disabled={emailVerifierConfigLocked} className="space-y-3 disabled:opacity-70">
+            <fieldset className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.apiKey} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={emailVerifierConfig?.hasApiKey ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.defaultMode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick (Single/Flows)</option><option value="power">Power (Bulk Import)</option></select></label>
@@ -2563,12 +2394,11 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             <div className="flex items-center justify-between gap-4">
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => setMailboxConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
                 {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
                 <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
                 <button onClick={handleSyncMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
-                <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled || mailboxConfigLocked} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'mailbox-save'} label="Saved" />
               </div>
             </div>
@@ -2588,7 +2418,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.lastTestedAt ? new Date(mailboxForm.config.lastTestedAt).toLocaleString() : 'Never'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
             </div>
-            <fieldset disabled={mailboxConfigLocked} className="space-y-3 disabled:opacity-70">
+            <fieldset className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Name</div><input value={mailboxForm.name} onChange={(event) => setMailboxForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Address</div><input value={mailboxForm.address} onChange={(event) => setMailboxForm((current) => ({ ...current, address: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
@@ -2684,13 +2514,12 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             <div className="flex items-center justify-between gap-4">
               <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{controlPlaneTitle}</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => setCalendarConfigEditing(true)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Edit</button>
                 {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
                 <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
                 <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
                 <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
-                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled || calendarConfigLocked} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
+                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
                 <SaveFeedbackNote visible={savedAction === 'calendar-save'} label="Saved" />
               </div>
             </div>
@@ -2711,7 +2540,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.lastTestedAt ? new Date(calendarSourceForm.config.lastTestedAt).toLocaleString() : 'Never'}</div></div>
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.lastSyncedAt ? new Date(selectedCalendarSource.lastSyncedAt).toLocaleString() : 'Never'}</div></div>
             </div>
-            <fieldset disabled={calendarConfigLocked} className="space-y-3 disabled:opacity-70">
+            <fieldset className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2 text-sm">
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceForm.name} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
               <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authorityMode || 'local-first', importPolicy: current.config?.importPolicy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
@@ -2817,10 +2646,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{selectedAiProviderCatalog.description}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {selectedAiProviderConfig ? <button onClick={() => setAiProviderConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
                 <button onClick={handleTestAiProvider} disabled={busyAction === 'ai-provider-test'} className={saveButtonClassName(`${compactActionClass} disabled:opacity-60 disabled:cursor-not-allowed`, savedAction === 'ai-provider-test')}>{busyAction === 'ai-provider-test' ? 'Testing...' : savedAction === 'ai-provider-test' ? 'Tested' : 'TEST CONNECT'}</button>
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-test'} label="Provider OK" />
-                <button onClick={handleSaveAiProvider} disabled={aiProviderConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : selectedAiProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}</button>
+                <button onClick={handleSaveAiProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : 'SAVE'}</button>
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-save'} label="Saved" />
               </div>
           </div>
@@ -2832,7 +2660,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           </div>
           {selectedAiProviderConfig?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.lastError}</div> : null}
           
-          <fieldset disabled={aiProviderConfigLocked} className="space-y-3 disabled:opacity-70">
+          <fieldset className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             {(selectedAiProviderCatalog.fields || []).map((field) => (
               <label key={field.name || field.key} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
@@ -2985,7 +2813,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               selected={selectedDataStoreProviderKey === provider.providerKey}
               onClick={() => {
                 setSelectedDataStoreProviderKey(provider.providerKey);
-                setDataStoreConfigEditing(false);
               }}
               chips={[
                 'workspace',
@@ -3007,11 +2834,10 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedDataStoreProviderCatalog.description}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedDataStoreProviderConfig ? <button onClick={() => setDataStoreConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
                 <button onClick={handleTestDataStoreProvider} disabled={busyAction === 'data-store-test'} className={saveButtonClassName(`${compactActionClass} disabled:opacity-60 disabled:cursor-not-allowed`, savedAction === 'data-store-test')}>
                   {busyAction === 'data-store-test' ? 'Testing...' : savedAction === 'data-store-test' ? 'Tested' : 'TEST CONNECT'}
                 </button>
-                <button onClick={handleSaveDataStoreProvider} disabled={dataStoreConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'data-store-save')}>
+                <button onClick={handleSaveDataStoreProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'data-store-save')}>
                   {savedAction === 'data-store-save' ? 'Saved' : selectedDataStoreProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
                 </button>
               </div>
@@ -3030,7 +2856,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               </div>
             ) : null}
 
-            <fieldset disabled={dataStoreConfigLocked} className="space-y-3 disabled:opacity-70">
+            <fieldset className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 {(selectedDataStoreProviderCatalog.fields || []).map((field) => {
                   const fieldName = field.name;
@@ -3093,14 +2919,21 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     </div>
   );
 
-  const renderMediaAdmin = () => (
+  const renderMediaAdmin = () => {
+    const LEGACY_MEDIA_KEYS = new Set(['elevenlabs_scribe', 'elevenlabs_tts', 'elevenlabsscribe', 'elevenlabstts']);
+    const canonicalConfigs = mediaProviderConfigs.filter((p) => !LEGACY_MEDIA_KEYS.has(p.providerKey));
+    const legacyConfigs = mediaProviderConfigs.filter((p) => LEGACY_MEDIA_KEYS.has(p.providerKey));
+    const unifiedConfig = canonicalConfigs.find((p) => p.providerKey === 'elevenlabs') || null;
+    const displayConfigs = canonicalConfigs.length > 0 ? canonicalConfigs : legacyConfigs;
+
+    return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.15fr)_minmax(420px,2fr)]">
       <div className="min-h-0 space-y-2.5 overflow-y-auto pr-1 no-scrollbar">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Media Providers</div>
-          <div className="text-sm text-[var(--color-text-secondary)]">Activate ElevenLabs transcription and voice-render services for media workflows and operator voice routing.</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Activate ElevenLabs for transcription, voice synthesis, and Charlie voice routing.</div>
         </div>
-        {selectedMediaProviderCatalog && !selectedMediaProviderConfig ? (
+        {selectedMediaProviderCatalog && !unifiedConfig ? (
           <div className="rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3">
             <div className="flex items-start gap-2.5">
               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
@@ -3128,27 +2961,29 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             </div>
           </div>
         ) : null}
-        {mediaProviderConfigs.map((provider) => {
-          const catalogEntry = getProviderConfig(resolveMediaSelectorProvider(provider.providerKey)) || { name: provider.label || provider.providerKey, description: 'Media provider' };
+        {displayConfigs.map((provider) => {
+          const isLegacy = LEGACY_MEDIA_KEYS.has(provider.providerKey);
+          const displayKey = isLegacy ? 'elevenlabs' : resolveMediaSelectorProvider(provider.providerKey);
+          const catalogEntry = getProviderConfig(displayKey) || { name: provider.label || provider.providerKey, description: 'Media provider' };
           return (
             <ResourceCard
               key={provider.id || provider.providerKey}
               icon={ShieldCheck}
-              logoId={resolveMediaSelectorProvider(provider.providerKey)}
-              title={provider.label || catalogEntry.name}
-              subtitle={provider.providerKey}
+              logoId={displayKey}
+              title={isLegacy ? 'ElevenLabs' : (provider.label || catalogEntry.name)}
+              subtitle={isLegacy ? 'elevenlabs (migrated)' : provider.providerKey}
               status={provider.lastError ? 'needs attention' : provider.status || 'configured'}
               detail={provider.lastError || catalogEntry.description}
-              selected={selectedMediaProviderKey === resolveMediaSelectorProvider(provider.providerKey)}
+              selected={selectedMediaProviderKey === displayKey}
               onClick={() => {
-                setSelectedMediaProviderKey(resolveMediaSelectorProvider(provider.providerKey));
-                setMediaConfigEditing(false);
+                setSelectedMediaProviderKey(displayKey);
               }}
               chips={[
                 provider.enabled ? 'enabled' : 'disabled',
                 provider.apiKey ? 'credentials stored' : 'credentials pending',
                 provider.lastTestedAt ? 'tested' : 'not tested',
-              ]}
+                isLegacy ? 'legacy record' : null,
+              ].filter(Boolean)}
             />
           );
         })}
@@ -3156,42 +2991,41 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
       <div className={compactPanelClass}>
         {selectedMediaProviderCatalog ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Media Control Plane</div>
-                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{mediaProviderForm.label || selectedMediaProviderCatalog.name}</h3>
-                <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedMediaProviderCatalog.description}</p>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Media Control Plane</div>
+                <h3 className="mt-0.5 text-base font-semibold text-[var(--color-text-primary)]">{mediaProviderForm.label || selectedMediaProviderCatalog.name}</h3>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {selectedMediaProviderConfig ? <button onClick={() => setMediaConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
-                <button onClick={handleTestMediaProvider} disabled={busyAction === 'media-test'} className={saveButtonClassName(`${compactActionClass} disabled:opacity-60 disabled:cursor-not-allowed`, savedAction === 'media-test')}>
-                  {busyAction === 'media-test' ? 'Testing...' : savedAction === 'media-test' ? 'Tested' : 'TEST CONNECT'}
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={handleTestMediaProvider} disabled={busyAction === 'media-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'media-test')}>
+                  {busyAction === 'media-test' ? 'Testing...' : savedAction === 'media-test' ? 'Tested' : 'TEST'}
                 </button>
-                <button onClick={handleSaveMediaProvider} disabled={!!selectedMediaProviderConfig && !mediaConfigEditing} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'media-save')}>
-                  {savedAction === 'media-save' ? 'Saved' : selectedMediaProviderConfig ? 'SAVE' : 'ADD ACTIVATION'}
+                <button onClick={handleSaveMediaProvider} className={saveButtonClassName("rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-2 py-1 text-[11px] text-[var(--color-primary)] transition disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'media-save')}>
+                  {savedAction === 'media-save' ? 'Saved' : 'SAVE'}
                 </button>
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-4">
-              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMediaProviderConfig ? (selectedMediaProviderConfig.lastError ? 'Needs Attention' : selectedMediaProviderConfig.status || 'Configured') : 'Standby'}</div></div>
-              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMediaProviderCatalog.id}</div></div>
-              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Credentials</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMediaProviderConfig?.apiKey ? 'Stored' : 'Pending'}</div></div>
-              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-xs font-semibold text-[var(--color-text-primary)]">{selectedMediaProviderConfig?.lastTestedAt ? new Date(selectedMediaProviderConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
+            <div className="grid gap-1.5 grid-cols-4">
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">{unifiedConfig ? (unifiedConfig.lastError ? 'Needs Attention' : unifiedConfig.status || 'Configured') : 'Standby'}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Credentials</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">{unifiedConfig?.apiKey ? 'Stored' : 'Pending'}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Capabilities</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">TTS + STT</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Tested</div><div className="mt-0.5 text-[10px] font-semibold text-[var(--color-text-primary)]">{unifiedConfig?.lastTestedAt ? new Date(unifiedConfig.lastTestedAt).toLocaleDateString() : 'Never'}</div></div>
             </div>
 
-            {selectedMediaProviderConfig?.lastError ? (
-              <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                {selectedMediaProviderConfig.lastError}
+            {unifiedConfig?.lastError ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-100">
+                {unifiedConfig.lastError}
               </div>
             ) : null}
 
-            <fieldset disabled={!!selectedMediaProviderConfig && !mediaConfigEditing} className="space-y-3 disabled:opacity-70">
-              <div className="grid gap-3 sm:grid-cols-2">
+            <fieldset className="space-y-2">
+              <div className="grid gap-2 grid-cols-3">
                 {(selectedMediaProviderCatalog.fields || []).map((field) => {
                   const isRootField = ['label', 'baseUrl', 'apiKey'].includes(field.name);
                   const value = isRootField ? (mediaProviderForm[field.name] || '') : (mediaProviderForm.config?.[field.name] || '');
+                  const isVoiceField = ['charlieVoice', 'voice'].includes(field.name);
                   const onChange = (nextValue) => {
                     if (isRootField) {
                       setMediaProviderForm((current) => ({ ...current, [field.name]: nextValue }));
@@ -3207,16 +3041,64 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                   };
 
                   return (
-                    <label key={field.name} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
-                      <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                    <label key={field.name} className={`${field.type === 'textarea' ? 'col-span-3' : field.type === 'select' ? 'col-span-2' : ''} space-y-0.5`}>
+                      <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
                       {field.type === 'textarea' ? (
                         <textarea
-                          rows={3}
+                          rows={2}
                           value={value}
                           onChange={(event) => onChange(event.target.value)}
                           placeholder={field.default || ''}
-                          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)] resize-none"
+                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)] resize-none"
                         />
+                      ) : field.type === 'select' && field.options ? (
+                        <div className="flex gap-1">
+                          <select
+                            value={value || field.default || ''}
+                            onChange={(event) => onChange(event.target.value)}
+                            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
+                          >
+                            {field.options.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                          {isVoiceField && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const voiceId = value || field.default || '21m00Tcm4TlvDq8ikWAM';
+                                try {
+                                  const res = await fetch('/api/media/voice-preview', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ voiceId }),
+                                  });
+                                  if (!res.ok) {
+                                    const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                                    throw new Error(err.detail || 'Failed to generate preview');
+                                  }
+                                  const blob = await res.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const audio = new Audio(url);
+                                  audio.onended = () => URL.revokeObjectURL(url);
+                                  audio.onerror = () => {
+                                    showNotice({ tone: 'error', message: 'Could not play voice preview.' });
+                                    URL.revokeObjectURL(url);
+                                  };
+                                  await audio.play();
+                                } catch (e) {
+                                  showNotice({ tone: 'error', message: e.message || 'Voice preview failed.' });
+                                }
+                              }}
+                              className="shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/40 transition"
+                              title="Preview voice"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <input
                           type={field.type === 'password' ? 'password' : 'text'}
@@ -3224,7 +3106,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                           value={value}
                           onChange={(event) => onChange(event.target.value)}
                           placeholder={field.default || ''}
-                          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
                         />
                       )}
                     </label>
@@ -3232,19 +3114,16 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 })}
               </div>
 
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-[var(--color-text-primary)]">
+              <label className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1.5 text-xs text-[var(--color-text-primary)]">
                 <input type="checkbox" checked={!!mediaProviderForm.enabled} onChange={(event) => setMediaProviderForm((current) => ({ ...current, enabled: event.target.checked }))} />
-                Enable media provider for this workspace
+                Enable ElevenLabs (TTS + STT)
               </label>
             </fieldset>
 
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-              Use ElevenLabs Scribe for external transcription and ElevenLabs Voice for speech output. Charlie voice routing can be staged here now and expanded to additional operator voices later.
-            </div>
-            {selectedMediaProviderConfig ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
-                <button onClick={handleDeleteMediaProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Media Provider</button>
+            {unifiedConfig ? (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
+                <div className="text-[9px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteMediaProvider} className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20 transition"><Trash2 size={12} />Disconnect ElevenLabs</button>
               </div>
             ) : null}
           </div>
@@ -3258,6 +3137,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       </div>
     </div>
   );
+  };
 
   const renderLegacyCategory = () => (
     <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.15fr)_minmax(420px,2fr)]">
@@ -3399,8 +3279,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedPaymentProviderCatalog.description}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedPaymentProviderConfig ? <button onClick={() => setPaymentConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
-                <button onClick={handleSavePaymentProvider} disabled={paymentConfigLocked} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'payment-save')}>
+                <button onClick={handleSavePaymentProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'payment-save')}>
                   {savedAction === 'payment-save' ? 'Saved' : 'Save'}
                 </button>
               </div>
@@ -3412,7 +3291,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
               <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Currency</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{(paymentProviderForm.config?.currency || 'USD').toUpperCase()}</div></div>
             </div>
 
-            <fieldset disabled={paymentConfigLocked} className="space-y-3 disabled:opacity-70">
+            <fieldset className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               {selectedPaymentProviderCatalog.fields?.filter((field) => !['label', 'mode', 'currency'].includes(field.name)).map((field) => (
                 <label key={field.name} className="space-y-1">
@@ -3501,7 +3380,6 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedSocialProviderCatalog.description}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {selectedSocialProviderConfig ? <button onClick={() => setSocialConfigEditing(true)} className={compactActionClass}>Edit</button> : null}
                 <button onClick={handleSaveSocialProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'social-save')}>
                   {savedAction === 'social-save' ? 'Saved' : 'Save'}
                 </button>

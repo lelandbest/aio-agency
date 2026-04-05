@@ -3446,7 +3446,7 @@ class StepExecutor:
                 tts_result = get_media_engine().render_audio(
                     {
                         "text": youtube_content,
-                        "provider": "elevenlabs_tts",
+                        "provider": "elevenlabs",
                         "voice_id": clean_text(node_config.get("narrationVoiceId") or node_config.get("narration_voice_id")),
                         "model_id": clean_text(node_config.get("narrationModelId") or node_config.get("narration_model_id") or "eleven_turbo_v2"),
                         "voice_settings": {
@@ -3938,7 +3938,7 @@ class StepExecutor:
         result = get_media_engine().render_audio(
             {
                 **payload,
-                "provider": clean_text(payload.get("provider")) or "elevenlabs_tts",
+                "provider": clean_text(payload.get("provider")) or "elevenlabs",
                 "title": clean_text(payload.get("title")) or "Voice Render",
                 "text": text_input,
             },

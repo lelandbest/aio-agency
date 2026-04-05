@@ -27,6 +27,7 @@ export function NoticeProvider({ children }) {
   }, [clearNoticeTimer]);
 
   const showNotice = useCallback((options) => {
+    if (!options || !options.message) return null;
     const {
       type,
       tone,
@@ -38,8 +39,6 @@ export function NoticeProvider({ children }) {
       source,
       action = null,
     } = options;
-
-    if (!message) return null;
 
     const id = `notice-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     const resolvedType = type || tone || 'info';
@@ -96,7 +95,7 @@ export function GlobalNoticeViewport() {
   if (!notices.length) return null;
 
   return (
-    <div className="pointer-events-none fixed right-6 top-4 z-[9999] flex w-full max-w-[440px] flex-col gap-2">
+    <div className="pointer-events-none fixed left-1/2 top-4 z-[9999] flex w-full max-w-[440px] -translate-x-1/2 flex-col gap-2">
       {notices.map((notice) => (
         <NoticeToast key={notice.id} notice={notice} onDismiss={dismissNotice} />
       ))}

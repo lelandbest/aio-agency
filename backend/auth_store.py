@@ -3505,6 +3505,7 @@ class AuthStore:
         }
 
     def list_media_provider_configs_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        self._reconcile_legacy_media_configs(tenant_id)
         with self._connect() as conn:
             rows = conn.execute(
                 """
@@ -3525,12 +3526,74 @@ class AuthStore:
             ).fetchone()
         return self._media_provider_record(row, include_secret=True) if row else None
 
+    def _normalize_media_provider_key(self, provider_key: str) -> str:
+        raw = (provider_key or "").strip().lower().replace("-", "_")
+        if raw in ("elevenlabs_tts", "elevenlabs_scribe", "elevenlabs"):
+            return "elevenlabs"
+        return raw
+
+    def _reconcile_legacy_media_configs(self, tenant_id: str) -> None:
+        """Merge legacy elevenlabs_tts / elevenlabs_scribe records into canonical elevenlabs."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ('elevenlabs_tts','elevenlabs_scribe') ORDER BY updatedAt DESC",
+                (tenant_id,),
+            ).fetchall()
+            if not rows:
+                return
+            canonical = conn.execute(
+                "SELECT * FROM media_provider_configs WHERE tenantId = ? AND providerKey = 'elevenlabs' LIMIT 1",
+                (tenant_id,),
+            ).fetchone()
+            now = utcnow_iso()
+            merged_api_key = None
+            merged_config = {}
+            merged_label = "ElevenLabs"
+            merged_enabled = 0
+            for row in rows:
+                if row["apiKey"]:
+                    merged_api_key = row["apiKey"]
+                if row["configJson"]:
+                    try:
+                        merged_config.update(json.loads(row["configJson"]))
+                    except Exception:
+                        pass
+                if row["label"]:
+                    merged_label = row["label"]
+                if row["enabled"]:
+                    merged_enabled = 1
+            if canonical:
+                resolved_api_key = merged_api_key or canonical["apiKey"]
+                existing_config = json.loads(canonical["configJson"]) if canonical["configJson"] else {}
+                existing_config.update(merged_config)
+                conn.execute(
+                    "UPDATE media_provider_configs SET label = ?, apiKey = ?, enabled = ?, configJson = ?, updatedAt = ? WHERE id = ?",
+                    (merged_label, resolved_api_key, 1 if (merged_enabled or canonical["enabled"]) else 0, json.dumps(existing_config), now, canonical["id"]),
+                )
+                conn.execute(
+                    "DELETE FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ('elevenlabs_tts','elevenlabs_scribe')",
+                    (tenant_id,),
+                )
+            else:
+                import uuid as _uuid
+                canonical_id = str(_uuid.uuid4())
+                conn.execute(
+                    "INSERT INTO media_provider_configs (id, tenantId, providerKey, label, baseUrl, apiKey, enabled, status, configJson, createdAt, updatedAt) VALUES (?, ?, 'elevenlabs', ?, 'https://api.elevenlabs.io', ?, ?, 'configured', ?, ?, ?)",
+                    (canonical_id, tenant_id, merged_label, merged_api_key, merged_enabled, json.dumps(merged_config), now, now),
+                )
+                conn.execute(
+                    "DELETE FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ('elevenlabs_tts','elevenlabs_scribe')",
+                    (tenant_id,),
+                )
+
     def get_media_provider_config_by_provider_key(self, tenant_id: str, provider_key: str) -> dict[str, Any] | None:
         """Returns the ENABLED media provider config for a providerKey, including the secret API key.
+        Legacy keys (elevenlabs_tts, elevenlabs_scribe) resolve to canonical elevenlabs.
         Returns None if not found or disabled — callers must treat None as a hard failure."""
-        normalized = (provider_key or "").strip().lower()
+        normalized = self._normalize_media_provider_key(provider_key)
         if not normalized or not tenant_id:
             return None
+        self._reconcile_legacy_media_configs(tenant_id)
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM media_provider_configs WHERE tenantId = ? AND providerKey = ? AND enabled = 1 LIMIT 1",
@@ -3551,7 +3614,7 @@ class AuthStore:
     def upsert_media_provider_config(self, token: str | None, tenant_id: str, providerKey: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not token:
             raise ValueError("Session token is required.")
-        normalized_provider = (providerKey or "").strip().lower()
+        normalized_provider = self._normalize_media_provider_key(providerKey)
         if not normalized_provider:
             raise ValueError("Provider key is required.")
         with self._connect() as conn:

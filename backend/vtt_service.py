@@ -12,6 +12,7 @@ Command types:
 
 from typing import Any
 import os
+from backend.utils.provider_normalizer import get_elevenlabs_api_key
 
 _HIGH_IMPACT_ACTIONS: set[str] = {
     "send_email", "publish", "run_flow",
@@ -389,7 +390,7 @@ def synthesize_voice(text: str, voice: str | None = None) -> str | None:
         import json
         from pathlib import Path
 
-        api_key = os.environ.get("ELEVEN_LABS_API_KEY") or os.environ.get("ELEVEN_LABS_TTS_API_KEY")
+        api_key = get_elevenlabs_api_key()
         if not api_key:
             return None
 

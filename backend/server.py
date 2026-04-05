@@ -3892,10 +3892,9 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
         voice_enabled = bool(payload.voiceEnabled) if payload else False
         response_text = result.get("result", {}).get("text", "") if result.get("type") == "conversational" else raw
         if voice_enabled:
-            voice_provider = payload.voiceProvider if payload else "system"
-            if voice_provider == "elevenlabs":
-                from backend.vtt_service import synthesize_voice
-                audio_url = synthesize_voice(response_text)
+            from backend.vtt_service import synthesize_voice
+            audio_url = synthesize_voice(response_text)
+        print(f"[VTT-DEBUG] conversational | voice_enabled={voice_enabled} | audio_url={audio_url} | text_len={len(response_text)}")
         return {
             "status": "success",
             "type": "conversational",
@@ -3910,11 +3909,10 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
     if voice_enabled:
         msg = response_data.get("message", "")
         if msg:
-            voice_provider = payload.voiceProvider if payload else "system"
-            if voice_provider == "elevenlabs":
-                from backend.vtt_service import synthesize_voice
-                audio_url = synthesize_voice(msg)
+            from backend.vtt_service import synthesize_voice
+            audio_url = synthesize_voice(msg)
 
+    print(f"[VTT-DEBUG] command | voice_enabled={voice_enabled} | audio_url={audio_url} | msg_len={len(response_data.get('message', ''))}")
     return {
         "status": "success",
         "type": result.get("type", "command"),
@@ -4183,8 +4181,22 @@ async def test_media_provider_config(configId: str, request: Request):
         apiKey = config.get("apiKey")
         if not apiKey:
             raise ValueError("API key is required for testing.")
-        result = {"status": "connected", "message": "Media provider configuration is valid."}
-        details = {"provider": config.get("providerKey")}
+        import json as _json
+        import urllib.request as _urlreq
+        import urllib.error as _urlerr
+        base_url = (config.get("baseUrl") or "https://api.elevenlabs.io").rstrip("/")
+        req = _urlreq.Request(f"{base_url}/v1/user", headers={"xi-api-key": apiKey}, method="GET")
+        try:
+            with _urlreq.urlopen(req, timeout=15) as resp:
+                user_data = _json.loads(resp.read().decode())
+        except _urlerr.HTTPError as e:
+            body = e.read().decode()[:200] if e.read else ""
+            raise ValueError(f"ElevenLabs rejected the API key: HTTP {e.code} {body}")
+        tier = user_data.get("subscription", {}).get("tier", "unknown")
+        character_count = user_data.get("subscription", {}).get("character_count", 0)
+        character_limit = user_data.get("subscription", {}).get("character_limit", 0)
+        result = {"status": "connected", "message": f"ElevenLabs connected. Tier: {tier}. Usage: {character_count}/{character_limit} characters."}
+        details = {"provider": config.get("providerKey"), "tier": tier, "characterCount": character_count, "characterLimit": character_limit}
         updated = auth_store.save_media_provider_test_result(
             tenant_id,
             configId,
@@ -4201,6 +4213,42 @@ async def test_media_provider_config(configId: str, request: Request):
             lastError=str(error),
         )
         raise HTTPException(status_code=400, detail=updated.get("lastError") or str(error)) from error
+
+
+@app.post("/api/media/voice-preview")
+async def preview_elevenlabs_voice(request: Request, payload: dict):
+    session = require_workspace_role(request, WORKSPACE_MEMBER_ROLES, "Only workspace members can preview voices.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    voice_id = (payload.get("voiceId") or "21m00Tcm4TlvDq8ikWAM").strip()
+    text = (payload.get("text") or "Hello, this is a voice preview.").strip()
+    model = (payload.get("model") or "eleven_turbo_v2").strip()
+    config = auth_store.get_media_provider_config_by_provider_key(tenant_id, "elevenlabs")
+    if not config:
+        raise HTTPException(status_code=400, detail="ElevenLabs not configured for this workspace.")
+    apiKey = config.get("apiKey")
+    if not apiKey:
+        raise HTTPException(status_code=400, detail="ElevenLabs API key not found.")
+    import json as _json
+    import urllib.request as _urlreq
+    import urllib.error as _urlerr
+    base_url = (config.get("baseUrl") or "https://api.elevenlabs.io").rstrip("/")
+    body = _json.dumps({
+        "text": text,
+        "model_id": model,
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+    }).encode()
+    req = _urlreq.Request(f"{base_url}/v1/text-to-speech/{voice_id}", data=body, headers={
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+    }, method="POST")
+    try:
+        with _urlreq.urlopen(req, timeout=30) as resp:
+            audio_bytes = resp.read()
+    except _urlerr.HTTPError as e:
+        err_body = e.read().decode()[:300] if hasattr(e, 'read') else ""
+        raise HTTPException(status_code=400, detail=f"ElevenLabs error: HTTP {e.code} {err_body}")
+    from fastapi.responses import Response
+    return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
 @app.get("/api/data-stores/providers")
@@ -5592,7 +5640,7 @@ async def create_audio_render_job(request: Request, payload: MediaAudioRenderReq
     session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create audio render jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
-    provider_key = clean_text(payload.provider) or "elevenlabs_tts"
+    provider_key = clean_text(payload.provider) or "elevenlabs"
     provider_cfg = auth_store.get_media_provider_config_by_provider_key(tenant_id, provider_key)
     if not provider_cfg:
         raise HTTPException(status_code=400, detail=f"Media provider '{provider_key}' not configured.")
