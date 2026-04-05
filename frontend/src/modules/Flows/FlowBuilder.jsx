@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Flow Builder
  * Main orchestrator for the Flow Builder module
  * Manages canvas, nodes, edges, config, persistence
@@ -36,7 +36,13 @@ import {
 
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
-import { getAiRunApi, getAiRunsApi, triggerFlowManualApi } from '../../services/backendApi';
+import { 
+  getAiRunApi, 
+  getAiRunsApi, 
+  triggerFlowManualApi, 
+  getFlowApi, 
+  getFlowProviderStatusesApi 
+} from '../../services/backendApi';
 import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
 import NodeLibraryPanel from './components/NodeLibraryPanel';

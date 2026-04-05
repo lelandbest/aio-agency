@@ -9,10 +9,13 @@ export function VTTProvider({ children }) {
   const [transcript, setTranscript] = useState('');
   const [messages, setMessages] = useState([]);
   const [pendingPayload, setPendingPayload] = useState(null);
-  const armTimerRef = useRef(null);
 
   const openVTT  = useCallback(() => setIsOpen(true),  []);
-  const closeVTT = useCallback(() => { setIsOpen(false); setIsListening(false); setIsArmed(false); }, []);
+  const closeVTT = useCallback(() => { 
+    setIsOpen(false); 
+    setIsListening(false); 
+    setIsArmed(false); 
+  }, []);
   const toggleVTT = useCallback(() => setIsOpen(prev => !prev), []);
 
   const clearTranscript = useCallback(() => setTranscript(''), []);
@@ -31,16 +34,11 @@ export function VTTProvider({ children }) {
 
   const arm = useCallback(() => {
     setIsArmed(true);
-    clearTimeout(armTimerRef.current);
-    armTimerRef.current = setTimeout(() => setIsArmed(false), 2000);
   }, []);
 
   const disarm = useCallback(() => {
     setIsArmed(false);
-    clearTimeout(armTimerRef.current);
   }, []);
-
-  useEffect(() => () => clearTimeout(armTimerRef.current), []);
 
   return (
     <VTTContext.Provider value={{
@@ -71,7 +69,7 @@ export function VTTProvider({ children }) {
 
 export function useVTT() {
   const ctx = useContext(VTTContext);
-  if (!ctx)   return {
+  if (!ctx) return {
     isOpen: false, isListening: false, isArmed: false, transcript: '',
     messages: [], pendingPayload: null,
     openVTT: () => {}, closeVTT: () => {}, toggleVTT: () => {}, setIsOpen: () => {},

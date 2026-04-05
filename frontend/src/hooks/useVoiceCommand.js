@@ -1,164 +1,155 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-// CTRL hold-to-talk PTT with Session-Locked Authorization.
-// 1. Mic starts on KeyDown (pre-warm).
-// 2. After 1s, the CURRENT session is authorized for capture.
-// 3. Release stops mic; the result is processed only if that session was authorized.
+/**
+ * Charlie VTT PTT Logic - FINAL PRODUCTION HARDENED
+ */
 
-/** Play a brief soft open-channel tone so the operator knows the mic is live. */
-function playPTTBeep() {
+const ARM_DELAY_MS = 1000;
+
+// Synthetic sonar ping
+async function playSyntheticPing(freq = 880, volume = 0.1) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = ctx.createOscillator();
+    if (ctx.state === 'suspended') await ctx.resume();
+    const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.type = 'sine';
-    osc.frequency.value = 880;          // A5 — clear but not sharp
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
     gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.01);  // fast attack
-    gain.gain.linearRampToValueAtTime(0,    ctx.currentTime + 0.12);  // smooth decay
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1);
     osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.13);
-    osc.onended = () => ctx.close();
-  } catch {}
+    osc.stop(ctx.currentTime + 0.11);
+    setTimeout(() => { ctx.close().catch(() => {}); }, 200);
+  } catch (e) {}
 }
 
-const ARM_DELAY_MS = 1000;
+export function useVoiceCommand({ 
+  onTranscript, 
+  onInterim,
+  onError, 
+  setIsListening, 
+  arm, 
+  disarm,
+  isContinuous = false,
+  stopContinuous 
+}) {
+  const isSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  
+  // Stable settings ref to avoid hook dependency flickering
+  const settingsRef = useRef({});
+  settingsRef.current = { onTranscript, onInterim, onError, setIsListening, arm, disarm, isContinuous, stopContinuous };
 
-export function useVoiceCommand({ onTranscript, onCommand, onConversational, onError, deviceId, setIsListening, inputRef, arm, disarm }) {
-  const isHoldingRef     = useRef(false);
-  const sessionActiveRef = useRef(null); // stores the current authorized session ID
-  const armTimerRef      = useRef(null);
-  const recognitionRef   = useRef(null);
-  const isSupported      = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
-
-  const _isInput = (e) => {
-    const t = e.target;
-    if (!t) return false;
-    const tag = t.tagName.toLowerCase();
-    return tag === 'input' || tag === 'textarea' || t.isContentEditable;
-  };
+  const isHoldingRef   = useRef(false);
+  const isArmedRef     = useRef(false);
+  const armTimerRef    = useRef(null);
+  const recognitionRef = useRef(null);
 
   const stopRecognition = useCallback((abort = false) => {
     if (recognitionRef.current) {
-      if (abort) recognitionRef.current.abort();
-      else recognitionRef.current.stop();
-      recognitionRef.current = null;
+      try {
+        if (abort) recognitionRef.current.abort();
+        else recognitionRef.current.stop();
+      } catch (e) {}
     }
-    if (setIsListening) setIsListening(false);
-  }, [setIsListening]);
+    // Note: We don't null recognitionRef immediately here because onend handles cleanup
+  }, []);
 
   const startRecognition = useCallback(() => {
-    if (!isSupported) return;
+    if (!isSupported || recognitionRef.current) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const rec = new SR();
     rec.lang = 'en-US';
-    rec.continuous = false;
-    rec.interimResults = false;
+    rec.continuous = settingsRef.current.isContinuous;
+    rec.interimResults = true; // GHOST TEXT ON
 
-    // Unique ID for this specific PTT session
-    const sessionId = Date.now();
-    rec._sessionId = sessionId;
-    sessionActiveRef.current = { id: sessionId, authorized: false };
-
-    rec.onstart = () => {};
-    rec.onend = () => {
-      if (recognitionRef.current?._sessionId === sessionId) {
-        recognitionRef.current = null;
-      }
+    rec.onstart = () => { if (settingsRef.current.setIsListening) settingsRef.current.setIsListening(true); };
+    rec.onend = () => { 
+      recognitionRef.current = null; 
+      if (settingsRef.current.setIsListening) settingsRef.current.setIsListening(false);
     };
-
-    rec.onerror = (e) => {
-      if (e.error !== 'aborted') {
-        console.error('VTT ERROR:', e);
-        onError?.(e.error);
-      }
-      if (sessionActiveRef.current?.id === sessionId) {
-        disarm?.();
-        if (setIsListening) setIsListening(false);
-      }
-    };
-
     rec.onresult = (e) => {
-      // Check if THIS specific session was ever authorized
-      if (sessionActiveRef.current?.id === sessionId && sessionActiveRef.current?.authorized) {
-        const text = e.results?.[0]?.[0]?.transcript || '';
-        if (text) onTranscript(text);
+      let final = '';
+      let inter = '';
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+        else inter += e.results[i][0].transcript;
       }
+      if (final && settingsRef.current.onTranscript) settingsRef.current.onTranscript(final);
+      if (inter && settingsRef.current.onInterim) settingsRef.current.onInterim(inter);
+    };
+    rec.onerror = (e) => {
+      if (e.error !== 'aborted') settingsRef.current.onError?.(e.error);
+      stopRecognition(true);
     };
 
     try {
       rec.start();
       recognitionRef.current = rec;
-    } catch (err) {
-      console.warn('rec.start blocked:', err);
-    }
-  }, [isSupported, onTranscript, onError, setIsListening, disarm]);
+    } catch (e) {}
+  }, [isSupported, stopRecognition]);
 
-  const onKeyDown = useCallback((e) => {
-    // 1. Shortcut Protection
-    if (e.key !== 'Control' && e.ctrlKey) {
-      clearTimeout(armTimerRef.current);
-      if (sessionActiveRef.current) sessionActiveRef.current.authorized = false;
-      stopRecognition(true);
-      disarm?.();
-      return;
-    }
+  const onKeyDownRef = useRef(null);
+  const onKeyUpRef   = useRef(null);
 
+  onKeyDownRef.current = (e) => {
+    if (settingsRef.current.isContinuous) return;
     if (e.key !== 'Control') return;
     if (e.repeat) return;
-    if (_isInput(e)) {
-      if (inputRef?.current && document.activeElement === inputRef.current) {
-        inputRef.current.blur();
-      } else {
-        return;
-      }
-    }
-    
-    if (isHoldingRef.current) return;
+
+    // Wake up audio
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume().then(() => ctx.close()).catch(() => {});
+
     isHoldingRef.current = true;
+    isArmedRef.current = false;
 
-    // Pre-warm mic immediately
-    startRecognition();
-
+    clearTimeout(armTimerRef.current);
     armTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current && sessionActiveRef.current) {
-        sessionActiveRef.current.authorized = true;
-        arm?.(); 
-        playPTTBeep();
-        if (setIsListening) setIsListening(true);
+      if (isHoldingRef.current) {
+        isArmedRef.current = true;
+        playSyntheticPing(880, 0.15);
+        settingsRef.current.arm?.();
+        startRecognition();
       }
     }, ARM_DELAY_MS);
-  }, [inputRef, arm, disarm, startRecognition, stopRecognition, setIsListening]);
+  };
 
-  const onKeyUp = useCallback((e) => {
+  onKeyUpRef.current = (e) => {
+    if (settingsRef.current.isContinuous) return;
     if (e.key !== 'Control') return;
     isHoldingRef.current = false;
     clearTimeout(armTimerRef.current);
     
-    if (sessionActiveRef.current?.authorized) {
-      stopRecognition(false); // capture
-      // Clean up UI but sessionActiveRef stays valid for onresult
-      setTimeout(() => {
-        disarm?.();
-      }, 500);
+    if (isArmedRef.current) {
+      // Small buffer to let the last syllable reach the STT engine
+      setTimeout(() => stopRecognition(false), 150);
     } else {
-      stopRecognition(true);  // abort early release
-      disarm?.();
+      stopRecognition(true);
+      settingsRef.current.disarm?.();
     }
-  }, [stopRecognition, disarm]);
+    isArmedRef.current = false;
+  };
 
   useEffect(() => {
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup',   onKeyUp);
+    const hkd = (e) => onKeyDownRef.current?.(e);
+    const hku = (e) => onKeyUpRef.current?.(e);
+    window.addEventListener('keydown', hkd, { capture: true });
+    window.addEventListener('keyup',   hku,   { capture: true });
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup',   onKeyUp);
-      clearTimeout(armTimerRef.current);
+      window.removeEventListener('keydown', hkd, { capture: true });
+      window.removeEventListener('keyup',   hku,   { capture: true });
+      if (armTimerRef.current) clearTimeout(armTimerRef.current);
       stopRecognition(true);
     };
-  }, [onKeyDown, onKeyUp, stopRecognition]);
+  }, [stopRecognition]);
+
+  useEffect(() => {
+    if (isContinuous && !recognitionRef.current) startRecognition();
+    else if (!isContinuous && recognitionRef.current && !isHoldingRef.current) stopRecognition(false);
+  }, [isContinuous, startRecognition, stopRecognition]);
 
   return { isSupported };
 }
