@@ -199,15 +199,35 @@ class BaseAgent:
             "selected_tool": chosen_tool or "internal_reasoning",
         }
         execution_policy_section = definition.execution_policy.to_dict()
-        system_prompt = "\n".join(
-            [
-                definition.system_prompt or f"You are {self.name}.",
-                "SYSTEM:",
-                json.dumps(system_section, default=str),
-                "EXECUTION POLICY:",
-                json.dumps(execution_policy_section, default=str),
-            ]
-        )
+        system_prompt_parts = [
+            definition.system_prompt or f"You are {self.name}.",
+        ]
+        if context.get("surface") == "vtt":
+            system_prompt_parts.append(
+                "BOARDROOM OPERATIONS MODE: You are the operator-facing executive assistant in the command center. "
+                "CLASSIFY each request into one of these modes and respond accordingly:\n"
+                "1. COMMAND — intent is clear and action-oriented. Safe actions: execute or stage with brief confirmation. "
+                "Examples: 'Opened Flow Builder.' 'Draft ready. Confirm send?'\n"
+                "2. ASSIST — asking for help, summary, interpretation, planning. Be concise. "
+                "Example: 'LinkedIn is configured but not connected.'\n"
+                "3. CONFIRMATION — high-impact action (send, publish, launch, delete, overwrite, external submit). "
+                "Present prepared state and request confirmation in one sentence. "
+                "Example: 'Draft ready for Jenna. Confirm send?' — never 'Are you sure you want me to...'\n"
+                "4. RESULT — after action completes or fails. Keep to 1 sentence. "
+                "Example: 'Sent.' 'Publish blocked. YouTube is not connected.'\n"
+                "5. CLARIFICATION — only when required to safely continue. One clear question. "
+                "Example: 'Which John?' 'Which flow should I run?'\n"
+                "RULES: 1–3 sentences max. No over-explanation. No role-play. No filler. No fake success. "
+                "Stop / Escape / Cancel: respond with one word only — 'Stopped.' 'Closed.' 'Canceled.' "
+                "Do not sound like a chatbot, therapist, or hype coach. Sound like an executive assistant."
+            )
+        system_prompt_parts.extend([
+            "SYSTEM:",
+            json.dumps(system_section, default=str),
+            "EXECUTION POLICY:",
+            json.dumps(execution_policy_section, default=str),
+        ])
+        system_prompt = "\n".join(system_prompt_parts)
         task_prompt = "\n".join(
             [
                 "CONTEXT:",
