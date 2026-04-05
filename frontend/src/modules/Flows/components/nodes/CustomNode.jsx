@@ -17,16 +17,19 @@ const nodeColorTokens = {
   webhook: 'var(--node-webhook)',
   socket: 'var(--node-socket)',
   input: 'var(--node-input)',
+  agent: 'var(--node-agent)',
+  media: 'var(--node-media)',
 };
 
 const nodeGlowTokens = {
-  trigger: { primary: '#22d3ee', secondary: '#06b6d4' }, // cyan
-  action: { primary: '#a855f7', secondary: '#9333ea' }, // purple
-  logic: { primary: '#facc15', secondary: '#eab308' }, // yellow
-  webhook: { primary: '#f97316', secondary: '#ea580c' }, // orange
-  socket: { primary: '#22c55e', secondary: '#16a34a' }, // green
-  input: { primary: '#ef4444', secondary: '#dc2626' }, // red
-  agent: { primary: '#06b6d4', secondary: '#0891b2' }, // blue aqua - agents only
+  trigger: { primary: 'var(--node-trigger)', secondary: 'var(--node-trigger)' },
+  action: { primary: 'var(--node-action)', secondary: 'var(--node-action)' },
+  logic: { primary: 'var(--node-logic)', secondary: 'var(--node-logic)' },
+  webhook: { primary: 'var(--node-webhook)', secondary: 'var(--node-webhook)' },
+  socket: { primary: 'var(--node-socket)', secondary: 'var(--node-socket)' },
+  input: { primary: 'var(--node-input)', secondary: 'var(--node-input)' },
+  agent: { primary: 'var(--node-agent)', secondary: 'var(--node-agent)' },
+  media: { primary: 'var(--node-media)', secondary: 'var(--node-media)' },
 };
 
 const getGlowColor = (nodeColor, nodeType) => {
@@ -41,7 +44,16 @@ const CustomNode = ({ data, selected, isConnectable }) => {
   const IconComponent = getIconComponent(data.iconName);
   const isGhost = Boolean(data.isGhost);
   const borderColor = isGhost ? 'var(--color-border)' : colorToken;
-  const iconColor = isGhost ? 'var(--color-text-tertiary)' : colorToken;
+
+  const isEmailOrSms = data.iconName === 'Mail' || data.iconName === 'MessageSquare';
+
+  const iconColor = isGhost
+    ? 'var(--color-text-tertiary)'
+    : isEmailOrSms
+      ? 'var(--color-text-primary)'
+      : ['action', 'logic', 'input'].includes(data.nodeColor)
+        ? 'var(--color-text-secondary)'
+        : colorToken;
   
   const glowColor = getGlowColor(data.nodeColor, data.type);
 
@@ -100,7 +112,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           }}
         />
 
-        {/* Icon */}
+        {/* Icon / Socket Badge */}
         <div
           className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full"
           style={{
@@ -108,9 +120,20 @@ const CustomNode = ({ data, selected, isConnectable }) => {
             color: iconColor,
           }}
         >
-          {IconComponent ? (
-            <IconComponent 
-              className="w-8 h-8" 
+          {data.isSocket && data.socketBadge ? (
+            <span
+              className="w-8 h-8 flex items-center justify-center text-[18px] font-bold leading-none"
+              style={{
+                color: 'var(--node-socket)',
+                fontFamily: 'monospace',
+                fontWeight: 800,
+              }}
+            >
+              {data.socketBadge}
+            </span>
+          ) : IconComponent ? (
+            <IconComponent
+              className="w-8 h-8"
               style={{
                 filter: isGhost ? 'none' : `drop-shadow(0 0 4px ${glowColor.primary}60)`,
               }}

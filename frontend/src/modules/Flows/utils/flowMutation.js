@@ -9,11 +9,30 @@ import { createNode } from '../data/nodeLibrary';
 /**
  * Perform a controlled mutation on the flow graph.
  * Returns { nodes, edges, validation }
+ * @param {boolean} [isSystemManaged=false] - if true, blocks all structural mutations
  */
-export const mutateFlowGraph = (currentNodes, currentEdges, action) => {
+export const mutateFlowGraph = (currentNodes, currentEdges, action, isSystemManaged = false) => {
   const { type, payload } = action;
   let nextNodes = [...currentNodes];
   let nextEdges = [...currentEdges];
+
+  const STRUCTURAL_ACTIONS = new Set([
+    'ADD_NODE',
+    'DELETE_NODE',
+    'COPY_NODE',
+    'UPDATE_NODE_CONFIG',
+    'ADD_NODE_FROM_TEMPLATE',
+  ]);
+
+  if (isSystemManaged && STRUCTURAL_ACTIONS.has(type)) {
+    return {
+      nodes: nextNodes,
+      edges: nextEdges,
+      validation: { blockers: [], warnings: [] },
+      __blocked: true,
+      __reason: 'system_managed_flow_locked',
+    };
+  }
 
   switch (type) {
     case 'ADD_NODE': {

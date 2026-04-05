@@ -89,13 +89,14 @@ svg { color: inherit; }
   --shadow-monitor-glow: 0 0 20px rgba(8, 145, 178, 0.15);
 
   /* Node Colors */
-  --node-trigger: #0891b2;
-  --node-action: #7c3aed;
+  --node-trigger: #10b981;
+  --node-action: #475569;
   --node-logic: #d97706;
   --node-webhook: #ea580c;
-  --node-socket: #15803d;
+  --node-socket: #3b82f6;
   --node-input: #b91c1c;
-  --node-agent: #0891b2;
+  --node-agent: #06b6d4;
+  --node-media: #7c3aed;
 }
 
 html.dark {

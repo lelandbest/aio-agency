@@ -56,10 +56,10 @@ const NodeLibraryPanel = ({ embedded = false, openOnlyCategory = null, onAddNode
   const getCardClasses = (nodeColor) => `flex items-center gap-2.5 p-2 rounded-lg cursor-move transition-all border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:shadow-md hover:border-[var(--node-${nodeColor})] group`;
 
   const iconContainerStyle = (nodeColor) => ({
-    borderColor: `var(--node-${nodeColor})`,
-    color: `var(--node-${nodeColor})`,
+    borderColor: `var(--node-${nodeColor}`,
+    color: `var(--node-${nodeColor}`,
     backgroundColor: 'var(--color-bg-secondary)',
-    boxShadow: `0 0 6px var(--node-${nodeColor})40`,
+    boxShadow: `0 0 6px var(--node-${nodeColor}40`,
     borderWidth: '1.5px',
   });
 

@@ -349,6 +349,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   // Flow state
   const [flow, setFlow] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
+
+  // System-managed flow lock — blocks structural mutations only
+  const isSystemManaged = flow?.metadata?.deploymentManaged === true;
   const [loading, setLoading] = useState(true);
   const [providerStatuses, setProviderStatuses] = useState({});
 
@@ -418,6 +421,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   useEffect(() => {
     setCustomTemplates(getStoredCustomTemplates());
   }, []);
+
+  const [miniMapNodeColors] = useState(() => ({
+    trigger: getCssVar('--node-trigger', '#10b981'),
+    action: getCssVar('--node-action', '#f8fafc'),
+    logic: getCssVar('--node-logic', '#d97706'),
+    webhook: getCssVar('--node-webhook', '#ea580c'),
+    socket: getCssVar('--node-socket', '#15803d'),
+    input: getCssVar('--node-input', '#b91c1c'),
+    agent: getCssVar('--node-agent', '#06b6d4'),
+    media: getCssVar('--node-media', '#7c3aed'),
+    default: '#94a3b8',
+  }));
 
   const buildFlowAssistText = useCallback((kind, overrides = {}) => {
     const flowName = flow?.name || 'Untitled Flow';
@@ -770,14 +785,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const result = mutateFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
       payload: { nodeTemplate, position }
-    });
+    }, isSystemManaged);
 
+    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
     if (result.validation.blockers.length === 0) {
       setNodes(result.nodes);
       setLastAddedPosition(position);
       setIsDirty(true);
     }
-  }, [lastAddedPosition, nodes, edges, setNodes]);
+  }, [lastAddedPosition, nodes, edges, setNodes, isSystemManaged]);
 
 
   const handleLibraryAddAtViewport = useCallback((nodeTemplate) => {
@@ -794,14 +810,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const result = mutateFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
       payload: { nodeTemplate, position }
-    });
+    }, isSystemManaged);
 
+    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
     if (result.validation.blockers.length === 0) {
       setNodes(result.nodes);
       setLastAddedPosition(position);
       setIsDirty(true);
     }
-  }, [reactFlowInstance, nodes, edges, setNodes]);
+  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged]);
 
 
   const handleDeleteSelectedNode = useCallback(() => {
@@ -812,17 +829,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const result = mutateFlowGraph(nodes, edges, {
       type: 'DELETE_NODE',
       payload: { nodeId }
-    });
+    }, isSystemManaged);
 
+    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
     if (result.validation.blockers.length === 0) {
       setNodes(result.nodes);
       setEdges(normalizeEdges(result.edges));
       setSelectedNode(null);
       setIsDirty(true);
-    } else {
-      console.error('Node deletion blocked by validation:', result.validation.blockers);
     }
-  }, [selectedNode, nodes, edges, setNodes, setEdges]);
+  }, [selectedNode, nodes, edges, setNodes, setEdges, isSystemManaged]);
 
   // Handle drag over canvas
   const onDragOver = useCallback((event) => {
@@ -849,8 +865,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         const result = mutateFlowGraph(nodes, edges, {
           type: 'ADD_NODE',
           payload: { nodeTemplate, position }
-        });
+        }, isSystemManaged);
 
+        if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
         if (result.validation.blockers.length === 0) {
           setNodes(result.nodes);
           setIsDirty(true);
@@ -934,19 +951,20 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       const result = mutateFlowGraph(nodes, edges, {
         type: 'UPDATE_NODE_CONFIG',
         payload: { nodeId, config }
-      });
+      }, isSystemManaged);
 
-      if (result.validation.blockers.length === 0) {
-        setNodes(result.nodes);
-        setIsDirty(true);
-        setShowNodeConfig(false);
-        setShowNodeModal(false);
-      } else {
-        console.error('Config save blocked by validation:', result.validation.blockers);
-      }
-    },
-    [nodes, edges, setNodes]
-  );
+    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+    if (result.validation.blockers.length === 0) {
+      setNodes(result.nodes);
+      setIsDirty(true);
+      setShowNodeConfig(false);
+      setShowNodeModal(false);
+    } else {
+      console.error('Config save blocked by validation:', result.validation.blockers);
+    }
+  },
+  [nodes, edges, setNodes, isSystemManaged]
+);
 
   const applyDraftToCanvas = useCallback((draft) => {
     if (!draft) return;
@@ -998,15 +1016,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         },
         position
       }
-    });
+    }, isSystemManaged);
 
+    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
     if (result.validation.blockers.length === 0) {
       setNodes(result.nodes);
       setIsDirty(true);
     } else {
       console.error('Form trigger insertion blocked by validation:', result.validation.blockers);
     }
-  }, [reactFlowInstance, nodes, edges, setNodes]);
+  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged]);
 
   const applyTemplate = useCallback((template) => {
     if (!template) return;
@@ -1960,15 +1979,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-primary)]">MiniMap</span>
                 <div className="w-full overflow-hidden rounded-xl border border-[var(--color-border)]">
-                  <MiniMap nodeColor={(node) => {
-                    switch (node.data?.nodeColor) {
-                      case 'trigger': return '#22d3ee';
-                      case 'action': return '#a855f7';
-                      case 'logic': return '#facc15';
-                      case 'agent': return '#06b6d4';
-                      default: return '#94a3b8';
-                    }
-                  }} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[140px] !bg-[var(--color-bg-primary)] opacity-90 hover:opacity-100 transition-opacity !m-0" />
+                  <MiniMap nodeColor={(node) => miniMapNodeColors[node.data?.nodeColor] || miniMapNodeColors.default} nodeStrokeWidth={3} zoomable pannable className="!w-full !relative !bottom-auto !right-auto !h-[140px] !bg-[var(--color-bg-primary)] opacity-90 hover:opacity-100 transition-opacity !m-0" />
                 </div>
               </div>
             </div>
@@ -3271,7 +3282,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                         config: nodeConfigDraft,
                         dataUpdates: { config: nodeConfigDraft }
                       }
-                    });
+                    }, isSystemManaged);
+                    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
                     if (result.validation.blockers.length === 0) {
                       setNodes(result.nodes);
                       setIsDirty(true);
@@ -3412,15 +3424,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               onClick={() => {
                 const node = nodeMenu.node;
                 // Rule: Use mutateFlowGraph for internal copy
-                const result = mutateFlowGraph(nodes, edges, {
-                  type: 'COPY_NODE',
-                  payload: { node }
-                });
-                if (result.validation.blockers.length === 0) {
-                  setNodes(result.nodes);
-                }
-                setNodeMenu(null);
-              }}
+                  const result = mutateFlowGraph(nodes, edges, {
+                    type: 'COPY_NODE',
+                    payload: { node }
+                  }, isSystemManaged);
+                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+                  if (result.validation.blockers.length === 0) {
+                    setNodes(result.nodes);
+                  }
+                  setNodeMenu(null);
+                }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
             >
               Copy
@@ -3437,7 +3450,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                       nodeId: node.id,
                       config: { ignoreErrors: !node.data?.config?.ignoreErrors }
                     }
-                  });
+                  }, isSystemManaged);
+                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
                   if (result.validation.blockers.length === 0) {
                     setNodes(result.nodes);
                   }
@@ -3454,16 +3468,17 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               onClick={() => {
                 const node = nodeMenu.node;
                 // Rule: Use mutateFlowGraph for internal delete
-                const result = mutateFlowGraph(nodes, edges, {
-                  type: 'DELETE_NODE',
-                  payload: { nodeId: node.id }
-                });
-                if (result.validation.blockers.length === 0) {
-                  setNodes(result.nodes);
-                  setEdges(normalizeEdges(result.edges));
-                }
-                setNodeMenu(null);
-              }}
+                  const result = mutateFlowGraph(nodes, edges, {
+                    type: 'DELETE_NODE',
+                    payload: { nodeId: node.id }
+                  }, isSystemManaged);
+                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+                  if (result.validation.blockers.length === 0) {
+                    setNodes(result.nodes);
+                    setEdges(normalizeEdges(result.edges));
+                  }
+                  setNodeMenu(null);
+                }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
             >
               Delete
@@ -3540,8 +3555,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                       },
                       position
                     }
-                  });
+                  }, isSystemManaged);
 
+                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
                   if (result.validation.blockers.length === 0) {
                     setNodes(result.nodes);
                     setIsDirty(true);
@@ -3618,8 +3634,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                         color: noteEditDraft.color,
                       }
                     }
-                  });
+                  }, isSystemManaged);
 
+                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
                   if (result.validation.blockers.length === 0) {
                     setNodes(result.nodes);
                     setShowNoteEditModal(false);

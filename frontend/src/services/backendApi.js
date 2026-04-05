@@ -106,7 +106,7 @@ function toCamelCase(obj) {
   return newObj;
 }
 
-async function request(path, options = {}) {
+export async function request(path, options = {}) {
   if (!BACKEND_ENABLED) {
     throw new Error('Backend disabled');
   }

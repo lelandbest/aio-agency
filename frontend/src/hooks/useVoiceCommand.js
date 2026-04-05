@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 
 const ARM_DELAY_MS = 2000;
 
-export function useVoiceCommand({ onTranscript, onCommand, onConversational, onError }) {
+export function useVoiceCommand({ onTranscript, onCommand, onConversational, onError, deviceId }) {
   const isHoldingRef   = useRef(false);
   const isArmedRef     = useRef(false);
   const armTimerRef    = useRef(null);
@@ -24,6 +24,7 @@ export function useVoiceCommand({ onTranscript, onCommand, onConversational, onE
     rec.continuous = false;
     rec.interimResults = false;
     rec.maxAlternatives = 1;
+    if (deviceId) rec.deviceId = deviceId;
 
     rec.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
@@ -37,7 +38,7 @@ export function useVoiceCommand({ onTranscript, onCommand, onConversational, onE
     rec.onend = () => { recognitionRef.current = null; };
     rec.start();
     recognitionRef.current = rec;
-  }, [isSupported, onTranscript, onError]);
+  }, [isSupported, onTranscript, onError, deviceId]);
 
   const stopRecognition = useCallback(() => {
     if (recognitionRef.current) {

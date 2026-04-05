@@ -75,9 +75,39 @@ export default function VoiceCommandModule() {
   const [voiceProvider, setVoiceProvider] = useState('system');
   const [voiceAutoPlay, setVoiceAutoPlay] = useState(false);
   const [voices, setVoices] = useState([]);
+  const [inputDevices, setInputDevices] = useState([]);
+  const [selectedMicId, setSelectedMicId] = useState(() => localStorage.getItem('aio_mic') || '');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const audioRef  = useRef(null);
+
+  const loadMics = useCallback(async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop()));
+    } catch {}
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const mics = devices
+      .filter(d => d.kind === 'audioinput')
+      .map((d, i) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Microphone ${i + 1}`,
+      }));
+    setInputDevices(mics);
+    if (!selectedMicId && mics.length > 0) {
+      const saved = localStorage.getItem('aio_mic');
+      if (saved && mics.find(m => m.deviceId === saved)) {
+        setSelectedMicId(saved);
+      } else {
+        setSelectedMicId(mics[0].deviceId);
+      }
+    }
+  }, [selectedMicId]);
+
+  useEffect(() => {
+    loadMics();
+    navigator.mediaDevices.addEventListener('devicechange', loadMics);
+    return () => navigator.mediaDevices.removeEventListener('devicechange', loadMics);
+  }, [loadMics]);
 
   useEffect(() => {
     const loadVoices = () => {
@@ -167,6 +197,7 @@ export default function VoiceCommandModule() {
   useVoiceCommand({
     onTranscript: handleTranscript,
     onError: (err) => { setIsListening(false); console.warn('VTT error:', err); },
+    deviceId: selectedMicId,
   });
 
   useEffect(() => {
@@ -199,6 +230,21 @@ export default function VoiceCommandModule() {
           <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Charlie</span>
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={selectedMicId || ''}
+            onChange={(e) => {
+              setSelectedMicId(e.target.value);
+              localStorage.setItem('aio_mic', e.target.value);
+            }}
+            className="bg-black/40 border border-slate-700 rounded px-1 py-0.5 text-[7px] text-slate-400 focus:outline-none focus:border-cyan-500/50 cursor-pointer max-w-[110px] truncate"
+            title="Select microphone"
+          >
+            {inputDevices.map(d => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label}
+              </option>
+            ))}
+          </select>
           <button
             onClick={() => { setVoiceEnabled(v => !v); }}
             className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border transition-colors ${voiceEnabled ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400' : 'border-slate-700 text-slate-600'}`}
