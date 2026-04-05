@@ -13,12 +13,68 @@ Command types:
 from typing import Any
 import os
 
+_HIGH_IMPACT_ACTIONS: set[str] = {
+    "send_email", "publish", "run_flow",
+    "delete", "overwrite", "external_submission",
+}
+
+_PENDING_ACTIONS: dict[str, dict[str, Any]] = {}
+
+_CONFIRM_KEYWORDS: set[str] = {"yes", "confirm", "go", "do it", "doit", "y", "sure", "ok", "execute", "run it", "send it", "publish it"}
+_INTERRUPT_KEYWORDS: set[str] = {"stop", "escape", "cancel", "abort"}
+
+
+def formatCharlieResponse(*, mode: str, message: str = "", reason: str = "") -> dict[str, Any]:
+    """Format a Charlie response deterministically based on mode."""
+    result = {"mode": mode}
+
+    if mode == "command":
+        result["message"] = message
+    elif mode == "assist":
+        result["message"] = message
+    elif mode == "confirmation":
+        result["message"] = message
+    elif mode == "clarification":
+        result["message"] = message
+    elif mode == "result":
+        result["message"] = message
+    elif mode == "failure":
+        result["message"] = message
+        if reason:
+            result["reason"] = reason
+    elif mode == "interrupt":
+        result["message"] = message
+
+    if len(result.get("message", "")) > 300:
+        result["message"] = result["message"][:297] + "..."
+
+    return result
+
+
+def _classify_input(raw: str) -> str:
+    """Classify a conversational input into a response mode."""
+    normalized = raw.strip().lower()
+
+    if normalized in _INTERRUPT_KEYWORDS:
+        return "interrupt"
+
+    if normalized in _CONFIRM_KEYWORDS:
+        return "confirmation"
+
+    return "assist"
+
+
+def _pending_action_key(tenant_id: str | None) -> str:
+    return tenant_id or "anonymous"
+
 DEFAULT_REGISTRY: list[dict[str, Any]] = [
     # ── Reserved (locked) ──────────────────────────────────────────────
     {"phrase": "stop",       "type": "interrupt",   "target": "system:stop",              "requiresPayload": False},
     {"phrase": "escape",     "type": "immediate",   "target": "ui:escape",               "requiresPayload": False},
     {"phrase": "cancel",     "type": "immediate",   "target": "ui:cancel",              "requiresPayload": False},
     {"phrase": "abort",       "type": "interrupt",   "target": "system:stop",              "requiresPayload": False},
+    # ── Diagnostics ───────────────────────────────────────────────────
+    {"phrase": "test 123",   "type": "immediate",   "target": "system:test",             "requiresPayload": False},
     # ── Navigation ────────────────────────────────────────────────────
     {"phrase": "open brain",       "type": "navigation", "target": "route:/aio-brain"},
     {"phrase": "open crm",          "type": "navigation", "target": "route:/crm"},
@@ -168,11 +224,87 @@ def process_transcript(
 ) -> dict[str, Any]:
     """
     Main entry point. Parse then execute.
-    If conversational, returns {"action": "conversational", "text": raw}
-    so caller can forward to Charlie (/api/ai/command).
+    Classifies input, stages high-impact actions, handles interruptions.
     """
     parsed   = parse_command(raw)
     executed = execute_command(parsed, tenant_id, context)
+    key = _pending_action_key(tenant_id)
+
+    if parsed.get("type") == "command":
+        action = executed.get("action", "unknown")
+
+        # Interrupt → immediate response
+        if action in ("interrupt", "immediate"):
+            _immediate_responses = {
+                "ui:escape":   "Closed.",
+                "ui:cancel":   "Canceled.",
+                "system:test": "TEST IS GOOD.",
+            }
+            msg_map = {
+                "interrupt": "Stopped.",
+                "immediate": _immediate_responses.get(executed.get("target", ""), "Done."),
+            }
+            msg = msg_map.get(action, "Done.")
+            return {
+                "input": raw,
+                "type": "command",
+                "action": action,
+                "result": executed,
+                "response": formatCharlieResponse(mode="interrupt", message=msg),
+            }
+
+        # High-impact → stage, request confirmation
+        system_action = executed.get("systemAction", "")
+        workflow_name = executed.get("workflowName", "")
+        if system_action in _HIGH_IMPACT_ACTIONS or (workflow_name and action == "workflow"):
+            pending = {
+                "raw": raw,
+                "action": action,
+                "systemAction": system_action,
+                "workflowName": workflow_name,
+                "phrase": phrase,
+                "parsed": parsed,
+                "executed": executed,
+            }
+            _PENDING_ACTIONS[key] = pending
+            confirmation_msg = _build_confirmation_message(executed)
+            return {
+                "input": raw,
+                "type": "command",
+                "action": "staged",
+                "result": executed,
+                "response": formatCharlieResponse(mode="confirmation", message=confirmation_msg),
+            }
+
+        # Safe command → execute and return
+        return {
+            "input": raw,
+            "type": "command",
+            "action": action,
+            "result": executed,
+            "response": formatCharlieResponse(mode="command", message=_build_execution_message(executed)),
+        }
+
+    # Conversational → classify mode and format
+    mode = _classify_input(raw)
+
+    # Check pending action confirmation
+    if mode == "confirmation":
+        if key not in _PENDING_ACTIONS:
+            return {
+                "input": raw,
+                "type": "none",
+                "response": formatCharlieResponse(mode="confirmation", message="Nothing to confirm."),
+            }
+        pending = _PENDING_ACTIONS.pop(key)
+        return {
+            "input": raw,
+            "type": "conversational",
+            "action": "confirmed_pending",
+            "result": pending,
+            "response": formatCharlieResponse(mode="result", message=_build_result_message(pending)),
+        }
+
     return {
         "input":    raw,
         "type":     parsed.get("type", "unknown"),
@@ -182,6 +314,63 @@ def process_transcript(
         "action":   executed.get("action", "unknown"),
         "result":   executed,
     }
+
+
+def _build_execution_message(executed: dict[str, Any]) -> str:
+    action = executed.get("action", "")
+    phrase = executed.get("phrase", "")
+
+    if action == "navigate":
+        module = executed.get("module", "")
+        return f"Opened {module.title()}."
+
+    if action == "workflow":
+        name = executed.get("workflowName", "")
+        if name:
+            return f"PostBot ready: {name}."
+        return "Workflow ready."
+
+    if action == "staged":
+        sa = executed.get("systemAction", "")
+        return f"Draft prepared. Confirm {sa.replace('_', ' ')}?"
+
+    if action == "confirmed":
+        return "Flow staged. Run now?"
+
+    return f"Ready."
+
+
+def _build_confirmation_message(executed: dict[str, Any]) -> str:
+    action = executed.get("action", "")
+    phrase = executed.get("phrase", "")
+
+    if action == "staged":
+        sa = executed.get("systemAction", "")
+        return f"Draft ready. Confirm {sa.replace('_', ' ')}?"
+
+    if action == "workflow":
+        name = executed.get("workflowName", "")
+        return f"Flow staged: {name}. Run now?"
+
+    if action == "confirmed":
+        return "Flow staged. Run now?"
+
+    return "Draft ready. Confirm?"
+
+
+def _build_result_message(pending: dict[str, Any]) -> str:
+    phrase = (pending.get("phrase") or "").lower()
+
+    if "email" in phrase:
+        return "Sent."
+    if "image" in phrase:
+        return "Created."
+    if "video" in phrase:
+        return "Generated."
+    if "flow" in phrase:
+        return "Executed."
+
+    return "Done."
 
 
 def synthesize_voice(text: str, voice: str | None = None) -> str | None:

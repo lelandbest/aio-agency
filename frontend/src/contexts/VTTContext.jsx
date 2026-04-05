@@ -53,6 +53,7 @@ export function VTTProvider({ children }) {
       openVTT,
       closeVTT,
       toggleVTT,
+      setIsOpen,
       setIsListening,
       setTranscript,
       addMessage,
@@ -70,10 +71,10 @@ export function VTTProvider({ children }) {
 
 export function useVTT() {
   const ctx = useContext(VTTContext);
-  if (!ctx) return {
+  if (!ctx)   return {
     isOpen: false, isListening: false, isArmed: false, transcript: '',
     messages: [], pendingPayload: null,
-    openVTT: () => {}, closeVTT: () => {}, toggleVTT: () => {},
+    openVTT: () => {}, closeVTT: () => {}, toggleVTT: () => {}, setIsOpen: () => {},
     setIsListening: () => {}, setTranscript: () => {},
     addMessage: () => {}, addCommandMessage: () => {}, addCharlieMessage: () => {},
     clearTranscript: () => {}, setPendingPayload: () => {}, arm: () => {}, disarm: () => {},

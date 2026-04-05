@@ -3890,8 +3890,8 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
     if result.get("action") == "conversational":
         audio_url = None
         voice_enabled = bool(payload.voiceEnabled) if payload else False
+        response_text = result.get("result", {}).get("text", "") if result.get("type") == "conversational" else raw
         if voice_enabled:
-            response_text = result.get("text", raw)
             voice_provider = payload.voiceProvider if payload else "system"
             if voice_provider == "elevenlabs":
                 from backend.vtt_service import synthesize_voice
@@ -3904,7 +3904,25 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
             "audioUrl": audio_url,
         }
 
-    return {"status": "success", "type": "command", "command": result}
+    response_data = result.get("response", {})
+    audio_url = None
+    voice_enabled = bool(payload.voiceEnabled) if payload else False
+    if voice_enabled:
+        msg = response_data.get("message", "")
+        if msg:
+            voice_provider = payload.voiceProvider if payload else "system"
+            if voice_provider == "elevenlabs":
+                from backend.vtt_service import synthesize_voice
+                audio_url = synthesize_voice(msg)
+
+    return {
+        "status": "success",
+        "type": result.get("type", "command"),
+        "command": result,
+        "action": result.get("action", "unknown"),
+        "response": response_data,
+        "audioUrl": audio_url,
+    }
 
 
 @app.get("/api/vtt/providers")

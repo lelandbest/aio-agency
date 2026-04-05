@@ -17,9 +17,20 @@ import OperatorAssistDock from './components/OperatorAssistDock';
 import { AIAssistProvider } from './contexts/AIAssistContext';
 import { SignalProvider } from './contexts/SignalContext';
 import { NoticeProvider, GlobalNoticeViewport } from './contexts/NoticeContext';
-import { VTTProvider } from './contexts/VTTContext';
+import { VTTProvider, useVTT } from './contexts/VTTContext';
 import VoiceCommandModule from './modules/VoiceCommand';
 import StatusBar from './components/StatusBar';
+
+/** Bridge: listens for the sidebar's aio:open-charlie event and opens the VTT modal. */
+function VTTOpener() {
+  const { openVTT } = useVTT();
+  useEffect(() => {
+    const handler = () => openVTT();
+    window.addEventListener('aio:open-charlie', handler);
+    return () => window.removeEventListener('aio:open-charlie', handler);
+  }, [openVTT]);
+  return null;
+}
 
 // Lazy load modules for code splitting
 const SignalsModule = lazy(() => import('./modules/Signals'));
@@ -745,6 +756,8 @@ const App = () => {
       <BrandProvider initialConfig={activeTenantSettings?.branding || {}}>
         <AIAssistProvider>
         <OrchestrationProvider>
+          {/* VTTProvider wraps the full tree so Sidebar and VoiceCommandModule share one context instance */}
+          <VTTProvider>
           <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], role: userRole, isOperator: () => operatorMode, isClient: () => clientMode, logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
           <DbContext.Provider value={{ db, setDb }}>
             <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
@@ -804,11 +817,12 @@ const App = () => {
           activeModuleLabel={activeModuleLabel} 
         />
         </AuthContext.Provider>
+        {/* VTTOpener wires the sidebar aio:open-charlie event to openVTT */}
+        <VTTOpener />
+        <VoiceCommandModule />
+        </VTTProvider>
         </OrchestrationProvider>
         </AIAssistProvider>
-        <VTTProvider>
-          <VoiceCommandModule />
-        </VTTProvider>
         <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
         <GlobalNoticeViewport />
       </BrandProvider>
