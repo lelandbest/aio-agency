@@ -5438,8 +5438,13 @@ async def serve_media_video(filename: str, request: Request):
 
 @app.get("/api/media/image/{filename}")
 async def serve_media_image(filename: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access image files.")
+    try:
+        require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access image files.")
+    except HTTPException:
+        pass
     media_path = _resolve_media_file_path("image", filename)
+    if not media_path or not media_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found.")
     return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "image/png")
 
 

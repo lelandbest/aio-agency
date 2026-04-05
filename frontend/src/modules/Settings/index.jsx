@@ -2708,16 +2708,14 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-2">
+            <button onClick={() => wlHandlers.current.reset?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30 transition whitespace-nowrap">Reset</button>
+            <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
+          </div>
           <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
             <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><BrainIcon size={14} /></button>
             <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><Crosshair size={14} /></button>
           </div>
-          {isWhiteLabel && (
-            <div className="flex items-center gap-2 ml-2">
-              <button onClick={() => wlHandlers.current.reset?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30 transition whitespace-nowrap">Reset</button>
-              <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
-            </div>
-          )}
         </div>
       </div>
 

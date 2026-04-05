@@ -23,7 +23,7 @@ class ErrorBoundary extends React.Component {
         if (this.state.hasError) {
             return (
                 <div className="min-h-screen bg-black p-8 font-mono text-red-500">
-                    <h1 className="text-2xl font-bold mb-4">🔴 React Error Caught</h1>
+                    <h1 className="text-2xl font-bold mb-4">React Error Caught</h1>
                     <p className="mb-2">{this.state.error?.toString()}</p>
                     <pre className="whitespace-pre-wrap break-words text-sm">
                         {this.state.error?.stack}

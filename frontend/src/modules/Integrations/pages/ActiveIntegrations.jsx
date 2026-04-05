@@ -1598,9 +1598,20 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
     try {
       await updateMailboxApi(selectedMailbox.id, mailboxForm);
-      showNotice({
-        tone: 'success',
-        message: `${selectedMailbox.name} connected via ${result.provider || selectedMailboxProvider.label}.`,
+      showNotice({ tone: 'success', message: 'Mailbox saved.' });
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleCreateMailbox = async () => {
+    if (!mailboxDraft.name.trim() || !mailboxDraft.address.trim()) return;
+    try {
+      const mailbox = await createMailboxApi({
+        ...mailboxDraft,
+        name: mailboxDraft.name.trim(),
+        address: mailboxDraft.address.trim(),
       });
       showNotice({ tone: 'success', message: 'Mailbox created.' });
       setShowMailboxComposer(false);
@@ -1793,6 +1804,34 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
   };
 
+  const handleCreateCalendarSource = async () => {
+    if (!calendarSourceDraft.name.trim()) return;
+    try {
+      const source = await createCalendarSourceApi(calendarSourceDraft);
+      showNotice({ tone: 'success', message: 'Calendar source created.' });
+      setShowCalendarComposer(false);
+      setCalendarSourceDraft(createCalendarSourceDraft());
+      await loadAll();
+      setSelectedCalendarSourceId(source?.id || null);
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleAuthorizeCalendarSource = async () => {
+    if (!selectedCalendarSource?.id || !isCalendarOauthProvider(calendarSourceForm.provider)) return;
+    try {
+      await updateCalendarSourceApi(selectedCalendarSource.id, calendarSourceForm);
+      const authorizeUrl = await getCalendarSourceAuthorizeUrl(selectedCalendarSource.id);
+      if (!authorizeUrl) throw new Error('Failed to get authorization URL');
+      const result = await openOAuthPopup(authorizeUrl, 'calendar');
+      showNotice({ tone: 'success', message: `${selectedCalendarSource.name} connected via ${result.provider || selectedCalendarProvider.label}.` });
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
   const handleTestCalendarSource = async () => {
     if (!selectedCalendarSource?.id) return;
     if (selectedCalendarSourceStateMeta.authActionsDisabled) {
@@ -1913,6 +1952,36 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         tone: 'success',
         message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} saved.`,
       });
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleTestAiProvider = async () => {
+    setBusyAction('ai-provider-test');
+    try {
+      const providerKey = selectedAiProviderCatalog.id || selectedAiProviderCatalog.key;
+      const providerLabel = selectedAiProviderCatalog.name || selectedAiProviderCatalog.label || selectedAiProviderCatalog.displayName || providerKey;
+      const sanitizedConfig = sanitizeAiProviderConfig(aiProviderForm.config);
+      const saved = await upsertAiProviderConfigApi(providerKey, {
+        label: providerLabel,
+        baseUrl: (aiProviderForm.baseUrl || '').trim(),
+        model: (aiProviderForm.model || '').trim(),
+        apiKey: aiProviderForm.apiKey || undefined,
+        systemGuardrails: aiProviderForm.systemGuardrails || '',
+        taskGuardrails: aiProviderForm.taskGuardrails || '',
+        enabled: !!aiProviderForm.enabled,
+        isDefault: !!aiProviderForm.isDefault,
+        config: {
+          ...sanitizedConfig,
+          temperature: aiProviderForm.temperature || '0.2',
+          username: aiProviderForm.username || '',
+          password: aiProviderForm.password || undefined,
+          siteUrl: aiProviderForm.siteUrl || '',
+          appName: aiProviderForm.appName || 'AIO CRM',
+        },
+      });
       const response = await testAiProviderConfigApi(saved.id);
       showNotice({ tone: 'success', message: response?.result?.message || 'AI provider test completed.' });
       triggerSavedAction('ai-provider-test');
@@ -2010,6 +2079,18 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         message: `${selectedPaymentProviderCatalog.name} payment settings saved.`,
       });
       triggerSavedAction('payment-save');
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleDeletePaymentProvider = async () => {
+    if (!selectedPaymentProviderConfig?.id) return;
+    if (!window.confirm(`Disconnect ${selectedPaymentProviderCatalog?.name || 'this payment provider'} from this workspace?`)) return;
+    try {
+      await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
+      showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
       await loadAll();
     } catch (error) {
       showNotice({ tone: 'error', message: readErrorMessage(error) });
