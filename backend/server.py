@@ -5615,7 +5615,7 @@ async def list_media_assets(request: Request):
     return {"data": get_media_engine().list_assets()}
 
 
-@app.get("/api/media/library", response_model=MediaLibraryResponse)
+@app.get("/api/vault", response_model=MediaLibraryResponse)
 async def list_media_library(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view the media library.")
     return MediaLibraryResponse(data=list_media_library_items())
