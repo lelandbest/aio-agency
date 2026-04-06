@@ -145,12 +145,29 @@ const formatRunTimestamp = (value) => {
   return parsed.toLocaleTimeString([], { hour12: false });
 };
 
+const resolveAgentLabel = (key) => {
+  if (!key || key === 'SYSTEM' || key === 'OPERATOR') return 'System Operator';
+  const entry = SPECIALIST_REGISTRY[key];
+  if (entry?.label) return entry.label;
+  
+  return key
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 const normalizeDelegateChain = (value) => {
   if (Array.isArray(value)) {
-    return value.filter(Boolean).join(' -> ');
+    return value
+      .filter(Boolean)
+      .map((key) => resolveAgentLabel(key))
+      .join(' -> ');
   }
-  if (typeof value === 'string') {
-    return value;
+  if (typeof value === 'string' && value.trim()) {
+    return resolveAgentLabel(value);
   }
   return '';
 };
@@ -836,6 +853,24 @@ const AIOAgentsModule = () => {
   const hasActiveRun = Boolean(activeRun);
   const isRunPending = messages.some((message) => message.role === 'assistant' && message.pending);
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && resolveMessageContent(message));
+  const mainAgentLabel = resolveAgentLabel(activeAgent?.registryKey || activeAgent?.registry_key || selectedAgent || derivedAgentKey);
+
+  const getAgentColor = (key) => {
+    if (key === 'ALPHA') return HQ_AGENT_STYLE;
+    if (key === 'OMEGA') return OMEGA_AGENT_STYLE;
+    const idx = agents.findIndex(a => (a.registryKey || a.registry_key) === key && key !== 'ALPHA' && key !== 'OMEGA');
+    if (idx === -1) {
+        const fallbackIdx = Object.keys(SPECIALIST_REGISTRY).filter(k => k !== 'ALPHA' && k !== 'OMEGA').indexOf(key);
+        if (fallbackIdx === -1) return ROW_COLOR_LANES[0][0];
+        const row = Math.floor(fallbackIdx / 4);
+        const col = fallbackIdx % 4;
+        return (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
+    }
+    const row = Math.floor(idx / 4);
+    const col = idx % 4;
+    return (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
+  };
+
   const sessionStatusLabel = error ? 'ERROR' : hasActiveRun ? activeRunStatus : 'IDLE';
   const sessionStatusTone = error
     ? 'bg-red-500'
@@ -854,13 +889,13 @@ const AIOAgentsModule = () => {
   const contextAgentLabel = activeRunAgent || selectedAgent || '';
   const commandModeLabel = activeFlowLabel && contextAgentLabel ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentLabel ? 'Agent' : 'System';
   const sessionDirective = hasActiveRun
-    ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${activeRunAgent}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
+    ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${SPECIALIST_REGISTRY[activeRunAgent]?.label || activeRunAgent}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
     : selectedFlow
       ? `SYSTEM READY. FLOW ${selectedFlow.name.toUpperCase()} IS BOUND FOR EXECUTION. SUBMIT A COMMAND TO START A CANONICAL RUN.`
       : selectedAgent
-        ? `SYSTEM READY. TARGET ${selectedAgent} IS SELECTED.${collabAgents.length ? ` COLLAB: ${collabAgents.join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
+        ? `SYSTEM READY. TARGET ${mainAgentLabel} IS SELECTED.${collabAgents.length ? ` COLLAB: ${collabAgents.map(k => resolveAgentLabel(k)).join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
         : collabAgents.length
-          ? `SYSTEM READY. COLLAB GROUP ${collabAgents.join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
+          ? `SYSTEM READY. COLLAB GROUP ${collabAgents.map(k => resolveAgentLabel(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
 
   return (
@@ -1350,7 +1385,7 @@ const AIOAgentsModule = () => {
              {/* Left: Command Context */}
              <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
-                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight">Command Session</h3>
+                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight">{mainAgentLabel}</h3>
                    <div className="flex items-center gap-2 mt-2">
                       <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-500/30 text-blue-400 text-[10px] font-bold uppercase rounded-full">{sessionStatusLabel}</span>
                       <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest opacity-60">{hasActiveRun ? activeRunTimestamp : 'System Routed'}</span>
@@ -1415,10 +1450,26 @@ const AIOAgentsModule = () => {
              <div className="flex-1 min-h-0 flex flex-col bg-[var(--color-bg-tertiary)]/30 backdrop-blur-sm relative overflow-hidden">
                 <div className="p-5 border-b border-[var(--color-border)]/50 flex items-center justify-between bg-[var(--color-bg-primary)]/20">
                   <div>
-                    <div className="flex items-center gap-3">
-                      <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">Command Session</h4>
-                      <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
-                      <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${activeRunAgent})` : sessionStatusLabel}</span>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-3">
+                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{mainAgentLabel}</h4>
+                        <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
+                        <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentLabel(activeRunAgent)})` : sessionStatusLabel}</span>
+                      </div>
+                      
+                      {collabAgents.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {collabAgents.map(key => {
+                            const colors = getAgentColor(key);
+                            return (
+                              <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${colors.icon.split(' ')[0]} animate-pulse`} />
+                                <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentLabel(key)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
                       {hasActiveRun
@@ -1460,19 +1511,28 @@ const AIOAgentsModule = () => {
                       return (
                       <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
                          <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
-                            <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                               <span className={`text-[9px] font-black uppercase tracking-widest ${msg.role === 'user' ? 'text-blue-400' : 'text-brass'}`}>
-                                  {msg.role === 'user' ? 'OPERATOR' : preferredRank}
-                               </span>
-                               {preferredChain ? (
-                                 <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] opacity-50 px-2 border-l border-[var(--color-border)] font-mono">
-                                   {preferredChain}
-                                 </span>
-                               ) : null}
-                               <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
-                               {msg.role === 'assistant' && preferredStatus ? (
-                                 <span className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{preferredStatus}</span>
-                               ) : null}
+                             <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                {msg.role === 'user' ? (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">OPERATOR</span>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                     <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
+                                        {resolveAgentLabel(preferredRank)}
+                                     </span>
+                                     {preferredChain ? (
+                                       <div className="flex items-center gap-1 opacity-60">
+                                         <span className="text-[8px] text-gray-600 font-mono">/</span>
+                                         <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-mono">
+                                           {preferredChain}
+                                         </span>
+                                       </div>
+                                     ) : null}
+                                  </div>
+                                )}
+                                <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
+                                {msg.role === 'assistant' && preferredStatus ? (
+                                  <span className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{preferredStatus}</span>
+                                ) : null}
                                {msg.role === 'assistant' ? (
                                  <div className="flex items-center gap-1 ml-2">
                                    <button
@@ -1520,7 +1580,7 @@ const AIOAgentsModule = () => {
                             </div>
                             <div className={`p-5 rounded-[var(--radius-panel)] text-sm leading-relaxed shadow-island ${
                                msg.role === 'user' 
-                               ? 'bg-purple-900/10 border border-purple-500/40 text-purple-100 rounded-tr-none' 
+                               ? 'bg-blue-900/10 border border-blue-500/40 text-blue-100 rounded-tr-none' 
                                : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none border-t-white/10'
                             }`}>
                                <div className="break-words">
@@ -1568,13 +1628,18 @@ const AIOAgentsModule = () => {
                             <div className="absolute right-4 bottom-2 flex items-center justify-end gap-2 max-w-[calc(100%-32px)] overflow-hidden">
                               {selectedAgent ? (
                                 <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
-                                  Target: {selectedAgent}
+                                  Target: {resolveAgentLabel(selectedAgent)}
                                 </span>
                               ) : null}
-                              {collabAgents.length ? (
-                                <span className="min-w-0 truncate px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
-                                  Collab: {collabAgents.join(' | ')}
-                                </span>
+                              {collabAgents.length > 0 && !hasActiveRun ? (
+                                <div className="flex gap-1 overflow-hidden">
+                                  {collabAgents.slice(0, 2).map(key => (
+                                    <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
+                                      {resolveAgentLabel(key)}
+                                    </span>
+                                  ))}
+                                  {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
+                                </div>
                               ) : null}
                               {!selectedAgent && !collabAgents.length ? (
                                 <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">

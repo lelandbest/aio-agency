@@ -503,7 +503,8 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
         audio_dir.mkdir(parents=True, exist_ok=True)
         import hashlib
         from datetime import datetime
-        token = hashlib.sha256((text + datetime.utcnow().isoformat()).encode()).hexdigest()[:16]
+        import hashlib
+        token = hashlib.sha256(text.encode()).hexdigest()[:16]
         filename = f"vtt_{token}.mp3"
         (audio_dir / filename).write_bytes(audio_bytes)
         return f"/api/media/voice/{filename}"

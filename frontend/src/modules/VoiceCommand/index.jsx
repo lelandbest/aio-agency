@@ -258,6 +258,7 @@ export default function VoiceCommandModule() {
   const inputRef  = useRef(null);
   const activeAudioRef = useRef(null);
   const lastPlaybackRef = useRef({ key: '', ts: 0 });
+  const spokenResponseIds = useRef(new Set());
   const lastCtrlRef = useRef(0);
 
   const stopAudio = useCallback(() => {
@@ -310,12 +311,19 @@ export default function VoiceCommandModule() {
     const normalizedText = String(text || '').trim();
     const normalizedAudioUrl = String(audioUrl || '').trim();
     const playbackKey = JSON.stringify({ audioUrl: normalizedAudioUrl, text: normalizedText });
+    const responseId = audioUrl?.includes('vtt_') ? audioUrl : (text + audioUrl);
+    if (spokenResponseIds.current.has(responseId)) {
+      console.warn('[VTT] Already spoken response:', responseId);
+      return;
+    }
+    
     const now = Date.now();
     if (lastPlaybackRef.current.key === playbackKey && (now - lastPlaybackRef.current.ts) < 2500) {
       console.warn('[VTT] Skipping duplicate Charlie playback');
       return;
     }
     lastPlaybackRef.current = { key: playbackKey, ts: now };
+    spokenResponseIds.current.add(responseId);
 
     try {
       if (activeAudioRef.current) {
@@ -393,14 +401,14 @@ export default function VoiceCommandModule() {
         
         const msg = resolveSpokenText(res);
         if (voiceEnabled && voiceAutoPlay && msg) {
-          playResponse(res.audioUrl || null, msg);
+          playResponse(res.audioUrl || null, msg, res.response?.id);
         }
       } else if (res.type === 'conversational') {
         addCharlieMessage(raw, res);
         if (voiceEnabled && voiceAutoPlay) {
           const msg = resolveSpokenText(res);
           if (msg) {
-            playResponse(res.audioUrl || null, msg);
+            playResponse(res.audioUrl || null, msg, res.response?.id);
           } else if (!msg) {
             console.warn("CHARLIE: empty spoken text from VTT conversational response", res);
           }
