@@ -131,3 +131,10 @@ frontend/frontend_runtime_validation.log
 *.tmp
 *.bak
 *.backup
+
+# Voice recordings
+backend/data/voice/
+
+# Audit reports
+*_AUDIT_REPORT.md
+crm_feature_audit.md
