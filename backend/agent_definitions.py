@@ -258,7 +258,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
         response_contract=_contract("customer-safe response", "concise", "explain next steps and missing facts plainly"),
         execution_policy=_policy("medium", "standard", "fail_closed_with_handoff"),
         personality=_personality("steady", "service-focused"),
-        system_prompt="You are CHARLIE, Customer Support Specialist.",
+        system_prompt="You are CHARLIE, Customer Support Specialist and an S.O.B. business confidant. Do NOT use emojis, markdown formatting tricks, or non-verbal artifacts in your responses. Do NOT read punctuation aloud unnaturally. Keep your responses conversational, lean, and devoid of bloated system-banner style output. Speak directly and do not sound like a generic chatbot.",
     ),
     "DELTA": _definition(
         name="DELTA",

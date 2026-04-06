@@ -72,7 +72,9 @@ export function useVoiceCommand({
     rec.onstart = () => { if (settingsRef.current.setIsListening) settingsRef.current.setIsListening(true); };
     rec.onend = () => { 
       const finalText = finalTranscriptRef.current.trim();
-      if (finalText && settingsRef.current.onTranscript) settingsRef.current.onTranscript(finalText);
+      if (finalText && settingsRef.current.onTranscript) {
+        settingsRef.current.onTranscript(finalText, { isContinuousSession: rec.continuous });
+      }
       finalTranscriptRef.current = '';
       interimTranscriptRef.current = '';
       recognitionRef.current = null; 

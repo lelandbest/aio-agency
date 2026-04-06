@@ -527,6 +527,30 @@ export const integrationConfigs = {
     description: 'Transcription, voice-render, and speech services for media operations.',
     providers: [
       {
+        id: 'async',
+        name: 'Async.com',
+        icon: 'mic',
+        description: 'Ultra-low latency Text-to-Speech engineered for real-time conversational AI applications.',
+        fields: [
+          { name: 'label', label: 'Connection Label', type: 'text', required: true, default: 'Async.com' },
+          { name: 'baseUrl', label: 'Base URL', type: 'text', default: 'https://api.async.com' },
+          { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+          { name: 'voice', label: 'Default Voice', type: 'select', default: 'announcer', options: [
+            { value: 'announcer', label: 'Announcer' },
+            { value: 'narrator', label: 'Narrator' },
+            { value: 'conversational', label: 'Conversational' },
+          ]},
+          { name: 'voiceId', label: 'Custom Voice ID', type: 'text' },
+          { name: 'charlieVoice', label: 'Charlie Voice', type: 'select', default: 'announcer', options: [
+            { value: 'announcer', label: 'Announcer' },
+            { value: 'narrator', label: 'Narrator' },
+            { value: 'conversational', label: 'Conversational' },
+          ]},
+          { name: 'futureVoicePool', label: 'Future Voice Pool Notes', type: 'textarea', default: 'Reserve future multi-agent voice assignments here.' },
+        ],
+        logo: null,
+      },
+      {
         id: 'elevenlabs',
         name: 'ElevenLabs',
         icon: 'elevenlabs',

@@ -4,7 +4,7 @@
  * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Calendar, CalendarDays, CheckCircle2, LogOut, Mail, RefreshCw, ShieldCheck, Trash2, Zap } from 'lucide-react';
+import { Bot, Calendar, CalendarDays, CheckCircle2, Database, DollarSign, Footprints, LogOut, Mail, MessageSquare, Mic, RefreshCw, Settings, ShieldCheck, ShoppingCart, Trash2, User, Video, Zap } from 'lucide-react';
 import { BrainIcon } from '../../../components/ui/icons';
 import IntegrationCard from '../components/IntegrationCard';
 import { IntegrationProviderSelector } from '../components/AddIntegrationPanel';
@@ -726,11 +726,10 @@ const compactActionClass = 'rounded-lg border border-[var(--color-border)] px-3 
 const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, selected, onClick, chips = [] }) => (
   <button
     onClick={onClick}
-    className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-      selected
+    className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${selected
         ? 'border-[var(--color-primary)] bg-[var(--color-bg-secondary)] shadow-[0_0_0_1px_rgba(59,130,246,0.4),0_12px_24px_rgba(3,7,18,0.35)]'
         : 'border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75'
-    }`}
+      }`}
   >
     <div className="flex items-start gap-2.5">
       <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
@@ -861,7 +860,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       if (cat.id === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) count = socialProviderConfigs.filter((p) => p.enabled || p.configured).length;
       // SMS and Tracking are currently placeholders/empty in this version
       if (cat.id === INTEGRATION_CATEGORIES.SMS || cat.id === INTEGRATION_CATEGORIES.TRACKING) count = 0;
-      
+
       return { ...cat, providerCount: count };
     });
   }, [automationProviderConfigs, mailboxes, configuredEmailVerifierCount, standardCalendarSources, videoConferencingSources, aiProviderConfigs, dataStoreProviderConfigs, mediaProviderConfigs, paymentProviderConfigs]);
@@ -1136,13 +1135,21 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   );
 
   const selectedMediaProviderConfig = useMemo(
-    () => mediaProviderConfigs.find((provider) => provider.providerKey === 'elevenlabs') || null,
-    [mediaProviderConfigs]
+    () => mediaProviderConfigs.find((provider) => resolveMediaSelectorProvider(provider.providerKey || provider.id) === selectedMediaProviderKey || provider.providerKey === selectedMediaProviderKey) || null,
+    [mediaProviderConfigs, selectedMediaProviderKey]
   );
 
   const selectedPaymentProviderConfig = useMemo(
     () => paymentProviderConfigs.find((provider) => provider.providerKey === selectedPaymentProviderKey) || null,
     [paymentProviderConfigs, selectedPaymentProviderKey]
+  );
+  const selectedSocialProviderCatalog = useMemo(
+    () => getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS).find((p) => p.id === selectedSocialProviderKey) || null,
+    [selectedSocialProviderKey]
+  );
+  const selectedSocialProviderConfig = useMemo(
+    () => socialProviderConfigs.find((config) => config.providerKey === selectedSocialProviderKey) || null,
+    [socialProviderConfigs, selectedSocialProviderKey]
   );
 
   const selectedSelectorProviderKey = useMemo(() => {
@@ -1151,6 +1158,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (activeCategory === INTEGRATION_CATEGORIES.DATA_STORES) return selectedDataStoreProviderKey;
     if (activeCategory === INTEGRATION_CATEGORIES.MEDIA) return selectedMediaProviderKey;
     if (activeCategory === INTEGRATION_CATEGORIES.PAYMENTS) return selectedPaymentProviderKey;
+    if (activeCategory === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) return selectedSocialProviderKey;
     if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
       if (showMailboxComposer) return resolveEmailSelectorProvider(mailboxDraft.provider);
       return resolveEmailSelectorProvider(selectedMailbox?.provider || selectorProviderKey);
@@ -1347,7 +1355,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       setAiProviderForm(createAiProviderDraft(catalogEntry));
       return;
     }
-    
+
     const config = existing.config || {};
     setAiProviderForm({
       baseUrl: existing.baseUrl || config.baseUrl || catalogEntry.defaultBaseUrl || '',
@@ -1420,7 +1428,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (selectedAiProviderKey !== 'ollama') {
       setOllamaModels([]);
       setOllamaModelsLoading(false);
-      return () => {};
+      return () => { };
     }
 
     let cancelled = false;
@@ -1557,14 +1565,12 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
     if (categoryId === INTEGRATION_CATEGORIES.EMAIL) {
       const runtimeProviderId = resolveEmailRuntimeProvider(providerId);
-      setShowMailboxComposer(true);
       setMailboxDraft(createMailboxDraft(runtimeProviderId));
       return;
     }
 
     if (categoryId === INTEGRATION_CATEGORIES.CALENDAR || categoryId === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
       const runtimeProviderId = resolveCalendarRuntimeProvider(providerId);
-      setShowCalendarComposer(true);
       setCalendarSourceDraft(createCalendarSourceDraft(runtimeProviderId));
     }
   };
@@ -2184,7 +2190,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const handleSaveMediaProvider = async () => {
     if (!selectedMediaProviderCatalog?.id) return;
     try {
-      await upsertMediaProviderConfigApi('elevenlabs', {
+      await upsertMediaProviderConfigApi(selectedMediaProviderCatalog.id, {
         label: (mediaProviderForm.label || selectedMediaProviderCatalog.name).trim(),
         baseUrl: (mediaProviderForm.baseUrl || '').trim(),
         apiKey: mediaProviderForm.apiKey || undefined,
@@ -2193,7 +2199,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       });
       showNotice({
         tone: 'success',
-        message: `ElevenLabs ${selectedMediaProviderConfig ? 'saved' : 'activated'} for this workspace.`,
+        message: `${selectedMediaProviderCatalog.name} ${selectedMediaProviderConfig ? 'saved' : 'activated'} for this workspace.`,
       });
       triggerSavedAction('media-save');
       await loadAll();
@@ -2206,7 +2212,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (!selectedMediaProviderCatalog?.id) return;
     setBusyAction('media-test');
     try {
-      const saved = await upsertMediaProviderConfigApi('elevenlabs', {
+      const saved = await upsertMediaProviderConfigApi(selectedMediaProviderCatalog.id, {
         label: (mediaProviderForm.label || selectedMediaProviderCatalog.name).trim(),
         baseUrl: (mediaProviderForm.baseUrl || '').trim(),
         apiKey: mediaProviderForm.apiKey || undefined,
@@ -2216,7 +2222,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       await testMediaProviderConfigApi(saved?.id || selectedMediaProviderConfig?.id);
       showNotice({
         tone: 'success',
-        message: `ElevenLabs connection verified.`,
+        message: `${selectedMediaProviderCatalog.name} connection verified.`,
       });
       triggerSavedAction('media-test');
       await loadAll();
@@ -2229,13 +2235,13 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeleteMediaProvider = async () => {
     if (!selectedMediaProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ElevenLabs from this workspace?`)) return;
+    if (!window.confirm(`Disconnect ${selectedMediaProviderCatalog?.name || 'this media provider'} from this workspace?`)) return;
     try {
       await deleteMediaProviderConfigApi(selectedMediaProviderConfig.id);
       setMediaProviderForm(createMediaProviderDraft(selectedMediaProviderCatalog));
       showNotice({
         tone: 'success',
-        message: `ElevenLabs removed from this workspace.`,
+        message: `${selectedMediaProviderCatalog?.name || 'Media provider'} removed from this workspace.`,
       });
       await loadAll();
     } catch (error) {
@@ -2250,28 +2256,72 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Automation Providers</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Hub-and-spoke automation systems with webhook ingress and egress.</div>
         </div>
-        {automationProviderCatalog.map((provider) => {
-          const config = automationProviderConfigs.find((item) => item.providerKey === provider.id);
-          const providerStateMeta = getAutomationProviderStateMeta(config, provider);
-          return (
-            <ResourceCard
-              key={provider.id}
-              icon={Zap}
-              logoId={provider.id}
-              title={config?.label || provider.name}
-              subtitle={provider.id}
-              status={providerStateMeta.label}
-              detail={providerStateMeta.detail}
-              selected={selectedAutomationProviderKey === provider.id}
-              onClick={() => setSelectedAutomationProviderKey(provider.id)}
-              chips={[
-                config?.enabled ? 'enabled' : 'disabled',
-                config?.config?.outboundWebhookUrl ? 'outbound webhook' : 'no outbound hook',
-                config?.config?.inboundWebhookUrl ? 'inbound webhook' : 'no inbound hook',
-              ]}
-            />
-          );
-        })}
+        {selectedAutomationProviderCatalog && !selectedAutomationProviderConfig ? (
+          <div className="rounded-xl border border-dashed border-[var(--node-webhook)]/40 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-webhook)]">
+                {getBrandIcon(selectedAutomationProviderCatalog.id, 22)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{selectedAutomationProviderCatalog.name}</div>
+                  <span className="rounded-full border border-[var(--node-webhook)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-webhook)] bg-[var(--node-webhook)]/10 font-bold">
+                    Ghost Activation
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{selectedAutomationProviderCatalog.id}</div>
+                <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">{selectedAutomationProviderCatalog.description}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleSaveAutomationProvider}
+                    className="rounded-lg bg-[var(--node-webhook)] px-3 py-1.5 text-xs font-bold text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-amber-500/10"
+                  >
+                    ADD ACTIVATION
+                  </button>
+                  <span className="text-[10px] text-[var(--color-text-tertiary)] italic">Ready to engage node orchestration</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {automationProviderConfigs.length > 0 && (
+          <div className="mt-4 border-t border-[var(--color-border)]/40 pt-3">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2 px-1">Activated Connections</div>
+            <div className="space-y-2">
+              {automationProviderConfigs.map((config) => {
+                const providerCatalog = getProviderConfig(config.providerKey) || { name: config.label, description: 'Unknown instance' };
+                const providerStateMeta = getAutomationProviderStateMeta(config, providerCatalog);
+                return (
+                  <ResourceCard
+                    key={config.id}
+                    icon={Zap}
+                    logoId={config.providerKey}
+                    title={config.label || providerCatalog.name}
+                    subtitle={config.providerKey}
+                    status={providerStateMeta.label}
+                    detail={providerStateMeta.detail}
+                    selected={selectedAutomationProviderKey === config.providerKey}
+                    onClick={() => setSelectedAutomationProviderKey(config.providerKey)}
+                    chips={[
+                      config.enabled ? 'enabled' : 'disabled',
+                      config.config?.outboundWebhookUrl ? 'outbound webhook' : 'no outbound hook',
+                      config.config?.inboundWebhookUrl ? 'inbound webhook' : 'no inbound hook',
+                    ]}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {automationProviderConfigs.length === 0 && !selectedAutomationProviderCatalog && (
+          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-[var(--color-border)]/40 rounded-2xl text-[var(--color-text-secondary)]">
+            <Zap size={44} className="mb-4 opacity-10" />
+            <p className="text-sm font-medium">No automation stack detected</p>
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)] max-w-[200px] text-center">Spawn a provider from the navigation matrix to initialize automation hooks.</p>
+          </div>
+        )}
       </div>
 
       <div className={compactPanelClass}>
@@ -2305,25 +2355,25 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             ) : null}
 
             <fieldset className="space-y-3">
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={automationProviderForm.label} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, label: event.target.value }))} className={compactInputClass} /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={automationProviderForm.baseUrl} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, baseUrl: event.target.value }))} className={compactInputClass} /></label>
-            </div>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Label</div><input value={automationProviderForm.label} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, label: event.target.value }))} className={compactInputClass} /></label>
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Base URL</div><input value={automationProviderForm.baseUrl} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, baseUrl: event.target.value }))} className={compactInputClass} /></label>
+              </div>
 
-            {selectedAutomationProviderCatalog.fields?.some((field) => field.name === 'apiKey') ? (
-                  <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={automationProviderForm.apiKey} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={selectedAutomationProviderConfig?.apiKeyPresent ? 'Saved in workspace config' : ''} className={compactInputClass} /></label>
-            ) : null}
+              {selectedAutomationProviderCatalog.fields?.some((field) => field.name === 'apiKey') ? (
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={automationProviderForm.apiKey} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={selectedAutomationProviderConfig?.apiKeyPresent ? 'Saved in workspace config' : ''} className={compactInputClass} /></label>
+              ) : null}
 
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              {selectedAutomationProviderCatalog.fields?.filter((field) => !['label', 'baseUrl', 'apiKey'].includes(field.name)).map((field) => (
-                <label key={field.name} className="space-y-1">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                  <input type={field.type === 'password' ? 'password' : 'text'} autoComplete={field.type === 'password' ? 'new-password' : undefined} value={automationProviderForm.config?.[field.name] || ''} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))} className={compactInputClass} />
-                </label>
-              ))}
-            </div>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {selectedAutomationProviderCatalog.fields?.filter((field) => !['label', 'baseUrl', 'apiKey'].includes(field.name)).map((field) => (
+                  <label key={field.name} className="space-y-1">
+                    <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                    <input type={field.type === 'password' ? 'password' : 'text'} autoComplete={field.type === 'password' ? 'new-password' : undefined} value={automationProviderForm.config?.[field.name] || ''} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))} className={compactInputClass} />
+                  </label>
+                ))}
+              </div>
 
-            <label className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"><input type="checkbox" checked={!!automationProviderForm.enabled} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this workspace</label>
+              <label className="flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"><input type="checkbox" checked={!!automationProviderForm.enabled} onChange={(event) => setAutomationProviderForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this workspace</label>
             </fieldset>
             <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">Keep automation systems as spokes around AIO CRM. Outbound tests will POST a sample event to the outbound webhook when present, otherwise they probe the base URL directly.</div>
             <div className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
@@ -2349,176 +2399,215 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         const emailVerifierDetail = getEmailVerifierDetail(emailVerifierConfig || {});
         return (
           <>
-      <div className="min-h-0 space-y-2.5 overflow-y-auto no-scrollbar pr-1">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
-            <div className="text-sm text-[var(--color-text-secondary)]">Mailbox accounts and adjacent email infrastructure for sending, syncing, and verification.</div>
-          </div>
-          <button onClick={() => setShowMailboxComposer((current) => !current)} className={compactActionClass}>
-            {showMailboxComposer ? 'Close' : 'Add Integration'}
-          </button>
-        </div>
-        {showMailboxComposer ? (
-          <div className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-3 space-y-2.5">
-            <div className="grid gap-2.5 text-sm">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mailbox Name</div><input value={mailboxDraft.name} onChange={(event) => setMailboxDraft((current) => ({ ...current, name: event.target.value }))} className={compactInputSecondaryClass} /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Address</div><input value={mailboxDraft.address} onChange={(event) => setMailboxDraft((current) => ({ ...current, address: event.target.value }))} className={compactInputSecondaryClass} /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={mailboxDraft.provider} onChange={(event) => setMailboxDraft((current) => ({ ...current, provider: event.target.value, config: {} }))} className={compactInputSecondaryClass}>{mailboxProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
-            </div>
-            {mailboxDraftProvider.fields?.length ? (
-              <div className="grid gap-2.5 sm:grid-cols-2 text-sm">
-                {mailboxDraftProvider.fields.map((field) => (
-                  <label key={field.key} className="space-y-1">
-                    <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                    <input value={mailboxDraft.config?.[field.key] || ''} onChange={(event) => setMailboxDraft((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className={compactInputSecondaryClass} />
-                  </label>
-                ))}
+            <div className="min-h-0 space-y-2.5 overflow-y-auto no-scrollbar pr-1">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
+                  <div className="text-sm text-[var(--color-text-secondary)]">Mailbox accounts and adjacent email infrastructure for sending, syncing, and verification.</div>
+                </div>
+                <button onClick={() => setShowMailboxComposer((current) => !current)} className={compactActionClass}>
+                  {showMailboxComposer ? 'Close' : 'Add Integration'}
+                </button>
               </div>
-            ) : null}
-            <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.inboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.outboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label>
-            </div>
-            <button onClick={handleCreateMailbox} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim()} className="btn-toolbar-lead !px-3 !py-1.5 !text-xs">Attach</button>
-          </div>
-        ) : null}
-        <div className="space-y-3">
-          {mailboxes.map((mailbox) => {
-            const mailboxStateMeta = mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox);
-            return (
-              <ResourceCard
-                key={mailbox.id}
-                icon={Mail}
-                logoId={mailbox.provider}
-                title={mailbox.name}
-                subtitle={mailbox.provider}
-                status={mailboxStateMeta.label}
-                detail={mailboxStateMeta.detail || providerStateDetail(mailbox.config, mailbox.address || 'No address')}
-                selected={selectedEmailResourceId === mailbox.id}
-                onClick={() => {
-                  setSelectedMailboxId(mailbox.id);
-                  setSelectedEmailResourceId(mailbox.id);
-                }}
-                chips={[
-                  `Now ${mailbox.queueCounts?.now || 0}`,
-                  `Reply ${mailbox.queueCounts?.['needs-reply'] || 0}`,
-                  mailbox.inboundEnabled ? 'Inbound On' : 'Inbound Off',
-                  mailboxStateMeta.machine === 'connected' ? 'Auth Ready' : mailboxStateMeta.label
-                ]}
-              />
-            );
-          })}
-          <ResourceCard
-            key={EMAIL_VERIFIER_RESOURCE_ID}
-            icon={ShieldCheck}
-            title={emailVerifierProviderConfig?.name || 'Reoon Email Verification'}
-            subtitle={emailVerifierProviderConfig?.subtypeLabel || 'Email Verification Provider'}
-            status={emailVerifierStatusMeta.label}
-            detail={emailVerifierDetail}
-            selected={selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID}
-            onClick={() => setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID)}
-            chips={[
-              'Email Verification',
-              (emailVerifierConfig?.defaultMode || emailVerifierForm.defaultMode || 'quick').toUpperCase(),
-              emailVerifierForm.autoVerifyContacts ? 'Auto Verify On' : 'Auto Verify Off',
-              emailVerifierForm.enabled ? 'Enabled' : 'Disabled'
-            ]}
-          />
-        </div>
-      </div>
-      <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pl-1">
-        {selectedEmailInfrastructureKind === 'email-verifier' ? (
-          <div className={compactControlPlaneClass}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
-                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{emailVerifierProviderConfig?.name || 'Reoon Email Verification'}</h3>
-                <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{emailVerifierProviderConfig?.description || 'Tenant-scoped verification provider used by CRM single verify, bulk verify, and flow nodes.'}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'TEST CONNECT'}</button>
-                <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
-                <button onClick={handleSaveEmailVerifier} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : 'SAVE'}</button>
-                <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} label="Saved" />
-              </div>
-            </div>
-            {emailVerifierConfig?.status === 'error' ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">Last connection test failed. Update the API key and run a new test.</div> : null}
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-              This provider is managed here as part of the mail infrastructure layer. CRM verification, bulk tasks, and verification flow nodes all use this saved tenant config.
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierStatusMeta.label}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{(emailVerifierConfig?.defaultMode || emailVerifierForm.defaultMode || 'quick').toUpperCase()}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierConfig?.lastTestedAt ? new Date(emailVerifierConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierForm.enabled ? 'Enabled' : 'Disabled'}</div></div>
-            </div>
-            <fieldset className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 text-sm">
-              <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.apiKey} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={emailVerifierConfig?.hasApiKey ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.defaultMode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick (Single/Flows)</option><option value="power">Power (Bulk Import)</option></select></label>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 text-sm text-[var(--color-text-secondary)]">
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.enabled} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this tenant</label>
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.autoVerifyContacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, autoVerifyContacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
-            </div>
-            </fieldset>
-            {emailVerifierConfig?.hasApiKey ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
-                <button onClick={handleDeleteEmailVerifier} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Reoon Integration</button>
-              </div>
-            ) : null}
-          </div>
-        ) : selectedMailbox ? (
-          <div className={compactControlPlaneClass}>
-            <div className="flex items-center justify-between gap-4">
-              <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
-              <div className="flex flex-wrap items-center gap-2">
-                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
-                <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
-                <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
-                <button onClick={handleSyncMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
-                <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
-                <SaveFeedbackNote visible={savedAction === 'mailbox-save'} label="Saved" />
+              {showMailboxComposer ? (
+                <div className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-3 space-y-2.5">
+                  <div className="grid gap-2.5 text-sm">
+                    <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mailbox Name</div><input value={mailboxDraft.name} onChange={(event) => setMailboxDraft((current) => ({ ...current, name: event.target.value }))} className={compactInputSecondaryClass} /></label>
+                    <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Address</div><input value={mailboxDraft.address} onChange={(event) => setMailboxDraft((current) => ({ ...current, address: event.target.value }))} className={compactInputSecondaryClass} /></label>
+                    <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={mailboxDraft.provider} onChange={(event) => setMailboxDraft((current) => ({ ...current, provider: event.target.value, config: {} }))} className={compactInputSecondaryClass}>{mailboxProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+                  </div>
+                  {mailboxDraftProvider.fields?.length ? (
+                    <div className="grid gap-2.5 sm:grid-cols-2 text-sm">
+                      {mailboxDraftProvider.fields.map((field) => (
+                        <label key={field.key} className="space-y-1">
+                          <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                          <input value={mailboxDraft.config?.[field.key] || ''} onChange={(event) => setMailboxDraft((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className={compactInputSecondaryClass} />
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]">
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.inboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={mailboxDraft.outboundEnabled} onChange={(event) => setMailboxDraft((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label>
+                  </div>
+                  <button onClick={handleCreateMailbox} disabled={!mailboxDraft.name.trim() || !mailboxDraft.address.trim()} className="btn-toolbar-lead !px-3 !py-1.5 !text-xs">Attach</button>
+                </div>
+              ) : null}
+              <div className="space-y-3">
+          {(() => {
+            const hasDraftProvider = mailboxProviders.some(p => p.id === selectorProviderKey);
+            const isConfigured = mailboxes.some(m => m.provider === selectorProviderKey);
+            const catalogEntry = mailboxProviders.find(p => p.id === selectorProviderKey);
+            
+            if (hasDraftProvider && !isConfigured && catalogEntry && !showMailboxComposer) {
+                return (
+                   <div className="rounded-xl border border-dashed border-[var(--node-input)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-lg">
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-input)]">
+                        {getBrandIcon(catalogEntry.id, 22)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{catalogEntry.label}</div>
+                          <span className="rounded-full border border-[var(--node-input)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-input)] bg-[var(--node-input)]/10 font-bold">
+                            Ghost Activation
+                          </span>
+                        </div>
+                        <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">Bridge this endpoint into the workspace to begin syncing message threads.</div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => {
+                                setMailboxDraft({ ...mailboxDraft, name: catalogEntry.label, provider: catalogEntry.id });
+                                setShowMailboxComposer(true);
+                            }}
+                            className="rounded-lg bg-[var(--node-input)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-md shadow-sky-500/20"
+                          >
+                            OPEN COMPOSER
+                          </button>
+                          <span className="text-[10px] text-[var(--color-text-tertiary)] italic">Targeting {catalogEntry.id} mesh</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+            }
+            return null;
+          })()}
+                {mailboxes.map((mailbox) => {
+                  const mailboxStateMeta = mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox);
+                  return (
+                    <ResourceCard
+                      key={mailbox.id}
+                      icon={Mail}
+                      logoId={mailbox.provider}
+                      title={mailbox.name}
+                      subtitle={mailbox.provider}
+                      status={mailboxStateMeta.label}
+                      detail={mailboxStateMeta.detail || providerStateDetail(mailbox.config, mailbox.address || 'No address')}
+                      selected={selectedEmailResourceId === mailbox.id}
+                      onClick={() => {
+                        setSelectedMailboxId(mailbox.id);
+                        setSelectedEmailResourceId(mailbox.id);
+                      }}
+                      chips={[
+                        `Now ${mailbox.queueCounts?.now || 0}`,
+                        `Reply ${mailbox.queueCounts?.['needs-reply'] || 0}`,
+                        mailbox.inboundEnabled ? 'Inbound On' : 'Inbound Off',
+                        mailboxStateMeta.machine === 'connected' ? 'Auth Ready' : mailboxStateMeta.label
+                      ]}
+                    />
+                  );
+                })}
+                <ResourceCard
+                  key={EMAIL_VERIFIER_RESOURCE_ID}
+                  icon={ShieldCheck}
+                  title={emailVerifierProviderConfig?.name || 'Reoon Email Verification'}
+                  subtitle={emailVerifierProviderConfig?.subtypeLabel || 'Email Verification Provider'}
+                  status={emailVerifierStatusMeta.label}
+                  detail={emailVerifierDetail}
+                  selected={selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID}
+                  onClick={() => setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID)}
+                  chips={[
+                    'Email Verification',
+                    (emailVerifierConfig?.defaultMode || emailVerifierForm.defaultMode || 'quick').toUpperCase(),
+                    emailVerifierForm.autoVerifyContacts ? 'Auto Verify On' : 'Auto Verify Off',
+                    emailVerifierForm.enabled ? 'Enabled' : 'Disabled'
+                  ]}
+                />
               </div>
             </div>
-            {mailboxForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{mailboxForm.config.lastError}</div> : null}
-            {selectedMailboxStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedMailboxStateMeta.tone)}`}>{selectedMailboxStateMeta.detail} Test, sync, save, and disconnect are disabled until recovery.</div> : null}
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-              This page is for connection management. The actual mail reader is the thread workspace in <span className="font-medium text-[var(--color-text-primary)]">Comms</span>.
+            <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pl-1">
+              {selectedEmailInfrastructureKind === 'email-verifier' ? (
+                <div className={compactControlPlaneClass}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Managed Mailboxes</div>
+                      <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{emailVerifierProviderConfig?.name || 'Reoon Email Verification'}</h3>
+                      <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{emailVerifierProviderConfig?.description || 'Tenant-scoped verification provider used by CRM single verify, bulk verify, and flow nodes.'}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={handleTestEmailVerifier} disabled={busyAction === 'email-verifier-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'email-verifier-test')}>{busyAction === 'email-verifier-test' ? 'Testing...' : savedAction === 'email-verifier-test' ? 'Tested' : 'TEST CONNECT'}</button>
+                      <SaveFeedbackNote visible={savedAction === 'email-verifier-test'} label="Connection OK" />
+                      <button onClick={handleSaveEmailVerifier} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'email-verifier-save')}>{savedAction === 'email-verifier-save' ? 'Saved' : 'SAVE'}</button>
+                      <SaveFeedbackNote visible={savedAction === 'email-verifier-save'} label="Saved" />
+                    </div>
+                  </div>
+                  {emailVerifierConfig?.status === 'error' ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">Last connection test failed. Update the API key and run a new test.</div> : null}
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                    This provider is managed here as part of the mail infrastructure layer. CRM verification, bulk tasks, and verification flow nodes all use this saved tenant config.
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierStatusMeta.label}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{(emailVerifierConfig?.defaultMode || emailVerifierForm.defaultMode || 'quick').toUpperCase()}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierConfig?.lastTestedAt ? new Date(emailVerifierConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{emailVerifierForm.enabled ? 'Enabled' : 'Disabled'}</div></div>
+                  </div>
+                  <fieldset className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                      <label className="space-y-1 sm:col-span-2"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">API Key</div><input type="password" autoComplete="new-password" value={emailVerifierForm.apiKey} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, apiKey: event.target.value }))} placeholder={emailVerifierConfig?.hasApiKey ? 'Saved in workspace config' : 'Paste your Reoon API key'} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+                      <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Default Mode</div><select value={emailVerifierForm.defaultMode} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, defaultMode: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="quick">Quick (Single/Flows)</option><option value="power">Power (Bulk Import)</option></select></label>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 text-sm text-[var(--color-text-secondary)]">
+                      <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.enabled} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, enabled: event.target.checked }))} /> Enable provider for this tenant</label>
+                      <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><input type="checkbox" checked={!!emailVerifierForm.autoVerifyContacts} onChange={(event) => setEmailVerifierForm((current) => ({ ...current, autoVerifyContacts: event.target.checked }))} /> Auto-verify contacts on create/update</label>
+                    </div>
+                  </fieldset>
+                  {emailVerifierConfig?.hasApiKey ? (
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                      <button onClick={handleDeleteEmailVerifier} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Reoon Integration</button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : selectedMailbox ? (
+                <div className={compactControlPlaneClass}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Mailbox Control Plane</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedMailbox.name}</h3></div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleAuthorizeMailbox} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedMailboxStateMeta.primaryActionLabel}</button> : null}
+                      <button onClick={handleTestMailbox} disabled={busyAction === 'mailbox-test' || selectedMailboxStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-test')}>{busyAction === 'mailbox-test' ? 'Testing...' : savedAction === 'mailbox-test' ? 'Tested' : 'TEST CONNECT'}</button>
+                      <SaveFeedbackNote visible={savedAction === 'mailbox-test'} label="Connection OK" />
+                      <button onClick={handleSyncMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
+                      <button onClick={handleSaveMailbox} disabled={selectedMailboxStateMeta.saveDisabled} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'mailbox-save')}>{savedAction === 'mailbox-save' ? 'Saved' : 'Save'}</button>
+                      <SaveFeedbackNote visible={savedAction === 'mailbox-save'} label="Saved" />
+                    </div>
+                  </div>
+                  {mailboxForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{mailboxForm.config.lastError}</div> : null}
+                  {selectedMailboxStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedMailboxStateMeta.tone)}`}>{selectedMailboxStateMeta.detail} Test, sync, save, and disconnect are disabled until recovery.</div> : null}
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                    This page is for connection management. The actual mail reader is the thread workspace in <span className="font-medium text-[var(--color-text-primary)]">Comms</span>.
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.lastSyncedAt ? new Date(selectedMailbox.lastSyncedAt).toLocaleString() : 'Never'}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Inbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.inboundEnabled ? 'Enabled' : 'Disabled'}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Outbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.outboundEnabled ? 'Enabled' : 'Disabled'}</div></div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.connectedIdentity || mailboxForm.address || 'Not connected'}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.lastTestedAt ? new Date(mailboxForm.config.lastTestedAt).toLocaleString() : 'Never'}</div></div>
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
+                  </div>
+                  <fieldset className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                      <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Name</div><input value={mailboxForm.name} onChange={(event) => setMailboxForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+                      <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Address</div><input value={mailboxForm.address} onChange={(event) => setMailboxForm((current) => ({ ...current, address: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+                      <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={mailboxForm.provider} onChange={(event) => setMailboxForm((current) => ({ ...current, provider: event.target.value, config: {} }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{mailboxProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+                      <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><input value={mailboxForm.status || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+                    </div>
+                    {selectedMailboxProvider.fields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedMailboxProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={mailboxForm.config?.[field.key] || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
+                    <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]"><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.inboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.outboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label></div>
+                  </fieldset>
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                    <div className="flex flex-wrap gap-2">
+                      {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><LogOut size={14} />Disconnect</button> : null}
+                      <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />Delete Mailbox</button>
+                    </div>
+                  </div>
+                </div>
+              ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">Create or select a mailbox to manage credentials and sync behavior.</div>}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.lastSyncedAt ? new Date(selectedMailbox.lastSyncedAt).toLocaleString() : 'Never'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Inbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.inboundEnabled ? 'Enabled' : 'Disabled'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Outbound</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailbox.outboundEnabled ? 'Enabled' : 'Disabled'}</div></div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.connectedIdentity || mailboxForm.address || 'Not connected'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{mailboxForm.config?.lastTestedAt ? new Date(mailboxForm.config.lastTestedAt).toLocaleString() : 'Never'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider State</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedMailboxStateMeta.label}</div></div>
-            </div>
-            <fieldset className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 text-sm">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Name</div><input value={mailboxForm.name} onChange={(event) => setMailboxForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Address</div><input value={mailboxForm.address} onChange={(event) => setMailboxForm((current) => ({ ...current, address: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={mailboxForm.provider} onChange={(event) => setMailboxForm((current) => ({ ...current, provider: event.target.value, config: {} }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{mailboxProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><input value={mailboxForm.status || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-            </div>
-            {selectedMailboxProvider.fields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedMailboxProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={mailboxForm.config?.[field.key] || ''} onChange={(event) => setMailboxForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
-            <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-secondary)]"><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.inboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, inboundEnabled: event.target.checked }))} />Inbound enabled</label><label className="flex items-center gap-2"><input type="checkbox" checked={mailboxForm.outboundEnabled} onChange={(event) => setMailboxForm((current) => ({ ...current, outboundEnabled: event.target.checked }))} />Outbound enabled</label></div>
-            </fieldset>
-            <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
-              <div className="flex flex-wrap gap-2">
-                {isMailboxOauthProvider(mailboxForm.provider) ? <button onClick={handleDisconnectMailbox} disabled={selectedMailboxStateMeta.authActionsDisabled} className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><LogOut size={14} />Disconnect</button> : null}
-                <button onClick={handleDeleteMailbox} disabled={mailboxes.length <= 1} className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />Delete Mailbox</button>
-              </div>
-            </div>
-          </div>
-        ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">Create or select a mailbox to manage credentials and sync behavior.</div>}
-      </div>
           </>
         );
       })()}
@@ -2539,112 +2628,150 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       : 'Create or select a calendar source to manage OAuth, sync rules, and import policy.';
 
     return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.75fr)_minmax(420px,2.25fr)]">
-      <div className="min-h-0 space-y-2.5 overflow-y-auto no-scrollbar pr-1">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{sectionTitle}</div>
-            <div className="text-sm text-[var(--color-text-secondary)]">{sectionDescription}</div>
-          </div>
-          <button onClick={() => setShowCalendarComposer((current) => !current)} className={compactActionClass}>
-            {showCalendarComposer ? 'Close' : 'Add Integration'}
-          </button>
-        </div>
-        {showCalendarComposer ? (
-          <div className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-3 space-y-2.5">
-            <div className="grid gap-2.5 text-sm">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceDraft.name} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, name: event.target.value }))} className={compactInputSecondaryClass} /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceDraft.provider} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authorityMode || 'local-first', importPolicy: current.config?.importPolicy || 'review' } }))} className={compactInputSecondaryClass}>{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+      <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.75fr)_minmax(420px,2.25fr)]">
+        <div className="min-h-0 space-y-2.5 overflow-y-auto no-scrollbar pr-1">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{sectionTitle}</div>
+              <div className="text-sm text-[var(--color-text-secondary)]">{sectionDescription}</div>
             </div>
-            <div className="grid gap-2.5 sm:grid-cols-2 text-sm">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceDraft.config?.authorityMode || 'local-first'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authorityMode: event.target.value } }))} className={compactInputSecondaryClass}><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceDraft.config?.importPolicy || 'review'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className={compactInputSecondaryClass}><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
-            </div>
-            {calendarDraftProvider.fields?.length ? <div className="grid gap-2.5 sm:grid-cols-2 text-sm">{calendarDraftProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceDraft.config?.[field.key] || ''} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className={compactInputSecondaryClass} /></label>)}</div> : null}
-            <button onClick={handleCreateCalendarSource} disabled={!calendarSourceDraft.name.trim()} className="btn-toolbar-lead !px-3 !py-1.5 !text-xs">Attach</button>
+            <button onClick={() => setShowCalendarComposer((current) => !current)} className={compactActionClass}>
+              {showCalendarComposer ? 'Close' : 'Add Integration'}
+            </button>
           </div>
-        ) : null}
-        <div className="space-y-3">
-          {scopedSources.map((source) => {
-            const calendarStateMeta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
-            return (
-            <ResourceCard
-              key={source.id}
-              icon={CalendarDays}
-              logoId={source.provider}
-              title={source.name}
-              subtitle={source.provider}
-              status={calendarStateMeta.label}
-              detail={calendarStateMeta.detail || providerStateDetail(source.config, source.health?.detail || 'Source ready.')}
-              selected={selectedCalendarSourceId === source.id}
-              onClick={() => setSelectedCalendarSourceId(source.id)}
-              chips={[
-                `Events ${source.eventCounts?.total || 0}`,
-                `Synced ${source.eventCounts?.synced || 0}`,
-                `Conflicts ${source.eventCounts?.conflicts || 0}`,
-                calendarStateMeta.machine === 'connected' ? 'Auth Ready' : calendarStateMeta.label
-              ]}
-            />
-            );
-          })}
+          {showCalendarComposer ? (
+            <div className="rounded-2xl border border-[var(--color-primary)]/30 bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(15,23,42,0.22))] p-3 space-y-2.5">
+              <div className="grid gap-2.5 text-sm">
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceDraft.name} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, name: event.target.value }))} className={compactInputSecondaryClass} /></label>
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceDraft.provider} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authorityMode || 'local-first', importPolicy: current.config?.importPolicy || 'review' } }))} className={compactInputSecondaryClass}>{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-2 text-sm">
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceDraft.config?.authorityMode || 'local-first'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), authorityMode: event.target.value } }))} className={compactInputSecondaryClass}><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
+                <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceDraft.config?.importPolicy || 'review'} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className={compactInputSecondaryClass}><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
+              </div>
+              {calendarDraftProvider.fields?.length ? <div className="grid gap-2.5 sm:grid-cols-2 text-sm">{calendarDraftProvider.fields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceDraft.config?.[field.key] || ''} onChange={(event) => setCalendarSourceDraft((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className={compactInputSecondaryClass} /></label>)}</div> : null}
+              <button onClick={handleCreateCalendarSource} disabled={!calendarSourceDraft.name.trim()} className="btn-toolbar-lead !px-3 !py-1.5 !text-xs">Attach</button>
+            </div>
+          ) : null}
+          <div className="space-y-3">
+            {(() => {
+              const hasDraftProvider = scopedProviders.some(p => p.id === selectorProviderKey);
+              const isConfigured = scopedSources.some(s => s.provider === selectorProviderKey);
+              const catalogEntry = scopedProviders.find(p => p.id === selectorProviderKey);
+              
+              if (hasDraftProvider && !isConfigured && catalogEntry && !showCalendarComposer) {
+                  return (
+                     <div className="rounded-xl border border-dashed border-[var(--node-trigger)]/40 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-lg">
+                      <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-trigger)]">
+                          {getBrandIcon(catalogEntry.id, 22)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{catalogEntry.label}</div>
+                            <span className="rounded-full border border-[var(--node-trigger)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-trigger)] bg-[var(--node-trigger)]/10 font-bold">
+                              Ghost Activation
+                            </span>
+                          </div>
+                          <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">Synchronize availability and room routing from this endpoint.</div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => {
+                                  setCalendarSourceDraft({ ...calendarSourceDraft, name: catalogEntry.label, provider: catalogEntry.id });
+                                  setShowCalendarComposer(true);
+                              }}
+                              className="rounded-lg bg-[var(--node-trigger)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-md shadow-emerald-500/20"
+                            >
+                              OPEN COMPOSER
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+              }
+              return null;
+            })()}
+            {scopedSources.map((source) => {
+              const calendarStateMeta = calendarSourceStateMetaById[source.id] || getCalendarSourceStateMeta(source);
+              return (
+                <ResourceCard
+                  key={source.id}
+                  icon={CalendarDays}
+                  logoId={source.provider}
+                  title={source.name}
+                  subtitle={source.provider}
+                  status={calendarStateMeta.label}
+                  detail={calendarStateMeta.detail || providerStateDetail(source.config, source.health?.detail || 'Source ready.')}
+                  selected={selectedCalendarSourceId === source.id}
+                  onClick={() => setSelectedCalendarSourceId(source.id)}
+                  chips={[
+                    `Events ${source.eventCounts?.total || 0}`,
+                    `Synced ${source.eventCounts?.synced || 0}`,
+                    `Conflicts ${source.eventCounts?.conflicts || 0}`,
+                    calendarStateMeta.machine === 'connected' ? 'Auth Ready' : calendarStateMeta.label
+                  ]}
+                />
+              );
+            })}
+          </div>
         </div>
-      </div>
-      <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pl-1">
-        {selectedCalendarSource ? (
-          <div className={compactControlPlaneClass}>
-            <div className="flex items-center justify-between gap-4">
-              <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{controlPlaneTitle}</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
-              <div className="flex flex-wrap items-center gap-2">
-                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
-                <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
-                <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
-                <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
-                <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
-                <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
-                <SaveFeedbackNote visible={savedAction === 'calendar-save'} label="Saved" />
+        <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pl-1">
+          {selectedCalendarSource ? (
+            <div className={compactControlPlaneClass}>
+              <div className="flex items-center justify-between gap-4">
+                <div><div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">{controlPlaneTitle}</div><h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.name}</h3></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleAuthorizeCalendarSource} className="rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-2 text-sm text-[var(--color-text-primary)] btn-primary-skeuo !border-0 !bg-[var(--color-primary)]/10">{selectedCalendarSourceStateMeta.primaryActionLabel}</button> : null}
+                  <button onClick={handleTestCalendarSource} disabled={busyAction === 'calendar-test' || selectedCalendarSourceStateMeta.authActionsDisabled} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'calendar-test')}>{busyAction === 'calendar-test' ? 'Testing...' : savedAction === 'calendar-test' ? 'Tested' : 'TEST CONNECT'}</button>
+                  <SaveFeedbackNote visible={savedAction === 'calendar-test'} label="Source OK" />
+                  <button onClick={handleSyncCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Sync</button>
+                  <button onClick={handleImportCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-50">Import</button>
+                  <button onClick={handleSaveCalendarSource} disabled={selectedCalendarSourceStateMeta.saveDisabled} className={saveButtonClassName("btn-toolbar-lead", savedAction === 'calendar-save')}>{savedAction === 'calendar-save' ? 'Saved' : 'Save'}</button>
+                  <SaveFeedbackNote visible={savedAction === 'calendar-save'} label="Saved" />
+                </div>
+              </div>
+              {calendarSourceForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{calendarSourceForm.config.lastError}</div> : null}
+              {selectedCalendarSourceStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedCalendarSourceStateMeta.tone)}`}>{selectedCalendarSourceStateMeta.detail} Test, sync, import, save, and disconnect are disabled until recovery.</div> : null}
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                This page manages calendar source connections. Use sync to update events from this source.
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.label}</div></div>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Events</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.eventCounts?.total || 0}</div></div>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Synced</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.eventCounts?.synced || 0}</div></div>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Conflicts</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.eventCounts?.conflicts || 0}</div></div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connectedIdentity || calendarSourceForm.config?.email || 'Not connected'}</div></div>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Calendar</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connectedCalendar || 'Not selected'}</div></div>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.lastTestedAt ? new Date(calendarSourceForm.config.lastTestedAt).toLocaleString() : 'Never'}</div></div>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.lastSyncedAt ? new Date(selectedCalendarSource.lastSyncedAt).toLocaleString() : 'Never'}</div></div>
+              </div>
+              <fieldset className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                  <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceForm.name} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
+                  <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authorityMode || 'local-first', importPolicy: current.config?.importPolicy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+                  <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceForm.config?.authorityMode || 'local-first'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), authorityMode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
+                  <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceForm.config?.importPolicy || 'review'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
+                </div>
+                {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Connection is read-only at this stage. The platform binds the Google or Microsoft account, loads available calendars, and stores the selected calendar id. No event import, mirror, overwrite, or deletion occurs during connection.</div> : null}
+                {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="grid gap-3 sm:grid-cols-2 text-sm"><label className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between gap-3"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Active Calendar</div>{calendarOptionsLoading ? <span className="text-[11px] text-[var(--color-text-tertiary)]">Loading calendars...</span> : null}</div><select value={calendarSourceForm.config?.calendarId || ''} onChange={(event) => { const nextId = event.target.value; const selectedOption = calendarOptions.find((item) => String(item.id || '') === nextId) || null; setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), calendarId: nextId || '', connectedCalendar: selectedOption?.label || '' } })); }} disabled={!calendarOptions.length && !calendarOptionsLoading} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="">{calendarOptions.length ? 'Select a calendar' : calendarSourceForm.config?.connectedIdentity ? 'No calendars loaded yet' : 'Connect OAuth first'}</option>{calendarOptions.map((item) => <option key={item.id} value={item.id}>{item.label}{item.primary ? ' (Primary)' : ''}</option>)}</select>{calendarSourceForm.config?.connectedIdentity && !calendarOptions.length && !calendarOptionsLoading ? <div className="text-xs text-[var(--color-text-secondary)]">This source is connected, but the calendar list is not available yet. Save or reconnect to refresh the available calendars.</div> : null}</label></div> : null}
+                {selectedCalendarProviderFields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedCalendarProviderFields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceForm.config?.[field.key] || ''} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
+              </fieldset>
+              <div className="flex flex-wrap gap-2 text-xs text-[var(--color-text-secondary)]"><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Authority {sourceRuleLabels[selectedCalendarSource.authorityMode] || selectedCalendarSource.authorityMode}</span><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Import {sourceRuleLabels[selectedCalendarSource.importPolicy] || selectedCalendarSource.importPolicy}</span></div>
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <div className="flex flex-wrap gap-2">
+                  {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><LogOut size={14} />Disconnect</button> : null}
+                  <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Delete Source</button>
+                </div>
               </div>
             </div>
-            {calendarSourceForm.config?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{calendarSourceForm.config.lastError}</div> : null}
-            {selectedCalendarSourceStateMeta.authActionsDisabled ? <div className={`rounded-xl border px-3 py-3 text-sm ${toneClass(selectedCalendarSourceStateMeta.tone)}`}>{selectedCalendarSourceStateMeta.detail} Test, sync, import, save, and disconnect are disabled until recovery.</div> : null}
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-              This page manages calendar source connections. Use sync to update events from this source.
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Health</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSourceStateMeta.label}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Events</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.eventCounts?.total || 0}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Synced</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.eventCounts?.synced || 0}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Conflicts</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.eventCounts?.conflicts || 0}</div></div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Account</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connectedIdentity || calendarSourceForm.config?.email || 'Not connected'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Connected Calendar</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.connectedCalendar || 'Not selected'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{calendarSourceForm.config?.lastTestedAt ? new Date(calendarSourceForm.config.lastTestedAt).toLocaleString() : 'Never'}</div></div>
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Sync</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource.lastSyncedAt ? new Date(selectedCalendarSource.lastSyncedAt).toLocaleString() : 'Never'}</div></div>
-            </div>
-            <fieldset className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2 text-sm">
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Source Name</div><input value={calendarSourceForm.name} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><select value={calendarSourceForm.provider} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, provider: event.target.value, config: { authorityMode: current.config?.authorityMode || 'local-first', importPolicy: current.config?.importPolicy || 'review' } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]">{scopedProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Authority Mode</div><select value={calendarSourceForm.config?.authorityMode || 'local-first'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), authorityMode: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="local-first">Local First</option><option value="mirror">Mirror External</option><option value="external-first">External First</option></select></label>
-              <label className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Import Policy</div><select value={calendarSourceForm.config?.importPolicy || 'review'} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), importPolicy: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="review">Review Before Adopt</option><option value="auto-merge">Auto Merge</option><option value="hold">Hold Imported Only</option></select></label>
-            </div>
-            {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">Connection is read-only at this stage. The platform binds the Google or Microsoft account, loads available calendars, and stores the selected calendar id. No event import, mirror, overwrite, or deletion occurs during connection.</div> : null}
-            {isCalendarOauthProvider(calendarSourceForm.provider) ? <div className="grid gap-3 sm:grid-cols-2 text-sm"><label className="space-y-1 sm:col-span-2"><div className="flex items-center justify-between gap-3"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Active Calendar</div>{calendarOptionsLoading ? <span className="text-[11px] text-[var(--color-text-tertiary)]">Loading calendars...</span> : null}</div><select value={calendarSourceForm.config?.calendarId || ''} onChange={(event) => { const nextId = event.target.value; const selectedOption = calendarOptions.find((item) => String(item.id || '') === nextId) || null; setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), calendarId: nextId || '', connectedCalendar: selectedOption?.label || '' } })); }} disabled={!calendarOptions.length && !calendarOptionsLoading} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"><option value="">{calendarOptions.length ? 'Select a calendar' : calendarSourceForm.config?.connectedIdentity ? 'No calendars loaded yet' : 'Connect OAuth first'}</option>{calendarOptions.map((item) => <option key={item.id} value={item.id}>{item.label}{item.primary ? ' (Primary)' : ''}</option>)}</select>{calendarSourceForm.config?.connectedIdentity && !calendarOptions.length && !calendarOptionsLoading ? <div className="text-xs text-[var(--color-text-secondary)]">This source is connected, but the calendar list is not available yet. Save or reconnect to refresh the available calendars.</div> : null}</label></div> : null}
-            {selectedCalendarProviderFields?.length ? <div className="grid gap-3 sm:grid-cols-2 text-sm">{selectedCalendarProviderFields.map((field) => <label key={field.key} className="space-y-1"><div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div><input value={calendarSourceForm.config?.[field.key] || ''} onChange={(event) => setCalendarSourceForm((current) => ({ ...current, config: { ...(current.config || {}), [field.key]: event.target.value } }))} className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]" /></label>)}</div> : <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">This provider does not require external credentials.</div>}
-            </fieldset>
-            <div className="flex flex-wrap gap-2 text-xs text-[var(--color-text-secondary)]"><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Authority {sourceRuleLabels[selectedCalendarSource.authorityMode] || selectedCalendarSource.authorityMode}</span><span className="rounded-full border border-[var(--color-border)] px-2 py-1">Import {sourceRuleLabels[selectedCalendarSource.importPolicy] || selectedCalendarSource.importPolicy}</span></div>
-            <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
-              <div className="flex flex-wrap gap-2">
-                {isCalendarOauthProvider(calendarSourceForm.provider) ? <button onClick={handleDisconnectCalendarSource} disabled={selectedCalendarSourceStateMeta.authActionsDisabled} className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 transition disabled:cursor-not-allowed disabled:opacity-50"><LogOut size={14} />Disconnect</button> : null}
-                <button onClick={handleDeleteCalendarSource} className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Delete Source</button>
-              </div>
-            </div>
-          </div>
-        ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">{emptyStateCopy}</div>}
+          ) : <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">{emptyStateCopy}</div>}
+        </div>
       </div>
-    </div>
-  );
+    );
   };
 
   const renderAiAdmin = () => (
@@ -2691,9 +2818,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             </div>
           ) : (
             aiProviderConfigs.map((config) => {
-              const provider = getProviderConfig(config.providerKey) || { 
-                name: config.label, 
-                description: 'External Provider' 
+              const provider = getProviderConfig(config.providerKey) || {
+                name: config.label,
+                description: 'External Provider'
               };
               return (
                 <ResourceCard
@@ -2732,100 +2859,100 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 <button onClick={handleSaveAiProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'ai-provider-save')}>{savedAction === 'ai-provider-save' ? 'Saved' : 'SAVE'}</button>
                 <SaveFeedbackNote visible={savedAction === 'ai-provider-save'} label="Saved" />
               </div>
-          </div>
-          <div className={compactMetaGridClass}>
-            <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.status || 'Not configured'}</div></div>
-            <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.isDefault ? 'Active' : 'Standby'}</div></div>
-            <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.model || selectedAiProviderCatalog.defaultModel || 'Unset'}</div></div>
-            <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-xs font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.lastTestedAt ? new Date(selectedAiProviderConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
-          </div>
-          {selectedAiProviderConfig?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.lastError}</div> : null}
-          
-          <fieldset className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            {(selectedAiProviderCatalog.fields || []).map((field) => (
-              <label key={field.name || field.key} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
-                {(() => {
-                  const fieldName = getAiFieldName(field);
-                  return (
-                    <>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                </div>
-                
-                {fieldName === 'model' && selectedAiProviderKey === 'ollama' ? (
-                  <select
-                    value={aiProviderForm.model || ''}
-                    onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))}
-                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
-                  >
-                    {ollamaModelsLoading ? <option value="">Loading Ollama models...</option> : null}
-                    {!ollamaModelsLoading && !ollamaModels.length ? <option value="">No models found at this Ollama URL</option> : null}
-                    {ollamaModels.map((model) => (
-                      <option key={model} value={model}>{model}</option>
-                    ))}
-                  </select>
-                ) : field.type === 'textarea' ? (
-                  <textarea
-                    rows={4}
-                    value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
-                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
-                    placeholder={field.placeholder || ''}
-                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)] resize-none"
-                  />
-                ) : (
-                  <input
-                    type={field.type === 'password' ? 'password' : 'text'}
-                    autoComplete={field.type === 'password' ? 'new-password' : undefined}
-                    value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
-                    onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
-                    placeholder={fieldName === 'apiKey' && selectedAiProviderConfig?.apiKeyPresent ? 'Saved in workspace config' : field.placeholder || ''}
-                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
-                  />
-                )}
-                    </>
-                  );
-                })()}
-              </label>
-            ))}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]">
-              <input 
-                type="checkbox" 
-                checked={!!aiProviderForm.enabled} 
-                onChange={(event) => setAiProviderForm((current) => ({ 
-                  ...current, 
-                  enabled: event.target.checked, 
-                  isDefault: event.target.checked ? current.isDefault : false
-                }))} 
-              /> 
-              Enable provider for this workspace
-            </label>
-            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]">
-              <input 
-                type="checkbox" 
-                checked={!!aiProviderForm.isDefault} 
-                onChange={(event) => setAiProviderForm((current) => ({ 
-                  ...current, 
-                  isDefault: event.target.checked, 
-                  enabled: event.target.checked ? true : current.enabled
-                }))} 
-              /> 
-              Use as the active AI runtime
-            </label>
-          </div>
-          </fieldset>
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">
-            Bullseye assists across CRM, Forms, Calendar, Flows, and Comms will use the active runtime first, then fall back safely if this provider is unavailable.
-          </div>
-          {selectedAiProviderKey === 'ollama' ? (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">
-              Use the raw Ollama daemon URL, like <span className="font-medium text-[var(--color-text-primary)]">http://localhost:11434</span> or <span className="font-medium text-[var(--color-text-primary)]">http://LAN-IP:11434</span>. If your Ollama host sits behind a proxy, ensure the Base URL and optional credentials are correct so model refresh and test function as expected.
             </div>
-          ) : null}
-          {selectedAiProviderConfig ? (
+            <div className={compactMetaGridClass}>
+              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.status || 'Not configured'}</div></div>
+              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Runtime</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.isDefault ? 'Active' : 'Standby'}</div></div>
+              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Model</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.model || selectedAiProviderCatalog.defaultModel || 'Unset'}</div></div>
+              <div className={compactMetaCardClass}><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Last Tested</div><div className="mt-1 text-xs font-semibold text-[var(--color-text-primary)]">{selectedAiProviderConfig?.lastTestedAt ? new Date(selectedAiProviderConfig.lastTestedAt).toLocaleString() : 'Never'}</div></div>
+            </div>
+            {selectedAiProviderConfig?.lastError ? <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-200">{selectedAiProviderConfig.lastError}</div> : null}
+
+            <fieldset className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                {(selectedAiProviderCatalog.fields || []).map((field) => (
+                  <label key={field.name || field.key} className={`${field.type === 'textarea' ? 'sm:col-span-2' : ''} space-y-1`}>
+                    {(() => {
+                      const fieldName = getAiFieldName(field);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                          </div>
+
+                          {fieldName === 'model' && selectedAiProviderKey === 'ollama' ? (
+                            <select
+                              value={aiProviderForm.model || ''}
+                              onChange={(event) => setAiProviderForm((current) => ({ ...current, model: event.target.value }))}
+                              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
+                            >
+                              {ollamaModelsLoading ? <option value="">Loading Ollama models...</option> : null}
+                              {!ollamaModelsLoading && !ollamaModels.length ? <option value="">No models found at this Ollama URL</option> : null}
+                              {ollamaModels.map((model) => (
+                                <option key={model} value={model}>{model}</option>
+                              ))}
+                            </select>
+                          ) : field.type === 'textarea' ? (
+                            <textarea
+                              rows={4}
+                              value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
+                              onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
+                              placeholder={field.placeholder || ''}
+                              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)] resize-none"
+                            />
+                          ) : (
+                            <input
+                              type={field.type === 'password' ? 'password' : 'text'}
+                              autoComplete={field.type === 'password' ? 'new-password' : undefined}
+                              value={resolveAiProviderFieldValue(aiProviderForm, fieldName)}
+                              onChange={(event) => setAiProviderForm((current) => ({ ...current, [fieldName]: event.target.value }))}
+                              placeholder={fieldName === 'apiKey' && selectedAiProviderConfig?.apiKeyPresent ? 'Saved in workspace config' : field.placeholder || ''}
+                              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-[var(--color-text-primary)]"
+                            />
+                          )}
+                        </>
+                      );
+                    })()}
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={!!aiProviderForm.enabled}
+                    onChange={(event) => setAiProviderForm((current) => ({
+                      ...current,
+                      enabled: event.target.checked,
+                      isDefault: event.target.checked ? current.isDefault : false
+                    }))}
+                  />
+                  Enable provider for this workspace
+                </label>
+                <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-[var(--color-text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={!!aiProviderForm.isDefault}
+                    onChange={(event) => setAiProviderForm((current) => ({
+                      ...current,
+                      isDefault: event.target.checked,
+                      enabled: event.target.checked ? true : current.enabled
+                    }))}
+                  />
+                  Use as the active AI runtime
+                </label>
+              </div>
+            </fieldset>
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">
+              Bullseye assists across CRM, Forms, Calendar, Flows, and Comms will use the active runtime first, then fall back safely if this provider is unavailable.
+            </div>
+            {selectedAiProviderKey === 'ollama' ? (
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">
+                Use the raw Ollama daemon URL, like <span className="font-medium text-[var(--color-text-primary)]">http://localhost:11434</span> or <span className="font-medium text-[var(--color-text-primary)]">http://LAN-IP:11434</span>. If your Ollama host sits behind a proxy, ensure the Base URL and optional credentials are correct so model refresh and test function as expected.
+              </div>
+            ) : null}
+            {selectedAiProviderConfig ? (
               <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
                 <button onClick={handleDeleteAiProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove AI Provider</button>
@@ -3004,220 +3131,226 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     const LEGACY_MEDIA_KEYS = new Set(['elevenlabs_scribe', 'elevenlabs_tts', 'elevenlabsscribe', 'elevenlabstts']);
     const canonicalConfigs = mediaProviderConfigs.filter((p) => !LEGACY_MEDIA_KEYS.has(p.providerKey));
     const legacyConfigs = mediaProviderConfigs.filter((p) => LEGACY_MEDIA_KEYS.has(p.providerKey));
-    const unifiedConfig = canonicalConfigs.find((p) => p.providerKey === 'elevenlabs') || null;
+
+    // Evaluate if the currently clicked provider menu item exists in the DB already
+    const isSelectedConfigured = selectedMediaProviderCatalog
+      ? canonicalConfigs.some((p) => p.providerKey === selectedMediaProviderCatalog.id)
+      : false;
+
     const displayConfigs = canonicalConfigs.length > 0 ? canonicalConfigs : legacyConfigs;
+    const unifiedConfig = selectedMediaProviderConfig || null;
 
     return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.15fr)_minmax(420px,2fr)]">
-      <div className="min-h-0 space-y-2.5 overflow-y-auto pr-1 no-scrollbar">
-        <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Media Providers</div>
-          <div className="text-sm text-[var(--color-text-secondary)]">Activate ElevenLabs for transcription, voice synthesis, and Charlie voice routing.</div>
+      <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.15fr)_minmax(420px,2fr)]">
+        <div className="min-h-0 space-y-2.5 overflow-y-auto pr-1 no-scrollbar">
+          <div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Media Providers</div>
+            <div className="text-sm text-[var(--color-text-secondary)]">Activate providers for transcription, voice synthesis, and Charlie voice routing.</div>
+          </div>
+          {selectedMediaProviderCatalog && !isSelectedConfigured ? (
+            <div className="rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3">
+              <div className="flex items-start gap-2.5">
+                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
+                  {getBrandIcon(selectedMediaProviderCatalog.id, 22)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{selectedMediaProviderCatalog.name}</div>
+                    <span className="rounded-full border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--color-primary)]">
+                      Ghost
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{selectedMediaProviderCatalog.id}</div>
+                  <div className="mt-1.5 text-[12px] leading-snug text-[var(--color-text-secondary)]">{selectedMediaProviderCatalog.description}</div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={handleSaveMediaProvider}
+                      className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'media-save')}
+                    >
+                      {savedAction === 'media-save' ? 'Saved' : 'ADD ACTIVATION'}
+                    </button>
+                    <span className="text-[11px] text-[var(--color-text-secondary)]">Lock this provider into the workspace stack and open its control plane.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {displayConfigs.map((provider) => {
+            const isLegacy = LEGACY_MEDIA_KEYS.has(provider.providerKey);
+            const displayKey = isLegacy ? 'elevenlabs' : resolveMediaSelectorProvider(provider.providerKey);
+            const catalogEntry = getProviderConfig(displayKey) || { name: provider.label || provider.providerKey, description: 'Media provider' };
+            return (
+              <ResourceCard
+                key={provider.id || provider.providerKey}
+                icon={ShieldCheck}
+                logoId={displayKey}
+                title={isLegacy ? 'ElevenLabs' : (provider.label || catalogEntry.name)}
+                subtitle={isLegacy ? 'elevenlabs (migrated)' : provider.providerKey}
+                status={provider.lastError ? 'needs attention' : provider.status || 'configured'}
+                detail={provider.lastError || catalogEntry.description}
+                selected={selectedMediaProviderKey === displayKey}
+                onClick={() => {
+                  setSelectedMediaProviderKey(displayKey);
+                }}
+                chips={[
+                  provider.enabled ? 'enabled' : 'disabled',
+                  provider.apiKey ? 'credentials stored' : 'credentials pending',
+                  provider.lastTestedAt ? 'tested' : 'not tested',
+                  isLegacy ? 'legacy record' : null,
+                ].filter(Boolean)}
+              />
+            );
+          })}
         </div>
-        {selectedMediaProviderCatalog && !unifiedConfig ? (
-          <div className="rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3">
-            <div className="flex items-start gap-2.5">
-              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
-                {getBrandIcon(selectedMediaProviderCatalog.id, 22)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{selectedMediaProviderCatalog.name}</div>
-                  <span className="rounded-full border border-[var(--color-primary)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--color-primary)]">
-                    Ghost
-                  </span>
+
+        <div className={compactPanelClass}>
+          {selectedMediaProviderCatalog ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Media Control Plane</div>
+                  <h3 className="mt-0.5 text-base font-semibold text-[var(--color-text-primary)]">{mediaProviderForm.label || selectedMediaProviderCatalog.name}</h3>
                 </div>
-                <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{selectedMediaProviderCatalog.id}</div>
-                <div className="mt-1.5 text-[12px] leading-snug text-[var(--color-text-secondary)]">{selectedMediaProviderCatalog.description}</div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={handleSaveMediaProvider}
-                    className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'media-save')}
-                  >
-                    {savedAction === 'media-save' ? 'Saved' : 'ADD ACTIVATION'}
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={handleTestMediaProvider} disabled={busyAction === 'media-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'media-test')}>
+                    {busyAction === 'media-test' ? 'Testing...' : savedAction === 'media-test' ? 'Tested' : 'TEST'}
                   </button>
-                  <span className="text-[11px] text-[var(--color-text-secondary)]">Lock this provider into the workspace stack and open its control plane.</span>
+                  <button onClick={handleSaveMediaProvider} className={saveButtonClassName("rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-2 py-1 text-[11px] text-[var(--color-primary)] transition disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'media-save')}>
+                    {savedAction === 'media-save' ? 'Saved' : 'SAVE'}
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : null}
-        {displayConfigs.map((provider) => {
-          const isLegacy = LEGACY_MEDIA_KEYS.has(provider.providerKey);
-          const displayKey = isLegacy ? 'elevenlabs' : resolveMediaSelectorProvider(provider.providerKey);
-          const catalogEntry = getProviderConfig(displayKey) || { name: provider.label || provider.providerKey, description: 'Media provider' };
-          return (
-            <ResourceCard
-              key={provider.id || provider.providerKey}
-              icon={ShieldCheck}
-              logoId={displayKey}
-              title={isLegacy ? 'ElevenLabs' : (provider.label || catalogEntry.name)}
-              subtitle={isLegacy ? 'elevenlabs (migrated)' : provider.providerKey}
-              status={provider.lastError ? 'needs attention' : provider.status || 'configured'}
-              detail={provider.lastError || catalogEntry.description}
-              selected={selectedMediaProviderKey === displayKey}
-              onClick={() => {
-                setSelectedMediaProviderKey(displayKey);
-              }}
-              chips={[
-                provider.enabled ? 'enabled' : 'disabled',
-                provider.apiKey ? 'credentials stored' : 'credentials pending',
-                provider.lastTestedAt ? 'tested' : 'not tested',
-                isLegacy ? 'legacy record' : null,
-              ].filter(Boolean)}
-            />
-          );
-        })}
-      </div>
 
-      <div className={compactPanelClass}>
-        {selectedMediaProviderCatalog ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Media Control Plane</div>
-                <h3 className="mt-0.5 text-base font-semibold text-[var(--color-text-primary)]">{mediaProviderForm.label || selectedMediaProviderCatalog.name}</h3>
+              <div className="grid gap-1.5 grid-cols-4">
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">{unifiedConfig ? (unifiedConfig.lastError ? 'Needs Attention' : unifiedConfig.status || 'Configured') : 'Standby'}</div></div>
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Credentials</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">{unifiedConfig?.apiKey ? 'Stored' : 'Pending'}</div></div>
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Capabilities</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">TTS + STT</div></div>
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Tested</div><div className="mt-0.5 text-[10px] font-semibold text-[var(--color-text-primary)]">{unifiedConfig?.lastTestedAt ? new Date(unifiedConfig.lastTestedAt).toLocaleDateString() : 'Never'}</div></div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                <button onClick={handleTestMediaProvider} disabled={busyAction === 'media-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'media-test')}>
-                  {busyAction === 'media-test' ? 'Testing...' : savedAction === 'media-test' ? 'Tested' : 'TEST'}
-                </button>
-                <button onClick={handleSaveMediaProvider} className={saveButtonClassName("rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-2 py-1 text-[11px] text-[var(--color-primary)] transition disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'media-save')}>
-                  {savedAction === 'media-save' ? 'Saved' : 'SAVE'}
-                </button>
-              </div>
-            </div>
 
-            <div className="grid gap-1.5 grid-cols-4">
-              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">{unifiedConfig ? (unifiedConfig.lastError ? 'Needs Attention' : unifiedConfig.status || 'Configured') : 'Standby'}</div></div>
-              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Credentials</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">{unifiedConfig?.apiKey ? 'Stored' : 'Pending'}</div></div>
-              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Capabilities</div><div className="mt-0.5 text-xs font-semibold text-[var(--color-text-primary)]">TTS + STT</div></div>
-              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1.5"><div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Tested</div><div className="mt-0.5 text-[10px] font-semibold text-[var(--color-text-primary)]">{unifiedConfig?.lastTestedAt ? new Date(unifiedConfig.lastTestedAt).toLocaleDateString() : 'Never'}</div></div>
-            </div>
+              {unifiedConfig?.lastError ? (
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-100">
+                  {unifiedConfig.lastError}
+                </div>
+              ) : null}
 
-            {unifiedConfig?.lastError ? (
-              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-100">
-                {unifiedConfig.lastError}
-              </div>
-            ) : null}
+              <fieldset className="space-y-2">
+                <div className="grid gap-2 grid-cols-3">
+                  {(selectedMediaProviderCatalog.fields || []).map((field) => {
+                    const isRootField = ['label', 'baseUrl', 'apiKey'].includes(field.name);
+                    const value = isRootField ? (mediaProviderForm[field.name] || '') : (mediaProviderForm.config?.[field.name] || '');
+                    const isVoiceField = ['charlieVoice', 'voice'].includes(field.name);
+                    const onChange = (nextValue) => {
+                      if (isRootField) {
+                        setMediaProviderForm((current) => ({ ...current, [field.name]: nextValue }));
+                        return;
+                      }
+                      setMediaProviderForm((current) => ({
+                        ...current,
+                        config: {
+                          ...(current.config || {}),
+                          [field.name]: nextValue,
+                        },
+                      }));
+                    };
 
-            <fieldset className="space-y-2">
-              <div className="grid gap-2 grid-cols-3">
-                {(selectedMediaProviderCatalog.fields || []).map((field) => {
-                  const isRootField = ['label', 'baseUrl', 'apiKey'].includes(field.name);
-                  const value = isRootField ? (mediaProviderForm[field.name] || '') : (mediaProviderForm.config?.[field.name] || '');
-                  const isVoiceField = ['charlieVoice', 'voice'].includes(field.name);
-                  const onChange = (nextValue) => {
-                    if (isRootField) {
-                      setMediaProviderForm((current) => ({ ...current, [field.name]: nextValue }));
-                      return;
-                    }
-                    setMediaProviderForm((current) => ({
-                      ...current,
-                      config: {
-                        ...(current.config || {}),
-                        [field.name]: nextValue,
-                      },
-                    }));
-                  };
-
-                  return (
-                    <label key={field.name} className={`${field.type === 'textarea' ? 'col-span-3' : field.type === 'select' ? 'col-span-2' : ''} space-y-0.5`}>
-                      <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                      {field.type === 'textarea' ? (
-                        <textarea
-                          rows={2}
-                          value={value}
-                          onChange={(event) => onChange(event.target.value)}
-                          placeholder={field.default || ''}
-                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)] resize-none"
-                        />
-                      ) : field.type === 'select' && field.options ? (
-                        <div className="flex gap-1">
-                          <select
-                            value={value || field.default || ''}
+                    return (
+                      <label key={field.name} className={`${field.type === 'textarea' ? 'col-span-3' : field.type === 'select' ? 'col-span-2' : ''} space-y-0.5`}>
+                        <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                        {field.type === 'textarea' ? (
+                          <textarea
+                            rows={2}
+                            value={value}
                             onChange={(event) => onChange(event.target.value)}
-                            className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
-                          >
-                            {field.options.map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                          {isVoiceField && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const voiceId = value || field.default || '21m00Tcm4TlvDq8ikWAM';
-                                try {
-                                  const res = await fetch('/api/media/voice-preview', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ voiceId }),
-                                  });
-                                  if (!res.ok) {
-                                    const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
-                                    throw new Error(err.detail || 'Failed to generate preview');
-                                  }
-                                  const blob = await res.blob();
-                                  const url = URL.createObjectURL(blob);
-                                  const audio = new Audio(url);
-                                  audio.onended = () => URL.revokeObjectURL(url);
-                                  audio.onerror = () => {
-                                    showNotice({ tone: 'error', message: 'Could not play voice preview.' });
-                                    URL.revokeObjectURL(url);
-                                  };
-                                  await audio.play();
-                                } catch (e) {
-                                  showNotice({ tone: 'error', message: e.message || 'Voice preview failed.' });
-                                }
-                              }}
-                              className="shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/40 transition"
-                              title="Preview voice"
+                            placeholder={field.default || ''}
+                            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)] resize-none"
+                          />
+                        ) : field.type === 'select' && field.options ? (
+                          <div className="flex gap-1">
+                            <select
+                              value={value || field.default || ''}
+                              onChange={(event) => onChange(event.target.value)}
+                              className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                                <polygon points="5 3 19 12 5 21 5 3" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <input
-                          type={field.type === 'password' ? 'password' : 'text'}
-                          autoComplete={field.type === 'password' ? 'new-password' : undefined}
-                          value={value}
-                          onChange={(event) => onChange(event.target.value)}
-                          placeholder={field.default || ''}
-                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
-                        />
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
+                              {field.options.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            {isVoiceField && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const voiceId = value || field.default || '21m00Tcm4TlvDq8ikWAM';
+                                  try {
+                                    const res = await fetch('/api/media/voice-preview', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ voiceId }),
+                                    });
+                                    if (!res.ok) {
+                                      const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                                      throw new Error(err.detail || 'Failed to generate preview');
+                                    }
+                                    const blob = await res.blob();
+                                    const url = URL.createObjectURL(blob);
+                                    const audio = new Audio(url);
+                                    audio.onended = () => URL.revokeObjectURL(url);
+                                    audio.onerror = () => {
+                                      showNotice({ tone: 'error', message: 'Could not play voice preview.' });
+                                      URL.revokeObjectURL(url);
+                                    };
+                                    await audio.play();
+                                  } catch (e) {
+                                    showNotice({ tone: 'error', message: e.message || 'Voice preview failed.' });
+                                  }
+                                }}
+                                className="shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-1 text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/40 transition"
+                                title="Preview voice"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                  <polygon points="5 3 19 12 5 21 5 3" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <input
+                            type={field.type === 'password' ? 'password' : 'text'}
+                            autoComplete={field.type === 'password' ? 'new-password' : undefined}
+                            value={value}
+                            onChange={(event) => onChange(event.target.value)}
+                            placeholder={field.default || ''}
+                            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-xs text-[var(--color-text-primary)]"
+                          />
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
 
-              <label className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1.5 text-xs text-[var(--color-text-primary)]">
-                <input type="checkbox" checked={!!mediaProviderForm.enabled} onChange={(event) => setMediaProviderForm((current) => ({ ...current, enabled: event.target.checked }))} />
-                Enable ElevenLabs (TTS + STT)
-              </label>
-            </fieldset>
+                <label className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1.5 text-xs text-[var(--color-text-primary)]">
+                  <input type="checkbox" checked={!!mediaProviderForm.enabled} onChange={(event) => setMediaProviderForm((current) => ({ ...current, enabled: event.target.checked }))} />
+                  Enable {selectedMediaProviderCatalog?.name || 'Provider'}
+                </label>
+              </fieldset>
 
-            {unifiedConfig ? (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
-                <div className="text-[9px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
-                <button onClick={handleDeleteMediaProvider} className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20 transition"><Trash2 size={12} />Disconnect ElevenLabs</button>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-4 py-16 text-center">
-            <ShieldCheck className="text-[var(--color-text-secondary)]" size={48} />
-            <h3 className="m-0 text-lg font-semibold text-[var(--color-text-primary)]">Select a media provider</h3>
-            <p className="m-0 max-w-sm text-sm text-[var(--color-text-secondary)]">Choose a provider from the left selector to activate and configure it here.</p>
-          </div>
-        )}
+              {unifiedConfig ? (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                  <button onClick={handleDeleteMediaProvider} className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20 transition"><Trash2 size={12} />Disconnect {selectedMediaProviderCatalog?.name || 'Provider'}</button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-4 py-16 text-center">
+              <ShieldCheck className="text-[var(--color-text-secondary)]" size={48} />
+              <h3 className="m-0 text-lg font-semibold text-[var(--color-text-primary)]">Select a media provider</h3>
+              <p className="m-0 max-w-sm text-sm text-[var(--color-text-secondary)]">Choose a provider from the left selector to activate and configure it here.</p>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
   };
 
   const renderLegacyCategory = () => (
@@ -3329,25 +3462,70 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Payment Providers</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Collect payments via Stripe, PayPal, and other processors.</div>
         </div>
-        {paymentProviderCatalog.map((provider) => {
-          const config = paymentProviderConfigs.find((item) => item.providerKey === provider.id);
-          return (
-            <ResourceCard
-              key={provider.id}
-              icon={Zap}
-              logoId={provider.id}
-              title={config?.label || provider.name}
-              subtitle={provider.id}
-              status={config ? 'configured' : 'not configured'}
-              detail={provider.description}
-              selected={selectedPaymentProviderKey === provider.id}
-              onClick={() => setSelectedPaymentProviderKey(provider.id)}
-              chips={[
-                config?.enabled ? 'enabled' : 'disabled',
-              ]}
-            />
-          );
-        })}
+        {selectedPaymentProviderCatalog && !selectedPaymentProviderConfig ? (
+          <div className="rounded-xl border border-dashed border-[var(--node-socket)]/40 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-socket)]">
+                {getBrandIcon(selectedPaymentProviderCatalog.id, 22)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{selectedPaymentProviderCatalog.name}</div>
+                  <span className="rounded-full border border-[var(--node-socket)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-socket)] bg-[var(--node-socket)]/10 font-bold">
+                    Ghost Activation
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{selectedPaymentProviderCatalog.id}</div>
+                <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">{selectedPaymentProviderCatalog.description}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleSavePaymentProvider}
+                    className="rounded-lg bg-[var(--node-socket)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-purple-500/20"
+                  >
+                    ADD ACTIVATION
+                  </button>
+                  <span className="text-[10px] text-[var(--color-text-tertiary)] italic">Ready to facilitate commerce</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {paymentProviderConfigs.length > 0 && (
+          <div className="mt-4 border-t border-[var(--color-border)]/40 pt-3">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2 px-1">Active Accounts</div>
+            <div className="space-y-2">
+              {paymentProviderConfigs.map((config) => {
+                const providerCatalog = getProviderConfig(config.providerKey) || { name: config.label, description: 'Payment processor' };
+                return (
+                  <ResourceCard
+                    key={config.id}
+                    icon={Zap}
+                    logoId={config.providerKey}
+                    title={config.label || providerCatalog.name}
+                    subtitle={config.providerKey}
+                    status={config.enabled ? 'connected' : 'disabled'}
+                    detail={providerCatalog.description}
+                    selected={selectedPaymentProviderKey === config.providerKey}
+                    onClick={() => setSelectedPaymentProviderKey(config.providerKey)}
+                    chips={[
+                      config.enabled ? 'enabled' : 'disabled',
+                      config.config?.mode || 'sandbox'
+                    ]}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {paymentProviderConfigs.length === 0 && !selectedPaymentProviderCatalog && (
+          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-[var(--color-border)]/40 rounded-2xl text-[var(--color-text-secondary)]">
+            <Zap size={44} className="mb-4 opacity-10" />
+            <p className="text-sm font-medium">No merchant stack detected</p>
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)] max-w-[200px] text-center">Select a payment gateway from the list to begin orchestration.</p>
+          </div>
+        )}
       </div>
 
       <div className={compactPanelClass}>
@@ -3373,36 +3551,36 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             </div>
 
             <fieldset className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {selectedPaymentProviderCatalog.fields?.filter((field) => !['label', 'mode', 'currency'].includes(field.name)).map((field) => (
-                <label key={field.name} className="space-y-1">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
-                  {field.type === 'select' ? (
-                    <select
-                      value={paymentProviderForm.config?.[field.name] || field.default || ''}
-                      onChange={(event) => setPaymentProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))}
-                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
-                    >
-                      {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type === 'password' ? 'password' : 'text'}
-                      autoComplete={field.type === 'password' ? 'new-password' : undefined}
-                      value={paymentProviderForm.config?.[field.name] || ''}
-                      onChange={(event) => setPaymentProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))}
-                      placeholder={field.default || ''}
-                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
-                    />
-                  )}
-                </label>
-              ))}
-            </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {selectedPaymentProviderCatalog.fields?.filter((field) => !['label', 'mode', 'currency'].includes(field.name)).map((field) => (
+                  <label key={field.name} className="space-y-1">
+                    <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</div>
+                    {field.type === 'select' ? (
+                      <select
+                        value={paymentProviderForm.config?.[field.name] || field.default || ''}
+                        onChange={(event) => setPaymentProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))}
+                        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                      >
+                        {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type={field.type === 'password' ? 'password' : 'text'}
+                        autoComplete={field.type === 'password' ? 'new-password' : undefined}
+                        value={paymentProviderForm.config?.[field.name] || ''}
+                        onChange={(event) => setPaymentProviderForm((current) => ({ ...current, config: { ...(current.config || {}), [field.name]: event.target.value } }))}
+                        placeholder={field.default || ''}
+                        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[var(--color-text-primary)]"
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
 
-            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-[var(--color-text-primary)]">
-              <input type="checkbox" checked={!!paymentProviderForm.enabled} onChange={(event) => setPaymentProviderForm((current) => ({ ...current, enabled: event.target.checked }))} />
-              Enable payment provider for this workspace
-            </label>
+              <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-[var(--color-text-primary)]">
+                <input type="checkbox" checked={!!paymentProviderForm.enabled} onChange={(event) => setPaymentProviderForm((current) => ({ ...current, enabled: event.target.checked }))} />
+                Enable payment provider for this workspace
+              </label>
             </fieldset>
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
               Enter your payment processor credentials here. Use sandbox mode for testing and switch to live when ready to accept real payments.
@@ -3429,26 +3607,69 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Social Networks</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Connect destinations for asset distribution and publishing.</div>
         </div>
-        {getProvidersByCategory(INTEGRATION_CATEGORIES.SOCIAL_NETWORKS).map((provider) => {
-          const config = socialProviderConfigs.find((item) => item.providerKey === provider.id);
-          const isStub = provider.stub;
-          return (
-            <ResourceCard
-              key={provider.id}
-              icon={Share2}
-              logoId={provider.id}
-              title={config?.label || provider.name}
-              subtitle={provider.id}
-              status={isStub ? 'stub / not active' : config ? 'configured' : 'not configured'}
-              detail={provider.description}
-              selected={selectedSocialProviderKey === provider.id}
-              onClick={() => !isStub && setSelectedSocialProviderKey(provider.id)}
-              chips={[
-                isStub ? 'stub' : config?.enabled ? 'enabled' : 'disabled',
-              ]}
-            />
-          );
-        })}
+        {selectedSocialProviderCatalog && !selectedSocialProviderConfig ? (
+          <div className="rounded-xl border border-dashed border-[var(--node-action)]/40 bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-action)]">
+                {getBrandIcon(selectedSocialProviderCatalog.id, 22)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{selectedSocialProviderCatalog.name}</div>
+                  <span className="rounded-full border border-[var(--node-action)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-action)] bg-[var(--node-action)]/10 font-bold">
+                    Ghost Activation
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{selectedSocialProviderCatalog.id}</div>
+                <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">{selectedSocialProviderCatalog.description}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleSaveSocialProvider}
+                    className="rounded-lg bg-[var(--node-action)] px-3 py-1.5 text-xs font-bold text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-sky-500/20"
+                  >
+                    ADD ACTIVATION
+                  </button>
+                  <span className="text-[10px] text-[var(--color-text-tertiary)] italic">Ready for multi-channel distribution</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {socialProviderConfigs.length > 0 && (
+          <div className="mt-4 border-t border-[var(--color-border)]/40 pt-3">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2 px-1">Connected Destinations</div>
+            <div className="space-y-2">
+              {socialProviderConfigs.map((config) => {
+                const providerCatalog = getProviderConfig(config.providerKey) || { name: config.label, description: 'Social Destination' };
+                return (
+                  <ResourceCard
+                    key={config.id}
+                    icon={Share2}
+                    logoId={config.providerKey}
+                    title={config.label || providerCatalog.name}
+                    subtitle={config.providerKey}
+                    status={config.enabled ? 'connected' : 'disabled'}
+                    detail={providerCatalog.description}
+                    selected={selectedSocialProviderKey === config.providerKey}
+                    onClick={() => setSelectedSocialProviderKey(config.providerKey)}
+                    chips={[
+                      config.enabled ? 'enabled' : 'disabled',
+                    ]}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {socialProviderConfigs.length === 0 && !selectedSocialProviderCatalog && (
+          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-[var(--color-border)]/40 rounded-2xl text-[var(--color-text-secondary)]">
+            <Share2 size={44} className="mb-4 opacity-10" />
+            <p className="text-sm font-medium">No distribution channels established</p>
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)] max-w-[200px] text-center">Select a network from the left rail to configure distribution hooks.</p>
+          </div>
+        )}
       </div>
 
       <div className={compactPanelClass}>
@@ -3568,39 +3789,37 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             </div>
             <div className="min-h-0 overflow-hidden relative">
               {activeCategory && selectorProviderKey ? (
-              <>
-              {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
-                ? renderAutomationAdmin()
-                : activeCategory === INTEGRATION_CATEGORIES.EMAIL
-                ? renderEmailAdmin()
-                : activeCategory === INTEGRATION_CATEGORIES.CALENDAR
-                  ? renderCalendarAdmin('calendar')
-                  : activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING
-                    ? renderCalendarAdmin('video')
-                    : activeCategory === INTEGRATION_CATEGORIES.LLMS
-                      ? renderAiAdmin()
-                      : activeCategory === INTEGRATION_CATEGORIES.DATA_STORES
-                        ? renderDataStoresAdmin()
-                      : activeCategory === INTEGRATION_CATEGORIES.MEDIA
-                        ? renderMediaAdmin()
-                      : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS
-                        ? renderPaymentsAdmin()
-                        : activeCategory === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS
-                          ? renderSocialNetworksAdmin()
-                          : null}
-              </>
+                <>
+                  {activeCategory === INTEGRATION_CATEGORIES.AUTOMATION
+                    ? renderAutomationAdmin()
+                    : activeCategory === INTEGRATION_CATEGORIES.EMAIL
+                      ? renderEmailAdmin()
+                      : activeCategory === INTEGRATION_CATEGORIES.CALENDAR
+                        ? renderCalendarAdmin('calendar')
+                        : activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING
+                          ? renderCalendarAdmin('video')
+                          : activeCategory === INTEGRATION_CATEGORIES.LLMS
+                            ? renderAiAdmin()
+                            : activeCategory === INTEGRATION_CATEGORIES.DATA_STORES
+                              ? renderDataStoresAdmin()
+                              : activeCategory === INTEGRATION_CATEGORIES.MEDIA
+                                ? renderMediaAdmin()
+                                : activeCategory === INTEGRATION_CATEGORIES.PAYMENTS
+                                  ? renderPaymentsAdmin()
+                                  : activeCategory === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS
+                                    ? renderSocialNetworksAdmin()
+                                    : null}
+                </>
               ) : null}
               {showSplash && (
-                <div className="absolute inset-0 bg-[var(--color-bg-secondary)]/95 backdrop-blur-sm rounded-2xl border border-[var(--color-border)] flex items-center justify-center">
-                  <div className="max-w-md text-center space-y-6 px-8">
-                    <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                          <path d="M2 17l10 5 10-5" />
-                          <path d="M2 12l10 5 10-5" />
-                        </svg>
-                      </div>
+                <div className="absolute inset-0 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md rounded-[var(--radius-outer)] border border-[var(--color-border)] flex items-center justify-center overflow-y-auto">
+                  <div className="max-w-5xl w-full text-center space-y-8 px-8 py-10">
+                    <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-white/10">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                        <path d="M2 17l10 5 10-5" />
+                        <path d="M2 12l10 5 10-5" />
+                      </svg>
                     </div>
                     <div>
                       <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Integrations</h2>
@@ -3608,35 +3827,43 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                         Connect your workspace to external services. Manage mailboxes, calendars, automation, AI providers, and more from one unified control plane.
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-left">
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
-                        <div className="flex items-center gap-2 text-indigo-400">
-                          <Mail size={14} />
-                          <span className="text-xs font-semibold">Mail</span>
-                        </div>
-                        <p className="text-[10px] text-[var(--color-text-tertiary)]">Connect mailboxes for inbound/outbound email</p>
-                      </div>
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
-                        <div className="flex items-center gap-2 text-emerald-400">
-                          <Calendar size={14} />
-                          <span className="text-xs font-semibold">Calendar</span>
-                        </div>
-                        <p className="text-[10px] text-[var(--color-text-tertiary)]">Sync calendars and scheduling</p>
-                      </div>
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
-                        <div className="flex items-center gap-2 text-amber-400">
-                          <Zap size={14} />
-                          <span className="text-xs font-semibold">Automation</span>
-                        </div>
-                        <p className="text-[10px] text-[var(--color-text-tertiary)]">n8n, Make, Zapier webhooks</p>
-                      </div>
-                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 space-y-1">
-                        <div className="flex items-center gap-2 text-cyan-400">
-                          <BrainIcon size={14} />
-                          <span className="text-xs font-semibold">AI Providers</span>
-                        </div>
-                        <p className="text-[10px] text-[var(--color-text-tertiary)]">OpenAI, Ollama, Claude</p>
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-left p-1">
+                      {categories.map((cat) => {
+                        let colorVar = 'var(--node-action)';
+                        let IconComp = Zap;
+
+                        if (cat.id === INTEGRATION_CATEGORIES.EMAIL) { colorVar = 'var(--node-input)'; IconComp = Mail; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.CALENDAR) { colorVar = 'var(--node-trigger)'; IconComp = Calendar; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) { colorVar = 'var(--node-trigger)'; IconComp = Video; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.AUTOMATION) { colorVar = 'var(--node-webhook)'; IconComp = Settings; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.LLMS) { colorVar = 'var(--node-agent)'; IconComp = BrainIcon; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.MEDIA) { colorVar = 'var(--node-media)'; IconComp = Mic; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.DATA_STORES) { colorVar = 'var(--node-logic)'; IconComp = Database; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) { colorVar = 'var(--node-socket)'; IconComp = ShoppingCart; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) { colorVar = 'var(--node-action)'; IconComp = User; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.SMS) { colorVar = 'var(--node-webhook)'; IconComp = MessageSquare; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.PROPOSALS) { colorVar = 'var(--node-socket)'; IconComp = DollarSign; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.TRACKING) { colorVar = 'var(--node-logic)'; IconComp = Footprints; }
+                        else { IconComp = Bot; }
+
+                        return (
+                          <button 
+                            key={cat.id}
+                            onClick={() => handleSelectorCategoryChange(cat.id)}
+                            className="text-left w-full h-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-strong)] transition-all p-2.5 space-y-1.5 cursor-pointer shadow-sm shadow-black/5 group min-w-0 flex flex-col min-h-[90px]"
+                          >
+                            <div className="flex items-start gap-2" style={{ color: colorVar }}>
+                              <IconComp size={15} className="mt-0.5 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_currentColor] transition-all flex-shrink-0" />
+                              <span className="text-[13px] font-extrabold text-[var(--color-text-primary)] leading-tight">{cat.name}</span>
+                            </div>
+                            <p className="m-0 text-[10px] text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)] leading-[1.2] flex-1 overflow-hidden">{cat.description}</p>
+                            <div className="flex items-center justify-between pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="text-[8px] uppercase tracking-wider font-bold text-[var(--color-text-tertiary)]">Configure </span>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="text-[var(--color-text-tertiary)]"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="pt-2">
                       <p className="text-xs text-[var(--color-text-tertiary)]">

@@ -33,6 +33,11 @@ function appendTranscriptDraft(text, title = 'Live Transcript') {
   return nextHtml;
 }
 
+function clearTranscriptDraft() {
+  sessionStorage.removeItem(TRANSCRIPT_DRAFT_HTML_KEY);
+  sessionStorage.removeItem(TRANSCRIPT_DRAFT_TITLE_KEY);
+}
+
 function requestTranscriptEditorOpen() {
   sessionStorage.setItem(TRANSCRIPT_EDITOR_OPEN_KEY, '1');
   navigateToModule('studio');
@@ -167,7 +172,7 @@ function resolveMonitorReply(message) {
   if (message.role === 'command') {
     return resolveSpokenText(message.result) || message.result?.phrase || "";
   }
-  return resolveSpokenText(message.result) || "";
+  return "";
 }
 
 function pickPreferredSystemVoice(voices = []) {
@@ -194,29 +199,38 @@ function pickPreferredSystemVoice(voices = []) {
 
 // ─── Single playback entry point ───────────────────────────────────────────────
 function playCharlieResponse(audioUrl, text, fallbackSpeak) {
-  console.log("[VTT] playCharlieResponse called", { audioUrl, text: text?.substring(0, 100) });
-  if (!text && !audioUrl) {
+  const cleanText = String(text || '').replace(/[*_#~>`\[\]{}]+/g, '').replace(/\s+/g, ' ').trim();
+  console.log("[VTT] playCharlieResponse called", { audioUrl, text: cleanText?.substring(0, 100) });
+  if (!cleanText && !audioUrl) {
     console.warn("CHARLIE: empty spoken text", { audioUrl });
     return;
   }
-  if (!text) {
+  if (!cleanText) {
     console.warn("CHARLIE: no text to speak", { audioUrl });
     return;
   }
   try {
     if (audioUrl) {
+      let fallbackTriggered = false;
+      const doFallback = (e) => {
+        if (fallbackTriggered) return;
+        fallbackTriggered = true;
+        console.warn("[VTT] Audio playback failed, triggering fallback:", e);
+        fallbackSpeak(cleanText);
+      };
+      
       console.log("[VTT] Playing ElevenLabs audio:", audioUrl);
       const audio = new Audio(audioUrl);
       audio.onended = () => { console.log("[VTT] ElevenLabs audio played successfully"); };
-      audio.onerror = (e) => { console.warn("[VTT] Audio error, falling back:", e); fallbackSpeak(text); };
-      audio.play().catch((e) => { console.warn("[VTT] Audio play blocked, falling back:", e); fallbackSpeak(text); });
+      audio.onerror = doFallback;
+      audio.play().catch(doFallback);
       return;
     }
   } catch (e) {
     console.warn("[VTT] Audio hard fail, falling back:", e);
   }
-  console.log("[VTT] Using fallback speak for:", text?.substring(0, 100));
-  fallbackSpeak(text);
+  console.log("[VTT] Using fallback speak for:", cleanText?.substring(0, 100));
+  fallbackSpeak(cleanText);
 }
 
 export default function VoiceCommandModule() {
@@ -238,11 +252,24 @@ export default function VoiceCommandModule() {
   const [isContinuous, setIsContinuous]   = useState(false);
   const [ghostTranscript, setGhostTranscript] = useState('');
   const [monitorTab, setMonitorTab] = useState('input');
+  const [showHistory, setShowHistory] = useState(false);
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const activeAudioRef = useRef(null);
   const lastPlaybackRef = useRef({ key: '', ts: 0 });
+  const lastCtrlRef = useRef(0);
+
+  const stopAudio = useCallback(() => {
+    try {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current.currentTime = 0;
+      }
+    } catch(e) {}
+    activeAudioRef.current = null;
+    window.speechSynthesis?.cancel?.();
+  }, []);
   
   const micLevel = useMicLevel(isOpen, selectedMicId);
   const latestMessage = messages.length ? messages[messages.length - 1] : null;
@@ -328,18 +355,19 @@ export default function VoiceCommandModule() {
     fallbackSpeak(normalizedText);
   }, [fallbackSpeak]);
 
-  const handleTranscript = useCallback(async (raw) => {
+  const handleTranscript = useCallback(async (raw, meta = {}) => {
     setGhostTranscript('');
     setIsListening(false);
     if (!raw.trim()) return;
 
-    if (isContinuous) {
-      pushTranscriptToEditor(raw, { open: true });
+    if (isContinuous || meta.isContinuousSession) {
+      pushTranscriptToEditor(raw);
       return;
     }
     
     const lower = raw.toLowerCase();
     if (lower.includes('start listening') || lower.includes('open mic')) {
+      clearTranscriptDraft();
       setIsContinuous(true);
       return;
     }
@@ -436,10 +464,28 @@ export default function VoiceCommandModule() {
   });
 
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape' && isOpen) closeVTT(); };
+    const handler = (e) => { 
+      if (e.key === 'Control') {
+        const now = Date.now();
+        if (now - lastCtrlRef.current < 400) {
+          stopAudio();
+          lastCtrlRef.current = 0;
+        } else {
+          lastCtrlRef.current = now;
+        }
+      }
+      if (e.key === 'Escape' && isOpen) {
+        stopAudio();
+        closeVTT(); 
+      }
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isOpen, closeVTT]);
+  }, [isOpen, closeVTT, stopAudio]);
+
+  useEffect(() => {
+    if (!isOpen) stopAudio();
+  }, [isOpen, stopAudio]);
 
   useEffect(() => {
     if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -470,8 +516,10 @@ export default function VoiceCommandModule() {
             onClick={() => {
               setIsContinuous((current) => {
                 const next = !current;
-                if (next) {
+                if (!next) {
                   requestTranscriptEditorOpen();
+                } else {
+                  clearTranscriptDraft();
                 }
                 return next;
               });
@@ -518,7 +566,7 @@ export default function VoiceCommandModule() {
       <ConfidenceMeter level={micLevel} isArmed={isArmed} isListening={isListening} />
 
       <div className="px-3 py-2 border-b border-[#1E2024] bg-[radial-gradient(circle_at_top,rgba(10,24,18,0.76),rgba(10,12,15,0.98)_72%)]">
-        <div className="rounded-lg border border-white/6 bg-black/35 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div className="rounded-lg border border-white/6 bg-[#050B08] px-2.5 py-2 shadow-[inset_0_1px_8px_rgba(0,0,0,0.8)] font-mono">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1 rounded-md border border-white/6 bg-black/30 p-1">
               <button
@@ -543,62 +591,78 @@ export default function VoiceCommandModule() {
           <div className="mt-2 min-h-[56px] flex items-center justify-center text-center">
             {monitorTab === 'input' ? (
               liveTranscript ? (
-              <div className="max-w-[15.5rem] text-[13px] leading-5 font-semibold text-emerald-300 [text-shadow:0_0_12px_rgba(16,185,129,0.18)]">
+              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-amber-500 [text-shadow:0_0_8px_rgba(245,158,11,0.5)]">
                 {liveTranscript}
               </div>
               ) : (
-              <div className="max-w-[15.5rem] text-[9px] leading-4 text-slate-600 uppercase tracking-[0.2em]">
-                {isContinuous ? 'Dictation mode pushes transcript to editor.' : 'Hold CTRL to capture live speech.'}
+              <div className="max-w-[15.5rem] text-[9px] leading-4 text-emerald-700 uppercase tracking-[0.2em] [text-shadow:0_0_2px_rgba(4,120,87,0.5)]">
+                {isContinuous ? 'Dictation mode pushes transcript to editor.' : '❯ Hold CTRL to capture live speech'}
               </div>
               )
             ) : loading ? (
-              <div className="max-w-[15.5rem] text-[12px] leading-5 font-semibold text-amber-200/80">
-                Routing transcript to Charlie...
+              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-emerald-400 animate-pulse [text-shadow:0_0_8px_rgba(52,211,153,0.5)]">
+                ❯ Routing transcript to Charlie...
               </div>
             ) : monitorReply ? (
-              <div className="max-w-[15.5rem] text-[13px] leading-5 font-semibold text-amber-200 [text-shadow:0_0_12px_rgba(251,191,36,0.14)]">
+              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-emerald-400 [text-shadow:0_0_8px_rgba(52,211,153,0.5)]">
                 {monitorReply}
               </div>
             ) : (
-              <div className="max-w-[15.5rem] text-[9px] leading-4 text-slate-600 uppercase tracking-[0.2em]">
-                Charlie reply will echo here.
+              <div className="max-w-[15.5rem] text-[9px] leading-4 text-emerald-700 uppercase tracking-[0.2em] [text-shadow:0_0_2px_rgba(4,120,87,0.5)]">
+                ❯ Hold CTRL to capture live speech
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 max-h-64 overflow-y-auto no-scrollbar px-3 py-2 flex flex-col gap-2">
-        {messages.length === 0 && !ghostTranscript && (
-          <div className="text-[9px] text-slate-600 text-center mt-6">
-            Hold <kbd className="px-1.5 py-0.5 rounded border border-slate-700 bg-black/40 text-slate-400 font-mono">CTRL</kbd> to speak,<br/>or tap the Lock for Hands-free.
-          </div>
-        )}
-        {messages.map((msg) => (
-          <div key={msg.id} className="flex flex-col gap-0.5">
-            <div className="text-[8px] text-slate-600 uppercase tracking-widest font-black flex items-center gap-1">
-               {msg.role === 'command' ? <Mic size={8} /> : null} {msg.role === 'command' ? 'you (voice)' : 'you'}:
-            </div>
-            <div className="text-[10px] text-slate-300 pl-2 border-l border-white/5">{msg.phrase || msg.text}</div>
-            <div className="text-[8px] text-slate-600 uppercase tracking-widest font-black mt-1">charlie:</div>
-            <div className="pl-2 border-l border-cyan-500/30">
-              {msg.role === 'command' ? <CommandResult result={msg} /> : <div className="text-[10px] text-cyan-400">{resolveSpokenText(msg.result) || 'Processed'}</div>}
-            </div>
-          </div>
-        ))}
-        {ghostTranscript && (
-          <div className="flex flex-col gap-0.5 opacity-60">
-            <div className="text-[8px] text-emerald-500 uppercase tracking-widest font-black flex items-center gap-1">
-               <Mic size={8} className="animate-pulse" /> you (recording):
-            </div>
-            <div className="text-[10px] text-emerald-400 italic pl-2 border-l border-emerald-500/30">
-              {ghostTranscript}...
-            </div>
-          </div>
-        )}
-        {loading && <div className="text-[9px] text-slate-600 animate-pulse italic">Charlie is thinking...</div>}
-        <div ref={bottomRef} />
+      <div className="flex justify-center border-b border-[#1E2024] bg-[#0A0C0F] py-1">
+        <button 
+          onClick={() => setShowHistory(h => !h)}
+          className="text-[8px] text-slate-500 hover:text-slate-300 uppercase tracking-widest font-black flex items-center gap-1"
+        >
+          {showHistory ? 'Hide History \u25BC' : 'Show History \u25B6'}
+        </button>
       </div>
+
+      {showHistory && (
+        <div className="flex-1 min-h-0 max-h-48 overflow-y-auto no-scrollbar px-3 py-2 flex flex-col gap-2">
+          {messages.length === 0 && !ghostTranscript && (
+            <div className="text-[9px] text-slate-600 text-center mt-6">
+              Hold <kbd className="px-1.5 py-0.5 rounded border border-slate-700 bg-black/40 text-slate-400 font-mono">CTRL</kbd> to speak,<br/>or tap the Lock for Hands-free.
+            </div>
+          )}
+          {messages.map((msg) => (
+            <div key={msg.id} className="flex flex-col gap-0.5">
+              <div className="text-[8px] text-slate-600 uppercase tracking-widest font-black flex items-center gap-1">
+                 {msg.role === 'command' ? <Mic size={8} /> : null} {msg.role === 'command' ? 'you (voice)' : 'you'}:
+              </div>
+              <div className="text-[10px] text-slate-300 pl-2 border-l border-white/5">{msg.phrase || msg.text}</div>
+              
+              {msg.role === 'charlie' && (
+                <>
+                  <div className="text-[8px] text-slate-600 uppercase tracking-widest font-black mt-1">charlie:</div>
+                  <div className="pl-2 border-l border-cyan-500/30">
+                    <div className="text-[10px] text-cyan-400">{resolveSpokenText(msg.result) || 'Processed'}</div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          {ghostTranscript && (
+            <div className="flex flex-col gap-0.5 opacity-60">
+              <div className="text-[8px] text-emerald-500 uppercase tracking-widest font-black flex items-center gap-1">
+                 <Mic size={8} className="animate-pulse" /> you (recording):
+              </div>
+              <div className="text-[10px] text-emerald-400 italic pl-2 border-l border-emerald-500/30">
+                {ghostTranscript}...
+              </div>
+            </div>
+          )}
+          {loading && <div className="text-[9px] text-slate-600 animate-pulse italic">Charlie is thinking...</div>}
+          <div ref={bottomRef} />
+        </div>
+      )}
 
       {/* Footer / Input */}
       <div className="border-t border-[#1E2024] px-3 py-2 bg-[#0D0F12]">

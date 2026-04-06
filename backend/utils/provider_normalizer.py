@@ -61,6 +61,42 @@ def get_elevenlabs_voice_selection(tenant_id: str | None = None, *, purpose: str
     return None
 
 
+def get_async_api_key(tenant_id: str | None = None) -> str | None:
+    env_key = os.getenv("ASYNC_API_KEY") or os.getenv("ASYNC_VOICE_API_KEY")
+    if env_key:
+        return env_key
+    if tenant_id:
+        try:
+            from backend.auth_store import get_auth_store
+            auth_store = get_auth_store()
+            config = auth_store.get_media_provider_config_by_provider_key(tenant_id, "async")
+            if config:
+                api_key = config.get("apiKey") or config.get("api_key")
+                if isinstance(api_key, str):
+                    api_key = api_key.strip()
+                return api_key or None
+        except Exception:
+            pass
+    return None
+
+def get_async_voice_selection(tenant_id: str | None = None) -> str | None:
+    if not tenant_id:
+        return None
+    try:
+        from backend.auth_store import get_auth_store
+        auth_store = get_auth_store()
+        config = auth_store.get_media_provider_config_by_provider_key(tenant_id, "async")
+        if not config:
+            return None
+        provider_config = config.get("config") if isinstance(config.get("config"), dict) else {}
+        for key in ("voice", "voiceId"):
+            value = provider_config.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    except Exception:
+        return None
+    return None
+
 def resolve_elevenlabs_runtime_provider(tenant_id: str | None = None) -> str | None:
     key = get_elevenlabs_api_key(tenant_id)
     if key:

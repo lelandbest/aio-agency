@@ -12,7 +12,7 @@ Command types:
 
 from typing import Any
 import os
-from backend.utils.provider_normalizer import get_elevenlabs_api_key, get_elevenlabs_voice_selection
+from backend.utils.provider_normalizer import get_elevenlabs_api_key, get_elevenlabs_voice_selection, get_async_api_key, get_async_voice_selection
 
 _HIGH_IMPACT_ACTIONS: set[str] = {
     "send_email", "publish", "run_flow",
@@ -418,6 +418,13 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
     Text must be <= 600 characters. Falls back gracefully on any error.
     """
     MAX_CHARS = 600
+    if not text:
+        return None
+
+    import re
+    # Strip markdown symbols and formatting artifacts (asterisks, underscores, hashes, backticks, brackets)
+    text = re.sub(r'[*_#~>`\[\]{}]+', '', text).strip()
+
     if not text or len(text) > MAX_CHARS:
         return None
 
@@ -428,36 +435,63 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
         import json
         from pathlib import Path
 
-        api_key = get_elevenlabs_api_key(tenant_id)
-        if not api_key:
-            return None
+        provider = os.environ.get("TTS_PROVIDER", "elevenlabs").lower()
+        async_key = os.environ.get("ASYNC_API_KEY") or get_async_api_key(tenant_id)
 
-        VOICE_ID_MAP = {
-            "rachel": "21m00Tcm4TlvDq8ikWAM",
-            "domi":    "AZnzlk1XvdvUeBnXmlld",
-            "bella":   "EXAVITQu4vr4xnSDxMaL",
-            "adam":    "pNInz6obpgDQGcFmaJgB",
-            "antoni":  "ErXwobaYiN019PkySvjV",
-        }
-        selected_voice = (voice or get_elevenlabs_voice_selection(tenant_id, purpose="charlie") or "Rachel").strip()
-        voice_id = VOICE_ID_MAP.get(selected_voice.lower(), selected_voice or "21m00Tcm4TlvDq8ikWAM")
+        # Auto-route if only one provider is configured in DB
+        if async_key and provider != "async" and not get_elevenlabs_api_key(tenant_id):
+            provider = "async"
 
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-        body = json.dumps({
-            "text": text,
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
-        }).encode("utf-8")
+        if (provider == "async" and async_key) or (async_key and provider == "async"):
+            # Wire up async.com specifically
+            url = "https://api.async.com/v1/text_to_speech"
+            selected_async_voice = voice or get_async_voice_selection(tenant_id) or "announcer"
+            body = json.dumps({
+                "text": text,
+                "voice": selected_async_voice
+            }).encode("utf-8")
 
-        req = urllib.request.Request(
-            url, data=body,
-            headers={
-                "xi-api-key": api_key,
-                "Content-Type": "application/json",
-                "Accept": "audio/mpeg",
-            },
-            method="POST",
-        )
+            req = urllib.request.Request(
+                url, data=body,
+                headers={
+                    "x-api-key": async_key,
+                    "version": "v1",
+                    "Content-Type": "application/json",
+                    "Accept": "audio/mpeg",
+                },
+                method="POST",
+            )
+        else:
+            api_key = get_elevenlabs_api_key(tenant_id)
+            if not api_key:
+                return None
+
+            VOICE_ID_MAP = {
+                "rachel": "21m00Tcm4TlvDq8ikWAM",
+                "domi":    "AZnzlk1XvdvUeBnXmlld",
+                "bella":   "EXAVITQu4vr4xnSDxMaL",
+                "adam":    "pNInz6obpgDQGcFmaJgB",
+                "antoni":  "ErXwobaYiN019PkySvjV",
+            }
+            selected_voice = (voice or get_elevenlabs_voice_selection(tenant_id, purpose="charlie") or "Rachel").strip()
+            voice_id = VOICE_ID_MAP.get(selected_voice.lower(), selected_voice or "21m00Tcm4TlvDq8ikWAM")
+
+            url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+            body = json.dumps({
+                "text": text,
+                "model_id": "eleven_monolingual_v1",
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                url, data=body,
+                headers={
+                    "xi-api-key": api_key,
+                    "Content-Type": "application/json",
+                    "Accept": "audio/mpeg",
+                },
+                method="POST",
+            )
 
         with urllib.request.urlopen(req, timeout=30) as resp:
             audio_bytes = resp.read()

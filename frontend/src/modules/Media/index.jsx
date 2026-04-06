@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import RichTextEditor from '../../components/RichTextEditor';
 import {
   AudioLines,
   Clapperboard,
@@ -2357,7 +2356,7 @@ const StudioModule = () => {
                 <textarea
                   value={transcriptState.executiveSummary}
                   onChange={(e) => setTranscriptState(s => ({ ...s, executiveSummary: e.target.value, status: 'Draft' }))}
-                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none"
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] max-h-[400px]"
                   rows={2}
                   placeholder="Brief summary..."
                 />
@@ -2369,7 +2368,7 @@ const StudioModule = () => {
                 <textarea
                   value={transcriptState.keyDecisions.join('\n')}
                   onChange={(e) => setTranscriptState(s => ({ ...s, keyDecisions: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] max-h-[400px] font-mono"
                   rows={2}
                   placeholder="One per line..."
                 />
@@ -2381,7 +2380,7 @@ const StudioModule = () => {
                 <textarea
                   value={transcriptState.actionItems.join('\n')}
                   onChange={(e) => setTranscriptState(s => ({ ...s, actionItems: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] max-h-[400px] font-mono"
                   rows={2}
                   placeholder="One per line..."
                 />
@@ -2399,21 +2398,12 @@ const StudioModule = () => {
                   </button>
                 </div>
                 <div className="rounded border border-[#2A2D35] overflow-hidden bg-black/60">
-                  <ReactQuill
-                    theme="snow"
+                  <RichTextEditor
                     value={transcriptState.transcript}
                     onChange={(content) => setTranscriptState(s => ({ ...s, transcript: content, status: 'Draft' }))}
-                    modules={{
-                      toolbar: [
-                        [{ header: [1, 2, 3, false] }],
-                        ['bold', 'italic'],
-                        [{ list: 'ordered' }, { list: 'bullet' }],
-                        ['clean'],
-                      ],
-                    }}
-                    formats={['header', 'bold', 'italic', 'list', 'bullet']}
                     placeholder="Full transcript text..."
-                    className="transcript-quill-editor"
+                    minHeight={400}
+                    tools="full"
                   />
                 </div>
               </div>
@@ -2431,21 +2421,12 @@ const StudioModule = () => {
                     </button>
                   </div>
                   <div className="flex-1 rounded border border-[#2A2D35] overflow-hidden bg-black/60">
-                    <ReactQuill
-                      theme="snow"
+                    <RichTextEditor
                       value={transcriptState.transcript}
                       onChange={(content) => setTranscriptState(s => ({ ...s, transcript: content, status: 'Draft' }))}
-                      modules={{
-                        toolbar: [
-                          [{ header: [1, 2, 3, false] }],
-                          ['bold', 'italic'],
-                          [{ list: 'ordered' }, { list: 'bullet' }],
-                          ['clean'],
-                        ],
-                      }}
-                      formats={['header', 'bold', 'italic', 'list', 'bullet']}
                       placeholder="Full transcript text..."
-                      className="transcript-quill-editor"
+                      minHeight={window.innerHeight * 0.75}
+                      tools="full"
                     />
                   </div>
                 </div>
@@ -2457,7 +2438,7 @@ const StudioModule = () => {
                 <textarea
                   value={transcriptState.discussionHighlights.join('\n')}
                   onChange={(e) => setTranscriptState(s => ({ ...s, discussionHighlights: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] max-h-[400px] font-mono"
                   rows={2}
                   placeholder="One per line..."
                 />
@@ -2469,7 +2450,7 @@ const StudioModule = () => {
                 <textarea
                   value={transcriptState.notesAndObservations.join('\n')}
                   onChange={(e) => setTranscriptState(s => ({ ...s, notesAndObservations: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-none font-mono"
+                  className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] max-h-[400px] font-mono"
                   rows={2}
                   placeholder="One per line..."
                 />
@@ -2755,12 +2736,14 @@ ${s.intentHint || s.priority ? `<p class="hero-meta">${s.intentHint ? `Intent: $
 </div>
 </header>
 <main>
-${summary ? `<section class="section"><h2>Overview</h2><p>${summary}</p></section>` : ''}
-${decisions ? `<section class="section"><h2>Key Decisions</h2><ul class="card-list">${decisions}</ul></section>` : ''}
-${highlights ? `<section class="section"><h2>Discussion Highlights</h2><ul class="card-list">${highlights}</ul></section>` : ''}
-${actions ? `<section class="section section--actions"><h2>Action Items</h2><ul class="card-list">${actions}</ul></section>` : ''}
-${notes ? `<section class="section"><h2>Notes &amp; Observations</h2><ul class="card-list">${notes}</ul></section>` : ''}
-${transcriptText ? `<section class="section section--transcript"><h2>Transcript</h2><div class="transcript-block">${transcriptText}</div></section>` : ''}
+<div class="content-wrapper">
+<section class="section"><h2>Executive Summary</h2><p>${summary || '<span class="empty-placeholder">No summary generated.</span>'}</p></section>
+<section class="section"><h2>Key Decisions</h2>${decisions ? `<ul class="card-list">${decisions}</ul>` : '<div class="empty-placeholder">No key decisions recorded.</div>'}</section>
+<section class="section section--actions"><h2>Action Items</h2>${actions ? `<ul class="card-list">${actions}</ul>` : '<div class="empty-placeholder">No action items recorded.</div>'}</section>
+<section class="section"><h2>Discussion Highlights</h2>${highlights ? `<ul class="card-list">${highlights}</ul>` : '<div class="empty-placeholder">No highlights recorded.</div>'}</section>
+<section class="section"><h2>Notes &amp; Observations</h2>${notes ? `<ul class="card-list">${notes}</ul>` : '<div class="empty-placeholder">No notes recorded.</div>'}</section>
+<section class="section section--transcript"><h2>Raw Transcript</h2><div class="transcript-block">${transcriptText || '<span class="empty-placeholder">No transcript data.</span>'}</div></section>
+</div>
 </main>
 <footer class="footer">
 <p>Generated by AIO CRM &middot; ${new Date().toLocaleDateString()}</p>
@@ -2786,9 +2769,11 @@ main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
 .section--actions h2{color:#065f46;border-bottom-color:#86efac}
 .section--actions .card-list li{border-color:#86efac}
 .section--actions .card-list li::before{background:#10b981}
+.content-wrapper{background:#fff;border-radius:12px;box-shadow:0 10px 40px -10px rgba(0,0,0,0.1);padding:3rem;margin-top:-3rem;position:relative;z-index:10;border:1px solid #e2e8f0}
+.empty-placeholder{color:#94a3b8;font-style:italic;font-size:0.95rem;display:block;padding:0.75rem 0}
 .section--transcript .transcript-block{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1.5rem;font-size:0.85rem;line-height:1.8;white-space:pre-wrap;color:#334155;max-height:400px;overflow-y:auto}
-.footer{text-align:center;padding:2rem 1rem;color:#94a3b8;font-size:0.8rem;border-top:1px solid #e2e8f0;margin-top:2rem}
-@media(max-width:640px){.hero{padding:3rem 1.5rem}main{padding:1.5rem 1rem}.hero h1{font-size:1.6rem}}`;
+.footer{text-align:center;padding:2rem 1rem;color:#94a3b8;font-size:0.8rem;margin-top:2rem}
+@media(max-width:640px){.hero{padding:3rem 1.5rem}main{padding:1.5rem 1rem}.hero h1{font-size:1.6rem}.content-wrapper{padding:1.5rem;margin-top:-1rem}}`;
 
                   const js = `document.addEventListener('DOMContentLoaded',function(){const t=document.querySelector('.transcript-block');if(t){t.addEventListener('scroll',function(){t.style.boxShadow=t.scrollTop>0?'inset 0 4px 8px rgba(0,0,0,0.06)':'none'})}});`;
 
@@ -2835,7 +2820,7 @@ main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
                     }
                     transcriptSavedStateRef.current = { ...transcriptState, status: 'Pushed' };
                     setTranscriptState(s => ({ ...s, status: 'Pushed' }));
-                    showNotice({ type: 'success', message: 'Transcript pushed to Brain.' });
+                    showNotice({ type: 'success', message: 'Transcript pushed to Cortex.' });
                   } catch (e) {
                     showNotice({ type: 'error', message: e.message || 'Failed to save transcript.' });
                   } finally {
@@ -2843,18 +2828,35 @@ main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
                   }
                 }}
                 disabled={transcriptSaving}
-                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px] disabled:opacity-50"
+                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px] disabled:opacity-50 whitespace-nowrap shrink-0"
               >
-                {transcriptSaving ? 'PUSHING...' : 'PUSH TO BRAIN'}
+                {transcriptSaving ? 'PUSHING...' : 'PUSH TO CORTEX'}
+              </button>
+              <button
+                onClick={() => {
+                  showNotice({ type: 'info', message: 'Email integration coming soon. Wired for Agent Grid.' });
+                }}
+                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px] text-zinc-400 hover:text-white whitespace-nowrap shrink-0"
+              >
+                SEND TO EMAIL
+              </button>
+              <button
+                onClick={() => {
+                  showNotice({ type: 'info', message: 'Analytical Agent wired for initialization.' });
+                }}
+                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px] !border-purple-500/30 !text-purple-400 hover:!bg-purple-500/10 whitespace-nowrap shrink-0"
+              >
+                SUMMARIZE
               </button>
               <button
                 onClick={() => {
                   transcriptSavedStateRef.current = { ...transcriptState, status: 'Draft' };
+                  localStorage.setItem('aio_transcript_backup', JSON.stringify(transcriptState));
                   setTranscriptState(s => ({ ...s, status: 'Draft' }));
-                  showNotice({ type: 'success', message: 'Draft saved locally.' });
+                  showNotice({ type: 'success', message: 'Draft saved to local cache.' });
                 }}
-                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px]"
-                title="Stores draft locally. Use 'Push to Brain' to persist."
+                className="btn-toolbar-lead !px-4 !py-1.5 !text-[10px] whitespace-nowrap shrink-0"
+                title="Stores draft locally. Use 'Push to Cortex' to persist."
               >
                 SAVE DRAFT
               </button>
