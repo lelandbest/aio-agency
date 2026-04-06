@@ -1843,11 +1843,34 @@ export async function getCommsIntegrationInfoApi() {
     activityTypes: [],
     artifactClassifications: {},
     providerStatus: 'stub',
+    providerName: 'Stub',
+    isProviderActive: false,
+    availableProviders: [],
     crmIntegration: 'not_available',
     signalsIntegration: 'not_available',
     flowsTriggerReadiness: 'not_available',
     vaultCortexReadiness: 'not_available',
   };
+}
+
+export async function getCommsProviderConfigsApi() {
+  const response = await request('/api/comms/provider-configs');
+  return response.data || [];
+}
+
+export async function saveCommsProviderConfigApi(providerType, config, isActive = false) {
+  const response = await request('/api/comms/provider-configs', {
+    method: 'POST',
+    body: JSON.stringify({ providerType, config, isActive })
+  });
+  return response.data;
+}
+
+export async function deleteCommsProviderConfigApi(providerType) {
+  const response = await request(`/api/comms/provider-configs/${encodeURIComponent(providerType)}`, {
+    method: 'DELETE'
+  });
+  return response.data;
 }
 
 export function isBackendEnabled() {

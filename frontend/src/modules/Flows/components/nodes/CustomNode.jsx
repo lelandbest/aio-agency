@@ -69,7 +69,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
     >
       <div
         className={`
-          relative w-[72px] h-[72px] border-2 transition-all
+          relative w-[50px] h-[50px] border-2 transition-all
           bg-[var(--color-bg-primary)] dark:bg-[var(--color-bg-secondary)]
           rounded-full flex items-center justify-center text-center
           ${selected ? 'ring-2 ring-offset-2' : 'hover:ring-1 hover:ring-offset-1'}
@@ -114,7 +114,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
 
         {/* Icon / Socket Badge */}
         <div
-          className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full"
+          className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full"
           style={{
             backgroundColor: isGhost ? 'transparent' : `${colorToken}20`,
             color: iconColor,
@@ -122,7 +122,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
         >
           {data.isSocket && data.socketBadge ? (
             <span
-              className="w-8 h-8 flex items-center justify-center text-[18px] font-bold leading-none"
+              className="w-5 h-5 flex items-center justify-center text-[14px] font-bold leading-none"
               style={{
                 color: 'var(--node-socket)',
                 fontFamily: 'monospace',
@@ -133,13 +133,13 @@ const CustomNode = ({ data, selected, isConnectable }) => {
             </span>
           ) : IconComponent ? (
             <IconComponent
-              className="w-8 h-8"
+              className="w-5 h-5"
               style={{
                 filter: isGhost ? 'none' : `drop-shadow(0 0 4px ${glowColor.primary}60)`,
               }}
             />
           ) : (
-            <span className="w-8 h-8 flex items-center justify-center text-xs">o</span>
+            <span className="w-5 h-5 flex items-center justify-center text-[10px]">o</span>
           )}
         </div>
 

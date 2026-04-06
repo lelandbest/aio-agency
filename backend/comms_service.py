@@ -2,6 +2,157 @@ from typing import Any
 from datetime import datetime, timezone
 
 from backend.data_provider import create_provider, unique_suffix
+from comms_providers import (
+    create_provider_adapter,
+    ProviderConfig,
+    StubProviderAdapter,
+    get_available_providers,
+)
+
+
+_active_adapter: Any = None
+_active_provider_type: str = "stub"
+
+
+def _get_active_adapter() -> Any:
+    """Get or create the active provider adapter."""
+    global _active_adapter, _active_provider_type
+    
+    provider = create_provider()
+    tenant_id = provider._tenantId()
+    
+    with provider._connect() as conn:
+        row = conn.execute(
+            "SELECT providerType, configJson FROM comms_provider_configs WHERE tenantId = ? AND isActive = 1 LIMIT 1",
+            (tenant_id,)
+        ).fetchone()
+    
+    if row:
+        provider_type = row["providerType"]
+        config_json = row["configJson"]
+        
+        if config_json:
+            import json
+            try:
+                config_data = json.loads(config_json)
+            except:
+                config_data = {}
+        else:
+            config_data = {}
+        
+        if provider_type != _active_provider_type or _active_adapter is None:
+            _active_provider_type = provider_type
+            config = ProviderConfig(**config_data)
+            _active_adapter = create_provider_adapter(provider_type, config, tenant_id)
+    else:
+        _active_provider_type = "stub"
+        _active_adapter = StubProviderAdapter(ProviderConfig(), tenant_id)
+    
+    return _active_adapter
+
+
+def _refresh_active_adapter() -> None:
+    """Force refresh of the active adapter."""
+    global _active_adapter, _active_provider_type
+    _active_adapter = None
+    _active_provider_type = "stub"
+
+
+def get_provider_info() -> dict[str, Any]:
+    """Get current provider information."""
+    adapter = _get_active_adapter()
+    return {
+        "providerType": adapter.provider_type,
+        "providerName": adapter.provider_name,
+        "isActive": adapter.provider_type != "stub",
+    }
+
+
+def list_provider_configs() -> list[dict[str, Any]]:
+    """List all provider configurations."""
+    provider = create_provider()
+    tenant_id = provider._tenantId()
+    
+    with provider._connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM comms_provider_configs WHERE tenantId = ?",
+            (tenant_id,)
+        ).fetchall()
+    
+    results = []
+    for row in rows:
+        result = dict(row)
+        if result.get("configJson"):
+            import json
+            try:
+                config = json.loads(result["configJson"])
+                result["hasConfig"] = bool(config.get("api_key") or config.get("api_secret"))
+                result["configJson"] = json.dumps({k: v for k, v in config.items() if k in ("api_key", "api_secret")})
+            except:
+                result["hasConfig"] = False
+        results.append(result)
+    
+    return results
+
+
+def save_provider_config(
+    provider_type: str,
+    config: dict[str, Any],
+    is_active: bool = False,
+) -> dict[str, Any]:
+    """Save provider configuration."""
+    import json
+    
+    provider = create_provider()
+    tenant_id = provider._tenantId()
+    now = datetime.now(timezone.utc).isoformat()
+    config_id = f"provider-{provider_type}-{tenant_id}"
+    
+    with provider._connect() as conn:
+        existing = conn.execute(
+            "SELECT id FROM comms_provider_configs WHERE id = ?",
+            (config_id,)
+        ).fetchone()
+        
+        if existing:
+            conn.execute(
+                """UPDATE comms_provider_configs 
+                   SET configJson = ?, isActive = ?, updatedAt = ?
+                   WHERE id = ?""",
+                (json.dumps(config), 1 if is_active else 0, now, config_id)
+            )
+        else:
+            conn.execute(
+                """INSERT INTO comms_provider_configs 
+                   (id, tenantId, providerType, providerName, configJson, status, isActive, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, 'configured', ?, ?, ?)""",
+                (config_id, tenant_id, provider_type, provider_type.title(), json.dumps(config), 1 if is_active else 0, now, now)
+            )
+        
+        if is_active:
+            conn.execute(
+                "UPDATE comms_provider_configs SET isActive = 0 WHERE tenantId = ? AND id != ?",
+                (tenant_id, config_id)
+            )
+        
+        conn.commit()
+    
+    _refresh_active_adapter()
+    
+    return {"id": config_id, "providerType": provider_type, "isActive": is_active}
+
+
+def delete_provider_config(provider_type: str) -> None:
+    """Delete provider configuration."""
+    provider = create_provider()
+    tenant_id = provider._tenantId()
+    config_id = f"provider-{provider_type}-{tenant_id}"
+    
+    with provider._connect() as conn:
+        conn.execute("DELETE FROM comms_provider_configs WHERE id = ?", (config_id,))
+        conn.commit()
+    
+    _refresh_active_adapter()
 
 
 def get_comms_overview() -> dict[str, Any]:
@@ -97,17 +248,33 @@ def update_call_session(id: str, **kwargs) -> dict[str, Any]:
 
 
 def start_outbound_call(phone_number: str, from_number: str | None = None, contact_id: str | None = None, extension_id: str | None = None) -> dict[str, Any]:
+    from comms_providers import CallStartRequest
+    
     provider = create_provider()
+    adapter = _get_active_adapter()
+    tenant_id = provider._tenantId()
+    
+    call_request = CallStartRequest(
+        to_number=phone_number,
+        from_number=from_number or "",
+        contact_id=contact_id,
+        phone_number_id=None,
+        extension_id=extension_id,
+    )
+    
+    result = adapter.start_call(call_request)
     
     now = datetime.now(timezone.utc).isoformat()
-    call_id = f"call-{unique_suffix()}"
+    call_id = result.call_id or f"call-{unique_suffix()}"
+    
+    status = result.status if result.success else "failed"
     
     with provider._connect() as conn:
         conn.execute(
             """INSERT INTO call_sessions 
                (id, tenantId, contactId, phoneNumberId, extensionId, direction, status, startTime, createdAt, updatedAt)
-               VALUES (?, ?, ?, ?, ?, ?, 'simulated_ringing', ?, ?, ?)""",
-            (call_id, provider._tenantId(), contact_id, None, extension_id, direction, now, now, now)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (call_id, tenant_id, contact_id, None, extension_id, "outbound", status, now, now, now)
         )
         conn.commit()
     
@@ -115,8 +282,16 @@ def start_outbound_call(phone_number: str, from_number: str | None = None, conta
 
 
 def end_call_session(call_id: str, disposition: str | None = None, duration_seconds: int | None = None) -> dict[str, Any]:
+    from comms_providers import CallEndResult
+    
     provider = create_provider()
+    adapter = _get_active_adapter()
     now = datetime.now(timezone.utc).isoformat()
+    
+    if adapter.provider_type != "stub":
+        end_result = adapter.end_call(call_id)
+        if not end_result.success:
+            disposition = "provider_error"
     
     with provider._connect() as conn:
         conn.execute(
@@ -180,7 +355,10 @@ def check_opt_out(phone_number: str) -> dict[str, Any]:
 
 
 def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_number: str | None = None, contact_id: str | None = None) -> dict[str, Any]:
+    from comms_providers import SmsSendRequest
+    
     provider = create_provider()
+    adapter = _get_active_adapter()
     
     opt_out_check = check_opt_out(phone_number)
     if opt_out_check.get("opted_out"):
@@ -194,6 +372,16 @@ def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_n
         thread = provider.create_sms_thread(contact_id=contact_id, phone_number_id=None, subject=f"SMS with {phone_number}")
         thread_id = thread["id"]
     
+    sms_request = SmsSendRequest(
+        to_number=phone_number,
+        from_number=from_number or "",
+        body=body,
+        thread_id=thread_id,
+        contact_id=contact_id,
+    )
+    
+    result = adapter.send_sms(sms_request)
+    
     message = provider.add_sms_message(
         thread_id=thread_id,
         body=body,
@@ -202,9 +390,19 @@ def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_n
         recipient_number=phone_number
     )
     
-    provider.update_sms_message_status(message["id"], "simulated")
+    if result.success:
+        provider.update_sms_message_status(message["id"], result.status)
+    else:
+        provider.update_sms_message_status(message["id"], "provider_error")
+        if adapter.provider_type != "stub":
+            return {
+                "success": False,
+                "error": result.error or "Provider send failed",
+                "status": result.status,
+                "message_id": message["id"],
+            }
     
-    return {"success": True, "thread_id": thread_id, "message_id": message["id"], "status": "simulated"}
+    return {"success": True, "thread_id": thread_id, "message_id": message["id"], "status": result.status}
 
 
 def get_contacts_with_phone() -> list[dict[str, Any]]:

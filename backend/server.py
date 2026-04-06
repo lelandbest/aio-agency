@@ -7206,12 +7206,21 @@ async def get_comms_integration_info(request: Request):
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view integration info.")
     try:
         from comms_integration import COMMS_EVENT_TYPES, COMMS_ACTIVITY_TYPES, ARTIFACT_CLASSIFICATIONS
+        from comms_service import get_provider_info
+        from comms_providers import get_available_providers
+        
+        provider_info = get_provider_info()
+        providers = get_available_providers()
+        
         return {
             "data": {
                 "eventTypes": COMMS_EVENT_TYPES,
                 "activityTypes": COMMS_ACTIVITY_TYPES,
                 "artifactClassifications": ARTIFACT_CLASSIFICATIONS,
-                "providerStatus": "stub",
+                "providerStatus": provider_info.get("providerType", "stub"),
+                "providerName": provider_info.get("providerName", "Stub"),
+                "isProviderActive": provider_info.get("isActive", False),
+                "availableProviders": providers,
                 "crmIntegration": "ready",
                 "signalsIntegration": "ready",
                 "flowsTriggerReadiness": "bridge_only",
@@ -7231,6 +7240,112 @@ async def get_comms_integration_info(request: Request):
                 "vaultCortexReadiness": "not_available",
             }
         }
+
+
+@app.get("/api/comms/provider-configs")
+async def list_comms_provider_configs(request: Request):
+    """List all provider configurations."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view provider configs.")
+    try:
+        from comms_service import list_provider_configs
+        return {"data": list_provider_configs()}
+    except ImportError:
+        return {"data": []}
+
+
+@app.post("/api/comms/provider-configs")
+async def save_comms_provider_config(request: Request, payload: dict[str, Any]):
+    """Save provider configuration."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save provider config.")
+    try:
+        from comms_service import save_provider_config
+        
+        provider_type = payload.get("providerType")
+        config = payload.get("config", {})
+        is_active = payload.get("isActive", False)
+        
+        if not provider_type:
+            raise HTTPException(status_code=400, detail="providerType is required")
+        
+        result = save_provider_config(provider_type, config, is_active)
+        return {"data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/comms/provider-configs/{provider_type}")
+async def delete_comms_provider_config(request: Request, provider_type: str):
+    """Delete provider configuration."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete provider config.")
+    try:
+        from comms_service import delete_provider_config
+        delete_provider_config(provider_type)
+        return {"data": {"success": True}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/comms/webhook/{provider}")
+async def comms_webhook_ingest(request: Request, provider: str, payload: dict[str, Any] = None):
+    """Webhook ingestion endpoint for comms providers."""
+    try:
+        from comms_providers import create_provider_adapter, ProviderConfig
+        from comms_service import _get_active_adapter
+        
+        if not payload:
+            payload = await request.json()
+        
+        adapter = _get_active_adapter()
+        
+        event = adapter.parse_webhook(payload, dict(request.headers))
+        
+        if event and event.normalized:
+            from comms_service import create_provider
+            
+            provider_data = create_provider()
+            event_type = event.normalized.get("event_type", "")
+            
+            if event_type == "sms_status_update":
+                msg_id = event.normalized.get("message_id")
+                status = event.normalized.get("status")
+                if msg_id and status:
+                    provider_data.update_sms_message_status(msg_id, f"provider_{status}")
+            
+            elif event_type == "sms_received":
+                from comms_service import create_sms_thread, add_sms_message
+                from_number = event.normalized.get("from")
+                to_number = event.normalized.get("to")
+                body = event.normalized.get("body", "")
+                
+                thread = create_sms_thread(phone_number_id=None, subject=f"SMS from {from_number}")
+                add_sms_message(
+                    thread_id=thread["id"],
+                    body=body,
+                    direction="inbound",
+                    sender_number=from_number,
+                    recipient_number=to_number
+                )
+            
+            elif event_type == "call_update" or event_type == "call_answered":
+                call_id = event.normalized.get("call_id")
+                status = event.normalized.get("status")
+                if call_id:
+                    provider_data.update_call_session(call_id, status=status)
+            
+            elif event_type == "call_ended":
+                call_id = event.normalized.get("call_id")
+                duration = event.normalized.get("duration")
+                if call_id:
+                    provider_data.update_call_session(
+                        call_id,
+                        status="ended",
+                        duration_seconds=duration,
+                        disposition="completed"
+                    )
+        
+        return {"data": {"received": True}}
+    except Exception as e:
+        return {"data": {"received": True, "error": str(e)}}
 
 
 # ============ ANALYTICS & REPORTING ============

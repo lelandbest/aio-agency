@@ -358,10 +358,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
   // System-managed flow lock — blocks structural mutations only
   const isSystemManaged = flow?.metadata?.deploymentManaged === true;
-  const [loading, setLoading] = useState(true);
-  const [providerStatuses, setProviderStatuses] = useState({});
 
-  // Node/Edge state
+  // Check if flow is editable: NOT system-managed, AND (NOT template-derived OR is internal template copy)
+  // Template-derived flows from internal templates can be edited
+  const isTemplateDerivedFlow = Boolean(flow?.metadata?.sourceTemplateId || flow?.metadata?.createdFromTemplate);
+  const isFromInternalTemplate = flow?.metadata?.templateSource === 'internal';
+  const canEditFlow = !isSystemManaged && (!isTemplateDerivedFlow || isFromInternalTemplate);
+  const [loading, setLoading] = useState(true);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
@@ -416,7 +419,6 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [historyInspectingRunId, setHistoryInspectingRunId] = useState('');
   const [historyComparingRunId, setHistoryComparingRunId] = useState('');
   const [historyRerunningRunId, setHistoryRerunningRunId] = useState('');
-  const isTemplateDerivedFlow = Boolean(flow?.metadata?.sourceTemplateId || flow?.metadata?.createdFromTemplate);
 
   // Terminal logging helper
   const logToTerminal = useCallback((message, type = 'info') => {
@@ -856,33 +858,54 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const onDrop = useCallback(
     (event) => {
       event.preventDefault();
+      console.log('[onDrop] Event received', event.dataTransfer.types);
 
       const nodeDataStr = event.dataTransfer.getData('nodeData');
-      if (!nodeDataStr) return;
+      if (!nodeDataStr) {
+        console.log('[onDrop] No nodeData found');
+        return;
+      }
 
       try {
         const nodeTemplate = JSON.parse(nodeDataStr);
+        console.log('[onDrop] Node template:', nodeTemplate.id, nodeTemplate.type);
+        
         const position = reactFlowInstance?.screenToFlowPosition({
           x: event.clientX,
           y: event.clientY,
         }) || { x: 0, y: 0 };
 
+        console.log('[onDrop] Position:', position);
+
         // Rule: Use mutateFlowGraph for runtime drop
         const result = mutateFlowGraph(nodes, edges, {
           type: 'ADD_NODE',
           payload: { nodeTemplate, position }
-        }, isSystemManaged);
+        }, !canEditFlow);  // Pass inverted canEditFlow as isSystemManaged
 
-        if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+        console.log('[onDrop] mutateFlowGraph result:', result);
+        console.log('[onDrop] __blocked:', result?.__blocked);
+        console.log('[onDrop] blockers:', result?.validation?.blockers);
+        console.log('[onDrop] nodes count:', result?.nodes?.length);
+
+        if (result?.__blocked) { 
+          console.log('[onDrop] BLOCKED: flow is system-managed'); 
+          return; 
+        }
+        
         if (result.validation.blockers.length === 0) {
+          console.log('[onDrop] Setting nodes...');
           setNodes(result.nodes);
           setIsDirty(true);
+          console.log('[onDrop] Node added successfully');
+        } else {
+          console.log('[onDrop] Blocked:', result.validation.blockers);
         }
       } catch (error) {
         console.error('Failed to drop node:', error);
       }
     },
-    [reactFlowInstance, nodes, edges, setNodes]
+    [reactFlowInstance, nodes, edges, setNodes, canEditFlow]
   );
 
   // Handle node click (select for config)

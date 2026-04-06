@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Layers, Search, Workflow, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Layers, Search, Workflow, X } from 'lucide-react';
 import { categories, templates as flowTemplates } from '../data/templates';
 
 const complexityTone = {
@@ -14,6 +14,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState(flowTemplates[0]?.id || null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showJson, setShowJson] = useState(false);
 
   const filteredTemplates = useMemo(() => {
     return flowTemplates.filter((template) => {
@@ -68,8 +69,8 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-      <div className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/70 p-4 pt-16 backdrop-blur-md">
+      <div className="mt-16 flex max-h-[calc(100vh-8rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
@@ -102,12 +103,11 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
                 <button
                   key={category}
                   type="button"
                   onClick={() => setSelectedCategory(category)}
-                  className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                  className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition ${
                     selectedCategory === category
                       ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
                       : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
@@ -120,8 +120,8 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.2fr)_380px]">
-          <div className="no-scrollbar min-h-0 overflow-y-auto border-r border-[var(--color-border)] px-6 py-5">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="no-scrollbar w-1/2 min-w-0 overflow-y-auto border-r border-[var(--color-border)] px-6 py-5">
             <div className="grid gap-3 md:grid-cols-2">
               {filteredTemplates.map((template) => {
                 const selected = template.id === previewTemplate?.id;
@@ -148,7 +148,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                     <p className="mt-3 text-sm text-[var(--color-text-secondary)]">{template.description}</p>
                     <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-tertiary)]">
                       <span>{template.nodes.length} nodes</span>
-                      <span className={`rounded-full border px-2 py-1 font-semibold uppercase tracking-[0.16em] ${complexityTone[template.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
+                      <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] ${complexityTone[template.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
                         {template.complexity}
                       </span>
                     </div>
@@ -167,7 +167,7 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
             ) : null}
           </div>
 
-          <div className="flex min-h-0 flex-col bg-[var(--color-bg-secondary)] px-6 py-5">
+          <div className="no-scrollbar min-h-0 w-1/2 overflow-y-auto bg-[var(--color-bg-secondary)] px-6 py-5">
             {previewTemplate ? (
               <>
                 <div className="flex items-center gap-3">
@@ -183,13 +183,13 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                   <p className="mt-4 text-sm text-[var(--color-text-secondary)]">{previewTemplate.description}</p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
                     {previewTemplate.category}
                   </span>
-                  <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${complexityTone[previewTemplate.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] ${complexityTone[previewTemplate.complexity] || 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'}`}>
                     {previewTemplate.complexity}
                   </span>
-                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
                     {previewTemplate.nodes.length} Nodes
                   </span>
                 </div>
@@ -223,6 +223,22 @@ const TemplateGallery = ({ isOpen, onClose, onSelectTemplate }) => {
                       <span className="text-sm text-[var(--color-text-secondary)]">No runtime placeholders required.</span>
                     )}
                   </div>
+                </div>
+
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowJson(!showJson)}
+                    className="flex w-full items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-3 text-sm font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)]"
+                  >
+                    <span>View JSON Template</span>
+                    {showJson ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  {showJson && (
+                    <pre className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3 text-xs text-[var(--color-text-secondary)] font-mono whitespace-pre-wrap">
+                      {JSON.stringify(previewTemplate, null, 2)}
+                    </pre>
+                  )}
                 </div>
 
                 {error ? (

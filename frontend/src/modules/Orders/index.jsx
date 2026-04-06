@@ -22,6 +22,8 @@ const OrdersModule = () => {
         context: { orderCount: data.length }
       });
       if (response?.suggestion) {
+        console.log('AI suggestion:', response.suggestion);
+      }
     } catch (err) {
       console.error(err);
     }
