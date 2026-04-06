@@ -881,25 +881,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         const result = mutateFlowGraph(nodes, edges, {
           type: 'ADD_NODE',
           payload: { nodeTemplate, position }
-        }, !canEditFlow);  // Pass inverted canEditFlow as isSystemManaged
-
-        console.log('[onDrop] mutateFlowGraph result:', result);
-        console.log('[onDrop] __blocked:', result?.__blocked);
-        console.log('[onDrop] blockers:', result?.validation?.blockers);
-        console.log('[onDrop] nodes count:', result?.nodes?.length);
+        }, !canEditFlow);
 
         if (result?.__blocked) { 
-          console.log('[onDrop] BLOCKED: flow is system-managed'); 
+          console.warn('Cannot add nodes: flow is not editable'); 
           return; 
         }
         
         if (result.validation.blockers.length === 0) {
-          console.log('[onDrop] Setting nodes...');
           setNodes(result.nodes);
           setIsDirty(true);
-          console.log('[onDrop] Node added successfully');
         } else {
-          console.log('[onDrop] Blocked:', result.validation.blockers);
+          console.log('Add node blocked:', result.validation.blockers);
         }
       } catch (error) {
         console.error('Failed to drop node:', error);
