@@ -231,7 +231,7 @@ const EditAssetModal = ({ item, isOpen, onClose, onUpdate }) => {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] ml-1">Vault Bucket (Category)</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] ml-1">Cortex Bucket (Category)</label>
             <select 
               value={category} 
               onChange={(e) => setCategory(e.target.value)}
@@ -250,7 +250,7 @@ const EditAssetModal = ({ item, isOpen, onClose, onUpdate }) => {
   );
 };
 
-const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpdate }) => {
+const CortexCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpdate }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   
@@ -376,7 +376,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {renderTableRows(uploads, uploads.length > 0 && internal.length > 0 ? "Operational Uploads" : null)}
-                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Library" : null)}
+                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Cortex" : null)}
                 
                 {allFiltered.length === 0 && (
                   <tr>
@@ -400,7 +400,7 @@ const VaultCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpda
             <div className="p-8 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-primary)]/35">
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.4em] text-sky-400">
-                  {selectedItem.category === 'help' ? 'System Library' : 'Database Entry'}
+                  {selectedItem.category === 'help' ? 'System Knowledge' : 'Database Entry'}
                 </div>
                 <div className="text-[20px] font-black text-[var(--color-text-primary)] uppercase tracking-widest mt-1">{selectedItem.title || selectedItem.label}</div>
               </div>
@@ -706,7 +706,7 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
 
   return (
     <div className={COMMS_SUBPANEL + " p-5 flex-1 flex flex-col min-h-0 relative z-30 overflow-hidden"}>
-      <SubPanelHeader title="The Vault" icon={Lock} />
+      <SubPanelHeader title="Cortex" icon={Lock} />
       
       <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 mt-2">
         {CATEGORIES.filter(c => c.id !== 'b-hlp').map(cat => {
@@ -1051,7 +1051,7 @@ const Cortex = () => {
       setSources(data.sources || []);
       setItems(data.items || []);
       setLinks(data.links || []);
-      setSavedIntelligence(data.items || []); // Sync Vault with items
+      setSavedIntelligence(data.items || []); // Sync Cortex with items
       // Sync providers with profile state
       await fetchProviders(data.profile);
     } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -1303,7 +1303,7 @@ const Cortex = () => {
       )}
       
       {selectedCategory && (
-        <VaultCategoryModal 
+        <CortexCategoryModal 
           category={selectedCategory} 
           items={savedIntelligence} 
           isOpen={!!selectedCategory} 
