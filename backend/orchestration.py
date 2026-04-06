@@ -1891,23 +1891,71 @@ class StepExecutor:
                 recipients=recipients,
                 sender_id=provider_metadata.get("senderId"),
             )
-        if provider not in {"twilio", "plivo", "aws_sms"}:
+        
+        try:
+            from comms_service import send_sms_message as _comms_send_sms
+            contact_id = resolved.get("contactId")
+            from_number = resolved.get("senderId")
+            to_number = recipients[0] if len(recipients) == 1 else None
+            thread_id = context.get("threadId") or context.get("thread_id")
+            
+            if to_number:
+                result = _comms_send_sms(
+                    thread_id=thread_id,
+                    phone_number=to_number,
+                    body=message_body,
+                    from_number=from_number,
+                    contact_id=contact_id,
+                    execution_context=True,
+                )
+            else:
+                results = []
+                for recipient in recipients:
+                    result = _comms_send_sms(
+                        thread_id=thread_id,
+                        phone_number=recipient,
+                        body=message_body,
+                        from_number=from_number,
+                        contact_id=contact_id,
+                        execution_context=True,
+                    )
+                    results.append(result)
+                result = results[-1] if results else {"success": False, "error": "No recipients"}
+            
+            if result.get("success"):
+                return {
+                    "stepId": step.get("id"),
+                    "intent": step.get("intent"),
+                    "status": "success",
+                    "data": {
+                        "status": "sent",
+                        "deliveryStatus": "delivered",
+                        "provider": provider,
+                        "senderId": from_number,
+                        "providerMessageId": result.get("message_id"),
+                        "recipients": recipients,
+                        "threadId": result.get("thread_id"),
+                    },
+                    "metadata": {"service": "messagingService", "executionType": "deterministic"},
+                }
+            else:
+                return self._send_sms_failure(
+                    step,
+                    machine_status="provider_error",
+                    message=result.get("error", "SMS send failed"),
+                    recipients=recipients,
+                    provider=provider,
+                    sender_id=from_number,
+                )
+        except Exception as exc:
             return self._send_sms_failure(
                 step,
-                machine_status="unsupported_provider",
-                message=f"SMS provider '{provider}' is not supported.",
+                machine_status="execution_error",
+                message=str(exc),
                 recipients=recipients,
                 provider=provider,
-                sender_id=provider_metadata.get("senderId"),
+                sender_id=resolved.get("senderId"),
             )
-        return self._send_sms_failure(
-            step,
-            machine_status="not_implemented",
-            message=f"SMS provider '{provider}' is not implemented yet.",
-            recipients=recipients,
-            provider=provider,
-            sender_id=provider_metadata.get("senderId"),
-        )
 
     def _store_data_failure(
         self,

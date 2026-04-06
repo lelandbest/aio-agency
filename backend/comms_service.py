@@ -395,7 +395,14 @@ def check_opt_out(phone_number: str) -> dict[str, Any]:
     return {"opted_out": False}
 
 
-def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_number: str | None = None, contact_id: str | None = None) -> dict[str, Any]:
+def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_number: str | None = None, contact_id: str | None = None, execution_context: bool = False) -> dict[str, Any]:
+    """Send SMS — must be called via ExecutionEngine or API route.
+    
+    execution_context=True when called from ExecutionEngine._send_sms.
+    Direct API calls set execution_context=False but are still allowed
+    for backward compatibility with the /api/comms/sms/send endpoint.
+    Any other caller without execution_context should be audited.
+    """
     from comms_providers import SmsSendRequest
     from comms_integration import emit_sms_message_sent, emit_sms_message_failed
     
