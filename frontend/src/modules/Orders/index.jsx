@@ -22,8 +22,6 @@ const OrdersModule = () => {
         context: { orderCount: data.length }
       });
       if (response?.suggestion) {
-        console.log('Orders insight:', response.suggestion);
-      }
     } catch (err) {
       console.error(err);
     }

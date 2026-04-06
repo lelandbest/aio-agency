@@ -4011,7 +4011,6 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
             from backend.vtt_service import synthesize_voice
             audio_url = synthesize_voice(spoken_text, tenant_id=tenant_id)
 
-        print(f"[VTT-DEBUG] conversational | ai_status={ai_status} | audio_url={audio_url} | msg_len={len(spoken_text)}")
         return _build_vtt_response(
             response_type="conversational",
             input_text=raw,
@@ -4039,7 +4038,6 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
         }
     command_result = dict(result.get("result") or {})
 
-    print(f"[VTT-DEBUG] command | voice_enabled={voice_enabled} | audio_url={audio_url} | msg_len={len(spoken_text)}")
     return _build_vtt_response(
         response_type=response_type,
         input_text=raw,

@@ -200,7 +200,6 @@ function pickPreferredSystemVoice(voices = []) {
 // ─── Single playback entry point ───────────────────────────────────────────────
 function playCharlieResponse(audioUrl, text, fallbackSpeak) {
   const cleanText = String(text || '').replace(/[*_#~>`\[\]{}]+/g, '').replace(/\s+/g, ' ').trim();
-  console.log("[VTT] playCharlieResponse called", { audioUrl, text: cleanText?.substring(0, 100) });
   if (!cleanText && !audioUrl) {
     console.warn("CHARLIE: empty spoken text", { audioUrl });
     return;
@@ -219,9 +218,7 @@ function playCharlieResponse(audioUrl, text, fallbackSpeak) {
         fallbackSpeak(cleanText);
       };
       
-      console.log("[VTT] Playing ElevenLabs audio:", audioUrl);
       const audio = new Audio(audioUrl);
-      audio.onended = () => { console.log("[VTT] ElevenLabs audio played successfully"); };
       audio.onerror = doFallback;
       audio.play().catch(doFallback);
       return;
@@ -229,7 +226,6 @@ function playCharlieResponse(audioUrl, text, fallbackSpeak) {
   } catch (e) {
     console.warn("[VTT] Audio hard fail, falling back:", e);
   }
-  console.log("[VTT] Using fallback speak for:", cleanText?.substring(0, 100));
   fallbackSpeak(cleanText);
 }
 

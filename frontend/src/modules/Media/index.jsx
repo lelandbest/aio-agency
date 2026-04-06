@@ -10,6 +10,7 @@ import {
   Play,
   RefreshCw,
   Video,
+  Vault,
   Waves,
   Volume2,
   X,
@@ -28,7 +29,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import AssetsPage from './AssetsPage';
+import VaultPage from './VaultPage';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { BullseyeIcon } from '../../components/ui/icons';
 import {
@@ -1528,8 +1529,8 @@ const StudioModule = () => {
 
   if (loading && !workspace.outputs.length) return <div className="flex h-full items-center justify-center bg-black text-cyan-500 font-mono text-xs uppercase tracking-widest">INITIAL LOADING SEQUENCE...</div>;
 
-  if (currentView === 'assets') {
-    return <AssetsPage onBack={() => setCurrentView('workstation')} />;
+  if (currentView === 'vault') {
+    return <VaultPage onBack={() => setCurrentView('workstation')} />;
   }
 
   return (
@@ -1547,9 +1548,9 @@ const StudioModule = () => {
           showTitle={false}
           leftActions={[
             {
-              label: 'ASSETS',
-              icon: Clapperboard,
-              onClick: () => setCurrentView('assets'),
+              label: 'VAULT',
+              icon: Vault,
+              onClick: () => setCurrentView('vault'),
               variant: 'secondary',
             },
           ]}
@@ -2300,7 +2301,7 @@ const StudioModule = () => {
                   <FileText size={16} />
                 </div>
                 <div className="flex flex-col">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">MISSION ASSET // TRANSCRIPT</h3>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">MISSION VAULT // TRANSCRIPT</h3>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></div>
                     <span className="text-[8px] font-mono text-cyan-500/60 uppercase tracking-widest">{transcriptState.status}</span>

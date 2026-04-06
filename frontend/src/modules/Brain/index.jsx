@@ -1164,8 +1164,6 @@ const Cortex = () => {
           <InsightWorkbench 
             activeReportId={activeReportId} 
             onRunReport={async (r) => { 
-                console.log('[CortexReport] START', { reportId: r.id, label: r.label });
-                
                 setActiveReportId(r.id); 
                 setOutput(`[NEURAL ACTIVATION] Executing: ${r.label}...\n[SEED PROMPT] ${r.prompt}\n\n`);
                 
@@ -1173,31 +1171,19 @@ const Cortex = () => {
                 let reportContent = '';
                 
                 try {
-                    console.log('[CortexReport] Fetching analytics...');
                     const analytics = await getAnalyticsSummaryApi();
                     const hasContacts = analytics?.crm?.totalContacts > 0;
                     const hasThreads = analytics?.comms?.totalThreads > 0;
-                    console.log('[CortexReport] ANALYTICS', { 
-                        reportId: r.id, 
-                        hasAnalytics: !!analytics,
-                        totalContacts: analytics?.crm?.totalContacts,
-                        totalThreads: analytics?.comms?.totalThreads,
-                        hasContacts,
-                        hasThreads
-                    });
                     
                     if (!analytics || (!hasContacts && !hasThreads)) {
                         throw new Error('Report generation is disabled until live CRM or Comms data is available.');
                     } else {
-                        console.log('[CortexReport] AI_CALL - Generating report via AI');
                         const result = await generateReportApi({
                             reportId: r.id,
                             prompt: r.prompt,
                             analytics,
                             context: {}
                         });
-                        
-                        console.log('[CortexReport] RESPONSE', { success: result?.success, hasData: !!result?.data });
                         
                         if (result?.success && result?.data) {
                             reportContent = result.data;
@@ -1206,7 +1192,6 @@ const Cortex = () => {
                         }
                     }
                     
-                    console.log('[CortexReport] RENDER', { usedFallback, contentLength: reportContent.length });
                     setOutput(p => p + reportContent);
                     
                 } catch (err) {
@@ -1216,7 +1201,6 @@ const Cortex = () => {
                 }
                 
                 setActiveReportId(''); 
-                console.log('[CortexReport] END');
                 if (!reportContent) {
                     return;
                 }
