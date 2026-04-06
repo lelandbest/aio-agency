@@ -190,10 +190,51 @@ def create_sms_thread(contact_id: str | None = None, phone_number_id: str | None
     return provider.create_sms_thread(contact_id, phone_number_id, subject)
 
 
+def _dispatch_signal_event(event: Any) -> None:
+    """Route comms event into existing signal → ExecutionEngine pathway."""
+    try:
+        from orchestration import emit_system_event
+        signal_event = {
+            "type": event.event_type,
+            "payload": event.to_dict(),
+            "meta": {"depth": 0, "source": "comms"},
+        }
+        provider = create_provider()
+        emit_system_event(provider, signal_event)
+    except Exception:
+        pass
+
+
 def add_sms_message(thread_id: str, body: str, direction: str, sender_number: str | None = None, recipient_number: str | None = None) -> dict[str, Any]:
-    from comms_integration import emit_sms_message_sent, emit_sms_message_failed
+    from comms_integration import emit_sms_message_sent, emit_sms_message_failed, emit_sms_received
     provider = create_provider()
     result = provider.add_sms_message(thread_id, body, direction, sender_number, recipient_number)
+    
+    message_id = result.get("id", "")
+    thread = provider.list_sms_threads(limit=1000)
+    thread_data = next((t for t in thread if t.get("id") == thread_id), {})
+    contact_id = thread_data.get("contactId")
+    tenant_id = provider._tenantId()
+    
+    if direction == "inbound":
+        event = emit_sms_received(
+            tenant_id=tenant_id,
+            thread_id=thread_id,
+            message_id=message_id,
+            contact_id=contact_id,
+            phone_number=sender_number,
+        )
+        _dispatch_signal_event(event)
+    elif direction == "outbound":
+        event = emit_sms_message_sent(
+            tenant_id=tenant_id,
+            thread_id=thread_id,
+            message_id=message_id,
+            contact_id=contact_id,
+            phone_number=recipient_number,
+        )
+        _dispatch_signal_event(event)
+    
     return result
 
 
@@ -356,9 +397,11 @@ def check_opt_out(phone_number: str) -> dict[str, Any]:
 
 def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_number: str | None = None, contact_id: str | None = None) -> dict[str, Any]:
     from comms_providers import SmsSendRequest
+    from comms_integration import emit_sms_message_sent, emit_sms_message_failed
     
     provider = create_provider()
     adapter = _get_active_adapter()
+    tenant_id = provider._tenantId()
     
     opt_out_check = check_opt_out(phone_number)
     if opt_out_check.get("opted_out"):
@@ -390,19 +433,38 @@ def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_n
         recipient_number=phone_number
     )
     
+    message_id = message.get("id", "")
+    
     if result.success:
-        provider.update_sms_message_status(message["id"], result.status)
+        provider.update_sms_message_status(message_id, result.status)
+        event = emit_sms_message_sent(
+            tenant_id=tenant_id,
+            thread_id=thread_id,
+            message_id=message_id,
+            contact_id=contact_id,
+            phone_number=phone_number,
+        )
+        _dispatch_signal_event(event)
     else:
-        provider.update_sms_message_status(message["id"], "provider_error")
+        provider.update_sms_message_status(message_id, "provider_error")
+        event = emit_sms_message_failed(
+            tenant_id=tenant_id,
+            thread_id=thread_id,
+            message_id=message_id,
+            error_message=result.error or "Provider send failed",
+            contact_id=contact_id,
+            phone_number=phone_number,
+        )
+        _dispatch_signal_event(event)
         if adapter.provider_type != "stub":
             return {
                 "success": False,
                 "error": result.error or "Provider send failed",
                 "status": result.status,
-                "message_id": message["id"],
+                "message_id": message_id,
             }
     
-    return {"success": True, "thread_id": thread_id, "message_id": message["id"], "status": result.status}
+    return {"success": True, "thread_id": thread_id, "message_id": message_id, "status": result.status}
 
 
 def get_contacts_with_phone() -> list[dict[str, Any]]:

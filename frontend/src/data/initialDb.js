@@ -122,6 +122,7 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Main",
     items: [
       { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "forge", label: "Forge", icon: "Cpu", type: "internal", visible: true, iconColor: "#06b6d4", description: "3D Cognitive Assembler // Charlie -> Alpha -> Specialist" },
       { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
       { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-systems", label: "Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full system stack and launch each workspace inside the embedded app frame." }

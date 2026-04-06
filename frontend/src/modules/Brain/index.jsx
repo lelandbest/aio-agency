@@ -904,7 +904,7 @@ const generateTemplateReport = (reportId, analytics) => {
   return lines.join('\n');
 };
 
-const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSave }) => {
+const AIInsights = ({ onRunReport, activeReportId, output, setOutput, onSave }) => {
   const handleCopy = () => {
     navigator.clipboard.writeText(output);
   };
@@ -923,7 +923,7 @@ const InsightWorkbench = ({ onRunReport, activeReportId, output, setOutput, onSa
       <div className="p-5 border-b border-slate-800/60 bg-black/10">
         <div className="flex items-center gap-3">
           <Cpu size={20} className="text-sky-400" />
-          <div className="text-[16px] font-black uppercase tracking-[0.5em] text-slate-100 leading-none">AI Workbench</div>
+          <div className="text-[16px] font-black uppercase tracking-[0.5em] text-slate-100 leading-none">AI Insights</div>
         </div>
         <div className="text-[10px] font-black text-sky-500/60 uppercase tracking-[0.3em] mt-2 ml-8">Operational Insights</div>
       </div>
@@ -1085,8 +1085,15 @@ const Cortex = () => {
     : undefined;
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <div className={`h-full bg-slate-900/50 rounded-[var(--radius-outer)] border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island relative`} style={cortexWindowStyle}>
+    <div className="h-full min-h-0 overflow-hidden bg-black flex flex-col">
+      <ModuleHeader 
+        title="Cortex™" 
+        subtitle="Structured Knowledge // Operational DNA // CRM Synthesis"
+        actions={[
+          { label: 'UPLINK REFRESH', icon: RefreshCcw, onClick: fetchOverview, variant: 'secondary' }
+        ]}
+      />
+      <div className={`flex-1 bg-slate-900/50 border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island relative`} style={cortexWindowStyle}>
       <div className="flex flex-1 overflow-hidden relative min-h-0">
         <aside 
           className={`w-[300px] flex flex-col gap-[25px] p-4 border-r border-slate-800/60 ${COMMS_COLUMN_BG} z-30 h-full shadow-[20px_0_60px_rgba(0,0,0,0.5)] transition-all ${!interactionArmed ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
@@ -1161,7 +1168,7 @@ const Cortex = () => {
           className={`w-[540px] flex flex-col border-l border-slate-800/60 z-20 ${COMMS_COLUMN_BG} h-full shadow-[-20px_0_60px_rgba(0,0,0,0.5)] p-4 transition-all ${!interactionArmed ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
           onClick={() => setInteractionArmed(false)}
         >
-          <InsightWorkbench 
+          <AIInsights 
             activeReportId={activeReportId} 
             onRunReport={async (r) => { 
                 setActiveReportId(r.id); 

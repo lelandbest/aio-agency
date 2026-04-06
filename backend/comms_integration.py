@@ -4,6 +4,7 @@ from backend.data_provider import create_provider
 
 
 COMMS_EVENT_TYPES = [
+    "sms_received",
     "sms_thread_created",
     "sms_message_sent",
     "sms_message_failed",
@@ -167,6 +168,27 @@ class CommsFlowTrigger:
             "payload": self.payload,
             "timestamp": self.timestamp,
         }
+
+
+def emit_sms_received(
+    tenant_id: str,
+    thread_id: str,
+    message_id: str,
+    contact_id: str | None = None,
+    phone_number: str | None = None,
+    body: str | None = None,
+) -> CommsEvent:
+    return CommsEvent(
+        event_type="sms_received",
+        tenant_id=tenant_id,
+        contact_id=contact_id,
+        thread_id=thread_id,
+        message_id=message_id,
+        phone_number=phone_number,
+        direction="inbound",
+        status="received",
+        metadata={"body": body} if body else {},
+    )
 
 
 def emit_sms_thread_created(
@@ -393,6 +415,7 @@ def classify_artifact(
 
 def get_flow_trigger_from_event(event: CommsEvent) -> CommsFlowTrigger | None:
     event_to_trigger_map = {
+        "sms_received": "sms_inbound",
         "sms_thread_created": "sms_inbound" if event.direction == "inbound" else "sms_outbound",
         "sms_message_sent": "sms_outbound",
         "sms_message_failed": "sms_failed",

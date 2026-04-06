@@ -27,6 +27,7 @@ import {
   Trash2,
   CloudUpload,
   ChevronLeft,
+  Cpu,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import VaultPage from './VaultPage';
@@ -57,6 +58,7 @@ import {
   probeMediaAssetApi,
   withSessionToken,
   saveTranscriptApi,
+  getBrainItemsApi,
 } from '../../services/backendApi';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import { templates } from '../Flows/data/templates';
@@ -392,6 +394,7 @@ const StudioModule = () => {
     purposeNote: '',
     priority: '',
     status: 'Draft',
+    specialist: 'FORGE',
   });
   const transcriptSavedStateRef = useRef(null); // Last saved state for dirty detection + reopen
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
@@ -404,6 +407,11 @@ const StudioModule = () => {
   const [mediaView, setMediaView] = useState('outputs');
   const [pendingDelete, setPendingDelete] = useState(null);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  // WorkBench rail state
+  const [vaultRailItems, setVaultRailItems] = useState([]);
+  const [cortexRailItems, setCortexRailItems] = useState([]);
+  const [vaultExpandedCats, setVaultExpandedCats] = useState({ audio: true });
+  const [cortexExpandedCats, setCortexExpandedCats] = useState({ summaries: true });
   const [workspace, setWorkspace] = useState({
     jobs: [],
     outputs: [],
@@ -428,6 +436,25 @@ const StudioModule = () => {
       sessionStorage.removeItem(TRANSCRIPT_EDITOR_OPEN_KEY);
     }
   }, []);
+
+  // WorkBench rail data fetch — fires when modal opens
+  useEffect(() => {
+    if (!isTranscriptModalOpen) return;
+    let active = true;
+    const fetchRailData = async () => {
+      try {
+        const [vaultData, cortexData] = await Promise.allSettled([
+          getVaultApi(),
+          getBrainItemsApi(),
+        ]);
+        if (!active) return;
+        if (vaultData.status === 'fulfilled') setVaultRailItems(Array.isArray(vaultData.value) ? vaultData.value : []);
+        if (cortexData.status === 'fulfilled') setCortexRailItems(Array.isArray(cortexData.value) ? cortexData.value : []);
+      } catch (_) { /* silent — rails are non-blocking */ }
+    };
+    fetchRailData();
+    return () => { active = false; };
+  }, [isTranscriptModalOpen]);
 
   // --- REAL PLAYER STATE ---
   const mediaRef = useRef(null);
@@ -1544,7 +1571,7 @@ const StudioModule = () => {
       />
       <div className="shrink-0">
         <ModuleHeader
-          title="Media Workstation"
+          title="WorkBench"
           showTitle={false}
           leftActions={[
             {
@@ -1552,6 +1579,13 @@ const StudioModule = () => {
               icon: Vault,
               onClick: () => setCurrentView('vault'),
               variant: 'secondary',
+            },
+            {
+              label: 'FORGE',
+              icon: Cpu,
+              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } })),
+              variant: 'primary',
+              className: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 font-black'
             },
           ]}
           toolbarLeftSlot={
@@ -2037,8 +2071,8 @@ const StudioModule = () => {
 
               {/* VIEW TOGGLE */}
               <div className="flex gap-1 mb-2">
-                <button onClick={() => setMediaView('outputs')} className={`px-3 py-1 text-[8px] uppercase tracking-wider rounded ${mediaView === 'outputs' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 border border-transparent'}`}>OUTPUTS</button>
-                <button onClick={() => setMediaView('library')} className={`px-3 py-1 text-[8px] uppercase tracking-wider rounded ${mediaView === 'library' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 border border-transparent'}`}>LIBRARY</button>
+        <button onClick={() => setMediaView('outputs')} className={`px-3 py-1 text-[8px] uppercase tracking-wider rounded ${mediaView === 'outputs' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 border border-transparent'}`}>ARTIFACTS</button>
+        <button onClick={() => setMediaView('vault')} className={`px-3 py-1 text-[8px] uppercase tracking-wider rounded ${mediaView === 'vault' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-slate-500 border border-transparent'}`}>RAW ASSETS</button>
               </div>
 
               {/* ASSET CACHE + JOB QUEUE GRID */}
@@ -2089,7 +2123,7 @@ const StudioModule = () => {
                   </>
                 ) : (
                   <div className="flex-1 flex flex-col min-w-0">
-                    <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">LIBRARY</span>
+                    <span className="text-[6px] font-black text-slate-700 uppercase tracking-widest mb-1 ml-1">VAULT</span>
                     <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1">
                       {workspace.outputs.slice(0, 20).map((o) => (
                         <div key={o.assetId} onClick={() => setActiveOutputId(o.assetId)} className={`p-2 rounded border transition-all cursor-pointer group ${activeOutputId === o.assetId ? 'bg-sky-950/20 border-sky-500/50' : 'bg-[#111318] border-[#1E2024]'}`}>
@@ -2105,7 +2139,7 @@ const StudioModule = () => {
                         </div>
                       ))}
                       {workspace.outputs.length === 0 && (
-                        <div className="text-[10px] text-slate-600 text-center py-8">No items in library</div>
+                        <div className="text-[10px] text-slate-600 text-center py-8">No items in vault</div>
                       )}
                     </div>
                   </div>
@@ -2301,35 +2335,92 @@ const StudioModule = () => {
                   <FileText size={16} />
                 </div>
                 <div className="flex flex-col">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">MISSION VAULT // TRANSCRIPT</h3>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">WorkBench</h3>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></div>
-                    <span className="text-[8px] font-mono text-cyan-500/60 uppercase tracking-widest">{transcriptState.status}</span>
+                    <span className="text-[8px] font-mono text-cyan-500/60 uppercase tracking-widest">{transcriptState.status} [LIGHTWEIGHT]</span>
                   </div>
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  const isDirty = JSON.stringify(transcriptState) !== JSON.stringify(transcriptSavedStateRef.current);
-                  if (isDirty) {
-                    if (confirm('Unsaved changes will be lost. Discard and close?')) {
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } }))}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 text-[9px] font-black uppercase tracking-widest hover:bg-cyan-500/10 transition-all shadow-[0_0_10px_rgba(6,182,212,0.1)]"
+                >
+                  <Cpu size={12} /> FULL FORGE UPLINK
+                </button>
+                <button
+                  onClick={() => {
+                    const isDirty = JSON.stringify(transcriptState) !== JSON.stringify(transcriptSavedStateRef.current);
+                    if (isDirty) {
+                      if (window.confirm('Unsaved changes will be lost. Discard and close?')) {
+                        setIsTranscriptModalOpen(false);
+                      }
+                    } else {
                       setIsTranscriptModalOpen(false);
                     }
-                  } else {
-                    setIsTranscriptModalOpen(false);
-                  }
-                }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition"
-              >
-                <X size={18} />
-              </button>
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
-            {/* Two-column body */}
+            {/* Three-column WorkBench body: Vault Rail | Editor | Cortex Rail */}
             <div className="flex-1 flex min-h-0 overflow-hidden">
-              
-              {/* LEFT COLUMN: THE EDITOR (PRIMARY) */}
+
+              {/* LEFT RAIL: VAULT (RAW ASSETS) */}
+              <div className="w-[200px] flex-shrink-0 flex flex-col bg-[#08080A] border-r border-[#1E2024] overflow-hidden select-none">
+                <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
+                  <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
+                </div>
+                <div className="flex-1 overflow-y-auto no-scrollbar py-1">
+                  {['audio','video','images','documents','transcripts','website'].map(cat => {
+                    const catItems = vaultRailItems.filter(item => {
+                      const mt = (item.mediaType || '').toLowerCase();
+                      const at = (item.artifactType || '').toLowerCase();
+                      const rk = item.recordKind || '';
+                      if (cat === 'audio') return mt === 'audio';
+                      if (cat === 'video') return mt === 'video';
+                      if (cat === 'images') return mt === 'image';
+                      if (cat === 'transcripts') return rk === 'artifact' && at === 'transcript';
+                      if (cat === 'documents') return rk === 'artifact' && (at === 'script' || at === 'runofshow');
+                      if (cat === 'website') return rk === 'artifact' && at === 'publish';
+                      return false;
+                    });
+                    const isOpen = vaultExpandedCats[cat];
+                    return (
+                      <div key={cat}>
+                        <button
+                          onClick={() => setVaultExpandedCats(s => ({ ...s, [cat]: !s[cat] }))}
+                          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/[0.03] transition-colors group"
+                        >
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">{cat}</span>
+                          <span className="text-[7px] text-slate-700">{isOpen ? '▾' : '▸'} {catItems.length > 0 && <span className="text-cyan-700">{catItems.length}</span>}</span>
+                        </button>
+                        {isOpen && catItems.length > 0 && (
+                          <div className="pb-1">
+                            {catItems.map(item => (
+                              <div key={item.assetId || item.id} className="px-3 py-1.5 hover:bg-white/[0.03] cursor-pointer group">
+                                <div className="text-[8px] font-bold text-slate-400 truncate group-hover:text-slate-200 transition-colors leading-tight">{item.title || item.filename || 'Asset'}</div>
+                                <div className="text-[6px] text-slate-700 uppercase tracking-widest truncate mt-0.5">{item.source || item.status || ''}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {isOpen && catItems.length === 0 && (
+                          <div className="px-3 pb-2 text-[7px] text-slate-800 font-mono italic">empty</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* CENTER COLUMN: THE EDITOR (PRIMARY) */}
               <div className="flex-1 flex flex-col bg-black/20 relative min-w-0">
                 <div className="absolute top-3 left-4 z-10 flex items-center gap-2 bg-black/40 px-2 py-0.5 rounded border border-white/5">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
@@ -2434,6 +2525,25 @@ const StudioModule = () => {
                       </div>
 
                       <div>
+                        <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center justify-between">
+                          <span>AGENT ROUTE</span>
+                          <span className="text-[7px] text-cyan-500/60 lowercase italic">Charlie → Alpha → {transcriptState.specialist}</span>
+                        </label>
+                        <select
+                          value={transcriptState.specialist}
+                          onChange={(e) => setTranscriptState(s => ({ ...s, specialist: e.target.value, status: 'Draft' }))}
+                          className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition uppercase font-black"
+                        >
+                          <option value="FORGE">FORGE (CONTENTS + ARTIFACTS)</option>
+                          <option value="GHOST">GHOST (CODE + TECHNICAL)</option>
+                          <option value="OMEGA">OMEGA (BUSINESS DNA + SOPs)</option>
+                        </select>
+                        <div className="mt-1 text-[7px] font-mono text-slate-700 tracking-wider">
+                          INTENT: ROUTE TO BEST-FIT AGENT → ALPHA QC → CORTEX
+                        </div>
+                      </div>
+
+                      <div>
                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">PURPOSE NOTE</label>
                         <textarea
                           value={transcriptState.purposeNote}
@@ -2519,10 +2629,10 @@ const StudioModule = () => {
                 <div className="p-5 border-t border-white/5 bg-[#0A0A0C] flex flex-col gap-2.5">
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
-                      onClick={() => showNotice({ type: 'info', message: 'Generating mission summary...' })}
+                      onClick={() => showNotice({ type: 'info', message: `Dispatching to ${transcriptState.specialist}...` })}
                       className="h-10 rounded border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
                     >
-                      SUMMARY
+                      {transcriptState.specialist} ASSIST
                     </button>
                     <button
                       onClick={() => {
@@ -2593,6 +2703,53 @@ const StudioModule = () => {
                   </div>
                 </div>
               </div>
+
+              {/* RIGHT RAIL: CORTEX (STRUCTURED KNOWLEDGE — READ ONLY) */}
+              <div className="w-[200px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
+                <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                  <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em]">CORTEX</span>
+                </div>
+                <div className="flex-1 overflow-y-auto no-scrollbar py-1">
+                  {['summaries','notes','reports','strategies','operations','other'].map(cat => {
+                    const catItems = cortexRailItems.filter(item => {
+                      const cat_lc = (item.category || '').toLowerCase();
+                      if (cat === 'summaries') return cat_lc.includes('summar') || cat_lc.includes('brief');
+                      if (cat === 'notes') return cat_lc === 'note' || cat_lc === 'notes';
+                      if (cat === 'reports') return cat_lc.includes('report') || cat_lc === 'brand';
+                      if (cat === 'strategies') return cat_lc.includes('strateg') || cat_lc.includes('market');
+                      if (cat === 'operations') return cat_lc.includes('oper') || cat_lc.includes('workflow') || cat_lc.includes('sop');
+                      return !['note','notes','brand'].some(k => cat_lc.includes(k)) && !cat_lc.includes('summar') && !cat_lc.includes('report') && !cat_lc.includes('strateg') && !cat_lc.includes('market') && !cat_lc.includes('oper');
+                    });
+                    const isOpen = cortexExpandedCats[cat];
+                    return (
+                      <div key={cat}>
+                        <button
+                          onClick={() => setCortexExpandedCats(s => ({ ...s, [cat]: !s[cat] }))}
+                          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/[0.03] transition-colors group"
+                        >
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">{cat}</span>
+                          <span className="text-[7px] text-slate-700">{isOpen ? '▾' : '▸'} {catItems.length > 0 && <span className="text-indigo-700">{catItems.length}</span>}</span>
+                        </button>
+                        {isOpen && catItems.length > 0 && (
+                          <div className="pb-1">
+                            {catItems.map(item => (
+                              <div key={item.id} className="px-3 py-1.5 hover:bg-white/[0.03] cursor-default group">
+                                <div className="text-[8px] font-bold text-slate-400 truncate group-hover:text-slate-200 transition-colors leading-tight">{item.title || 'Knowledge Item'}</div>
+                                {item.content && <div className="text-[6px] text-slate-700 truncate mt-0.5 font-mono">{String(item.content).slice(0, 48)}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {isOpen && catItems.length === 0 && (
+                          <div className="px-3 pb-2 text-[7px] text-slate-800 font-mono italic">empty</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
             </div>
 
               {/* Hidden export anchors/buttons to reuse logic */}

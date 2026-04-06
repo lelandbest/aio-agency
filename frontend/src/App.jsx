@@ -54,6 +54,7 @@ const DialerPage = lazy(() => import('./modules/CommsSms'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
+const ForgeModule = lazy(() => import('./modules/Forge'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -291,6 +292,7 @@ const App = () => {
     'settings': 'Settings',
     'chat': 'Chat',
     'agents': 'Agents',
+    'forge': 'Forge',
   };
   const activeModuleLabel = moduleLabels[activeModule] || activeModule;
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
@@ -757,6 +759,8 @@ const App = () => {
         return <HelpModule activeModule={activeModule} />;
       case 'system-health':
         return <SystemHealthModule />;
+      case 'forge':
+        return <ForgeModule />;
       default:
         return <PlaceholderModule name="Module" />;
     }
