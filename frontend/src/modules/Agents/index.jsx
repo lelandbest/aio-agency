@@ -159,6 +159,13 @@ const resolveAgentLabel = (key) => {
     .join(' ');
 };
 
+const resolveAgentId = (key) => {
+  if (!key || key === 'SYSTEM' || key === 'OPERATOR') return null;
+  const entry = SPECIALIST_REGISTRY[key];
+  return entry?.agentId || null;
+};
+
+
 const normalizeDelegateChain = (value) => {
   if (Array.isArray(value)) {
     return value
@@ -854,6 +861,7 @@ const AIOAgentsModule = () => {
   const isRunPending = messages.some((message) => message.role === 'assistant' && message.pending);
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && resolveMessageContent(message));
   const mainAgentLabel = resolveAgentLabel(activeAgent?.registryKey || activeAgent?.registry_key || selectedAgent || derivedAgentKey);
+  const mainAgentId = resolveAgentId(activeAgent?.registryKey || activeAgent?.registry_key || selectedAgent || derivedAgentKey);
 
   const getAgentColor = (key) => {
     if (key === 'ALPHA') return HQ_AGENT_STYLE;
@@ -887,6 +895,7 @@ const AIOAgentsModule = () => {
     return commandPostOrder.length ? commandPostOrder : (SPECIALIST_REGISTRY.ALPHA?.subordinates || []);
   })();
   const contextAgentLabel = activeRunAgent || selectedAgent || '';
+  const contextAgentId = resolveAgentId(activeRunAgent || selectedAgent || '');
   const commandModeLabel = activeFlowLabel && contextAgentLabel ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentLabel ? 'Agent' : 'System';
   const sessionDirective = hasActiveRun
     ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${SPECIALIST_REGISTRY[activeRunAgent]?.label || activeRunAgent}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
@@ -1069,7 +1078,7 @@ const AIOAgentsModule = () => {
                             HQ Layer
                           </span>
                         </div>
-                        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold">AGT-CMD-001</p>
+                        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold">{resolveAgentId('ALPHA') || 'AGT-CMD-001'}</p>
                       </div>
 
                       <div className="flex items-center justify-end gap-3 shrink-0">
@@ -1137,7 +1146,7 @@ const AIOAgentsModule = () => {
                         </div>
                         <div className={`px-2 py-1 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
                           <span className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wider font-mono font-bold opacity-70">
-                            ID: {agent.id}
+                            {resolveAgentId(agentKey) || agent.id}
                           </span>
                           <div className="text-[var(--color-text-primary)] text-[10px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                             Run <ArrowRight size={8} />
@@ -1173,7 +1182,7 @@ const AIOAgentsModule = () => {
                           CLASSIFIED
                         </span>
                       </div>
-                      <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold mt-0.5">AGT-OPS-999 - REDACTED</p>
+                      <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold mt-0.5">{resolveAgentId('OMEGA') || 'AGT-OPS-999'} - REDACTED</p>
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
@@ -1385,7 +1394,14 @@ const AIOAgentsModule = () => {
              {/* Left: Command Context */}
              <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
-                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight">{mainAgentLabel}</h3>
+                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight flex items-baseline gap-3">
+                     {mainAgentLabel}
+                     {mainAgentId && (
+                       <span className="text-[11px] font-mono text-[var(--color-text-tertiary)] opacity-60 tracking-[0.2em]">
+                         {mainAgentId}
+                       </span>
+                     )}
+                   </h3>
                    <div className="flex items-center gap-2 mt-2">
                       <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-500/30 text-blue-400 text-[10px] font-bold uppercase rounded-full">{sessionStatusLabel}</span>
                       <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest opacity-60">{hasActiveRun ? activeRunTimestamp : 'System Routed'}</span>
@@ -1413,7 +1429,10 @@ const AIOAgentsModule = () => {
                         </div>
                         <div className="flex items-center justify-between bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3 rounded-[var(--radius-card)]">
                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active Agent</span>
-                          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{contextAgentLabel || 'No Active Agent'}</span>
+                          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
+                            {contextAgentLabel}
+                            {contextAgentId && <span className="ml-2 opacity-50 font-mono text-[9px] tracking-widest">{contextAgentId}</span>}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3 rounded-[var(--radius-card)]">
                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Command Mode</span>
