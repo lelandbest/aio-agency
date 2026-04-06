@@ -640,7 +640,7 @@ export async function getMediaAssetsApi() {
   return toCamelCase(response.data || []);
 }
 
-export async function getMediaLibraryApi() {
+export async function getVaultApi() {
   const response = await request('/api/vault');
   return toCamelCase(response.data || []);
 }

@@ -8,7 +8,7 @@ import {
   getCmsTablesApi,
   getFormFoldersApi,
   getFormsApi,
-  getMediaLibraryApi,
+  getVaultApi,
   uploadMediaFileApi,
   updateFormApi,
   updateFormFolderApi
@@ -301,7 +301,7 @@ const FormBuilderModule = () => {
     const loadHeaderImageAssets = async () => {
       setHeaderImageLoading(true);
       try {
-        const media = await getMediaLibraryApi();
+        const media = await getVaultApi();
         if (!active) {
           return;
         }

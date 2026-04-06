@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Image as ImageIcon, FileText, Video, Mic, Globe, Vault, Box, Music, File } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { getMediaLibraryApi } from '../../services/backendApi';
+import { getVaultApi } from '../../services/backendApi';
 
 const VAULT_CATEGORIES = [
   { id: 'audio', label: 'Audio', icon: Music },
@@ -21,18 +21,18 @@ const VaultPage = ({ onBack }) => {
   const CategoryIcon = activeCategory.icon;
 
   useEffect(() => {
-    const fetchMediaLibrary = async () => {
+    const fetchVaultItems = async () => {
       try {
-        const items = await getMediaLibraryApi();
+        const items = await getVaultApi();
         setMediaItems(items);
       } catch (error) {
-        console.error('Failed to fetch media library:', error);
+        console.error('Failed to fetch vault items:', error);
         setMediaItems([]);
       } finally {
         setLoading(false);
       }
     };
-    fetchMediaLibrary();
+    fetchVaultItems();
   }, []);
 
   const _categorizeItem = (item) => {

@@ -38,7 +38,7 @@ import {
   createMediaRunOfShowJobApi,
   createMediaScriptJobApi,
   createMediaTranscriptJobApi,
-  getMediaLibraryApi,
+  getVaultApi,
   getMediaAudioRenderJobsApi,
   getMediaPublishJobsApi,
   getMediaRenderJobsApi,
@@ -480,7 +480,7 @@ const StudioModule = () => {
         scriptJobs, runOfShowJobs,
         audioRenderJobs, publishJobs
       ] = await Promise.all([
-        getMediaLibraryApi(), getMediaRenderJobsApi(), getMediaTranscriptJobsApi(),
+        getVaultApi(), getMediaRenderJobsApi(), getMediaTranscriptJobsApi(),
         getMediaScriptJobsApi(), getMediaRunOfShowJobsApi(),
         getMediaAudioRenderJobsApi(), getMediaPublishJobsApi()
       ]);
