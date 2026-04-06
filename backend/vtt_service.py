@@ -24,6 +24,15 @@ _PENDING_ACTIONS: dict[str, dict[str, Any]] = {}
 _CONFIRM_KEYWORDS: set[str] = {"yes", "confirm", "go", "do it", "doit", "y", "sure", "ok", "execute", "run it", "send it", "publish it"}
 _INTERRUPT_KEYWORDS: set[str] = {"stop", "escape", "cancel", "abort"}
 
+QUICK_GREETINGS: dict[str, str] = {
+    "hello": "Hello. I am Charlie.",
+    "hello charlie": "Hello. I am Charlie.",
+    "hi": "Hi there. Ready for commands.",
+    "hi charlie": "Hi there. Ready for commands.",
+    "how are you": "I am functioning within normal parameters. Ready for your directive.",
+    "how are you charlie": "I am functioning within normal parameters. Ready for your directive.",
+}
+
 
 def formatCharlieResponse(*, mode: str, message: str = "", reason: str = "") -> dict[str, Any]:
     """Format a Charlie response deterministically based on mode."""
@@ -319,8 +328,19 @@ def process_transcript(
             "response": formatCharlieResponse(mode="command", message=_build_execution_message(executed)),
         }
 
-    # Conversational → classify mode and format
+    # Conversational → check for quick responses first
     mode = _classify_input(raw)
+
+    if mode == "assist":
+        # Check for fast-path greetings
+        normalized = raw.strip().lower()
+        if normalized in QUICK_GREETINGS:
+            return {
+                "input": raw,
+                "type": "conversational",
+                "action": "conversational",
+                "response": formatCharlieResponse(mode="assist", message=QUICK_GREETINGS[normalized]),
+            }
 
     # Check pending action confirmation
     if mode == "confirmation":

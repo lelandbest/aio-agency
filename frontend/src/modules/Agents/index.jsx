@@ -438,13 +438,24 @@ const renderMarkdownContent = (value) => {
   return <div className="space-y-4">{elements}</div>;
 };
 
+const SALUTATION_OPTIONS = [
+  "How can I help?",
+  "Awaiting your command.",
+  "System online. Ready for input.",
+  "Standing by for directives.",
+  "Module active. State your request.",
+  "Awaiting field instructions.",
+];
+
+const pickSalutation = () => SALUTATION_OPTIONS[Math.floor(Math.random() * SALUTATION_OPTIONS.length)];
+
 const buildAssistantMessageFromRun = (run, overrides = {}) => ({
   role: 'assistant',
   runId: run?.id,
   content: run?.output || '',
-  timestamp: formatRunTimestamp(run?.updated_at || run?.created_at),
-  rank: run?.executing_agent || run?.agent_role || 'AI',
-  chain: normalizeDelegateChain(run?.delegate_chain),
+  timestamp: formatRunTimestamp(run?.updatedAt || run?.createdAt),
+  rank: run?.executingAgent || run?.agentRole || 'CHARLIE',
+  chain: normalizeDelegateChain(run?.delegateChain),
   status: formatRunStatus(run?.status),
   error: run?.error || null,
   pending: false,
@@ -457,7 +468,7 @@ const AIOAgentsModule = () => {
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hello! I am your configured agent. How can I help-' }
+    { role: 'assistant', content: `${activeAgent?.name || 'CHARLIE'} Activated! ${pickSalutation()}`, rank: activeAgent?.registryKey || 'CHARLIE' }
   ]);
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
@@ -503,9 +514,8 @@ const AIOAgentsModule = () => {
 
   const normalizeAgentRecord = (agent = {}) => ({
     ...agent,
-    registryKey: agent.registryKey || agent.registry_key || agent.name || '',
-    registry_key: agent.registry_key || agent.registryKey || agent.name || '',
-    name: agent.name || agent.registry_key || agent.registryKey || '',
+    registryKey: agent.registryKey || agent.name || '',
+    name: agent.name || agent.registryKey || '',
   });
 
   useEffect(() => {
@@ -690,20 +700,22 @@ const AIOAgentsModule = () => {
     try {
       const response = await runAiCommandApi({
         command: nextMessage,
-        ...(selectedAgent ? { agent: selectedAgent } : {}),
+        agent: selectedAgent || 'CHARLIE',
+        intent: 'conversation', // Force CONVO contract bypasses Alpha
         ...(collabAgents.length ? { collabAgents } : {}),
-        ...(selectedFlow ? { flow_id: selectedFlow.id } : {}),
+        ...(selectedFlow ? { flowId: selectedFlow.id } : {}),
         context: {
           module: 'agents',
           surface: 'command',
-          requested_agent: selectedAgent || '',
-          active_agent: selectedAgent || activeRun?.executing_agent || activeRun?.agent_role || '',
-          collab_agents: collabAgents,
-          flow_id: selectedFlow?.id || null,
-          flow_name: selectedFlow?.name || null,
+          intent: 'conversation',
+          requestedAgent: selectedAgent || 'CHARLIE',
+          activeAgent: selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || 'CHARLIE',
+          collabAgents: collabAgents,
+          flowId: selectedFlow?.id || null,
+          flowName: selectedFlow?.name || null,
         }
       });
-      const runId = response?.run_id || response?.run?.id || '';
+      const runId = response?.runId || response?.run?.id || '';
       if (runId) {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -813,9 +825,16 @@ const AIOAgentsModule = () => {
   };
 
   const handleToggleSelectedAgent = (agentKey) => {
+    const agent = agents.find(a => a.registryKey === agentKey);
     if (selectionMode === 'talk') {
-      setSelectedAgent((prev) => (prev === agentKey ? null : agentKey));
-      setCollabAgents((prev) => prev.filter((key) => key !== agentKey));
+      const nextKey = selectedAgent === agentKey ? 'CHARLIE' : agentKey;
+      setSelectedAgent(nextKey);
+      setCollabAgents([]);
+      if (nextKey === 'CHARLIE') {
+        setActiveAgent({ name: 'CHARLIE', registryKey: 'CHARLIE' });
+      } else if (agent) {
+        setActiveAgent(agent);
+      }
       return;
     }
     setCollabAgents((prev) => {
@@ -824,8 +843,21 @@ const AIOAgentsModule = () => {
       }
       return [...prev, agentKey];
     });
-    setSelectedAgent((prev) => (prev === agentKey ? null : prev));
+    setSelectedAgent(null);
   };
+
+  useEffect(() => {
+    if (!activeAgent) return;
+    const agentName = activeAgent.name === 'CHARLIE' ? 'CHARLIE' : (activeAgent.name || activeAgent.registryKey);
+    const greeting = `${agentName} Activated! ${pickSalutation()}`;
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'assistant' && last?.content?.includes('Activated!') && (last?.rank === activeAgent.registryKey || last?.rank === activeAgent.name || last?.rank === 'CHARLIE')) {
+        return prev;
+      }
+      return [...prev, { role: 'assistant', content: greeting, rank: activeAgent.registryKey || activeAgent.name || 'CHARLIE', timestamp: formatRunTimestamp(new Date().toISOString()) }];
+    });
+  }, [activeAgent]);
 
   const handleSelectRun = async (runId, nextView = 'command') => {
     if (!runId) return;
@@ -849,24 +881,24 @@ const AIOAgentsModule = () => {
   const status = activeRun?.status || null;
   const error = activeRun?.error || null;
   const metadata = activeRun || null;
-  const activeRunAgent = metadata?.executing_agent || metadata?.agent_role || '';
-  const derivedAgentKey = activeRun?.executing_agent || activeRun?.requested_agent || activeRun?.agent_role || selectedAgent || '';
+  const activeRunAgent = metadata?.executingAgent || metadata?.agentRole || '';
+  const derivedAgentKey = activeRun?.executingAgent || activeRun?.requestedAgent || activeRun?.agentRole || selectedAgent || '';
   const derivedAgentDefinition = derivedAgentKey ? SPECIALIST_REGISTRY[derivedAgentKey] : null;
   const activeRunStatus = formatRunStatus(status);
-  const activeRunTimestamp = formatRunTimestamp(metadata?.updated_at || metadata?.created_at);
-  const activeRunChain = normalizeDelegateChain(metadata?.delegate_chain);
-  const activeRunCommand = metadata?.command_text || '';
+  const activeRunTimestamp = formatRunTimestamp(metadata?.updatedAt || metadata?.createdAt);
+  const activeRunChain = normalizeDelegateChain(metadata?.delegateChain);
+  const activeRunCommand = metadata?.commandText || '';
   const activeRunOutput = output;
   const hasActiveRun = Boolean(activeRun);
   const isRunPending = messages.some((message) => message.role === 'assistant' && message.pending);
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && resolveMessageContent(message));
-  const mainAgentLabel = resolveAgentLabel(activeAgent?.registryKey || activeAgent?.registry_key || selectedAgent || derivedAgentKey);
-  const mainAgentId = resolveAgentId(activeAgent?.registryKey || activeAgent?.registry_key || selectedAgent || derivedAgentKey);
+  const mainAgentLabel = resolveAgentLabel(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
+  const mainAgentId = resolveAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
 
   const getAgentColor = (key) => {
     if (key === 'ALPHA') return HQ_AGENT_STYLE;
     if (key === 'OMEGA') return OMEGA_AGENT_STYLE;
-    const idx = agents.findIndex(a => (a.registryKey || a.registry_key) === key && key !== 'ALPHA' && key !== 'OMEGA');
+    const idx = agents.findIndex(a => a.registryKey === key && key !== 'ALPHA' && key !== 'OMEGA');
     if (idx === -1) {
         const fallbackIdx = Object.keys(SPECIALIST_REGISTRY).filter(k => k !== 'ALPHA' && k !== 'OMEGA').indexOf(key);
         if (fallbackIdx === -1) return ROW_COLOR_LANES[0][0];
@@ -890,7 +922,7 @@ const AIOAgentsModule = () => {
   const activeFlowLabel = activeRun?.flow?.name || activeRun?.flowName || activeRun?.flow_name || activeRun?.metadata?.flowName || selectedFlow?.name || '';
   const collabAgentKeys = (() => {
     const commandPostOrder = agents
-      .map((agent) => agent.registryKey || agent.registry_key || agent.name || '')
+      .map((agent) => agent.registryKey || agent.name || '')
       .filter((key) => key && key !== 'ALPHA' && key !== 'OMEGA');
     return commandPostOrder.length ? commandPostOrder : (SPECIALIST_REGISTRY.ALPHA?.subordinates || []);
   })();
@@ -938,7 +970,7 @@ const AIOAgentsModule = () => {
         {view === 'barracks' && (() => {
           const alpha = agents.find(a => (a.registryKey || a.registry_key) === 'ALPHA');
           const regularAgents = agents.filter(a => {
-            const key = a.registryKey || a.registry_key;
+            const key = a.registryKey;
             return key !== 'ALPHA' && key !== 'OMEGA';
           });
           const alphaRegistry = SPECIALIST_REGISTRY['ALPHA'];
@@ -966,13 +998,13 @@ const AIOAgentsModule = () => {
           };
 
           const buildRunRoute = (run = {}) => {
-            const chain = Array.isArray(run.delegate_chain) ? run.delegate_chain : [];
-            const source = run.intake_agent || run.dispatcher_agent || chain[0] || run.requested_agent || run.agent_role || 'USER';
-            const target = run.executing_agent || chain[chain.length - 1] || run.agent_role || run.requested_agent || 'SYSTEM';
+            const chain = Array.isArray(run.delegateChain) ? run.delegateChain : [];
+            const source = run.intakeAgent || run.dispatcherAgent || chain[0] || run.requestedAgent || run.agentRole || 'USER';
+            const target = run.executingAgent || chain[chain.length - 1] || run.agentRole || run.requestedAgent || 'SYSTEM';
             return {
-              id: run.id || `${source}-${target}-${run.created_at || ''}`,
+              id: run.id || `${source}-${target}-${run.createdAt || ''}`,
               runId: run.id || null,
-              time: formatRunTime(run.created_at),
+              time: formatRunTime(run.createdAt),
               source: formatToken(source, 'USER'),
               target: formatToken(target, 'SYSTEM'),
               action: formatAction(run.intent || run.field || run.module || run.surface),
@@ -989,7 +1021,7 @@ const AIOAgentsModule = () => {
             ? formatStatus(
                 activeRun.status === 'failed'
                   ? 'error'
-                  : activeRun.dispatcher_agent || activeRun.executing_agent
+                  : activeRun.dispatcherAgent || activeRun.executingAgent
                     ? 'routed'
                     : activeRun.status || 'pending'
               )
@@ -998,9 +1030,9 @@ const AIOAgentsModule = () => {
             ? formatStatus(
                 activeRun.status === 'failed'
                   ? 'failed'
-                  : activeRun.executing_agent
+                  : activeRun.executingAgent
                     ? activeRun.status || 'running'
-                    : activeRun.dispatcher_agent
+                    : activeRun.dispatcherAgent
                       ? 'queued'
                       : 'idle'
               )
@@ -1008,10 +1040,10 @@ const AIOAgentsModule = () => {
           const commandPath = activeRun
             ? [
                 selectedRoute?.source || 'OPERATOR',
-                activeRun.intake_agent || 'CHARLIE',
-                activeRun.dispatcher_agent || 'ALPHA',
-                activeRun.flowId || activeRun.flow_id || activeRun.metadata?.flowId ? `FLOW ${activeRun.flowName || activeRun.flow_name || activeRun.metadata?.flowName || activeRun.flowId || activeRun.flow_id || activeRun.metadata?.flowId}` : null,
-                activeRun.executing_agent || activeRun.requested_agent || 'TARGET AGENT',
+                activeRun.intakeAgent || 'CHARLIE',
+                activeRun.dispatcherAgent || 'ALPHA',
+                activeRun.flowId || activeRun.metadata?.flowId ? `FLOW ${activeRun.flowName || activeRun.metadata?.flowName || activeRun.flowId}` : null,
+                activeRun.executingAgent || activeRun.requestedAgent || 'TARGET AGENT',
                 (activeRun.status || '').toLowerCase() === 'failed' ? 'FAILED' : 'RESULT',
               ].filter((label, index, array) => label && array.indexOf(label) === index)
             : [];
@@ -1022,9 +1054,9 @@ const AIOAgentsModule = () => {
             const isCompleted = ['completed', 'success'].includes(status);
             const isInProgress = ['executing', 'running', 'blocked', 'paused', 'queued', 'pending', 'active', 'in_progress'].includes(status);
 
-            const charlieIdx = commandPath.findIndex(l => l === (activeRun.intake_agent || 'CHARLIE'));
-            const alphaIdx = commandPath.findIndex(l => l === (activeRun.dispatcher_agent || 'ALPHA'));
-            const targetIdx = commandPath.findIndex(l => l === (activeRun.executing_agent || activeRun.requested_agent || 'TARGET AGENT'));
+            const charlieIdx = commandPath.findIndex(l => l === (activeRun.intakeAgent || 'CHARLIE'));
+            const alphaIdx = commandPath.findIndex(l => l === (activeRun.dispatcherAgent || 'ALPHA'));
+            const targetIdx = commandPath.findIndex(l => l === (activeRun.executingAgent || activeRun.requestedAgent || 'TARGET AGENT'));
 
             const getNodeState = (idx) => {
               if (hasFailed) return idx >= commandPath.length - 2 ? 'failed' : 'completed';
@@ -1084,7 +1116,7 @@ const AIOAgentsModule = () => {
                       <div className="flex items-center justify-end gap-3 shrink-0">
                         <div className="rounded border border-[var(--color-border)] bg-black/5 px-2.5 py-1.5 text-right font-mono">
                           <div className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)]">Routing</div>
-                          <div className="text-[10px] text-green-600 dark:text-green-400 font-bold whitespace-nowrap">{selectedRoute?.source || 'USER'} → {activeRun?.intake_agent || 'CHARLIE'}</div>
+                          <div className="text-[10px] text-green-600 dark:text-green-400 font-bold whitespace-nowrap">{selectedRoute?.source || 'USER'} → {activeRun?.intakeAgent || 'CHARLIE'}</div>
                         </div>
                         <div className="rounded border border-[var(--color-border)] bg-black/5 px-2.5 py-1.5 text-right font-mono">
                           <div className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)]">Status</div>
@@ -1115,7 +1147,7 @@ const AIOAgentsModule = () => {
                   <div className="flex-1 min-h-0 overflow-hidden">
                   <div className="grid h-full grid-cols-2 xl:grid-cols-4 gap-1.5 auto-rows-fr">
                     {regularAgents.map((agent, idx) => {
-                      const agentKey = agent.registryKey || agent.registry_key;
+                      const agentKey = agent.registryKey;
                       const row = Math.floor(idx / 4);
                       const col = idx % 4;
                       const c = (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
@@ -1259,7 +1291,7 @@ const AIOAgentsModule = () => {
                           <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
                             <div className="flex items-center justify-between">
                               <span>Intake</span>
-                              <span>{activeRun.intake_agent || 'CHARLIE'}</span>
+                              <span>{activeRun.intakeAgent || 'CHARLIE'}</span>
                             </div>
                           </div>
                           <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
@@ -1271,7 +1303,7 @@ const AIOAgentsModule = () => {
                           <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
                             <div className="flex items-center justify-between">
                               <span>Target</span>
-                              <span>{activeRun.dispatcher_agent || activeRun.executing_agent || activeRun.requested_agent || 'TARGET'}</span>
+                              <span>{activeRun.dispatcherAgent || activeRun.executingAgent || activeRun.requestedAgent || 'TARGET'}</span>
                             </div>
                           </div>
                         </>
@@ -1294,7 +1326,7 @@ const AIOAgentsModule = () => {
                           <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
                             <div className="flex items-center justify-between">
                               <span>Owner</span>
-                              <span>{activeRun.executing_agent || activeRun.requested_agent || 'UNASSIGNED'}</span>
+                              <span>{activeRun.executingAgent || activeRun.requestedAgent || 'UNASSIGNED'}</span>
                             </div>
                           </div>
                           <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
@@ -1365,10 +1397,10 @@ const AIOAgentsModule = () => {
                             Source: {selectedRoute?.source || 'OPERATOR'}
                           </div>
                           <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
-                            Intake: {activeRun?.intake_agent || 'CHARLIE'}
+                            Intake: {activeRun?.intakeAgent || 'CHARLIE'}
                           </div>
                           <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
-                            Dispatch: {activeRun?.dispatcher_agent || 'ALPHA'}
+                            Dispatch: {activeRun?.dispatcherAgent || 'ALPHA'}
                           </div>
                           <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
                             Result: {formatStatus(activeRun?.status || 'idle')}
@@ -1395,7 +1427,7 @@ const AIOAgentsModule = () => {
              <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
                    <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight flex items-baseline gap-3">
-                     {mainAgentLabel}
+                     {activeAgent?.name || mainAgentLabel}
                      {mainAgentId && (
                        <span className="text-[11px] font-mono text-[var(--color-text-tertiary)] opacity-60 tracking-[0.2em]">
                          {mainAgentId}
@@ -1471,7 +1503,7 @@ const AIOAgentsModule = () => {
                   <div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-3">
-                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{mainAgentLabel}</h4>
+                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgent?.name || mainAgentLabel}</h4>
                         <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
                         <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentLabel(activeRunAgent)})` : sessionStatusLabel}</span>
                       </div>
@@ -1517,9 +1549,9 @@ const AIOAgentsModule = () => {
                    {messages.map((msg, i) => {
                       const preferredRun = resolveMessageRun(msg);
                       const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
-                      const preferredRank = preferredRun ? (preferredRun.executing_agent || preferredRun.agent_role || msg.rank) : msg.rank;
-                      const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegate_chain) : msg.chain;
-                      const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updated_at || preferredRun.created_at) : msg.timestamp;
+                      const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agentRole || msg.rank) : msg.rank;
+                      const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegateChain) : msg.chain;
+                      const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updatedAt || preferredRun.createdAt) : msg.timestamp;
                       const preferredStatus = preferredRun ? formatRunStatus(preferredRun.status) : msg.status;
                       const preferredError = preferredRun ? preferredRun.error : msg.error;
                       const messageToken = msg.runId || msg.clientId || `message-${i}`;
@@ -1532,11 +1564,11 @@ const AIOAgentsModule = () => {
                          <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
                              <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                 {msg.role === 'user' ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">OPERATOR</span>
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">SYSTEM AGENT</span>
                                 ) : (
                                   <div className="flex items-center gap-2">
                                      <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
-                                        {resolveAgentLabel(preferredRank)}
+                                        {preferredRank || 'CHARLIE'}
                                      </span>
                                      {preferredChain ? (
                                        <div className="flex items-center gap-1 opacity-60">

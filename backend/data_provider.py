@@ -4773,6 +4773,137 @@ class SQLiteProvider(BaseProvider):
                     result TEXT NOT NULL,
                     timestamp TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS comms_phone_numbers (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    number TEXT NOT NULL,
+                    displayLabel TEXT,
+                    owner TEXT,
+                    workspace TEXT,
+                    smsEnabled INTEGER DEFAULT 0,
+                    callsEnabled INTEGER DEFAULT 0,
+                    routeTarget TEXT,
+                    tagsJson TEXT,
+                    isActive INTEGER DEFAULT 1,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS sms_threads (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    contactId TEXT,
+                    phoneNumberId TEXT,
+                    direction TEXT NOT NULL,
+                    status TEXT DEFAULT 'open',
+                    subject TEXT,
+                    lastMessageAt TEXT,
+                    messageCount INTEGER DEFAULT 0,
+                    tagsJson TEXT,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS sms_messages (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    threadId TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    senderName TEXT,
+                    senderNumber TEXT,
+                    recipientNumber TEXT,
+                    body TEXT NOT NULL,
+                    deliveryStatus TEXT DEFAULT 'pending',
+                    errorMessage TEXT,
+                    createdAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS sms_plans (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    brandName TEXT NOT NULL,
+                    registrationStatus TEXT DEFAULT 'pending',
+                    campaignType TEXT,
+                    approvedNumbersJson TEXT,
+                    dailyLimit INTEGER,
+                    optOutKeywordsJson TEXT,
+                    helpResponse TEXT,
+                    complianceNotes TEXT,
+                    isActive INTEGER DEFAULT 1,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS comms_extensions (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    extensionNumber TEXT NOT NULL,
+                    displayName TEXT,
+                    userId TEXT,
+                    forwardTo TEXT,
+                    ringTimeoutSeconds INTEGER DEFAULT 30,
+                    isActive INTEGER DEFAULT 1,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS comms_ring_groups (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    extensionsJson TEXT NOT NULL,
+                    ringStrategy TEXT DEFAULT 'simultaneous',
+                    ringTimeoutSeconds INTEGER DEFAULT 30,
+                    isActive INTEGER DEFAULT 1,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS call_sessions (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    contactId TEXT,
+                    phoneNumberId TEXT,
+                    extensionId TEXT,
+                    direction TEXT NOT NULL,
+                    status TEXT DEFAULT 'initiated',
+                    durationSeconds INTEGER,
+                    startTime TEXT,
+                    endTime TEXT,
+                    recordingUrl TEXT,
+                    transcriptUrl TEXT,
+                    disposition TEXT,
+                    notes TEXT,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS verified_caller_ids (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    phoneNumberId TEXT NOT NULL,
+                    callerIdName TEXT,
+                    verificationStatus TEXT DEFAULT 'pending',
+                    verifiedAt TEXT,
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS comms_provider_configs (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    providerType TEXT NOT NULL,
+                    providerName TEXT NOT NULL,
+                    configJson TEXT,
+                    status TEXT DEFAULT 'stub',
+                    isActive INTEGER DEFAULT 0,
+                    lastHealthCheck TEXT,
+                    healthStatus TEXT DEFAULT 'unknown',
+                    createdAt TEXT,
+                    updatedAt TEXT
+                );
                 """
             )
 
@@ -9753,6 +9884,254 @@ class SQLiteProvider(BaseProvider):
             conn.commit()
         return claimed
 
+    # === Comms Phone Numbers ===
+    def list_comms_phone_numbers(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM comms_phone_numbers WHERE tenantId = ? AND isActive = 1 ORDER BY createdAt DESC",
+                (self._tenantId(),)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_comms_phone_number(self, number: str, display_label: str | None = None, owner: str | None = None) -> dict[str, Any]:
+        now = utcnow()
+        id = f"phone-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO comms_phone_numbers 
+                   (id, tenantId, number, displayLabel, owner, smsEnabled, callsEnabled, isActive, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, 0, 0, 1, ?, ?)""",
+                (id, self._tenantId(), number, display_label, owner, now, now)
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM comms_phone_numbers WHERE id = ?", (id,)).fetchone())
+
+    def update_comms_phone_number(self, id: str, **kwargs) -> dict[str, Any]:
+        now = utcnow()
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            fields.append(k.replace("_", ""))
+            values.append(v)
+        fields.append("updatedAt")
+        values.append(now)
+        with self._connect() as conn:
+            conn.execute(f"UPDATE comms_phone_numbers SET {', '.join(fields)} = ? WHERE id = ? AND tenantId = ?", values + [id, self._tenantId()])
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM comms_phone_numbers WHERE id = ?", (id,)).fetchone())
+
+    def delete_comms_phone_number(self, id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE comms_phone_numbers SET isActive = 0 WHERE id = ? AND tenantId = ?", (id, self._tenantId()))
+            conn.commit()
+
+    # === SMS Threads ===
+    def list_sms_threads(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sms_threads WHERE tenantId = ? ORDER BY lastMessageAt DESC LIMIT ?",
+                (self._tenantId(), limit)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_sms_thread(self, contact_id: str | None = None, phone_number_id: str | None = None, subject: str | None = None) -> dict[str, Any]:
+        now = utcnow()
+        id = f"sms-thread-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO sms_threads 
+                   (id, tenantId, contactId, phoneNumberId, direction, status, subject, messageCount, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, 'inbound', 'open', ?, 0, ?, ?)""",
+                (id, self._tenantId(), contact_id, phone_number_id, subject or "New SMS Thread", now, now)
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM sms_threads WHERE id = ?", (id,)).fetchone())
+
+    # === SMS Messages ===
+    def add_sms_message(self, thread_id: str, body: str, direction: str, sender_number: str | None = None, recipient_number: str | None = None) -> dict[str, Any]:
+        now = utcnow()
+        id = f"sms-msg-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO sms_messages 
+                   (id, tenantId, threadId, direction, senderNumber, recipientNumber, body, deliveryStatus, createdAt)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+                (id, self._tenantId(), thread_id, direction, sender_number, recipient_number, body, now)
+            )
+            conn.execute("UPDATE sms_threads SET messageCount = messageCount + 1, lastMessageAt = ?, updatedAt = ? WHERE id = ?",
+                         (now, now, thread_id))
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM sms_messages WHERE id = ?", (id,)).fetchone())
+
+    def update_sms_message_status(self, message_id: str, status: str) -> dict[str, Any]:
+        now = utcnow()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE sms_messages SET deliveryStatus = ?, updatedAt = ? WHERE id = ? AND tenantId = ?",
+                (status, now, message_id, self._tenantId())
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM sms_messages WHERE id = ?", (message_id,)).fetchone())
+
+    # === SMS Plans ===
+    def list_sms_plans(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sms_plans WHERE tenantId = ? AND isActive = 1 ORDER BY createdAt DESC",
+                (self._tenantId(),)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_sms_plan(self, name: str, brand_name: str, campaign_type: str | None = None) -> dict[str, Any]:
+        now = utcnow()
+        id = f"sms-plan-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO sms_plans 
+                   (id, tenantId, name, brandName, campaignType, registrationStatus, isActive, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, 'pending', 1, ?, ?)""",
+                (id, self._tenantId(), name, brand_name, campaign_type, now, now)
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM sms_plans WHERE id = ?", (id,)).fetchone())
+
+    def update_sms_plan(self, id: str, **kwargs) -> dict[str, Any]:
+        now = utcnow()
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            fields.append(k.replace("_", ""))
+            values.append(v)
+        fields.append("updatedAt")
+        values.append(now)
+        with self._connect() as conn:
+            conn.execute(f"UPDATE sms_plans SET {', '.join(fields)} = ? WHERE id = ? AND tenantId = ?", values + [id, self._tenantId()])
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM sms_plans WHERE id = ?", (id,)).fetchone())
+
+    # === Extensions ===
+    def list_comms_extensions(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM comms_extensions WHERE tenantId = ? AND isActive = 1 ORDER BY extensionNumber",
+                (self._tenantId(),)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_comms_extension(self, extension_number: str, display_name: str | None = None, user_id: str | None = None) -> dict[str, Any]:
+        now = utcnow()
+        id = f"ext-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO comms_extensions 
+                   (id, tenantId, extensionNumber, displayName, userId, isActive, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, 1, ?, ?)""",
+                (id, self._tenantId(), extension_number, display_name, user_id, now, now)
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM comms_extensions WHERE id = ?", (id,)).fetchone())
+
+    # === Ring Groups ===
+    def list_comms_ring_groups(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM comms_ring_groups WHERE tenantId = ? AND isActive = 1 ORDER BY name",
+                (self._tenantId(),)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_comms_ring_group(self, name: str, extensions: list[str], ring_strategy: str = "simultaneous") -> dict[str, Any]:
+        now = utcnow()
+        id = f"rg-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO comms_ring_groups 
+                   (id, tenantId, name, extensionsJson, ringStrategy, isActive, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, 1, ?, ?)""",
+                (id, self._tenantId(), name, json.dumps(extensions), ring_strategy, now, now)
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM comms_ring_groups WHERE id = ?", (id,)).fetchone())
+
+    # === Call Sessions ===
+    def list_call_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM call_sessions WHERE tenantId = ? ORDER BY startTime DESC LIMIT ?",
+                (self._tenantId(), limit)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_call_session(self, direction: str, contact_id: str | None = None, phone_number_id: str | None = None) -> dict[str, Any]:
+        now = utcnow()
+        id = f"call-{unique_suffix()}"
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO call_sessions 
+                   (id, tenantId, contactId, phoneNumberId, direction, status, startTime, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, 'initiated', ?, ?, ?)""",
+                (id, self._tenantId(), contact_id, phone_number_id, direction, now, now, now)
+            )
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM call_sessions WHERE id = ?", (id,)).fetchone())
+
+    def update_call_session(self, id: str, **kwargs) -> dict[str, Any]:
+        now = utcnow()
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            fields.append(k.replace("_", ""))
+            values.append(v)
+        fields.append("updatedAt")
+        values.append(now)
+        with self._connect() as conn:
+            conn.execute(f"UPDATE call_sessions SET {', '.join(fields)} = ? WHERE id = ? AND tenantId = ?", values + [id, self._tenantId()])
+            conn.commit()
+        return dict(conn.execute("SELECT * FROM call_sessions WHERE id = ?", (id,)).fetchone())
+
+    # === Comms Overview ===
+    def get_comms_overview(self) -> dict[str, Any]:
+        tenant = self._tenantId()
+        with self._connect() as conn:
+            active_numbers = conn.execute(
+                "SELECT COUNT(*) as cnt FROM comms_phone_numbers WHERE tenantId = ? AND isActive = 1", (tenant,)
+            ).fetchone()["cnt"]
+            sms_enabled = conn.execute(
+                "SELECT COUNT(*) as cnt FROM comms_phone_numbers WHERE tenantId = ? AND smsEnabled = 1", (tenant,)
+            ).fetchone()["cnt"]
+            calls_enabled = conn.execute(
+                "SELECT COUNT(*) as cnt FROM comms_phone_numbers WHERE tenantId = ? AND callsEnabled = 1", (tenant,)
+            ).fetchone()["cnt"]
+            active_extensions = conn.execute(
+                "SELECT COUNT(*) as cnt FROM comms_extensions WHERE tenantId = ? AND isActive = 1", (tenant,)
+            ).fetchone()["cnt"]
+            active_ring_groups = conn.execute(
+                "SELECT COUNT(*) as cnt FROM comms_ring_groups WHERE tenantId = ? AND isActive = 1", (tenant,)
+            ).fetchone()["cnt"]
+            active_plans = conn.execute(
+                "SELECT COUNT(*) as cnt FROM sms_plans WHERE tenantId = ? AND isActive = 1", (tenant,)
+            ).fetchone()["cnt"]
+            recent_threads = conn.execute(
+                "SELECT COUNT(*) as cnt FROM sms_threads WHERE tenantId = ? AND lastMessageAt >= datetime('now', '-7 days')", (tenant,)
+            ).fetchone()["cnt"]
+            recent_calls = conn.execute(
+                "SELECT COUNT(*) as cnt FROM call_sessions WHERE tenantId = ? AND startTime >= datetime('now', '-7 days')", (tenant,)
+            ).fetchone()["cnt"]
+            provider_config = conn.execute(
+                "SELECT healthStatus FROM comms_provider_configs WHERE tenantId = ? AND isActive = 1 LIMIT 1", (tenant,)
+            ).fetchone()
+            provider_status = provider_config["healthStatus"] if provider_config else "stub"
+        return {
+            "active_numbers": active_numbers,
+            "sms_enabled_count": sms_enabled,
+            "calls_enabled_count": calls_enabled,
+            "active_extensions": active_extensions,
+            "active_ring_groups": active_ring_groups,
+            "active_plans": active_plans,
+            "provider_status": provider_status,
+            "recent_threads_count": recent_threads,
+            "recent_calls_count": recent_calls
+        }
 
 
 def create_provider() -> BaseProvider:

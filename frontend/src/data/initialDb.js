@@ -159,7 +159,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" },
       { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
       { id: "aio-market", label: "Market", icon: "Globe", type: "iframe", url: "https://aiomarket.us", visible: false, iconColor: "#9ca3af" },
-      { id: "sms-voip", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" }
+      { id: "comms-sms", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {

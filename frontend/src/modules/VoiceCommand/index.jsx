@@ -342,27 +342,39 @@ export default function VoiceCommandModule() {
     if (!normalizedText && !normalizedAudioUrl) { isPlayingRef.current = false; return; }
     if (!normalizedText) { isPlayingRef.current = false; return; }
 
-    const releaseLock = () => { isPlayingRef.current = false; };
+    // releaseLock keeps isPlayingRef true for a short cooldown after audio ends
+    // so the mic can't pick up the tail of the response (loopback prevention).
+    const releaseLock = () => { setTimeout(() => { isPlayingRef.current = false; }, 1500); };
 
     try {
       if (normalizedAudioUrl) {
+        let hasStartedPlaying = false;
+        // Shared flag: onerror AND play().catch() both fire on a bad URL.
+        // Only the first one to execute should call fallbackSpeak.
+        let fallbackTriggered = false;
+        const doFallback = () => {
+          if (fallbackTriggered) return;
+          fallbackTriggered = true;
+          if (!hasStartedPlaying) fallbackSpeak(normalizedText);
+        };
         const audio = new Audio(normalizedAudioUrl);
         activeAudioRef.current = audio;
+        audio.onplaying = () => { hasStartedPlaying = true; };
         audio.onended = () => {
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
           releaseLock();
         };
         audio.onerror = (e) => {
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
-          console.warn('[VTT] Audio error, falling back:', e);
+          console.warn('[VTT] Audio error:', e);
           releaseLock();
-          fallbackSpeak(normalizedText);
+          doFallback();
         };
         audio.play().catch((e) => {
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
-          console.warn('[VTT] Audio play blocked, falling back:', e);
+          console.warn('[VTT] Audio play blocked:', e);
           releaseLock();
-          fallbackSpeak(normalizedText);
+          doFallback();
         });
         return;
       }
@@ -372,8 +384,6 @@ export default function VoiceCommandModule() {
     }
 
     fallbackSpeak(normalizedText);
-    // Note: fallbackSpeak (SpeechSynthesis) has no reliable onend — lock releases
-    // after a conservative delay so back-to-back text inputs don't pile up.
     setTimeout(releaseLock, 4000);
   }, [fallbackSpeak]);
 
@@ -718,7 +728,7 @@ export default function VoiceCommandModule() {
             </span>
           </div>
           <button 
-            onClick={() => playCharlieResponse(null, "Charlie voice system operational. High five!", fallbackSpeak)}
+            onClick={() => playCharlieResponse(null, "A. I. O. Nexus Voice System ACTIVATED", fallbackSpeak)}
             className="text-[6px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors uppercase font-bold"
           >
             <Play size={6} fill="currentColor" /> Test Voice

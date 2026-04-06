@@ -206,6 +206,12 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
     }
   }, [onSelectContact]);
 
+  useEffect(() => {
+    if (onSelectContact) {
+      onSelectContact(selectedContact ? selectedContact.id : null);
+    }
+  }, [selectedContact, onSelectContact]);
+
   // Load data from database
   useEffect(() => {
     loadData();

@@ -49,6 +49,8 @@ const FlowsModule = lazy(() => import('./modules/Flows'));
 const CommsModule = lazy(() => import('./modules/Comms'));
 const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
 const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
+const CommsSmsModule = lazy(() => import('./modules/CommsSms'));
+const DialerPage = lazy(() => import('./modules/CommsSms'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
@@ -745,6 +747,8 @@ const App = () => {
         return <PlaceholderModule name="Marketplace" />;
       case 'sms-voip':
         return <SmsVoipModule />;
+      case 'comms-sms':
+        return <CommsSmsModule />;
       case 'canned-responses':
         return <CannedResponsesModule onNavigate={setActiveModule} />;
       case 'settings':

@@ -1,11 +1,251 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
-import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
-import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi } from '../services/backendApi';
+import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi, getPhoneNumbersApi, getContactsWithPhoneApi, startOutboundCallApi, endCallSessionApi, getCommsRoutesApi } from '../services/backendApi';
+
+const playTone = (type, style = 'military') => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const now = ctx.currentTime;
+  
+  const styles = {
+    military: () => {
+      const clickOsc = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      clickOsc.connect(clickGain);
+      clickGain.connect(ctx.destination);
+      clickOsc.frequency.setValueAtTime(1200, now);
+      clickOsc.frequency.exponentialRampToValueAtTime(800, now + 0.015);
+      clickGain.gain.setValueAtTime(0.25, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+      clickOsc.start(now);
+      clickOsc.stop(now + 0.02);
+      
+      const bodyOsc = ctx.createOscillator();
+      const bodyGain = ctx.createGain();
+      bodyOsc.connect(bodyGain);
+      bodyGain.connect(ctx.destination);
+      bodyOsc.type = 'square';
+      bodyOsc.frequency.setValueAtTime(320, now);
+      bodyGain.gain.setValueAtTime(0.08, now);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+      bodyOsc.start(now);
+      bodyOsc.stop(now + 0.035);
+      
+      const noise = ctx.createBufferSource();
+      const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseData.length; i++) {
+        noiseData[i] = (Math.random() * 2 - 1) * 0.3;
+      }
+      noise.buffer = noiseBuffer;
+      const noiseGain = ctx.createGain();
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'highpass';
+      noiseFilter.frequency.value = 2000;
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noiseGain.gain.setValueAtTime(0.15, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+      noise.start(now);
+    },
+    morse: () => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    },
+    click: () => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(1800, now);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+      osc.start(now);
+      osc.stop(now + 0.015);
+    },
+    retro: () => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.setValueAtTime(880, now + 0.03);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    },
+    soft: () => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(600, now);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    },
+  };
+  
+  if (styles[style]) {
+    styles[style]();
+    return;
+  }
+  
+  styles.military();
+};
+
+const DialerModal = ({ onClose }) => {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [callState, setCallState] = useState('idle');
+  const [activeCall, setActiveCall] = useState(null);
+  const [fromNumber, setFromNumber] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [toneStyle, setToneStyle] = useState('military');
+  
+  const toneStyles = [
+    { value: 'military', label: 'Military' },
+    { value: 'morse', label: 'Morse' },
+    { value: 'click', label: 'Click' },
+    { value: 'retro', label: 'Retro' },
+    { value: 'soft', label: 'Soft' },
+  ];
+  
+  useEffect(() => {
+    loadData();
+  }, []);
+  
+  const loadData = async () => {
+    try {
+      const [numbersData, contactsData] = await Promise.all([
+        getPhoneNumbersApi(),
+        getContactsWithPhoneApi()
+      ]);
+      setContacts(contactsData);
+      const enabled = (numbersData || []).filter(n => n.callsEnabled);
+      if (enabled.length) setFromNumber(enabled[0].number);
+    } catch (e) { console.error('Load error:', e); }
+  };
+  
+  const handleDigit = (d) => {
+    playTone('button', toneStyle);
+    setPhoneNumber(phoneNumber + d);
+  };
+  
+  const handleBackspace = () => {
+    playTone('button', toneStyle);
+    setPhoneNumber(phoneNumber.slice(0, -1));
+  };
+  
+  const handleClear = () => {
+    playTone('button', toneStyle);
+    setPhoneNumber('');
+  };
+  
+  const handleDial = async () => {
+    if (!phoneNumber || callState !== 'idle') return;
+    playTone('dial');
+    setCallState('simulated_ringing');
+    try {
+      const result = await startOutboundCallApi({ phoneNumber, fromNumber });
+      setActiveCall(result);
+      setTimeout(() => { playTone('ring'); setCallState('simulated_connected'); }, 2000);
+    } catch (e) {
+      playTone('busy');
+      setCallState('failed_stub');
+    }
+  };
+  
+  const handleEnd = async () => {
+    if (activeCall) {
+      try {
+        await endCallSessionApi(activeCall.id, { disposition: callState === 'simulated_connected' ? 'completed' : 'no_answer', durationSeconds: 30 });
+      } catch (e) {}
+    }
+    playTone('button');
+    setCallState('ended');
+    setTimeout(() => { setCallState('idle'); setActiveCall(null); }, 1000);
+  };
+  
+  const dialPad = ['1','2','3','4','5','6','7','8','9','*','0','#'];
+  
+  return (
+    <div className="p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-[var(--color-text-primary)]">Dialer</span>
+        <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-hover)]"><X size={12} /></button>
+      </div>
+      
+      <div className="flex items-center gap-1">
+        <input
+          value={phoneNumber}
+          readOnly
+          className="flex-1 px-2 py-1.5 text-center text-sm font-mono rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]"
+          placeholder="Number"
+        />
+        {phoneNumber.length > 0 && (
+          <button onClick={handleBackspace} className="p-1.5 rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-hover)]">
+            <span className="text-xs">⌫</span>
+          </button>
+        )}
+      </div>
+      
+      <div className="grid grid-cols-3 gap-1">
+        {dialPad.map(d => (
+          <button key={d} onClick={() => handleDigit(d)} disabled={callState !== 'idle'}
+            className="py-1.5 rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-xs font-mono hover:bg-[var(--color-hover)] disabled:opacity-50">
+            {d}
+          </button>
+        ))}
+      </div>
+      
+      <div className="flex items-center gap-1">
+        {callState === 'idle' ? (
+          <button onClick={handleDial} disabled={!phoneNumber}
+            className={`flex-1 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 ${phoneNumber ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]'}`}>
+            <PhoneCall size={12} /> Call
+          </button>
+        ) : (
+          <button onClick={handleEnd}
+            className="flex-1 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1 bg-red-500/20 text-red-300 border border-red-500/30">
+            <PhoneOff size={12} /> End
+          </button>
+        )}
+        
+        <select 
+          value={toneStyle} 
+          onChange={(e) => setToneStyle(e.target.value)}
+          className="px-1 py-1 text-[10px] rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]"
+        >
+          {toneStyles.map(s => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      </div>
+      
+      {callState !== 'idle' && (
+        <div className="text-[10px] text-center text-amber-300">
+          {callState === 'simulated_ringing' ? 'Ringing...' : callState === 'simulated_connected' ? 'Connected' : 'Failed'}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const HEALTH_META = {
     healthy: {
@@ -25,10 +265,11 @@ const HEALTH_META = {
     },
 };
 
-const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu }) => {
+const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu, onToggleDialer }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showTenantDropdown, setShowTenantDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showDialer, setShowDialer] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [themeSaving, setThemeSaving] = useState(false);
@@ -239,9 +480,43 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                     className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-green-500 hover:text-green-600"
                     title="VoIP Phone"
                     aria-label="Open VoIP phone"
+                    onClick={() => { setShowDialer(!showDialer); if (onToggleDialer) onToggleDialer(!showDialer); }}
                 >
                     <Phone size={18} />
                 </button>
+
+                {showDialer && (
+                    <div 
+                      className="absolute right-2 top-12 z-50 w-64"
+                      style={{ cursor: 'move' }}
+                      onMouseDown={(e) => {
+                        const startX = e.clientX;
+                        const startY = e.clientY;
+                        const modal = e.currentTarget;
+                        const rect = modal.getBoundingClientRect();
+                        const offsetX = startX - rect.left;
+                        const offsetY = startY - rect.top;
+                        
+                        const onMouseMove = (moveEvent) => {
+                          modal.style.left = `${moveEvent.clientX - offsetX}px`;
+                          modal.style.top = `${moveEvent.clientY - offsetY}px`;
+                          modal.style.right = 'auto';
+                        };
+                        
+                        const onMouseUp = () => {
+                          document.removeEventListener('mousemove', onMouseMove);
+                          document.removeEventListener('mouseup', onMouseUp);
+                        };
+                        
+                        document.addEventListener('mousemove', onMouseMove);
+                        document.addEventListener('mouseup', onMouseUp);
+                      }}
+                    >
+                        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-lg">
+                            <DialerModal onClose={() => { setShowDialer(false); if (onToggleDialer) onToggleDialer(false); }} />
+                        </div>
+                    </div>
+                )}
 
                 <div className="relative">
                     <button
@@ -457,6 +732,7 @@ TopBar.propTypes = {
     searchPlaceholder: PropTypes.string,
     showSearch: PropTypes.bool,
     onToggleMobileMenu: PropTypes.func,
+    onToggleDialer: PropTypes.func,
 };
 
 export default TopBar;
