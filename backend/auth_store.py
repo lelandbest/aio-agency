@@ -3528,16 +3528,26 @@ class AuthStore:
 
     def _normalize_media_provider_key(self, provider_key: str) -> str:
         raw = (provider_key or "").strip().lower().replace("-", "_")
-        if raw in ("elevenlabs_tts", "elevenlabs_scribe", "elevenlabs"):
+        if raw in ("elevenlabs_tts", "elevenlabs_scribe", "elevenlabstts", "elevenlabsscribe", "elevenlabs"):
             return "elevenlabs"
         return raw
 
+    @staticmethod
+    def _is_valid_media_provider_secret(value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        secret = value.strip()
+        if not secret or len(secret) > 256:
+            return False
+        return all(32 <= ord(ch) < 127 for ch in secret)
+
     def _reconcile_legacy_media_configs(self, tenant_id: str) -> None:
         """Merge legacy elevenlabs_tts / elevenlabs_scribe records into canonical elevenlabs."""
+        legacy_keys = ("elevenlabs_tts", "elevenlabs_scribe", "elevenlabstts", "elevenlabsscribe")
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ('elevenlabs_tts','elevenlabs_scribe') ORDER BY updatedAt DESC",
-                (tenant_id,),
+                f"SELECT * FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ({','.join('?' for _ in legacy_keys)}) ORDER BY updatedAt DESC",
+                (tenant_id, *legacy_keys),
             ).fetchall()
             if not rows:
                 return
@@ -3551,7 +3561,7 @@ class AuthStore:
             merged_label = "ElevenLabs"
             merged_enabled = 0
             for row in rows:
-                if row["apiKey"]:
+                if self._is_valid_media_provider_secret(row["apiKey"]):
                     merged_api_key = row["apiKey"]
                 if row["configJson"]:
                     try:
@@ -3563,7 +3573,8 @@ class AuthStore:
                 if row["enabled"]:
                     merged_enabled = 1
             if canonical:
-                resolved_api_key = merged_api_key or canonical["apiKey"]
+                canonical_api_key = canonical["apiKey"] if self._is_valid_media_provider_secret(canonical["apiKey"]) else None
+                resolved_api_key = merged_api_key or canonical_api_key
                 existing_config = json.loads(canonical["configJson"]) if canonical["configJson"] else {}
                 existing_config.update(merged_config)
                 conn.execute(
@@ -3571,8 +3582,8 @@ class AuthStore:
                     (merged_label, resolved_api_key, 1 if (merged_enabled or canonical["enabled"]) else 0, json.dumps(existing_config), now, canonical["id"]),
                 )
                 conn.execute(
-                    "DELETE FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ('elevenlabs_tts','elevenlabs_scribe')",
-                    (tenant_id,),
+                    f"DELETE FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ({','.join('?' for _ in legacy_keys)})",
+                    (tenant_id, *legacy_keys),
                 )
             else:
                 import uuid as _uuid
@@ -3582,8 +3593,8 @@ class AuthStore:
                     (canonical_id, tenant_id, merged_label, merged_api_key, merged_enabled, json.dumps(merged_config), now, now),
                 )
                 conn.execute(
-                    "DELETE FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ('elevenlabs_tts','elevenlabs_scribe')",
-                    (tenant_id,),
+                    f"DELETE FROM media_provider_configs WHERE tenantId = ? AND providerKey IN ({','.join('?' for _ in legacy_keys)})",
+                    (tenant_id, *legacy_keys),
                 )
 
     def get_media_provider_config_by_provider_key(self, tenant_id: str, provider_key: str) -> dict[str, Any] | None:

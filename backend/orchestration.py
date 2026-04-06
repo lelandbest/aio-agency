@@ -5274,10 +5274,10 @@ class ExecutionEngine:
         
     def _audit_log(self, run_id: str, step: dict, action: str, result: str):
         payload = {
-            "runId": run_id,
-            "stepId": step.get("id"),
+            "run_id": run_id,
+            "step_id": step.get("id"),
             "agent": step.get("assignedAgent"),
-            "agentId": step.get("agentId"),
+            "agent_id": step.get("agentId"),
             "action": action,
             "result": result,
             "timestamp": datetime_now()

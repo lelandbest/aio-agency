@@ -163,6 +163,7 @@ BLUEPRINT_SECTION_KEYS = [
     "comms",
     "calendar",
     "media",
+    "studio",
     "automation",
     "visibility",
     "internal",
@@ -254,9 +255,12 @@ def normalize_tenant_settings_payload(payload: dict[str, Any] | None, *, include
         candidate = {}
 
     normalized: dict[str, Any] = {}
-    for key in ["branding", "globalVariables", "domains", "comms", "calendar", "media", "automation", "visibility"]:
+    for key in ["branding", "globalVariables", "domains", "comms", "calendar", "media", "studio", "automation", "visibility"]:
         if isinstance(candidate.get(key), dict):
             normalized[key] = candidate[key]
+    # Alias layer: if 'studio' is provided, ensure 'media' is also set for backward compatibility
+    if "studio" in normalized and "media" not in normalized:
+        normalized["media"] = normalized["studio"]
     internal = _normalize_tenant_internal(candidate)
     if internal:
         normalized["internal"] = internal

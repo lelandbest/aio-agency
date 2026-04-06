@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Flow Builder
  * Main orchestrator for the Flow Builder module
  * Manages canvas, nodes, edges, config, persistence
@@ -36,12 +36,12 @@ import {
 
 import AIAssistButton from '../../components/AIAssistButton';
 import { requestAiSuggestion } from '../../services/aiAssist';
-import { 
-  getAiRunApi, 
-  getAiRunsApi, 
-  triggerFlowManualApi, 
-  getFlowApi, 
-  getFlowProviderStatusesApi 
+import {
+  getAiRunApi,
+  getAiRunsApi,
+  triggerFlowManualApi,
+  getFlowApi,
+  getFlowProviderStatusesApi
 } from '../../services/backendApi';
 import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
@@ -959,18 +959,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         payload: { nodeId, config }
       }, isSystemManaged);
 
-    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-    if (result.validation.blockers.length === 0) {
-      setNodes(result.nodes);
-      setIsDirty(true);
-      setShowNodeConfig(false);
-      setShowNodeModal(false);
-    } else {
-      console.error('Config save blocked by validation:', result.validation.blockers);
-    }
-  },
-  [nodes, edges, setNodes, isSystemManaged]
-);
+      if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+      if (result.validation.blockers.length === 0) {
+        setNodes(result.nodes);
+        setIsDirty(true);
+        setShowNodeConfig(false);
+        setShowNodeModal(false);
+      } else {
+        console.error('Config save blocked by validation:', result.validation.blockers);
+      }
+    },
+    [nodes, edges, setNodes, isSystemManaged]
+  );
 
   const applyDraftToCanvas = useCallback((draft) => {
     if (!draft) return;
@@ -1947,13 +1947,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           className={`sidebar-transition flex flex-col bg-[var(--color-bg-primary)] border border-[var(--color-border)]/50 rounded-xl overflow-hidden m-1 mb-2 shadow-island-sm ${rightPanelOpen ? 'w-[340px]' : 'w-0 border-none m-0 shadow-none'}`}
         >
           <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] shrink-0">
-            <button 
+            <button
               onClick={() => setRightPanelTab('details')}
               className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Details
             </button>
-            <button 
+            <button
               onClick={() => setRightPanelTab('history')}
               className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
@@ -1989,7 +1989,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 </div>
               </div>
             </div>
-            
+
             <div className={`h-full ${rightPanelTab === 'history' ? 'block' : 'hidden'}`}>
               <FlowRunHistoryPanel
                 runs={flowRunHistory}
@@ -2029,8 +2029,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="h-4 w-[1px] bg-[var(--color-border)]" />
           <div
             className={`px-3 py-1 rounded-[var(--radius-pill)] text-[9px] font-black uppercase tracking-widest flex-shrink-0 border ${flow?.status === 'Active'
-                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                : 'bg-[var(--color-primary)]/15 text-[var(--color-text-secondary)] border-[var(--color-border)]'
+              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+              : 'bg-[var(--color-primary)]/15 text-[var(--color-text-secondary)] border-[var(--color-border)]'
               }`}
           >
             {flow?.status || 'Draft'}
@@ -2099,35 +2099,35 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
           <div className="w-[1px] h-4 bg-[var(--color-border)]/50 mx-1" />
 
-            <button
-              type="button"
-              onClick={() => {
-                openNodeLibrary();
-              }}
+          <button
+            type="button"
+            onClick={() => {
+              openNodeLibrary();
+            }}
             className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Add Node
           </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setLeftPanelOpen(true);
-                setLeftPanelTab('templates');
-              }}
+          <button
+            type="button"
+            onClick={() => {
+              setLeftPanelOpen(true);
+              setLeftPanelTab('templates');
+            }}
             className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Templates
           </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
-                if (result.validation.blockers.length === 0) {
-                  setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
-                }
-              }}
+          <button
+            type="button"
+            onClick={() => {
+              const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
+              if (result.validation.blockers.length === 0) {
+                setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
+              }
+            }}
             className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
           >
             Align Nodes
@@ -2186,8 +2186,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   key={tab}
                   onClick={() => setNodeModalTab(tab)}
                   className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide border-b-2 transition-colors ${nodeModalTab === tab
-                      ? 'border-[var(--color-primary)] text-[var(--color-text-primary)]'
-                      : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                    ? 'border-[var(--color-primary)] text-[var(--color-text-primary)]'
+                    : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                     }`}
                 >
                   {tab === 'general' ? 'General' : tab === 'config' ? 'Config' : 'Advanced'}
@@ -3430,16 +3430,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               onClick={() => {
                 const node = nodeMenu.node;
                 // Rule: Use mutateFlowGraph for internal copy
-                  const result = mutateFlowGraph(nodes, edges, {
-                    type: 'COPY_NODE',
-                    payload: { node }
-                  }, isSystemManaged);
-                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-                  if (result.validation.blockers.length === 0) {
-                    setNodes(result.nodes);
-                  }
-                  setNodeMenu(null);
-                }}
+                const result = mutateFlowGraph(nodes, edges, {
+                  type: 'COPY_NODE',
+                  payload: { node }
+                }, isSystemManaged);
+                if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+                if (result.validation.blockers.length === 0) {
+                  setNodes(result.nodes);
+                }
+                setNodeMenu(null);
+              }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
             >
               Copy
@@ -3474,17 +3474,17 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               onClick={() => {
                 const node = nodeMenu.node;
                 // Rule: Use mutateFlowGraph for internal delete
-                  const result = mutateFlowGraph(nodes, edges, {
-                    type: 'DELETE_NODE',
-                    payload: { nodeId: node.id }
-                  }, isSystemManaged);
-                  if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-                  if (result.validation.blockers.length === 0) {
-                    setNodes(result.nodes);
-                    setEdges(normalizeEdges(result.edges));
-                  }
-                  setNodeMenu(null);
-                }}
+                const result = mutateFlowGraph(nodes, edges, {
+                  type: 'DELETE_NODE',
+                  payload: { nodeId: node.id }
+                }, isSystemManaged);
+                if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
+                if (result.validation.blockers.length === 0) {
+                  setNodes(result.nodes);
+                  setEdges(normalizeEdges(result.edges));
+                }
+                setNodeMenu(null);
+              }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"
             >
               Delete

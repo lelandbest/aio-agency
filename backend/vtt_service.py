@@ -12,7 +12,7 @@ Command types:
 
 from typing import Any
 import os
-from backend.utils.provider_normalizer import get_elevenlabs_api_key
+from backend.utils.provider_normalizer import get_elevenlabs_api_key, get_elevenlabs_voice_selection
 
 _HIGH_IMPACT_ACTIONS: set[str] = {
     "send_email", "publish", "run_flow",
@@ -116,6 +116,7 @@ _ROUTE_MAP: dict[str, str] = {
     "route:/flows":          "flows",
     "route:/flows/builder":  "flows",
     "route:/media":          "media",
+    "route:/studio":         "media",
     "route:/integrations":   "integrations",
     "route:/signals":        "signals",
     "route:/comms":          "comms",
@@ -151,13 +152,23 @@ def parse_command(raw: str) -> dict[str, Any]:
     """
     normalized = raw.strip().lower()
     if not normalized:
-        return {"type": "conversational", "text": raw}
+        return {"input": raw, "type": "conversational", "text": raw}
 
     if normalized in _RESERVED_PHRASES:
         for entry in DEFAULT_REGISTRY:
             if entry["phrase"] == normalized:
-                return {"type": "command", **entry, "matched": normalized}
-        return {"type": "conversational", "text": raw}
+                return {
+                    "input": raw,
+                    "type": "command",
+                    "commandType": entry.get("type"),
+                    "action": entry.get("action"),
+                    "result": entry.get("result"),
+                    "response": entry.get("response"),
+                    "phrase": entry.get("phrase"),
+                    "target": entry.get("target"),
+                    "matched": normalized,
+                }
+        return {"input": raw, "type": "conversational", "text": raw}
 
     registry = _load_registry()
 
@@ -165,17 +176,33 @@ def parse_command(raw: str) -> dict[str, Any]:
         phrase = entry["phrase"]
         requires_payload = entry.get("requiresPayload", False)
         if phrase == normalized:
-            return {"type": "command", **entry, "matched": normalized}
+            return {
+                "input": raw,
+                "type": "command",
+                "commandType": entry.get("type"),
+                "action": entry.get("action"),
+                "result": entry.get("result"),
+                "response": entry.get("response"),
+                "phrase": entry.get("phrase"),
+                "target": entry.get("target"),
+                "matched": normalized,
+            }
         if requires_payload and normalized.startswith(phrase + " "):
             payload = normalized[len(phrase) + 1:].strip()
             return {
+                "input": raw,
                 "type": "command",
-                **entry,
+                "commandType": entry.get("type"),
+                "action": entry.get("action"),
+                "result": entry.get("result"),
+                "response": entry.get("response"),
+                "phrase": entry.get("phrase"),
+                "target": entry.get("target"),
                 "matched": phrase,
                 "payload": payload,
             }
 
-    return {"type": "conversational", "text": raw}
+    return {"input": raw, "type": "conversational", "text": raw}
 
 
 def execute_command(parsed: dict[str, Any], tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -184,38 +211,39 @@ def execute_command(parsed: dict[str, Any], tenant_id: str | None = None, contex
     Returns {"action": "navigate"|"system"|"workflow"|"confirmed"|"immediate"|"interrupt", ...}
     """
     if parsed.get("type") != "command":
-        return {"action": "conversational", "text": parsed.get("text", "")}
+        return {"action": "conversational", "text": parsed.get("input") or parsed.get("text", "")}
 
-    cmd_type  = parsed.get("type", "")
+    cmd_type  = parsed.get("commandType", "")
     target    = parsed.get("target", "")
-    phrase    = parsed.get("phrase", "")
+    phrase    = parsed.get("phrase") or parsed.get("matched") or parsed.get("input", "")
     payload   = parsed.get("payload")
 
-    if target == "system:stop":
-        return {"action": "interrupt", "phrase": phrase, "target": target}
+    if cmd_type == "interrupt" or target == "system:stop":
+        return {"action": "interrupt", "commandType": cmd_type, "phrase": phrase, "target": target}
 
-    if target in ("ui:escape", "ui:cancel"):
-        return {"action": "immediate", "phrase": phrase, "target": target}
+    if cmd_type == "immediate" or target in ("ui:escape", "ui:cancel"):
+        return {"action": "immediate", "commandType": cmd_type, "phrase": phrase, "target": target}
 
-    if target.startswith("route:"):
+    if cmd_type == "navigation" and target.startswith("route:"):
         module = _ROUTE_MAP.get(target, "")
-        return {"action": "navigate", "phrase": phrase, "target": target, "module": module}
+        return {"action": "navigate", "commandType": cmd_type, "phrase": phrase, "target": target, "module": module}
 
     if target.startswith("workflow:"):
         workflow_name = target.split(":", 1)[1] if ":" in target else ""
         return {
-            "action": "workflow",
+            "action": "confirmed" if cmd_type == "confirmed" else "workflow",
+            "commandType": cmd_type,
             "phrase": phrase,
             "target": target,
             "workflowName": workflow_name,
             "payload": payload,
         }
 
-    if target.startswith("system:"):
+    if cmd_type == "staged" and target.startswith("system:"):
         system_action = target.split(":", 1)[1] if ":" in target else ""
-        return {"action": "staged", "phrase": phrase, "target": target, "systemAction": system_action}
+        return {"action": "staged", "commandType": cmd_type, "phrase": phrase, "target": target, "systemAction": system_action}
 
-    return {"action": "unknown", "phrase": phrase}
+    return {"action": "unknown", "commandType": cmd_type, "phrase": phrase, "target": target}
 
 
 def process_transcript(
@@ -233,6 +261,7 @@ def process_transcript(
 
     if parsed.get("type") == "command":
         action = executed.get("action", "unknown")
+        command_type = parsed.get("commandType")
 
         # Interrupt → immediate response
         if action in ("interrupt", "immediate"):
@@ -249,6 +278,7 @@ def process_transcript(
             return {
                 "input": raw,
                 "type": "command",
+                "commandType": command_type,
                 "action": action,
                 "result": executed,
                 "response": formatCharlieResponse(mode="interrupt", message=msg),
@@ -257,13 +287,14 @@ def process_transcript(
         # High-impact → stage, request confirmation
         system_action = executed.get("systemAction", "")
         workflow_name = executed.get("workflowName", "")
-        if system_action in _HIGH_IMPACT_ACTIONS or (workflow_name and action == "workflow"):
+        if system_action in _HIGH_IMPACT_ACTIONS or (workflow_name and action in ("workflow", "confirmed")):
             pending = {
                 "raw": raw,
                 "action": action,
+                "commandType": command_type,
                 "systemAction": system_action,
                 "workflowName": workflow_name,
-                "phrase": phrase,
+                "phrase": executed.get("phrase", ""),
                 "parsed": parsed,
                 "executed": executed,
             }
@@ -272,6 +303,7 @@ def process_transcript(
             return {
                 "input": raw,
                 "type": "command",
+                "commandType": command_type,
                 "action": "staged",
                 "result": executed,
                 "response": formatCharlieResponse(mode="confirmation", message=confirmation_msg),
@@ -281,6 +313,7 @@ def process_transcript(
         return {
             "input": raw,
             "type": "command",
+            "commandType": command_type,
             "action": action,
             "result": executed,
             "response": formatCharlieResponse(mode="command", message=_build_execution_message(executed)),
@@ -294,13 +327,17 @@ def process_transcript(
         if key not in _PENDING_ACTIONS:
             return {
                 "input": raw,
-                "type": "none",
+                "type": "conversational",
+                "commandType": None,
+                "action": "conversational",
+                "result": {"success": False},
                 "response": formatCharlieResponse(mode="confirmation", message="Nothing to confirm."),
             }
         pending = _PENDING_ACTIONS.pop(key)
         return {
             "input": raw,
             "type": "conversational",
+            "commandType": pending.get("commandType"),
             "action": "confirmed_pending",
             "result": pending,
             "response": formatCharlieResponse(mode="result", message=_build_result_message(pending)),
@@ -309,6 +346,7 @@ def process_transcript(
     return {
         "input":    raw,
         "type":     parsed.get("type", "unknown"),
+        "commandType": parsed.get("commandType"),
         "matched":  parsed.get("matched"),
         "phrase":   parsed.get("phrase"),
         "payload":  parsed.get("payload"),
@@ -374,7 +412,7 @@ def _build_result_message(pending: dict[str, Any]) -> str:
     return "Done."
 
 
-def synthesize_voice(text: str, voice: str | None = None) -> str | None:
+def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None = None) -> str | None:
     """
     Synthesize text to audio via ElevenLabs. Returns an audio URL or None.
     Text must be <= 600 characters. Falls back gracefully on any error.
@@ -390,7 +428,7 @@ def synthesize_voice(text: str, voice: str | None = None) -> str | None:
         import json
         from pathlib import Path
 
-        api_key = get_elevenlabs_api_key()
+        api_key = get_elevenlabs_api_key(tenant_id)
         if not api_key:
             return None
 
@@ -401,7 +439,8 @@ def synthesize_voice(text: str, voice: str | None = None) -> str | None:
             "adam":    "pNInz6obpgDQGcFmaJgB",
             "antoni":  "ErXwobaYiN019PkySvjV",
         }
-        voice_id = VOICE_ID_MAP.get((voice or "rachel").strip().lower(), "21m00Tcm4TlvDq8ikWAM")
+        selected_voice = (voice or get_elevenlabs_voice_selection(tenant_id, purpose="charlie") or "Rachel").strip()
+        voice_id = VOICE_ID_MAP.get(selected_voice.lower(), selected_voice or "21m00Tcm4TlvDq8ikWAM")
 
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         body = json.dumps({
@@ -437,3 +476,8 @@ def synthesize_voice(text: str, voice: str | None = None) -> str | None:
 
     except Exception:
         return None
+
+
+
+
+

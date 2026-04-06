@@ -26,8 +26,10 @@ import {
   Pause,
   Trash2,
   CloudUpload,
+  ChevronLeft,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
+import AssetsPage from './AssetsPage';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { BullseyeIcon } from '../../components/ui/icons';
 import {
@@ -61,6 +63,10 @@ import { templates } from '../Flows/data/templates';
 import { ingestFlowSource } from '../Flows/utils/flowIngestion';
 import flowRepository from '../Flows/utils/flowRepository';
 
+const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
+const TRANSCRIPT_DRAFT_TITLE_KEY = 'aio_transcript_editor_draft_title';
+const TRANSCRIPT_EDITOR_OPEN_KEY = 'aio_transcript_editor_open';
+
 // Format seconds -> HH:MM:SS:FF (timecode display)
 function formatTimecode(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00:00';
@@ -74,6 +80,13 @@ function formatTimecode(seconds) {
     String(s).padStart(2, '0'),
     String(f).padStart(2, '0'),
   ].join(':');
+}
+
+function readTranscriptDraftCache() {
+  return {
+    title: sessionStorage.getItem(TRANSCRIPT_DRAFT_TITLE_KEY) || 'Live Transcript',
+    transcript: sessionStorage.getItem(TRANSCRIPT_DRAFT_HTML_KEY) || '',
+  };
 }
 
 function formatDuration(seconds) {
@@ -355,8 +368,9 @@ function normalizeWorkspaceJobItem(job, fallbackType = '') {
 
 
 
-const MediaModule = () => {
+const StudioModule = () => {
   const { openAIAssist } = useAIAssist();
+  const [currentView, setCurrentView] = useState('workstation');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -395,6 +409,25 @@ const MediaModule = () => {
     counts: { jobs: 0, outputs: 0, ingestSources: INGESTION_SOURCES.length },
   });
 
+  const syncTranscriptEditorFromDraft = useCallback(({ forceOpen = false } = {}) => {
+    const cached = readTranscriptDraftCache();
+    if (!cached.transcript && !forceOpen) return;
+    setTranscriptState((current) => {
+      const next = {
+        ...current,
+        title: cached.title || current.title || 'Live Transcript',
+        transcript: cached.transcript || current.transcript || '',
+        status: 'Draft',
+      };
+      transcriptSavedStateRef.current = next;
+      return next;
+    });
+    if (forceOpen || sessionStorage.getItem(TRANSCRIPT_EDITOR_OPEN_KEY) === '1') {
+      setIsTranscriptModalOpen(true);
+      sessionStorage.removeItem(TRANSCRIPT_EDITOR_OPEN_KEY);
+    }
+  }, []);
+
   // --- REAL PLAYER STATE ---
   const mediaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -415,6 +448,22 @@ const MediaModule = () => {
   const [probeData, setProbeData] = useState(null);  // result from /api/media/probe
   const [probePending, setProbePending] = useState(false);
   const [lastAction, setLastAction] = useState({ type: null, status: 'idle', result: null, error: null, timestamp: null });
+
+  useEffect(() => {
+    const handleOpen = () => syncTranscriptEditorFromDraft({ forceOpen: true });
+    const handleSync = () => syncTranscriptEditorFromDraft({ forceOpen: isTranscriptModalOpen });
+
+    if (sessionStorage.getItem(TRANSCRIPT_EDITOR_OPEN_KEY) === '1') {
+      handleOpen();
+    }
+
+    window.addEventListener('aio:transcript-editor-open', handleOpen);
+    window.addEventListener('aio:transcript-editor-sync', handleSync);
+    return () => {
+      window.removeEventListener('aio:transcript-editor-open', handleOpen);
+      window.removeEventListener('aio:transcript-editor-sync', handleSync);
+    };
+  }, [isTranscriptModalOpen, syncTranscriptEditorFromDraft]);
 
   // --- IMAGE ADJUSTMENTS (applied as CSS filter to the preview) ---
   const [imgAdj, setImgAdj] = useState({ brightness: 100, contrast: 100, saturation: 100, hue: 0, opacity: 100 });
@@ -1479,6 +1528,10 @@ const MediaModule = () => {
 
   if (loading && !workspace.outputs.length) return <div className="flex h-full items-center justify-center bg-black text-cyan-500 font-mono text-xs uppercase tracking-widest">INITIAL LOADING SEQUENCE...</div>;
 
+  if (currentView === 'assets') {
+    return <AssetsPage onBack={() => setCurrentView('workstation')} />;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 bg-[#070708] text-slate-300">
       <input
@@ -1494,9 +1547,9 @@ const MediaModule = () => {
           showTitle={false}
           leftActions={[
             {
-              label: 'OPEN FLOWS',
-              icon: GitMerge,
-              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'flows' } })),
+              label: 'ASSETS',
+              icon: Clapperboard,
+              onClick: () => setCurrentView('assets'),
               variant: 'secondary',
             },
           ]}
@@ -2813,4 +2866,4 @@ main{max-width:800px;margin:0 auto;padding:2rem 1.5rem}
   );
 };
 
-export default MediaModule;
+export default StudioModule;

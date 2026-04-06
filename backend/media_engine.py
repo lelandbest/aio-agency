@@ -21,7 +21,7 @@ from threading import Lock
 from typing import Any
 from uuid import uuid4
 
-from backend.utils.provider_normalizer import normalize_provider_key, get_elevenlabs_api_key
+from backend.utils.provider_normalizer import normalize_provider_key, get_elevenlabs_api_key, get_elevenlabs_voice_selection
 
 
 def utcnow_iso() -> str:
@@ -82,7 +82,9 @@ def transcription_provider_lock_label(value: Any) -> str:
 
 
 def get_transcription_provider_lock(tenant_settings: dict[str, Any] | None) -> str:
-    media = tenant_settings.get("media") if isinstance(tenant_settings, dict) and isinstance(tenant_settings.get("media"), dict) else {}
+    media = tenant_settings.get("studio") if isinstance(tenant_settings, dict) and isinstance(tenant_settings.get("studio"), dict) else {}
+    if not media:
+        media = tenant_settings.get("media") if isinstance(tenant_settings, dict) and isinstance(tenant_settings.get("media"), dict) else {}
     return normalize_transcription_provider_lock(media.get("transcriptionProvider"))
 
 
@@ -1470,13 +1472,14 @@ class ElevenLabsScribeTranscriptionProvider(BaseTranscriptionProvider):
                 "message": "Transcript normalized from provided text.",
             }
         
+        tenant_id = clean_text(job.get("tenant_id") or job.get("tenantId")) or None
         try:
-            apiKey = get_elevenlabs_api_key()
+            apiKey = get_elevenlabs_api_key(tenant_id)
         except Exception:
             apiKey = None
 
         if not apiKey:
-            raise ValueError("ElevenLabs Scribe provider is not configured. Add ELEVENLABS_API_KEY to environment.")
+            raise ValueError("ElevenLabs Scribe provider is not configured for this workspace.")
 
         audio_url = clean_text(payload.get("source_url") or payload.get("sourceUrl"))
         prepared_audio_path = clean_text(payload.get("prepared_audio_path") or payload.get("preparedAudioPath"))
@@ -1786,15 +1789,16 @@ class ElevenLabsTTSProvider(BaseAudioRenderProvider):
         if not text:
             raise ValueError("Audio render requires text or script input.")
 
+        tenant_id = clean_text(job.get("tenant_id") or job.get("tenantId")) or None
         try:
-            apiKey = get_elevenlabs_api_key()
+            apiKey = get_elevenlabs_api_key(tenant_id)
         except Exception:
             apiKey = None
 
         if not apiKey:
-            raise ValueError("ElevenLabs TTS provider is not configured. Add ELEVENLABS_API_KEY to environment.")
+            raise ValueError("ElevenLabs TTS provider is not configured for this workspace.")
 
-        voice = clean_text(payload.get("voice")) or "Rachel"
+        voice = clean_text(payload.get("voice")) or get_elevenlabs_voice_selection(tenant_id, purpose="default") or "Rachel"
         voice_id = self._resolve_voice_id(voice)
         title = clean_text(payload.get("title")) or clean_text(job.get("title")) or "Voice Render"
 

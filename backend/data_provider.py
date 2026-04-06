@@ -4113,6 +4113,19 @@ class SQLiteProvider(BaseProvider):
         if column not in columns:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
+    @staticmethod
+    def _rename_column(conn: sqlite3.Connection, table: str, old_name: str, new_name: str) -> None:
+        columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if old_name in columns and new_name not in columns:
+            conn.execute(f"ALTER TABLE {table} RENAME COLUMN {old_name} TO {new_name}")
+
+    @classmethod
+    def _migrate_ai_audit_logs_schema(cls, conn: sqlite3.Connection) -> None:
+        cls._rename_column(conn, "ai_audit_logs", "tenantId", "tenant_id")
+        cls._rename_column(conn, "ai_audit_logs", "runId", "run_id")
+        cls._rename_column(conn, "ai_audit_logs", "stepId", "step_id")
+        cls._rename_column(conn, "ai_audit_logs", "agentId", "agent_id")
+
     def _backfill_tenantIds(self, conn: sqlite3.Connection) -> None:
         tenantId = self._default_tenantId()
         for table in [
@@ -4751,17 +4764,19 @@ class SQLiteProvider(BaseProvider):
                 
                 CREATE TABLE IF NOT EXISTS ai_audit_logs (
                     id TEXT PRIMARY KEY,
-                    tenantId TEXT,
-                    runId TEXT NOT NULL,
-                    stepId TEXT NOT NULL,
+                    tenant_id TEXT,
+                    run_id TEXT NOT NULL,
+                    step_id TEXT NOT NULL,
                     agent TEXT,
-                    agentId TEXT,
+                    agent_id TEXT,
                     action TEXT NOT NULL,
                     result TEXT NOT NULL,
                     timestamp TEXT NOT NULL
                 );
                 """
             )
+
+            self._migrate_ai_audit_logs_schema(conn)
 
             self._ensure_column(conn, "mailboxes", "status", "TEXT")
             self._ensure_column(conn, "mailboxes", "inboundEnabled", "INTEGER")
@@ -4900,7 +4915,7 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "aiEngineRuns", "lockedUntil", "TEXT")
             self._ensure_column(conn, "aiEngineRuns", "lastError", "TEXT")
             self._ensure_column(conn, "aiEngineRuns", "traceJson", "TEXT DEFAULT '[]'")
-            self._ensure_column(conn, "ai_audit_logs", "tenantId", "TEXT")
+            self._ensure_column(conn, "ai_audit_logs", "tenant_id", "TEXT")
             self._ensure_column(conn, "orders", "tenantId", "TEXT")
             self._ensure_column(conn, "help_tickets", "tenantId", "TEXT")
             self._ensure_column(conn, "broadcast_messages", "tenantId", "TEXT")
@@ -9597,16 +9612,16 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO ai_audit_logs (
-                    id, tenantId, run_id, step_id, agent, agent_id, action, result, timestamp
+                    id, tenant_id, run_id, step_id, agent, agent_id, action, result, timestamp
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     f"audit-{unique_suffix()}",
                     self._tenantId(),
-                    payload.get("runId"),
-                    payload.get("stepId"),
+                    payload.get("run_id"),
+                    payload.get("step_id"),
                     payload.get("agent"),
-                    payload.get("agentId"),
+                    payload.get("agent_id"),
                     payload.get("action"),
                     payload.get("result"),
                     payload.get("timestamp") or utcnow()

@@ -113,13 +113,14 @@ export async function request(path, options = {}) {
 
   const sessionToken = getStoredSessionToken();
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const { headers: optionHeaders = {}, ...requestOptions } = options;
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...requestOptions,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
-      ...(options.headers || {})
-    },
-    ...options
+      ...optionHeaders
+    }
   });
 
   if (!response.ok) {

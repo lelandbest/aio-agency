@@ -42,7 +42,7 @@ const CalendarModule = lazy(() => import('./modules/Calendar'));
 const OrdersModule = lazy(() => import('./modules/Orders'));
 const AIOAgentsModule = lazy(() => import('./modules/Agents'));
 const DesignModule = lazy(() => import('./modules/Design'));
-const MediaModule = lazy(() => import('./modules/Media'));
+const StudioModule = lazy(() => import('./modules/Media'));
 const IntegrationsManager = lazy(() => import('./modules/Integrations'));
 const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
@@ -154,7 +154,7 @@ const MODULE_SUBTITLE_MAP = {
   forms: 'Create, organize, and deploy workspace forms.',
   chat: 'Thread-first Comms for triage, actions, and audit logs.',
   integrations: 'Admin control plane for mailbox accounts, calendar sources, and all external systems connected to AIO.',
-  media: 'Operate scripts, voice, renders, transcripts, and ingest workflows from one workspace.',
+  studio: 'Create scripts, voice, renders, transcripts, and ingest workflows from one workspace.',
   orders: 'Review order records, payment state, and fulfillment posture from one workspace.',
   pipelines: 'Operate deal stages, next moves, and relationship records from one workspace.',
   settings: 'Manage account, workspace, security, branding, and automation settings.',
@@ -162,12 +162,19 @@ const MODULE_SUBTITLE_MAP = {
 };
 
 const SPECIAL_MODULE_META = {
-  media: {
-    label: 'Media',
+  studio: {
+    label: 'Studio',
     icon: 'Video',
-    subtitle: MODULE_SUBTITLE_MAP.media,
+    subtitle: MODULE_SUBTITLE_MAP.studio,
     type: 'internal',
-    searchPlaceholder: 'Search media jobs, assets, and artifacts...',
+    searchPlaceholder: 'Search studio jobs, assets, and artifacts...',
+  },
+  media: {
+    label: 'Studio',
+    icon: 'Video',
+    subtitle: MODULE_SUBTITLE_MAP.studio,
+    type: 'internal',
+    searchPlaceholder: 'Search studio jobs, assets, and artifacts...',
   },
   'system-health': {
     label: 'System Health',
@@ -200,24 +207,24 @@ const isUsableMenuStructure = (value) => (
   && value.every(isValidMenuCategory)
 );
 
-const MEDIA_MENU_ITEM = {
-  id: 'media',
-  label: 'Media',
+const STUDIO_MENU_ITEM = {
+  id: 'studio',
+  label: 'Studio',
   icon: 'Video',
   type: 'internal',
   visible: true,
   iconColor: '#9ca3af',
-  description: MODULE_SUBTITLE_MAP.media,
+  description: MODULE_SUBTITLE_MAP.studio,
 };
 
-const ensureMediaMenuItem = (structure = []) => {
+const ensureStudioMenuItem = (structure = []) => {
   if (!Array.isArray(structure) || structure.length === 0) {
     return structure;
   }
-  const hasMediaItem = structure.some((category) =>
-    Array.isArray(category?.items) && category.items.some((item) => item?.id === 'media')
+  const hasStudioItem = structure.some((category) =>
+    Array.isArray(category?.items) && category.items.some((item) => item?.id === 'studio')
   );
-  if (hasMediaItem) {
+  if (hasStudioItem) {
     return structure;
   }
   return structure.map((category) => {
@@ -227,7 +234,7 @@ const ensureMediaMenuItem = (structure = []) => {
     const nextItems = [...category.items];
     const designIndex = nextItems.findIndex((item) => item?.id === 'design');
     const insertIndex = designIndex >= 0 ? designIndex + 1 : nextItems.length;
-    nextItems.splice(insertIndex, 0, MEDIA_MENU_ITEM);
+    nextItems.splice(insertIndex, 0, STUDIO_MENU_ITEM);
     return {
       ...category,
       items: nextItems,
@@ -272,7 +279,8 @@ const App = () => {
     'aio-brain': 'Brain',
     'crm': 'AIO',
     'orders': 'Orders',
-    'media': 'Media',
+    'media': 'Studio',
+    'studio': 'Studio',
     'comms': 'Communications',
     'calendar': 'Calendar',
     'forms': 'Forms',
@@ -322,7 +330,7 @@ const App = () => {
 
     // Canonical tenant navigation is authoritative only when it contains a usable persisted menu.
     // Empty canonical/legacy arrays mean "not configured yet" and must not blank the sidebar.
-    setMenuStructure(ensureMediaMenuItem(nextMenu));
+    setMenuStructure(ensureStudioMenuItem(nextMenu));
   }, [session?.tenant?.id, canonicalMenu, legacyMenu]);
 
   useEffect(() => {
@@ -725,7 +733,8 @@ const App = () => {
       case 'design':
         return <DesignModule />;
       case 'media':
-        return <MediaModule />;
+      case 'studio':
+        return <StudioModule />;
       case 'integrations':
         return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':

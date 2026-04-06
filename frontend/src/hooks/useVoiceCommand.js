@@ -1,13 +1,13 @@
 import { useEffect, useRef, useCallback } from 'react';
 
 /**
- * Charlie VTT PTT Logic - FINAL PRODUCTION HARDENED
+ * Charlie VTT PTT logic.
  */
 
 const ARM_DELAY_MS = 1000;
 
-// Synthetic sonar ping
-async function playSyntheticPing(freq = 880, volume = 0.1) {
+// Keep the cue minimal and disposable so it does not interfere with SpeechRecognition.
+async function playSyntheticPing(freq = 760, volume = 0.035, durationMs = 60) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') await ctx.resume();
@@ -17,12 +17,12 @@ async function playSyntheticPing(freq = 880, volume = 0.1) {
     gain.connect(ctx.destination);
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (durationMs / 1000));
     osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.11);
-    setTimeout(() => { ctx.close().catch(() => {}); }, 200);
+    osc.stop(ctx.currentTime + (durationMs / 1000) + 0.01);
+    setTimeout(() => { ctx.close().catch(() => {}); }, 180);
   } catch (e) {}
 }
 
@@ -46,6 +46,8 @@ export function useVoiceCommand({
   const isArmedRef     = useRef(false);
   const armTimerRef    = useRef(null);
   const recognitionRef = useRef(null);
+  const finalTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
 
   const stopRecognition = useCallback((abort = false) => {
     if (recognitionRef.current) {
@@ -64,9 +66,15 @@ export function useVoiceCommand({
     rec.lang = 'en-US';
     rec.continuous = settingsRef.current.isContinuous;
     rec.interimResults = true; // GHOST TEXT ON
+    finalTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
 
     rec.onstart = () => { if (settingsRef.current.setIsListening) settingsRef.current.setIsListening(true); };
     rec.onend = () => { 
+      const finalText = finalTranscriptRef.current.trim();
+      if (finalText && settingsRef.current.onTranscript) settingsRef.current.onTranscript(finalText);
+      finalTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
       recognitionRef.current = null; 
       if (settingsRef.current.setIsListening) settingsRef.current.setIsListening(false);
     };
@@ -77,11 +85,17 @@ export function useVoiceCommand({
         if (e.results[i].isFinal) final += e.results[i][0].transcript;
         else inter += e.results[i][0].transcript;
       }
-      if (final && settingsRef.current.onTranscript) settingsRef.current.onTranscript(final);
-      if (inter && settingsRef.current.onInterim) settingsRef.current.onInterim(inter);
+      if (final) {
+        finalTranscriptRef.current = `${finalTranscriptRef.current} ${final}`.trim();
+      }
+      interimTranscriptRef.current = inter;
+      const liveText = `${finalTranscriptRef.current} ${interimTranscriptRef.current}`.trim();
+      if (liveText && settingsRef.current.onInterim) settingsRef.current.onInterim(liveText);
     };
     rec.onerror = (e) => {
       if (e.error !== 'aborted') settingsRef.current.onError?.(e.error);
+      finalTranscriptRef.current = '';
+      interimTranscriptRef.current = '';
       stopRecognition(true);
     };
 
@@ -99,7 +113,7 @@ export function useVoiceCommand({
     if (e.key !== 'Control') return;
     if (e.repeat) return;
 
-    // Wake up audio
+    // Wake audio inside the real key gesture so the later cue is allowed.
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     ctx.resume().then(() => ctx.close()).catch(() => {});
 
@@ -110,7 +124,7 @@ export function useVoiceCommand({
     armTimerRef.current = setTimeout(() => {
       if (isHoldingRef.current) {
         isArmedRef.current = true;
-        playSyntheticPing(880, 0.15);
+        playSyntheticPing(760, 0.035, 60);
         settingsRef.current.arm?.();
         startRecognition();
       }

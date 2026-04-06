@@ -395,14 +395,68 @@ def extract_url_text(url: str) -> tuple[str, str]:
     return cleaned, content_type
 
 
-def extract_file_text(file_name: str | None, mime_type: str | None, content_base64: str | None) -> str:
+def _normalize_ai_command_response(response: dict) -> dict:
+    """
+    Normalize AI command response to strict camelCase for frontend consumption.
+    Removes snake_case variants and normalizes all keys.
+    """
+    def _normalize_dict(d: dict) -> dict:
+        if not isinstance(d, dict):
+            return d
+        result = {}
+        for key, value in d.items():
+            # Key normalization mapping
+            normalized_key = {
+                "run_id": "runId",
+                "flow_id": "flowId",
+                "flow_name": "flowName",
+                "executing_agent": "executingAgent",
+                "requested_agent": "requestedAgent",
+                "delegate_chain": "delegateChain",
+                "brain_query": "brainQuery",
+                "brain_result_count": "brainResultCount",
+                "brain_memory": "brainMemory",
+                "selected_agent_locked": "selectedAgentLocked",
+                "result_metadata": "resultMetadata",
+                "projection_source": "projectionSource",
+                "pending_approvals": "pendingApprovals",
+                "active_agent": "activeAgent",
+                "command_text": "commandText",
+                "collab_agents": "collabAgents",
+                "step_count": "stepCount",
+            }.get(key, key)
+            
+            if isinstance(value, dict):
+                result[normalized_key] = _normalize_dict(value)
+            elif isinstance(value, list):
+                result[normalized_key] = [
+                    _normalize_dict(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
+            else:
+                result[normalized_key] = value
+        return result
+    
+    return _normalize_dict(response)
+
+
+def extract_file_text(file_name: str | None, mime_type: str | None, content_base64: str | None) -> str | None:
+    """
+    Extract text from uploaded files.
+    
+    Returns:
+        str: extracted text for supported formats
+        None: for unsupported formats (PDF, DOCX, XLSX, media, images)
+        
+    Raises:
+        ValueError: for empty content, undecodable content, or unsupported file types
+    """
     if not content_base64:
         raise ValueError("File content is required for Brain file ingest.")
     
     normalized_name = (file_name or "").lower()
     normalized_type = (mime_type or "").lower()
     
-    # Document / Text Formats
     text_extensions = (".txt", ".md", ".markdown", ".csv", ".vtt", ".json", ".xml")
     rich_text_extensions = (".rtf", ".doc", ".docx", ".pdf", ".xls", ".xlsx", ".odt")
     media_extensions = (".mp3", ".wav", ".m4a", ".mp4", ".mov", ".avi")
@@ -423,16 +477,13 @@ def extract_file_text(file_name: str | None, mime_type: str | None, content_base
         return cleaned
 
     if normalized_name.endswith(rich_text_extensions):
-        # Stub for complex document extraction (PDF, Word, Excel)
-        return f"[DOCUMENT STUB] Content from '{normalized_name}' will be extracted via document-processing workflow. Metadata indexed for now."
+        return None
 
     if normalized_name.endswith(media_extensions):
-        # Stub for transcription service
-        return f"[TRANSCRIPTION STUB] Audio/Video content from '{normalized_name}' is queued for transcription. Operating memory will be updated once complete."
+        return None
 
     if normalized_name.endswith(image_extensions):
-        # Stub for OCR/Image Analysis
-        return f"[IMAGE STUB] Visual content from '{normalized_name}' is queued for OCR and scene analysis."
+        return None
 
     raise ValueError(f"File type '{normalized_name.split('.')[-1]}' is not yet supported for direct Brain ingestion.")
 
@@ -2991,7 +3042,10 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
             extracted_text, _ = extract_url_text(target_url)
             location = target_url
         elif resolved_ingest_type == "file":
-            extracted_text = extract_file_text(payload.fileName, payload.mimeType, payload.fileContentBase64)
+            file_text = extract_file_text(payload.fileName, payload.mimeType, payload.fileContentBase64)
+            if file_text is None:
+                raise ValueError(f"File type not supported for Brain ingest. Supported: TXT, MD, CSV, VTT, JSON, XML.")
+            extracted_text = file_text
             location = payload.location or payload.fileName or ""
         else:
             extracted_text = normalize_ingest_text(payload.content)
@@ -3640,24 +3694,24 @@ async def ai_command(request: Request, payload: AICommandRequest):
         )
         if agent
     ]
-    flow_id = str(payload.flow_id or payload.flowId or resolved_context.get("flow_id") or resolved_context.get("flowId") or "").strip() or None
+    flow_id = str(payload.flowId or resolved_context.get("flowId") or "").strip() or None
     selected_flow = provider.get_flow(flow_id) if flow_id else None
     if flow_id and not selected_flow:
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "run_id": None},
+            "result": {"routing": None, "run": None, "runId": None},
             "message": f"Flow '{flow_id}' is not available in the current workspace.",
         }
     if requested_agent == "OMEGA":
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "run_id": None},
+            "result": {"routing": None, "run": None, "runId": None},
             "message": "OMEGA cannot be executed through the natural-language agent shell.",
         }
     if resolved_context.get("requested_agent") and not requested_agent:
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "run_id": None},
+            "result": {"routing": None, "run": None, "runId": None},
             "message": f"Unknown agent '{resolved_context.get('requested_agent')}'.",
         }
     booking_command_steps = create_booking_execution_plan(command_text, resolved_context)
@@ -3668,7 +3722,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
     if not ai_provider and not booking_command_mode and not selected_flow:
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "run_id": None},
+            "result": {"routing": None, "run": None, "runId": None},
             "message": "No active AI provider is configured for agent execution.",
         }
     routing = resolve_ai_run_routing(
@@ -3688,7 +3742,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
         if not flow_raw_steps:
             return {
                 "status": "error",
-                "result": {"routing": routing, "run": None, "run_id": None},
+                "result": {"routing": routing, "run": None, "runId": None},
                 "message": f"Flow '{selected_flow.get('name') or flow_id}' has no executable steps.",
             }
 
@@ -3697,7 +3751,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
     if not agent_definition:
         return {
             "status": "error",
-            "result": {"routing": routing, "run": None, "run_id": None},
+            "result": {"routing": routing, "run": None, "runId": None},
             "message": f"Agent '{executing_agent}' is not available in the canonical runtime registry.",
         }
     resolved_context.update(routing)
@@ -3764,7 +3818,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
         logger.exception("ExecutionEngine command run failed")
         return {
             "status": "error",
-            "result": {"routing": routing, "run": None, "run_id": None},
+            "result": {"routing": routing, "run": None, "runId": None},
             "message": str(error),
         }
 
@@ -3849,17 +3903,17 @@ async def ai_command(request: Request, payload: AICommandRequest):
             else None
         ),
         "metadata": {
-            "brain_query": brain_query,
-            "brain_result_count": len(brain_results),
-            "brain_memory": brain_results,
-            "selected_agent_locked": bool(requested_agent),
-            "result_metadata": primary_data.get("metadata") or {},
-            "projection_source": "aiEngineRuns",
+            "brainQuery": brain_query,
+            "brainResultCount": len(brain_results),
+            "brainMemory": brain_results,
+            "selectedAgentLocked": bool(requested_agent),
+            "resultMetadata": primary_data.get("metadata") or {},
+            "projectionSource": "aiEngineRuns",
         },
         "run": run,
-        "run_id": run["id"],
+        "runId": run["id"],
     }
-    return {"status": response_status, "result": response, "message": response_message}
+    return {"status": response_status, "result": _normalize_ai_command_response(response), "message": response_message}
 
 
 class VTTRequest(BaseModel):
@@ -3870,58 +3924,132 @@ class VTTRequest(BaseModel):
     voiceAutoPlay: bool = False
 
 
+def _resolve_vtt_spoken_text(data: Any) -> str:
+    if not isinstance(data, dict):
+        return ""
+    response = data.get("response") or {}
+    result = data.get("result") or {}
+    candidates = [
+        response.get("message") if isinstance(response, dict) else None,
+        result.get("message") if isinstance(result, dict) else None,
+    ]
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _build_vtt_response(
+    *,
+    response_type: str,
+    input_text: str,
+    command: dict[str, Any] | None,
+    response_message: str,
+    success: bool,
+    result: dict[str, Any] | None = None,
+    audio_url: str | None = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    payload_result = dict(result or {})
+    payload_result["success"] = bool(success)
+    return {
+        "status": "ok",
+        "type": response_type,
+        "input": input_text,
+        "command": command,
+        "response": {
+            "mode": "spoken",
+            "message": str(response_message or "").strip(),
+            "reason": reason,
+        },
+        "result": payload_result,
+        "audioUrl": audio_url,
+    }
+
+
 @app.post("/api/vtt/command")
 async def vtt_command(request: Request, payload: VTTRequest = None):
     """
     Phase 1: Parse voice transcript through command registry.
-    Exact-match commands → execute.
-    Conversational → forward to /api/ai/command (Charlie).
+    Exact-match commands -> execute.
+    Conversational -> forward to /api/ai/command (Charlie).
     """
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can use voice commands.")
     session = request.state.session or {}
-    tenant  = session.get("tenant") or {}
+    tenant = session.get("tenant") or {}
     raw = (payload.transcript if payload else "").strip()
     if not raw:
-        return {"status": "error", "message": "Empty transcript."}
+        return _build_vtt_response(
+            response_type="conversational",
+            input_text="",
+            command=None,
+            response_message="Empty transcript.",
+            success=False,
+            result={},
+            audio_url=None,
+            reason="empty_transcript",
+        )
 
     tenant_id = tenant.get("id")
     result = process_transcript(raw, tenant_id=tenant_id, context=payload.context if payload else None)
+    voice_enabled = bool(payload.voiceEnabled) if payload else False
 
     if result.get("action") == "conversational":
+        ai_context = dict(payload.context or {}) if payload and payload.context else {}
+        ai_context["surface"] = "vtt"
+        ai_response = await ai_command(request, AICommandRequest(command=raw, context=ai_context))
+        ai_status = str(ai_response.get("status") or "error").strip().lower()
+        ai_result = ai_response.get("result") or {}
+        spoken_text = (
+            _resolve_vtt_spoken_text(ai_result)
+            or str(ai_result.get("message") or "").strip()
+            or str(ai_response.get("message") or "").strip()
+        )
         audio_url = None
-        voice_enabled = bool(payload.voiceEnabled) if payload else False
-        response_text = result.get("result", {}).get("text", "") if result.get("type") == "conversational" else raw
-        if voice_enabled:
+        if voice_enabled and spoken_text:
             from backend.vtt_service import synthesize_voice
-            audio_url = synthesize_voice(response_text)
-        print(f"[VTT-DEBUG] conversational | voice_enabled={voice_enabled} | audio_url={audio_url} | text_len={len(response_text)}")
-        return {
-            "status": "success",
-            "type": "conversational",
-            "command": result,
-            "forwardTo": "/api/ai/command",
-            "audioUrl": audio_url,
-        }
+            audio_url = synthesize_voice(spoken_text, tenant_id=tenant_id)
 
-    response_data = result.get("response", {})
+        print(f"[VTT-DEBUG] conversational | ai_status={ai_status} | audio_url={audio_url} | msg_len={len(spoken_text)}")
+        return _build_vtt_response(
+            response_type="conversational",
+            input_text=raw,
+            command=None,
+            response_message=spoken_text,
+            success=ai_status == "success",
+            result=ai_result,
+            audio_url=audio_url,
+            reason=None if ai_status == "success" else str(ai_response.get("message") or "").strip() or "ai_command_failed",
+        )
+
+    response_data = result.get("response") or {}
+    spoken_text = str(response_data.get("message") or "").strip()
     audio_url = None
-    voice_enabled = bool(payload.voiceEnabled) if payload else False
-    if voice_enabled:
-        msg = response_data.get("message", "")
-        if msg:
-            from backend.vtt_service import synthesize_voice
-            audio_url = synthesize_voice(msg)
+    if voice_enabled and spoken_text:
+        from backend.vtt_service import synthesize_voice
+        audio_url = synthesize_voice(spoken_text, tenant_id=tenant_id)
 
-    print(f"[VTT-DEBUG] command | voice_enabled={voice_enabled} | audio_url={audio_url} | msg_len={len(response_data.get('message', ''))}")
-    return {
-        "status": "success",
-        "type": result.get("type", "command"),
-        "command": result,
-        "action": result.get("action", "unknown"),
-        "response": response_data,
-        "audioUrl": audio_url,
-    }
+    response_type = "command" if result.get("type") == "command" else "conversational"
+    command_payload = None
+    if response_type == "command":
+        command_payload = {
+            "action": result.get("action") or "unknown",
+            "commandType": result.get("commandType"),
+        }
+    command_result = dict(result.get("result") or {})
 
+    print(f"[VTT-DEBUG] command | voice_enabled={voice_enabled} | audio_url={audio_url} | msg_len={len(spoken_text)}")
+    return _build_vtt_response(
+        response_type=response_type,
+        input_text=raw,
+        command=command_payload,
+        response_message=spoken_text,
+        success=result.get("action") != "unknown",
+        result=command_result,
+        audio_url=audio_url,
+        reason=str(response_data.get("reason") or "").strip() or None,
+    )
 
 @app.get("/api/vtt/providers")
 async def list_vtt_commands(request: Request):
@@ -4185,18 +4313,37 @@ async def test_media_provider_config(configId: str, request: Request):
         import urllib.request as _urlreq
         import urllib.error as _urlerr
         base_url = (config.get("baseUrl") or "https://api.elevenlabs.io").rstrip("/")
-        req = _urlreq.Request(f"{base_url}/v1/user", headers={"xi-api-key": apiKey}, method="GET")
+        provider_config = config.get("config") if isinstance(config.get("config"), dict) else {}
+        voice_id_map = {
+            "rachel": "21m00Tcm4TlvDq8ikWAM",
+            "domi": "AZnzlk1XvdvUeBnXmlld",
+            "bella": "EXAVITQu4vr4xnSDxMaL",
+            "adam": "pNInz6obpgDQGcFmaJgB",
+            "antoni": "ErXwobaYiN019PkySvjV",
+        }
+        configured_voice = str(provider_config.get("voiceId") or provider_config.get("charlieVoice") or provider_config.get("voice") or "").strip()
+        voice_id = voice_id_map.get(configured_voice.lower(), configured_voice) if configured_voice else "21m00Tcm4TlvDq8ikWAM"
+        request_body = _json.dumps({
+            "text": "Connection test.",
+            "model_id": "eleven_turbo_v2",
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }).encode("utf-8")
+        req = _urlreq.Request(
+            f"{base_url}/v1/text-to-speech/{voice_id}",
+            data=request_body,
+            headers={"xi-api-key": apiKey, "Content-Type": "application/json", "Accept": "audio/mpeg"},
+            method="POST",
+        )
         try:
             with _urlreq.urlopen(req, timeout=15) as resp:
-                user_data = _json.loads(resp.read().decode())
+                audio_bytes = resp.read()
         except _urlerr.HTTPError as e:
-            body = e.read().decode()[:200] if e.read else ""
-            raise ValueError(f"ElevenLabs rejected the API key: HTTP {e.code} {body}")
-        tier = user_data.get("subscription", {}).get("tier", "unknown")
-        character_count = user_data.get("subscription", {}).get("character_count", 0)
-        character_limit = user_data.get("subscription", {}).get("character_limit", 0)
-        result = {"status": "connected", "message": f"ElevenLabs connected. Tier: {tier}. Usage: {character_count}/{character_limit} characters."}
-        details = {"provider": config.get("providerKey"), "tier": tier, "characterCount": character_count, "characterLimit": character_limit}
+            body = e.read().decode("utf-8", errors="replace")[:300] if hasattr(e, "read") else ""
+            raise ValueError(f"ElevenLabs test synthesis failed: HTTP {e.code} {body}")
+        if not audio_bytes:
+            raise ValueError("ElevenLabs test synthesis returned no audio.")
+        result = {"status": "connected", "message": "ElevenLabs connected. Demo voice synthesis is available."}
+        details = {"provider": config.get("providerKey"), "voiceId": voice_id, "testMode": "tts", "audioBytes": len(audio_bytes)}
         updated = auth_store.save_media_provider_test_result(
             tenant_id,
             configId,
@@ -7665,7 +7812,7 @@ def _media_signal_actions(job_type: str, job: dict[str, Any]) -> list[dict[str, 
                 },
             )
         )
-    actions.append(_signal_view_detail("media", job_id))
+    actions.append(_signal_view_detail("studio", job_id))
     return actions
 
 
@@ -7705,15 +7852,15 @@ def _build_media_signals() -> list[dict[str, Any]]:
                     signals,
                     seen,
                     _signal_record(
-                        signal_id=f"signal-media-failed-{job_id}",
+                        signal_id=f"signal-studio-failed-{job_id}",
                         signal_type="error",
                         title=f"{label} job failed",
                         description=clean_text(job.get("last_error") or job.get("lastError") or f"The {label.lower()} job failed before output was produced."),
-                        source="media",
+                        source="studio",
                         source_id=job_id,
                         severity="high",
                         created_at=created_at,
-                        module="media",
+                        module="studio",
                         entity_id=job_id,
                         metadata=metadata,
                         actions=actions,
@@ -7725,15 +7872,15 @@ def _build_media_signals() -> list[dict[str, Any]]:
                     signals,
                     seen,
                     _signal_record(
-                        signal_id=f"signal-media-pending-{job_id}",
+                        signal_id=f"signal-studio-pending-{job_id}",
                         signal_type="follow_up",
                         title=f"{label} job in progress",
                         description=f"The {label.lower()} job is still running and should be monitored until output is ready.",
-                        source="media",
+                        source="studio",
                         source_id=job_id,
                         severity="low",
                         created_at=created_at,
-                        module="media",
+                        module="studio",
                         entity_id=job_id,
                         metadata=metadata,
                         actions=actions,
@@ -7746,15 +7893,15 @@ def _build_media_signals() -> list[dict[str, Any]]:
                     signals,
                     seen,
                     _signal_record(
-                        signal_id=f"signal-media-ready-{job_id}",
+                        signal_id=f"signal-studio-ready-{job_id}",
                         signal_type="opportunity",
                         title=f"{label} output ready",
                         description=f"The {label.lower()} job completed successfully and output is ready for review or use.",
-                        source="media",
+                        source="studio",
                         source_id=job_id,
                         severity="medium",
                         created_at=created_at,
-                        module="media",
+                        module="studio",
                         entity_id=job_id,
                         metadata=metadata,
                         actions=actions,
@@ -7847,7 +7994,7 @@ def _build_integration_signals(token: str, tenant_id: str) -> list[dict[str, Any
                 source="integration",
                 source_id=str(config.get("id") or config.get("providerKey") or "").strip(),
                 provider_key=str(config.get("providerKey") or "").strip() or None,
-                category="media",
+                category="studio",
                 title=f"{config.get('label') or config.get('providerKey') or 'Media provider'} needs attention",
                 description=clean_text(config.get("lastError") or "Media provider configuration requires correction before media actions can run cleanly."),
                 created_at=config.get("updatedAt"),
@@ -8151,4 +8298,6 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port, log_level="info")
+
+
 

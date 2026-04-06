@@ -121,20 +121,20 @@ export const INITIAL_MENU_STRUCTURE = [
   {
     category: "Main",
     items: [
-      { id: "aio-agents", label: "AIO Agents\u2122", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-brain", label: `AIO Cortex${TM}`, icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: `Search AIO Cortex${TM}...` },
-      { id: "dashboard", label: "AIO Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-systems", label: "AIO Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full AIO system stack and launch each workspace inside the embedded app frame." }
+      { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
+      { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-systems", label: "Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full system stack and launch each workspace inside the embedded app frame." }
     ]
   },
   {
     category: "Systems",
     items: [
-      { id: "aio-bots", label: `AIO Bots${TM}`, icon: "Bot", type: "iframe", url: "https://go.aiobots.us", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-flows", label: `AIO Flows${TM}`, icon: "Workflow", type: "iframe", url: "https://work.aioflows.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-livebots", label: `AIO LiveBots${TM}`, icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-sniper", label: `AIO Sniper${TM}`, icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-academy", label: `AIO Academy${TM}`, icon: "GraduationCap", type: "iframe", url: "https://aiocrm.org/academy", visible: true, iconColor: "#9ca3af" }
+      { id: "aio-bots", label: "Bots", icon: "Bot", type: "iframe", url: "https://go.aiobots.us", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-flows", label: "Flows", icon: "Workflow", type: "iframe", url: "https://work.aioflows.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-livebots", label: "LiveBots", icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-sniper", label: "Sniper", icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-academy", label: "Academy", icon: "GraduationCap", type: "iframe", url: "https://aiocrm.org/academy", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
@@ -144,12 +144,12 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "chat", label: "Comms", icon: "RadioTower", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "media", label: "Media", icon: "Video", type: "internal", visible: true, iconColor: "#9ca3af", description: "Operate scripts, voice, renders, transcripts, and ingest workflows from one workspace." },
+      { id: "studio", label: "Studio", icon: "Video", type: "internal", visible: true, iconColor: "#9ca3af", description: "Create scripts, voice, renders, transcripts, and ingest workflows from one workspace." },
       { id: "flows", label: "Flows", icon: "Workflow", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "forms", label: "Forms", icon: "FileText", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "orders", label: "Orders", icon: "ShoppingCart", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "pipelines", label: "Pipelines", icon: "GitBranch", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-help", label: "AIO Help Desk", icon: "GraduationCap", type: "internal", visible: false, iconColor: "#9ca3af" }
+      { id: "aio-help", label: "Help Desk", icon: "GraduationCap", type: "internal", visible: false, iconColor: "#9ca3af" }
     ]
   },
   {
@@ -158,7 +158,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "marketplace", label: "MarketPlace", icon: "Globe", type: "internal", visible: false, iconColor: "#9ca3af" },
       { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" },
       { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-market", label: "AIO Market", icon: "Globe", type: "iframe", url: "https://aiomarket.us", visible: false, iconColor: "#9ca3af" },
+      { id: "aio-market", label: "Market", icon: "Globe", type: "iframe", url: "https://aiomarket.us", visible: false, iconColor: "#9ca3af" },
       { id: "sms-voip", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" }
     ]
   },
