@@ -47,6 +47,12 @@ from ai_routing import log_ai_route, resolve_ai_route, validate_ai_routing_confi
 from data_provider import create_provider, get_request_tenant_id, reset_request_tenant, set_request_tenant_id
 from cortex_normalizer import normalize_ingest_payload
 from orchestration import ExecutionEngine, emit_system_event, run_resume_worker, validate_prepared_flow_steps
+from comms_integration import (
+    get_communication_summary_for_contact,
+    COMMS_EVENT_TYPES,
+    COMMS_ACTIVITY_TYPES,
+    ARTIFACT_CLASSIFICATIONS,
+)
 try:
     from backend.planner import create_booking_execution_plan
     from backend.agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
@@ -3729,10 +3735,28 @@ async def ai_command(request: Request, payload: AICommandRequest):
         module,
         surface,
         field="command",
-        intent="command",
+        intent=str(resolved_context.get("intent") or payload.intent or "command").strip().lower(),
         command_text=command_text,
         context={**resolved_context, "requested_agent": requested_agent},
     )
+    
+    # CONVO Contract: User -> Charlie -> Cortex -> Charlie -> User
+    # Bypass Alpha entirely if intent is conversation
+    if routing.get("intent") == "conversation" or resolved_context.get("intent") == "conversation":
+        from backend.operator_assist import generate_assist_response
+        charlie_response = generate_assist_response(
+            message=command_text,
+            context=resolved_context,
+            token=extract_session_token(request),
+            session=session,
+            auth_store=auth_store,
+            provider=provider
+        )
+        return {
+            "status": "success",
+            "message": charlie_response.get("answer"),
+            "response": charlie_response
+        }
     if routing["permission_tier"] == "dangerous":
         raise HTTPException(status_code=403, detail="Dangerous commands are blocked from natural-language routing. Use the dedicated Omega admin controls.")
     flow_raw_steps: list[dict[str, Any]] = []
@@ -3996,16 +4020,55 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
     voice_enabled = bool(payload.voiceEnabled) if payload else False
 
     if result.get("action") == "conversational":
+        # Check if process_transcript already provided a fast-path response (greetings etc)
+        if result.get("response"):
+            response_data = result.get("response") or {}
+            spoken_text = str(response_data.get("message") or "").strip()
+            audio_url = None
+            if voice_enabled and spoken_text:
+                from backend.vtt_service import synthesize_voice
+                audio_url = synthesize_voice(spoken_text, tenant_id=tenant_id)
+            return _build_vtt_response(
+                response_type="conversational",
+                input_text=raw,
+                command=None,
+                response_message=spoken_text,
+                success=True,
+                result=result.get("result", {}),
+                audio_url=audio_url,
+                reason="fast_path_match",
+            )
+
+        # Regular conversational chat (User -> Charlie -> User)
+        # Honoring CONVO Schematic: Bypass Alpha entirely.
+        try:
+            from backend.operator_assist import generate_assist_response
+        except Exception as e:
+            logger.warning(f"VTT: operator_assist import failed: {e}")
+            return _build_vtt_response(
+                response_type="error",
+                input_text=raw,
+                command=None,
+                response_message="Voice assistant is temporarily unavailable.",
+                success=False,
+                result={},
+                audio_url=None,
+                reason="service_unavailable",
+            )
         ai_context = dict(payload.context or {}) if payload and payload.context else {}
-        ai_context["surface"] = "vtt"
-        ai_response = await ai_command(request, AICommandRequest(command=raw, context=ai_context))
-        ai_status = str(ai_response.get("status") or "error").strip().lower()
-        ai_result = ai_response.get("result") or {}
-        spoken_text = (
-            _resolve_vtt_spoken_text(ai_result)
-            or str(ai_result.get("message") or "").strip()
-            or str(ai_response.get("message") or "").strip()
+        ai_context["intent"] = "conversation"
+        
+        provider = create_provider()
+        ai_response = generate_assist_response(
+            message=raw,
+            context=ai_context,
+            token=extract_session_token(request),
+            session=session,
+            auth_store=auth_store,
+            provider=provider
         )
+        
+        spoken_text = str(ai_response.get("answer") or "").strip()
         audio_url = None
         if voice_enabled and spoken_text:
             from backend.vtt_service import synthesize_voice
@@ -4016,10 +4079,10 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
             input_text=raw,
             command=None,
             response_message=spoken_text,
-            success=ai_status == "success",
-            result=ai_result,
+            success=True,
+            result=ai_response,
             audio_url=audio_url,
-            reason=None if ai_status == "success" else str(ai_response.get("message") or "").strip() or "ai_command_failed",
+            reason="convo_schematic_direct",
         )
 
     response_data = result.get("response") or {}
@@ -6820,6 +6883,356 @@ async def delete_thread(thread_id: str, request: Request):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
+# ============ SMS / VOIP COMMS ROUTES ============
+
+@app.get("/api/comms/overview")
+async def get_comms_overview(request: Request):
+    """Get SMS/VoIP system overview stats."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view comms.")
+    from backend.comms_service import get_comms_overview
+    return {"data": get_comms_overview()}
+
+
+@app.get("/api/comms/phone-numbers")
+async def list_phone_numbers(request: Request):
+    """List all phone numbers."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view phone numbers.")
+    from backend.comms_service import list_phone_numbers
+    return {"data": list_phone_numbers()}
+
+
+@app.post("/api/comms/phone-numbers")
+async def create_phone_number(request: Request, payload: dict):
+    """Create a new phone number."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can manage phone numbers.")
+    from backend.comms_service import create_phone_number
+    return {"data": create_phone_number(
+        number=payload.get("number"),
+        display_label=payload.get("displayLabel"),
+        owner=payload.get("owner")
+    )}
+
+
+@app.patch("/api/comms/phone-numbers/{number_id}")
+async def update_phone_number(number_id: str, request: Request, payload: dict):
+    """Update a phone number."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can update phone numbers.")
+    from backend.comms_service import update_phone_number
+    return {"data": update_phone_number(number_id, **payload)}
+
+
+@app.delete("/api/comms/phone-numbers/{number_id}")
+async def delete_phone_number(number_id: str, request: Request):
+    """Delete a phone number."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can delete phone numbers.")
+    from backend.comms_service import delete_phone_number
+    delete_phone_number(number_id)
+    return {"data": {"success": True}}
+
+
+@app.get("/api/comms/sms-threads")
+async def list_sms_threads(request: Request, limit: int = 50):
+    """List SMS threads."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS threads.")
+    from backend.comms_service import list_sms_threads
+    return {"data": list_sms_threads(limit)}
+
+
+@app.post("/api/comms/sms-threads")
+async def create_sms_thread(request: Request, payload: dict):
+    """Create a new SMS thread."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create SMS threads.")
+    from backend.comms_service import create_sms_thread
+    return {"data": create_sms_thread(
+        contact_id=payload.get("contactId"),
+        phone_number_id=payload.get("phoneNumberId"),
+        subject=payload.get("subject")
+    )}
+
+
+@app.post("/api/comms/sms-threads/{thread_id}/messages")
+async def add_sms_message(thread_id: str, request: Request, payload: dict):
+    """Add a message to an SMS thread."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can send SMS messages.")
+    from backend.comms_service import add_sms_message
+    return {"data": add_sms_message(
+        thread_id=thread_id,
+        body=payload.get("body"),
+        direction=payload.get("direction", "outbound"),
+        sender_number=payload.get("senderNumber"),
+        recipient_number=payload.get("recipientNumber")
+    )}
+
+
+@app.get("/api/comms/sms-threads/{thread_id}")
+async def get_sms_thread(thread_id: str, request: Request):
+    """Get a single SMS thread."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS threads.")
+    from backend.comms_service import get_sms_thread
+    return {"data": get_sms_thread(thread_id)}
+
+
+@app.get("/api/comms/sms-threads/{thread_id}/messages")
+async def get_sms_messages(thread_id: str, request: Request):
+    """Get all messages for an SMS thread."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS messages.")
+    from backend.comms_service import get_sms_messages
+    return {"data": get_sms_messages(thread_id)}
+
+
+@app.post("/api/comms/sms/send")
+async def send_sms(request: Request, payload: dict):
+    """Send an SMS message (creates thread if needed)."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can send SMS messages.")
+    from backend.comms_service import send_sms_message
+    return {"data": send_sms_message(
+        thread_id=payload.get("threadId"),
+        phone_number=payload.get("phoneNumber"),
+        body=payload.get("body"),
+        from_number=payload.get("fromNumber"),
+        contact_id=payload.get("contactId")
+    )}
+
+
+@app.get("/api/comms/sms/opt-out-check")
+async def check_opt_out(request: Request, phone_number: str):
+    """Check if a phone number has opted out."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can check opt-out status.")
+    from backend.comms_service import check_opt_out
+    return {"data": check_opt_out(phone_number)}
+
+
+@app.get("/api/comms/contacts-with-phone")
+async def get_contacts_with_phone(request: Request):
+    """Get contacts that have phone numbers for SMS linking."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view contacts.")
+    from backend.comms_service import get_contacts_with_phone
+    return {"data": get_contacts_with_phone()}
+
+
+@app.get("/api/comms/sms-plans")
+async def list_sms_plans(request: Request):
+    """List SMS plans/registrations."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS plans.")
+    from backend.comms_service import list_sms_plans
+    return {"data": list_sms_plans()}
+
+
+@app.post("/api/comms/sms-plans")
+async def create_sms_plan(request: Request, payload: dict):
+    """Create a new SMS plan."""
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can create SMS plans.")
+    from backend.comms_service import create_sms_plan
+    return {"data": create_sms_plan(
+        name=payload.get("name"),
+        brand_name=payload.get("brandName"),
+        campaign_type=payload.get("campaignType")
+    )}
+
+
+@app.patch("/api/comms/sms-plans/{plan_id}")
+async def update_sms_plan(plan_id: str, request: Request, payload: dict):
+    """Update an SMS plan."""
+    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can update SMS plans.")
+    from backend.comms_service import update_sms_plan
+    return {"data": update_sms_plan(plan_id, **payload)}
+
+
+@app.get("/api/comms/extensions")
+async def list_extensions(request: Request):
+    """List extensions."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view extensions.")
+    from backend.comms_service import list_extensions
+    return {"data": list_extensions()}
+
+
+@app.post("/api/comms/extensions")
+async def create_extension(request: Request, payload: dict):
+    """Create a new extension."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create extensions.")
+    from backend.comms_service import create_extension
+    return {"data": create_extension(
+        extension_number=payload.get("extensionNumber"),
+        display_name=payload.get("displayName"),
+        user_id=payload.get("userId")
+    )}
+
+
+@app.get("/api/comms/ring-groups")
+async def list_ring_groups(request: Request):
+    """List ring groups."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view ring groups.")
+    from backend.comms_service import list_ring_groups
+    return {"data": list_ring_groups()}
+
+
+@app.post("/api/comms/ring-groups")
+async def create_ring_group(request: Request, payload: dict):
+    """Create a new ring group."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create ring groups.")
+    from backend.comms_service import create_ring_group
+    return {"data": create_ring_group(
+        name=payload.get("name"),
+        extensions=payload.get("extensions", []),
+        ring_strategy=payload.get("ringStrategy", "simultaneous")
+    )}
+
+
+@app.get("/api/comms/call-sessions")
+async def list_call_sessions(request: Request, limit: int = 50):
+    """List call sessions."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view call history.")
+    from backend.comms_service import list_call_sessions
+    return {"data": list_call_sessions(limit)}
+
+
+@app.post("/api/comms/call-sessions")
+async def create_call_session(request: Request, payload: dict):
+    """Create a new call session (for simulated calls)."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create call sessions.")
+    from backend.comms_service import create_call_session
+    return {"data": create_call_session(
+        direction=payload.get("direction", "outbound"),
+        contact_id=payload.get("contactId"),
+        phone_number_id=payload.get("phoneNumberId")
+    )}
+
+
+@app.patch("/api/comms/call-sessions/{session_id}")
+async def update_call_session(session_id: str, request: Request, payload: dict):
+    """Update a call session."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can update call sessions.")
+    from backend.comms_service import update_call_session
+    return {"data": update_call_session(session_id, **payload)}
+
+
+@app.post("/api/comms/calls/start")
+async def start_outbound_call(request: Request, payload: dict):
+    """Start an outbound call (simulated)."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can initiate calls.")
+    from backend.comms_service import start_outbound_call
+    return {"data": start_outbound_call(
+        phone_number=payload.get("phoneNumber"),
+        from_number=payload.get("fromNumber"),
+        contact_id=payload.get("contactId"),
+        extension_id=payload.get("extensionId")
+    )}
+
+
+@app.post("/api/comms/calls/{call_id}/end")
+async def end_call_session(call_id: str, request: Request, payload: dict):
+    """End an active call session."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can end calls.")
+    from backend.comms_service import end_call_session
+    return {"data": end_call_session(
+        call_id=call_id,
+        disposition=payload.get("disposition"),
+        duration_seconds=payload.get("durationSeconds")
+    )}
+
+
+@app.get("/api/comms/calls/{call_id}")
+async def get_call_session(call_id: str, request: Request):
+    """Get a specific call session detail."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view call details.")
+    from backend.comms_service import get_call_session
+    return {"data": get_call_session(call_id)}
+
+
+@app.get("/api/comms/routes")
+async def get_routes(request: Request):
+    """Get extensions, ring groups, and phone numbers for routing UI."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view routes.")
+    from backend.comms_service import get_routes_for_ui
+    return {"data": get_routes_for_ui()}
+
+
+@app.get("/api/comms/contact-summary/{contact_id}")
+async def get_comms_contact_summary(request: Request, contact_id: str):
+    """Get communication summary (SMS threads, calls) for a CRM contact."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view comms data.")
+    try:
+        from comms_integration import get_communication_summary_for_contact
+        return {"data": get_communication_summary_for_contact(contact_id)}
+    except ImportError:
+        return {"data": {"contactId": contact_id, "smsThreadCount": 0, "callCount": 0, "lastSmsAt": None, "lastCallAt": None}}
+
+
+@app.post("/api/comms/contact-activity")
+async def create_comms_activity(request: Request, payload: dict[str, Any]):
+    """Create CRM activity from comms event (SMS sent/received, call)."""
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create CRM activities.")
+    try:
+        from comms_integration import create_crm_activity_from_sms, create_crm_activity_from_call
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Comms integration not available")
+    
+    activity_type = payload.get("activityType", "")
+    contact_id = payload.get("contactId")
+    tenant_id = payload.get("tenantId", "default")
+    
+    if not contact_id:
+        raise HTTPException(status_code=400, detail="contactId is required")
+    
+    try:
+        if activity_type in ("sms_sent", "sms_received"):
+            result = create_crm_activity_from_sms(
+                tenant_id=tenant_id,
+                contact_id=contact_id,
+                thread_id=payload.get("threadId", ""),
+                message_body=payload.get("messageBody", ""),
+                direction="outbound" if activity_type == "sms_sent" else "inbound",
+            )
+            return {"data": result}
+        elif activity_type in ("call_outbound", "call_inbound"):
+            result = create_crm_activity_from_call(
+                tenant_id=tenant_id,
+                contact_id=contact_id,
+                call_id=payload.get("callId", ""),
+                direction="outbound" if activity_type == "call_outbound" else "inbound",
+                duration_seconds=payload.get("durationSeconds"),
+                disposition=payload.get("disposition"),
+            )
+            return {"data": result}
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown activity type: {activity_type}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/comms/integration-info")
+async def get_comms_integration_info(request: Request):
+    """Get comms integration readiness information."""
+    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view integration info.")
+    try:
+        from comms_integration import COMMS_EVENT_TYPES, COMMS_ACTIVITY_TYPES, ARTIFACT_CLASSIFICATIONS
+        return {
+            "data": {
+                "eventTypes": COMMS_EVENT_TYPES,
+                "activityTypes": COMMS_ACTIVITY_TYPES,
+                "artifactClassifications": ARTIFACT_CLASSIFICATIONS,
+                "providerStatus": "stub",
+                "crmIntegration": "ready",
+                "signalsIntegration": "ready",
+                "flowsTriggerReadiness": "bridge_only",
+                "vaultCortexReadiness": "bridge_only",
+            }
+        }
+    except ImportError:
+        return {
+            "data": {
+                "eventTypes": [],
+                "activityTypes": [],
+                "artifactClassifications": {},
+                "providerStatus": "stub",
+                "crmIntegration": "not_available",
+                "signalsIntegration": "not_available",
+                "flowsTriggerReadiness": "not_available",
+                "vaultCortexReadiness": "not_available",
+            }
+        }
+
+
 # ============ ANALYTICS & REPORTING ============
 
 @app.get("/api/analytics/summary")
@@ -8080,6 +8493,117 @@ def _build_integration_signals(token: str, tenant_id: str) -> list[dict[str, Any
     return signals
 
 
+def _build_comms_signals() -> list[dict[str, Any]]:
+    signals: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    
+    try:
+        from comms_integration import (
+            emit_sms_opt_out_detected,
+            get_communication_summary_for_contact,
+        )
+        from comms_service import list_sms_threads, list_call_sessions, check_opt_out
+    except ImportError:
+        return signals
+    
+    try:
+        threads = list_sms_threads(limit=100) or []
+        sessions = list_call_sessions(limit=100) or []
+        
+        opt_outs = set()
+        for thread in threads:
+            if not isinstance(thread, dict):
+                continue
+            phone = thread.get("phoneNumber") or thread.get("phone_number")
+            if not phone:
+                continue
+            opt_check = check_opt_out(phone)
+            if opt_check.get("opted_out"):
+                keyword = opt_check.get("keyword", "UNKNOWN")
+                if phone not in opt_outs:
+                    opt_outs.add(phone)
+                    _append_signal(
+                        signals,
+                        seen,
+                        _signal_record(
+                            signal_id=f"signal-comms-optout-{phone}",
+                            signal_type="compliance",
+                            title="SMS opt-out detected",
+                            description=f"Phone number {phone} has opted out of SMS communications (keyword: {keyword}).",
+                            source="comms",
+                            source_id=f"optout-{phone}",
+                            severity="medium",
+                            created_at=utcnow_iso(),
+                            module="sms-voip",
+                            entity_id=phone,
+                            metadata={"phoneNumber": phone, "keyword": keyword},
+                            actions=[_signal_view_detail("comms", f"optout-{phone}")],
+                        ),
+                    )
+        
+        for session in sessions:
+            if not isinstance(session, dict):
+                continue
+            call_id = str(session.get("id") or "").strip()
+            if not call_id:
+                continue
+            status = str(session.get("status") or "").strip().lower()
+            contact_id = session.get("contactId") or session.get("contact_id")
+            
+            if status == "failed":
+                _append_signal(
+                    signals,
+                    seen,
+                    _signal_record(
+                        signal_id=f"signal-comms-call-failed-{call_id}",
+                        signal_type="call",
+                        title="Call session failed",
+                        description=f"A call session failed to complete: {session.get('disposition') or 'unknown error'}.",
+                        source="comms",
+                        source_id=call_id,
+                        severity="high",
+                        created_at=session.get("updatedAt") or session.get("createdAt") or utcnow_iso(),
+                        module="sms-voip",
+                        entity_id=call_id,
+                        metadata={
+                            "callId": call_id,
+                            "contactId": contact_id,
+                            "disposition": session.get("disposition"),
+                        },
+                        actions=[_signal_view_detail("comms", call_id)],
+                    ),
+                )
+            
+            if session.get("recordingUrl") or session.get("recording_url"):
+                _append_signal(
+                    signals,
+                    seen,
+                    _signal_record(
+                        signal_id=f"signal-comms-recording-{call_id}",
+                        signal_type="opportunity",
+                        title="Call recording available",
+                        description=f"A recording is available for call {call_id}.",
+                        source="comms",
+                        source_id=f"recording-{call_id}",
+                        severity="low",
+                        created_at=session.get("updatedAt") or utcnow_iso(),
+                        module="sms-voip",
+                        entity_id=call_id,
+                        metadata={
+                            "callId": call_id,
+                            "contactId": contact_id,
+                            "recordingUrl": session.get("recordingUrl") or session.get("recording_url"),
+                        },
+                        actions=[_signal_view_detail("comms", call_id)],
+                    ),
+                )
+    
+    except Exception:
+        pass
+    
+    return signals
+
+
 def _build_system_signals(token: str, session: dict[str, Any]) -> list[dict[str, Any]]:
     health = build_system_health(
         token=token,
@@ -8132,6 +8656,7 @@ def _build_actionable_signals(token: str, session: dict[str, Any]) -> list[dict[
         *_build_ai_run_signals(),
         *_build_verification_signals(),
         *_build_media_signals(),
+        *_build_comms_signals(),
         *_build_integration_signals(token, str((session.get("tenant") or {}).get("id") or "").strip()),
         *_build_system_signals(token, session),
     ]

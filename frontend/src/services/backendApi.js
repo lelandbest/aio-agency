@@ -1646,6 +1646,210 @@ export async function deleteThreadApi(threadId) {
   });
 }
 
+// ============ SMS / VOIP COMMS API ============
+
+export async function getCommsOverviewApi() {
+  const response = await request('/api/comms/overview');
+  return response.data || {};
+}
+
+export async function getPhoneNumbersApi() {
+  const response = await request('/api/comms/phone-numbers');
+  return response.data || [];
+}
+
+export async function createPhoneNumberApi(payload) {
+  const response = await request('/api/comms/phone-numbers', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function updatePhoneNumberApi(numberId, payload) {
+  const response = await request(`/api/comms/phone-numbers/${encodeURIComponent(numberId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function deletePhoneNumberApi(numberId) {
+  return request(`/api/comms/phone-numbers/${encodeURIComponent(numberId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function getSmsThreadsApi(limit = 50) {
+  const response = await request(`/api/comms/sms-threads?limit=${limit}`);
+  return response.data || [];
+}
+
+export async function createSmsThreadApi(payload) {
+  const response = await request('/api/comms/sms-threads', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function addSmsMessageApi(threadId, payload) {
+  const response = await request(`/api/comms/sms-threads/${encodeURIComponent(threadId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getSmsPlansApi() {
+  const response = await request('/api/comms/sms-plans');
+  return response.data || [];
+}
+
+export async function createSmsPlanApi(payload) {
+  const response = await request('/api/comms/sms-plans', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function updateSmsPlanApi(planId, payload) {
+  const response = await request(`/api/comms/sms-plans/${encodeURIComponent(planId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getSmsThreadApi(threadId) {
+  const response = await request(`/api/comms/sms-threads/${encodeURIComponent(threadId)}`);
+  return response.data || null;
+}
+
+export async function getSmsMessagesApi(threadId) {
+  const response = await request(`/api/comms/sms-threads/${encodeURIComponent(threadId)}/messages`);
+  return response.data || [];
+}
+
+export async function sendSmsApi(payload) {
+  const response = await request('/api/comms/sms/send', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function checkOptOutApi(phoneNumber) {
+  const response = await request(`/api/comms/sms/opt-out-check?phone_number=${encodeURIComponent(phoneNumber)}`);
+  return response.data || { optedOut: false };
+}
+
+export async function getContactsWithPhoneApi() {
+  const response = await request('/api/comms/contacts-with-phone');
+  return response.data || [];
+}
+
+export async function getExtensionsApi() {
+  const response = await request('/api/comms/extensions');
+  return response.data || [];
+}
+
+export async function createExtensionApi(payload) {
+  const response = await request('/api/comms/extensions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getRingGroupsApi() {
+  const response = await request('/api/comms/ring-groups');
+  return response.data || [];
+}
+
+export async function createRingGroupApi(payload) {
+  const response = await request('/api/comms/ring-groups', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getCallSessionsApi(limit = 50) {
+  const response = await request(`/api/comms/call-sessions?limit=${limit}`);
+  return response.data || [];
+}
+
+export async function createCallSessionApi(payload) {
+  const response = await request('/api/comms/call-sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function updateCallSessionApi(sessionId, payload) {
+  const response = await request(`/api/comms/call-sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function startOutboundCallApi(payload) {
+  const response = await request('/api/comms/calls/start', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function endCallSessionApi(callId, payload) {
+  const response = await request(`/api/comms/calls/${encodeURIComponent(callId)}/end`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getCallSessionApi(callId) {
+  const response = await request(`/api/comms/calls/${encodeURIComponent(callId)}`);
+  return response.data || null;
+}
+
+export async function getCommsRoutesApi() {
+  const response = await request('/api/comms/routes');
+  return response.data || { extensions: [], ringGroups: [], phoneNumbers: [] };
+}
+
+export async function getCommsContactSummaryApi(contactId) {
+  const response = await request(`/api/comms/contact-summary/${encodeURIComponent(contactId)}`);
+  return response.data || { contactId, smsThreadCount: 0, callCount: 0, lastSmsAt: null, lastCallAt: null };
+}
+
+export async function createCommsActivityApi(payload) {
+  const response = await request('/api/comms/contact-activity', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function getCommsIntegrationInfoApi() {
+  const response = await request('/api/comms/integration-info');
+  return response.data || {
+    eventTypes: [],
+    activityTypes: [],
+    artifactClassifications: {},
+    providerStatus: 'stub',
+    crmIntegration: 'not_available',
+    signalsIntegration: 'not_available',
+    flowsTriggerReadiness: 'not_available',
+    vaultCortexReadiness: 'not_available',
+  };
+}
+
 export function isBackendEnabled() {
   return BACKEND_ENABLED;
 }
