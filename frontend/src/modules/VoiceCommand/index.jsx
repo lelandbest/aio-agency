@@ -256,6 +256,7 @@ export default function VoiceCommandModule() {
   const lastPlaybackRef = useRef({ key: '', ts: 0 });
   const spokenResponseIds = useRef(new Set());
   const lastCtrlRef = useRef(0);
+  const isPlayingRef = useRef(false);
 
   const stopAudio = useCallback(() => {
     try {
@@ -265,6 +266,7 @@ export default function VoiceCommandModule() {
       }
     } catch(e) {}
     activeAudioRef.current = null;
+    isPlayingRef.current = false;
     window.speechSynthesis?.cancel?.();
   }, []);
   
@@ -304,6 +306,12 @@ export default function VoiceCommandModule() {
   }, []);
 
   const playResponse = useCallback((audioUrl, text) => {
+    // ── Duplicate guard: drop if already playing ──────────────────────────────
+    if (isPlayingRef.current) {
+      console.warn('[VTT] Playback already in flight — dropping duplicate');
+      return;
+    }
+
     const normalizedText = String(text || '').trim();
     const normalizedAudioUrl = String(audioUrl || '').trim();
     const playbackKey = JSON.stringify({ audioUrl: normalizedAudioUrl, text: normalizedText });
@@ -312,7 +320,7 @@ export default function VoiceCommandModule() {
       console.warn('[VTT] Already spoken response:', responseId);
       return;
     }
-    
+
     const now = Date.now();
     if (lastPlaybackRef.current.key === playbackKey && (now - lastPlaybackRef.current.ts) < 2500) {
       console.warn('[VTT] Skipping duplicate Charlie playback');
@@ -320,6 +328,7 @@ export default function VoiceCommandModule() {
     }
     lastPlaybackRef.current = { key: playbackKey, ts: now };
     spokenResponseIds.current.add(responseId);
+    isPlayingRef.current = true;
 
     try {
       if (activeAudioRef.current) {
@@ -330,8 +339,10 @@ export default function VoiceCommandModule() {
     activeAudioRef.current = null;
     window.speechSynthesis?.cancel?.();
 
-    if (!normalizedText && !normalizedAudioUrl) return;
-    if (!normalizedText) return;
+    if (!normalizedText && !normalizedAudioUrl) { isPlayingRef.current = false; return; }
+    if (!normalizedText) { isPlayingRef.current = false; return; }
+
+    const releaseLock = () => { isPlayingRef.current = false; };
 
     try {
       if (normalizedAudioUrl) {
@@ -339,30 +350,45 @@ export default function VoiceCommandModule() {
         activeAudioRef.current = audio;
         audio.onended = () => {
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
+          releaseLock();
         };
         audio.onerror = (e) => {
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
           console.warn('[VTT] Audio error, falling back:', e);
+          releaseLock();
           fallbackSpeak(normalizedText);
         };
         audio.play().catch((e) => {
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
           console.warn('[VTT] Audio play blocked, falling back:', e);
+          releaseLock();
           fallbackSpeak(normalizedText);
         });
         return;
       }
     } catch (e) {
       console.warn('[VTT] Audio hard fail, falling back:', e);
+      releaseLock();
     }
 
     fallbackSpeak(normalizedText);
+    // Note: fallbackSpeak (SpeechSynthesis) has no reliable onend — lock releases
+    // after a conservative delay so back-to-back text inputs don't pile up.
+    setTimeout(releaseLock, 4000);
   }, [fallbackSpeak]);
 
   const handleTranscript = useCallback(async (raw, meta = {}) => {
     setGhostTranscript('');
     setIsListening(false);
     if (!raw.trim()) return;
+
+    // ── Loopback guard: drop transcript if Charlie is currently speaking ──────
+    // Prevents mic feedback loops (Zoom audio, open speakers, etc.) from
+    // being picked up and re-sent as a new command while TTS is active.
+    if (isPlayingRef.current) {
+      console.warn('[VTT] Dropping transcript — playback in flight (loopback guard)');
+      return;
+    }
 
     if (isContinuous || meta.isContinuousSession) {
       pushTranscriptToEditor(raw);
