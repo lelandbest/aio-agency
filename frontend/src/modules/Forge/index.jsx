@@ -608,8 +608,45 @@ const Forge = () => {
               <div className="text-[6px] font-black text-cyan-600 uppercase tracking-widest mb-0.5">ACTIVE</div>
               <div className="text-[8px] font-bold text-cyan-300 truncate">{activeAsset.title}</div>
             </div>
+          )}
+        </div>
+
+        {/* CENTER — REVIEW + EDITOR */}
+        <div className="min-w-[150px] flex-1 flex-col bg-black/20 relative overflow-hidden border border-[#1E2024] rounded-xl">
+
+          {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
+          <AssetReviewPanel asset={activeAsset} />
+
+          {/* Editor status bar */}
+          <div className="absolute z-10 flex items-center gap-2 bg-black/40 px-2 py-0.5 rounded border border-white/5"
+            style={{ top: activeAsset ? undefined : '12px', left: '16px',
+              // When review panel is present, position below it dynamically isn't possible in CSS without state,
+              // so we use a relative container approach instead.
+              position: activeAsset ? 'relative' : 'absolute',
+              margin: activeAsset ? '8px 16px 0' : undefined,
+            }}
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+            <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
+              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
+            </span>
+            {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
           </div>
 
+          <div className={`flex-1 flex flex-col min-h-0 bg-[#0A0A0C]/40 ${activeAsset ? 'p-4 pt-2' : 'p-4 pt-10'}`}>
+            <div className="flex-1 rounded border border-[#1E2024] overflow-hidden bg-black/40 shadow-inner flex flex-col h-full">
+              <RichTextEditor
+                key={forgeState.transcript ? 'data-loaded' : 'data-pending'}
+                value={forgeState.transcript}
+                onChange={(content) => setForgeState(s => ({ ...s, transcript: content, status: 'Draft' }))}
+                placeholder={activeAsset ? `Assembling from: ${activeAsset.title}...` : 'Input mission transcript data...'}
+                minHeight={400}
+                tools="full"
+              />
+            </div>
+          </div>
+
+          {/* Focus mode overlay */}
           {isEditorFullscreen && (
             <div
               className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-xl flex flex-col p-10"
