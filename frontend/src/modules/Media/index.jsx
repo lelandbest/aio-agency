@@ -1311,7 +1311,7 @@ const StudioModule = () => {
               key={tab.id}
               type="button"
               onClick={() => setNexusMode(tab.id)}
-              className={`px-2 py-0.5 text-[6px] font-black uppercase tracking-[0.22em] rounded border transition-all ${nexusMode === tab.id ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-[#1E2024] bg-black/20 text-slate-500 hover:text-slate-300'}`}
+              className={`px-3 py-1 text-[7px] font-black uppercase tracking-[0.22em] rounded border transition-all ${nexusMode === tab.id ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-[#1E2024] bg-black/20 text-slate-500 hover:text-slate-300'}`}
             >
               {tab.label}
             </button>
@@ -1327,21 +1327,21 @@ const StudioModule = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className={`flex h-full max-h-[190px] w-full max-w-[208px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed px-3.5 py-3 text-center transition-all ${nexusDragActive ? 'border-cyan-400 bg-cyan-950/10 shadow-[0_0_20px_rgba(34,211,238,0.14)]' : 'border-cyan-900/70 bg-[#05070B]'}`}
+              className={`flex h-[290px] w-full max-w-[208px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed px-3.5 py-3 text-center transition-all ${nexusDragActive ? 'border-cyan-400 bg-cyan-950/10 shadow-[0_0_20px_rgba(34,211,238,0.14)]' : 'border-cyan-900/70 bg-[#05070B]'}`}
             >
               <div className="flex flex-col items-center justify-center shrink-0">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-cyan-950/80 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.15),rgba(8,15,32,0.96)_70%)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.06),0_0_18px_rgba(15,23,42,0.6)]">
-                  <CloudUpload size={18} className="text-cyan-400" strokeWidth={1.8} />
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-cyan-950/80 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.15),rgba(8,15,32,0.96)_70%)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.06),0_0_18px_rgba(15,23,42,0.6)]">
+                  <CloudUpload size={38} className="text-cyan-400" strokeWidth={1.8} />
                 </div>
                 <div className="mt-3 flex flex-col items-center">
-                  <div className="text-[14px] font-black uppercase leading-none tracking-[0.28em] text-slate-100">NEXUS</div>
-                  <div className="mt-1 text-[8px] font-black uppercase leading-none tracking-[0.34em] text-[#9fb8d7]">DROP ZONE</div>
+                  <div className="text-[18px] font-black uppercase leading-none tracking-[0.28em] text-slate-100">NEXUS</div>
+                  <div className="mt-1 text-[10px] font-black uppercase leading-none tracking-[0.34em] text-[#9fb8d7]">DROP ZONE</div>
                 </div>
-                <div className="mt-2 text-[6px] font-black uppercase tracking-[0.16em] text-slate-500">
+                <div className="mt-2 text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
                   DROP ASSETS OR PASTE RAW DATA
                 </div>
               </div>
-              <div className="mt-2 rounded-full border border-cyan-900/70 bg-black/30 px-2 py-0.5 text-[5px] font-black uppercase tracking-[0.2em] text-cyan-400">
+              <div className="mt-[28px] rounded-full border border-cyan-900/70 bg-black/30 px-3 py-1 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-400">
                 EXTENSION AWARE
               </div>
             </button>
@@ -1997,28 +1997,28 @@ const StudioModule = () => {
 
             {/* TACTICAL FORM */}
             <div className="h-auto flex flex-col bg-[#0A0A0C] border border-white/5 rounded-lg p-3 pb-8 shadow-inner relative overflow-hidden">
-              <div className="overflow-y-auto no-scrollbar max-h-[420px]">{renderTacticalForm()}</div>
+              <div className="overflow-y-auto no-scrollbar max-h-[560px]">{renderTacticalForm()}</div>
               {error && <div className="mt-2 text-[7px] text-rose-500 font-mono uppercase bg-rose-900/10 p-2 border border-rose-900/20 rounded leading-tight">{error}</div>}
             </div>
-
-            {/* FLOATING ACTION BUTTON */}
-            <button
-              onClick={handleSubmitQuickAction}
-              disabled={Boolean(launchingAction) || !canExecuteSelectedAction}
-              className={`absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-11 w-64 z-[100] bg-gradient-to-b border-t border-white/15 border-b border-black rounded-md flex items-center justify-center gap-4 shadow-[0_12px_24px_rgba(0,0,0,0.9),0_0_20px_rgba(6,182,212,0.15)] group active:translate-y-[calc(50%+2px)] transition-all
-                ${launchingAction ? 'from-amber-900/40 to-black cursor-wait opacity-80' : 'from-[#2A3442] to-[#0A0F14] hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
-                ${!canExecuteSelectedAction && !launchingAction ? 'grayscale opacity-50' : ''}
-              `}
-            >
-              <div className="relative">
-                <BullseyeIcon size={14} className={`${launchingAction ? 'text-amber-500 animate-spin' : 'text-slate-300 group-hover:text-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]'}`} />
-                {launchingAction && <div className="absolute inset-0 bg-amber-500/20 blur-md rounded-full animate-pulse" />}
-              </div>
-              <span className={`text-[11px] font-black uppercase tracking-[0.6em] ${launchingAction ? 'text-amber-400 animate-pulse' : 'text-white'}`}>
-                {primaryButtonLabel}
-              </span>
-            </button>
           </div>
+
+          {/* FIXED FLOATING ACTION BUTTON */}
+          <button
+            onClick={handleSubmitQuickAction}
+            disabled={Boolean(launchingAction) || !canExecuteSelectedAction}
+            className={`absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-11 w-64 z-[100] bg-gradient-to-b border-t border-white/15 border-b border-black rounded-md flex items-center justify-center gap-4 shadow-[0_12px_24px_rgba(0,0,0,0.9),0_0_20px_rgba(6,182,212,0.15)] group active:translate-y-[calc(50%+2px)] transition-all
+              ${launchingAction ? 'from-amber-900/40 to-black cursor-wait opacity-80' : 'from-[#2A3442] to-[#0A0F14] hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
+              ${!canExecuteSelectedAction && !launchingAction ? 'grayscale opacity-50' : ''}
+            `}
+          >
+            <div className="relative">
+              <BullseyeIcon size={14} className={`${launchingAction ? 'text-amber-500 animate-spin' : 'text-slate-300 group-hover:text-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]'}`} />
+              {launchingAction && <div className="absolute inset-0 bg-amber-500/20 blur-md rounded-full animate-pulse" />}
+            </div>
+            <span className={`text-[11px] font-black uppercase tracking-[0.6em] ${launchingAction ? 'text-amber-400 animate-pulse' : 'text-white'}`}>
+              {primaryButtonLabel}
+            </span>
+          </button>
         </div>
 
         {/* RIGHT ZONE: PRODUCTION ISLAND + CONSULT */}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIO STUDIO // OPERATIONS MANUAL</title>
+    <style>
+        :root {
+            --bg: #070708;
+            --surface: #111318;
+            --border: #1E2024;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent: #06b6d4;
+            --accent-glow: rgba(6, 182, 212, 0.15);
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        header {
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+
+        .header-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.4em;
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            margin: 0;
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--accent);
+            margin-top: 40px;
+            border-left: 4px solid var(--accent);
+            padding-left: 15px;
+        }
+
+        h3 {
+            font-size: 14px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-primary);
+            margin-top: 25px;
+        }
+
+        p, li {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background: #000;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--accent);
+            font-size: 0.9em;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.5);
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            background: var(--accent-glow);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            font-size: 9px;
+            font-weight: 900;
+            border-radius: 4px;
+            text-transform: uppercase;
+            margin-right: 5px;
+        }
+
+        footer {
+            margin-top: 80px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #444;
+            text-align: center;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        ul li::before {
+            content: "—";
+            color: var(--accent);
+            margin-right: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-meta">Classification: Industrial Operations // V1.0.0</div>
+            <h1>Studio Manual</h1>
+        </header>
+
+        <section>
+            <h2>1. Operational Overview</h2>
+            <p>The AIO Studio is a high-precision transformation appliance. It is engineered to ingested raw multimodal data and refine it into structured system artifacts through a sequence of tactical transformations.</p>
+        </section>
+
+        <section class="card">
+            <h2>2. The Control Deck</h2>
+            <h3>The Nexus Hub</h3>
+            <p>The primary point of entry. Use <code>FILE</code> for local assets, <code>WEB</code> for URL ingestion, or <code>MCP</code> for protocol-direct links. The <strong>Nexus Drop Zone</strong> is a 1.25x-scaled target for all multimodal bridging.</p>
+            
+            <h3>Matrix Action Pads</h3>
+            <p>A tactile grid for accelerated generation. Selecting a pad pins a specific tactical form for mission configuration.</p>
+            
+            <h3>Primary Action Button</h3>
+            <p>The floating centered anchor at the island's base. This button is fixed to the appliance boundary and remains stable regardless of internal content expansion.</p>
+        </section>
+
+        <section>
+            <h2>3. Monitoring Stations</h2>
+            <h3>Monitor A // Program</h3>
+            <p>Displays the active asset on the <code>GLOBAL_BUS</code>. Uses a high-contrast aspect-video viewport for precise media review.</p>
+            
+            <h3>Monitor B // Review</h3>
+            <p>The textual hub. Contains the <strong>TXT Readout</strong> for script evaluation, the <strong>Job Queue</strong> for background processing, and the <strong>Vault</strong> for asset management.</p>
+        </section>
+
+        <section>
+            <h2>4. Essential Workflows</h2>
+            <ul>
+                <li><strong>Ingestion</strong>: Drag an asset to the Nexus Tower.</li>
+                <li><strong>Configuration</strong>: Select an Action, fill the Tactical Form.</li>
+                <li><strong>Execution</strong>: Execute via the Floating Anchor button.</li>
+                <li><strong>Ingestion</strong>: Push completed artifacts from the Vault to the Brain.</li>
+            </ul>
+        </section>
+
+        <footer>
+            AIO CRM SYSTEM // STUDIO WORKSTATION DOCUMENTATION // CONFIDENTIAL
+        </footer>
+    </div>
+</body>
+</html>
