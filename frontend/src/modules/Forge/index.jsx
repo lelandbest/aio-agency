@@ -595,9 +595,7 @@ const Forge = () => {
   return (
     <div className="flex h-full flex-col bg-[#070708] text-slate-300 select-none overflow-hidden font-sans">
       <ModuleHeader
-        title="Forge"
-        subtitle="Digital Asset Workstation // Cognitive Assembler"
-        titleIcon={Anvil}
+        showTitle={false}
         leftActions={[
           { label: 'UPLINK REFRESH', icon: RefreshCw, onClick: loadForgeContext, variant: 'secondary' },
         ]}
