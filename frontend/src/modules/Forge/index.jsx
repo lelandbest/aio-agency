@@ -576,8 +576,8 @@ const Forge = () => {
       {/* 4px gap between toolbar and body */}
       <div className="h-1" />
 
-      {/* BODY: 4 ISLAND COLUMNS WITH 4px GAP */}
-      <div className="flex-1 flex gap-1 p-1 min-h-0 overflow-hidden">
+      {/* BODY: 4 ISLAND COLUMNS WITH 6px GAP */}
+      <div className="flex-1 flex gap-1.5 p-1.5 min-h-0 overflow-hidden">
 
         {/* LEFT RAIL — VAULT */}
         <div className="w-[350px] flex-shrink-0 flex flex-col bg-black border border-[#1E2024] rounded-xl overflow-hidden select-none">
