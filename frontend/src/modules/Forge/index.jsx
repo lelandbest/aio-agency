@@ -630,14 +630,7 @@ const Forge = () => {
           <AssetReviewPanel asset={activeAsset} />
 
           {/* Editor status bar */}
-          <div className="absolute z-10 flex items-center gap-2 bg-black/40 px-2 py-0.5 rounded border border-white/5"
-            style={{ top: activeAsset ? undefined : '12px', left: '16px',
-              // When review panel is present, position below it dynamically isn't possible in CSS without state,
-              // so we use a relative container approach instead.
-              position: activeAsset ? 'relative' : 'absolute',
-              margin: activeAsset ? '8px 16px 0' : undefined,
-            }}
-          >
+          <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-white/5 mx-2 mt-2 mb-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
             <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
               {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
