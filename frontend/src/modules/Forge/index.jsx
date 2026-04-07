@@ -326,30 +326,46 @@ const Forge = () => {
   const CortexCatRow = ({ cat }) => {
     const items = getCortexByCategory(cat);
     const isOpen = cortexExpandedCats[cat];
+    const labels = { summaries: 'Summaries', notes: 'Notes', reports: 'Reports', strategies: 'Strategies', operations: 'Operations' };
     return (
-      <div>
+      <div className="space-y-1">
         <button
           onClick={() => setCortexExpandedCats(s => ({ ...s, [cat]: !s[cat] }))}
-          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/[0.03] transition-colors group"
+          className="w-full rounded-lg border border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 px-3 py-2.5 text-left transition hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75 flex items-center justify-between"
         >
-          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">{cat}</span>
-          <span className="text-[7px] text-slate-700">
-            {isOpen ? '▾' : '▸'}{' '}
-            {items.length > 0 && <span className="text-indigo-700">{items.length}</span>}
+          <span className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{labels[cat] || cat}</span>
+          <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+            {isOpen ? '▾' : '▸'} {items.length}
           </span>
         </button>
         {isOpen && items.length > 0 && (
-          <div className="pb-1">
+          <div className="space-y-2">
             {items.map(item => (
-              <div key={item.id} className="px-3 py-1.5 hover:bg-white/[0.03] cursor-default group">
-                <div className="text-[8px] font-bold text-slate-400 truncate group-hover:text-slate-200 transition-colors leading-tight">{item.title || 'Knowledge Item'}</div>
-                {item.content && <div className="text-[6px] text-slate-700 truncate mt-0.5 font-mono">{String(item.content).slice(0, 48)}</div>}
-              </div>
+              <button
+                key={item.id}
+                className="w-full rounded-xl border border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 px-3 py-2.5 text-left transition hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75"
+              >
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
+                    <FileText size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)] truncate">
+                        {item.title || 'Knowledge Item'}
+                      </div>
+                    </div>
+                    <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)] truncate">
+                      {item.category || ''}
+                    </div>
+                  </div>
+                </div>
+              </button>
             ))}
           </div>
         )}
         {isOpen && items.length === 0 && (
-          <div className="px-3 pb-2 text-[7px] text-slate-800 font-mono italic">empty</div>
+          <div className="text-[10px] text-[var(--color-text-tertiary)] italic px-2">empty</div>
         )}
       </div>
     );
@@ -884,8 +900,9 @@ const Forge = () => {
 
         {/* CORTEX SLIM RAIL (tertiary strip) */}
         <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
-          <div className="px-2 py-2 border-b border-[#1E2024] flex items-center justify-center flex-shrink-0">
+          <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em]">CORTEX</span>
           </div>
           <div className="flex-1 overflow-y-auto no-scrollbar py-1">
             {['summaries', 'notes', 'reports', 'strategies', 'operations'].map(cat => (
