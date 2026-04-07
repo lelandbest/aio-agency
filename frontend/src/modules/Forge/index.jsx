@@ -131,6 +131,7 @@ const Forge = () => {
 
   // Editor
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
@@ -370,11 +371,14 @@ const Forge = () => {
             <ImageIcon size={10} className="text-emerald-400" />
             <span className="text-[7px] font-black text-emerald-400 uppercase tracking-[0.3em]">IMAGE REVIEW</span>
             <span className="text-[7px] font-mono text-slate-700 ml-2 truncate">{asset.title}</span>
-            <button onClick={() => setActiveAsset(null)} className="ml-auto text-slate-600 hover:text-slate-400 transition">
+            <button onClick={() => setIsReviewModalOpen(true)} className="ml-auto text-[7px] font-black text-slate-500 hover:text-cyan-400 uppercase tracking-widest transition">
+              VIEW FULL
+            </button>
+            <button onClick={() => setActiveAsset(null)} className="text-slate-600 hover:text-slate-400 transition">
               <X size={10} />
             </button>
           </div>
-          <div className="flex-1 flex items-center justify-center overflow-hidden p-3 min-h-0">
+          <div className="flex-1 flex items-center justify-center overflow-hidden p-3 min-h-0 cursor-pointer" onClick={() => setIsReviewModalOpen(true)}>
             <img
               src={playbackUrl}
               alt={asset.title}
@@ -404,6 +408,9 @@ const Forge = () => {
             className="flex-1 h-8 min-w-0"
             style={{ accentColor: '#f59e0b' }}
           />
+          <button onClick={() => setIsReviewModalOpen(true)} className="flex-shrink-0 text-[7px] font-black text-slate-500 hover:text-cyan-400 uppercase tracking-widest transition">
+            VIEW
+          </button>
           <button onClick={() => setActiveAsset(null)} className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition ml-1">
             <X size={10} />
           </button>
@@ -420,7 +427,10 @@ const Forge = () => {
             <Video size={10} className="text-purple-400" />
             <span className="text-[7px] font-black text-purple-400 uppercase tracking-[0.3em]">VIDEO REVIEW</span>
             <span className="text-[7px] font-mono text-slate-700 ml-2 truncate">{asset.title}</span>
-            <button onClick={() => setActiveAsset(null)} className="ml-auto text-slate-600 hover:text-slate-400 transition">
+            <button onClick={() => setIsReviewModalOpen(true)} className="ml-auto text-[7px] font-black text-slate-500 hover:text-cyan-400 uppercase tracking-widest transition">
+              VIEW FULL
+            </button>
+            <button onClick={() => setActiveAsset(null)} className="text-slate-600 hover:text-slate-400 transition">
               <X size={10} />
             </button>
           </div>
@@ -466,6 +476,9 @@ const Forge = () => {
             <span className="text-[6px] font-mono text-slate-700 uppercase tracking-widest truncate">{asset.source}</span>
           )}
         </div>
+        <button onClick={() => setIsReviewModalOpen(true)} className="flex-shrink-0 text-[7px] font-black text-slate-500 hover:text-cyan-400 uppercase tracking-widest transition">
+          VIEW
+        </button>
         <button onClick={() => setActiveAsset(null)} className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition">
           <X size={10} />
         </button>
@@ -541,8 +554,8 @@ const Forge = () => {
       {/* BODY: FOUR COLUMN DAW */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
 
-        {/* LEFT RAIL — VAULT (widened to 240px for readable asset titles) */}
-        <div className="w-[240px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
+        {/* LEFT RAIL — VAULT (widened to 260px for readable asset titles) */}
+        <div className="w-[260px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
           <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]" />
             <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
@@ -860,11 +873,10 @@ const Forge = () => {
           </div>
         </div>
 
-        {/* RIGHT KNOWLEDGE RAIL — CORTEX */}
-        <div className="w-[180px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
-          <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
+        {/* RIGHT KNOWLEDGE RAIL — CORTEX (slim) */}
+        <div className="w-[70px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
+          <div className="px-2 py-2 border-b border-[#1E2024] flex items-center justify-center flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em]">CORTEX</span>
           </div>
           <div className="flex-1 overflow-y-auto no-scrollbar py-1">
             {['summaries', 'notes', 'reports', 'strategies', 'operations'].map(cat => (
@@ -874,6 +886,98 @@ const Forge = () => {
         </div>
 
       </div>
+
+      {/* DEEP-REVIEW MODAL */}
+      {isReviewModalOpen && activeAsset && (
+        <div 
+          className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex items-center justify-center p-8"
+          onKeyDown={e => { if (e.key === 'Escape') setIsReviewModalOpen(false); }}
+        >
+          <div className="w-full max-w-6xl h-full flex flex-col bg-[#0A0A0C] border border-[#1E2024] rounded-2xl overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1E2024] bg-black/40 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const mt = (activeAsset.mediaType || '').toLowerCase();
+                  if (mt === 'image') return <ImageIcon size={20} className="text-emerald-400" />;
+                  if (mt === 'audio') return <Music size={20} className="text-amber-400" />;
+                  if (mt === 'video') return <Video size={20} className="text-purple-400" />;
+                  return <FileText size={20} className="text-cyan-400" />;
+                })()}
+                <div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DEEP REVIEW</div>
+                  <div className="text-[12px] font-bold text-white truncate max-w-md">{activeAsset.title}</div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsReviewModalOpen(false)} 
+                className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 flex items-center justify-center overflow-hidden p-6 bg-black/60 min-h-0">
+              {(() => {
+                const mt = (activeAsset.mediaType || '').toLowerCase();
+                const playbackUrl = resolvePlaybackUrl(activeAsset.sourceUrl);
+
+                if (mt === 'image' && activeAsset.sourceUrl) {
+                  return (
+                    <img 
+                      src={playbackUrl}
+                      alt={activeAsset.title}
+                      className="max-h-full max-w-full object-contain rounded-lg shadow-2xl"
+                      onError={e => { e.target.style.display = 'none'; }}
+                    />
+                  );
+                }
+
+                if (mt === 'audio' && activeAsset.sourceUrl) {
+                  return (
+                    <div className="w-full max-w-2xl">
+                      <audio
+                        controls
+                        src={playbackUrl}
+                        className="w-full h-16"
+                        style={{ accentColor: '#f59e0b' }}
+                      />
+                    </div>
+                  );
+                }
+
+                if (mt === 'video' && activeAsset.sourceUrl) {
+                  return (
+                    <video
+                      controls
+                      src={playbackUrl}
+                      className="max-h-full max-w-full rounded-lg shadow-2xl"
+                    />
+                  );
+                }
+
+                // Fallback for documents/artifacts
+                return (
+                  <div className="flex flex-col items-center justify-center p-8 text-center">
+                    <FileText size={48} className="text-slate-600 mb-4" />
+                    <div className="text-[14px] font-bold text-slate-300 mb-2">{activeAsset.title}</div>
+                    <div className="text-[11px] text-slate-600 uppercase tracking-widest mb-4">
+                      {activeAsset.artifactType || activeAsset.recordKind || 'ASSET'}
+                    </div>
+                    {activeAsset.source && (
+                      <div className="text-[10px] font-mono text-slate-700">{activeAsset.source}</div>
+                    )}
+                    {!activeAsset.source && (
+                      <div className="text-[10px] text-slate-700 italic">No preview available for this asset type</div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
