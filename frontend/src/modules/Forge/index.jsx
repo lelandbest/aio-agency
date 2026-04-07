@@ -1,41 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import RichTextEditor from '../../components/RichTextEditor';
 import {
-  AudioLines,
-  Clapperboard,
   FileText,
-  Image as ImageIcon,
-  ListChecks,
-  Mic,
-  Play,
   RefreshCw,
-  Video,
-  Vault,
-  Waves,
-  Volume2,
   X,
-  Send,
   Loader2,
-  Download,
-  Copy,
-  GitMerge,
-  ExternalLink,
-  Square,
-  RotateCcw,
-  FastForward,
-  Pause,
-  Trash2,
-  CloudUpload,
-  ChevronLeft,
-  ChevronRight,
-  Globe,
   Cpu,
   Save,
-  Zap,
-  Bot
+  Bot,
+  Image as ImageIcon,
+  Music,
+  Video,
+  Globe,
+  File,
+  CheckCircle,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import {
   getVaultApi,
@@ -43,49 +23,114 @@ import {
   saveTranscriptApi,
 } from '../../services/backendApi';
 
-// --- APPLIANCE STYLES (3D TACTILE LOOK) ---
-const APPLIANCE_SURFACE = "bg-[#0A0A0C] border-[#1E2024] shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),_0_10px_30px_rgba(0,0,0,0.5)]";
-const RECESSED_PANEL = "bg-[#060608] border-[#16181D] shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)]";
-const GLOW_CYAN = "shadow-[0_0_15px_rgba(6,182,212,0.3)] border-cyan-500/40 text-cyan-400";
-const GLOW_EMERALD = "shadow-[0_0_15px_rgba(16,185,129,0.3)] border-emerald-500/40 text-emerald-400";
-
+// --- SESSION CACHE KEYS ---
 const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
 const TRANSCRIPT_DRAFT_TITLE_KEY = 'aio_transcript_editor_draft_title';
+
+const EMPTY_STATE = {
+  title: '',
+  transcript: '',
+  executiveSummary: '',
+  keyDecisions: [],
+  actionItems: [],
+  discussionHighlights: [],
+  notesAndObservations: [],
+  intentHint: '',
+  purposeNote: '',
+  priority: '',
+  status: 'Draft',
+  specialist: 'FORGE',
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Derive a displayable media-type label and lucide icon for a vault item. */
+const getAssetMeta = (item) => {
+  const mt = (item?.mediaType || '').toLowerCase();
+  const rk = item?.recordKind || '';
+  const at = (item?.artifactType || '').toLowerCase();
+
+  if (mt === 'audio') return { label: 'AUDIO', Icon: Music, color: 'text-amber-400' };
+  if (mt === 'video') return { label: 'VIDEO', Icon: Video, color: 'text-purple-400' };
+  if (mt === 'image') return { label: 'IMAGE', Icon: ImageIcon, color: 'text-emerald-400' };
+  if (rk === 'artifact' && (at === 'transcript')) return { label: 'TRANSCRIPT', Icon: FileText, color: 'text-cyan-400' };
+  if (rk === 'artifact' && (at === 'script' || at === 'runofshow')) return { label: 'DOCUMENT', Icon: FileText, color: 'text-sky-400' };
+  if (rk === 'artifact' && at === 'publish') return { label: 'WEB', Icon: Globe, color: 'text-indigo-400' };
+  return { label: 'FILE', Icon: File, color: 'text-slate-500' };
+};
+
+/**
+ * Extract any available text content from a vault artifact's metadata dict.
+ * The metadata field is an opaque dict — we probe known reasonable keys.
+ */
+const extractArtifactContent = (item) => {
+  const m = item?.metadata || {};
+  return (
+    m.content ||
+    m.text ||
+    m.transcriptText ||
+    m.transcript_text ||
+    m.body ||
+    m.html ||
+    m.rawText ||
+    m.raw_text ||
+    null
+  );
+};
+
+/** True if this asset type has a preview-able sourceUrl. */
+const isPreviewable = (item) => {
+  const mt = (item?.mediaType || '').toLowerCase();
+  return (mt === 'image' || mt === 'audio' || mt === 'video') && Boolean(item?.sourceUrl);
+};
+
+/** True if this is a text/transcript artifact we can try to hydrate into the editor. */
+const isHydratableArtifact = (item) => {
+  if (item?.recordKind !== 'artifact') return false;
+  const at = (item?.artifactType || '').toLowerCase();
+  return at === 'transcript' || at === 'script' || at === 'runofshow';
+};
+
+// ── Main Component ──────────────────────────────────────────────────────────
 
 const Forge = () => {
   const { showNotice } = useNotice();
   const [loading, setLoading] = useState(true);
-  const [transitState, setTransitState] = useState({
-    title: '',
-    transcript: '',
-    executiveSummary: '',
-    keyDecisions: [],
-    actionItems: [],
-    discussionHighlights: [],
-    notesAndObservations: [],
-    intentHint: '',
-    purposeNote: '',
-    priority: '',
-    status: 'Draft',
-    specialist: 'FORGE',
-  });
-  
+  const [forgeState, setForgeState] = useState(EMPTY_STATE);
+  const savedStateRef = useRef(null);
+
+  // Rail data
   const [vaultRailItems, setVaultRailItems] = useState([]);
   const [cortexRailItems, setCortexRailItems] = useState([]);
-  const [vaultExpandedCats, setVaultExpandedCats] = useState({ audio: true, video: true, images: true, documents: true });
-  const [cortexExpandedCats, setCortexExpandedCats] = useState({ summaries: true, notes: true, reports: true });
+  const [vaultExpandedCats, setVaultExpandedCats] = useState({
+    audio: true, video: false, images: false, documents: false, transcripts: false, website: false,
+  });
+  const [cortexExpandedCats, setCortexExpandedCats] = useState({
+    summaries: true, notes: false, reports: false, strategies: false, operations: false,
+  });
+
+  // ── ACTIVE ASSET STATE ────────────────────────────────────────────────────
+  // The full vault item object that is currently mounted in the workstation.
+  // null = nothing mounted. Set by handleMountAsset().
+  const [activeAsset, setActiveAsset] = useState(null);
+
+  // Editor
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
-  // Fetch Rail Data
+  // --- Load vault + cortex rail data ---
   const loadForgeContext = useCallback(async () => {
     setLoading(true);
     try {
-      const [vault, cortex] = await Promise.all([getVaultApi(), getBrainItemsApi()]);
-      setVaultRailItems(Array.isArray(vault) ? vault : []);
-      setCortexRailItems(Array.isArray(cortex) ? cortex : []);
-    } catch (e) {
-      showNotice({ type: 'error', message: 'Forge uplink degraded. Some data may be missing.' });
+      const [vaultData, cortexData] = await Promise.allSettled([
+        getVaultApi(),
+        getBrainItemsApi(),
+      ]);
+      if (vaultData.status === 'fulfilled') setVaultRailItems(Array.isArray(vaultData.value) ? vaultData.value : []);
+      if (cortexData.status === 'fulfilled') setCortexRailItems(Array.isArray(cortexData.value) ? cortexData.value : []);
+    } catch (_) {
+      showNotice({ type: 'error', message: 'Forge uplink degraded. Some context data may be missing.' });
     } finally {
       setLoading(false);
     }
@@ -93,371 +138,723 @@ const Forge = () => {
 
   useEffect(() => {
     loadForgeContext();
-    // Load draft from session
+    // Hydrate from session cache
     const cachedTitle = sessionStorage.getItem(TRANSCRIPT_DRAFT_TITLE_KEY);
     const cachedHtml = sessionStorage.getItem(TRANSCRIPT_DRAFT_HTML_KEY);
     if (cachedTitle || cachedHtml) {
-      setTransitState(s => ({ ...s, title: cachedTitle || 'Untitled Session', transcript: cachedHtml || '' }));
+      const restored = {
+        ...EMPTY_STATE,
+        title: cachedTitle || '',
+        transcript: cachedHtml || '',
+        status: 'Draft',
+      };
+      setForgeState(restored);
+      savedStateRef.current = restored;
     }
   }, [loadForgeContext]);
 
-  // CATEGORY HELPERS
+  // ── MOUNT ASSET ACTION ────────────────────────────────────────────────────
+  /**
+   * Called when a user clicks a vault item in the left rail.
+   * Sets activeAsset to the full item object.
+   * Optionally hydrates editor content for hydratable artifact types.
+   */
+  const handleMountAsset = useCallback((item) => {
+    setActiveAsset(item);
+
+    // Populate title if the editor is untitled
+    setForgeState(s => ({
+      ...s,
+      title: s.title || item.title || '',
+    }));
+
+    // Try to hydrate editor from artifact content if applicable
+    if (isHydratableArtifact(item)) {
+      const content = extractArtifactContent(item);
+      if (content) {
+        setForgeState(s => ({
+          ...s,
+          title: s.title || item.title || '',
+          transcript: content,
+          status: 'Draft',
+        }));
+        showNotice({ type: 'success', message: `Transcript loaded from: ${item.title}` });
+      } else {
+        showNotice({ type: 'info', message: `Mounted: ${item.title} — no inline content available` });
+      }
+    } else {
+      showNotice({ type: 'info', message: `Mounted: ${item.title}` });
+    }
+  }, [showNotice]);
+
+  // --- Vault rail categorization ---
   const getVaultByCategory = (cat) => {
-    const map = {
-      audio: ['audio'],
-      video: ['video'],
-      images: ['image'],
-      documents: ['script', 'runOfShow', 'publish'],
-      transcripts: ['transcript'],
-      website: ['website']
-    };
-    return vaultRailItems.filter(item => (map[cat] || []).includes(item.mediaType || item.type || item.artifactType));
+    return vaultRailItems.filter(item => {
+      const mt = (item.mediaType || '').toLowerCase();
+      const at = (item.artifactType || '').toLowerCase();
+      const rk = item.recordKind || '';
+      if (cat === 'audio') return mt === 'audio';
+      if (cat === 'video') return mt === 'video';
+      if (cat === 'images') return mt === 'image';
+      if (cat === 'transcripts') return rk === 'artifact' && at === 'transcript';
+      if (cat === 'documents') return rk === 'artifact' && (at === 'script' || at === 'runofshow');
+      if (cat === 'website') return rk === 'artifact' && at === 'publish';
+      return false;
+    });
   };
 
+  // --- Cortex rail categorization ---
   const getCortexByCategory = (cat) => {
-    const map = {
-      summaries: ['summary', 'brief'],
-      notes: ['note', 'observation'],
-      reports: ['report', 'analysis'],
-      strategies: ['strategy', 'plan'],
-      operations: ['operation', 'manual'],
-      other: ['other', 'general']
-    };
-    return cortexRailItems.filter(item => (map[cat] || []).includes(item.category?.toLowerCase()));
+    return cortexRailItems.filter(item => {
+      const cl = (item.category || '').toLowerCase();
+      if (cat === 'summaries') return cl.includes('summar') || cl.includes('brief');
+      if (cat === 'notes') return cl === 'note' || cl === 'notes';
+      if (cat === 'reports') return cl.includes('report') || cl === 'brand';
+      if (cat === 'strategies') return cl.includes('strateg') || cl.includes('market');
+      if (cat === 'operations') return cl.includes('oper') || cl.includes('workflow') || cl.includes('sop');
+      return false;
+    });
   };
 
+  // --- Save / Push Actions ---
   const handleSaveDraft = () => {
-    sessionStorage.setItem(TRANSCRIPT_DRAFT_TITLE_KEY, transitState.title);
-    sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, transitState.transcript);
-    showNotice({ type: 'success', message: 'Forge session cached locally.' });
+    sessionStorage.setItem(TRANSCRIPT_DRAFT_TITLE_KEY, forgeState.title);
+    sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, forgeState.transcript);
+    savedStateRef.current = { ...forgeState };
+    setForgeState(s => ({ ...s, status: 'Draft' }));
+    showNotice({ type: 'success', message: 'Forge draft cached locally.' });
   };
 
   const handlePushToCortex = async () => {
     if (saving) return;
     setSaving(true);
     try {
-      const payload = { ...transitState, status: 'Pushed' };
-      const res = await saveTranscriptApi(payload);
-      if (res) {
-        setTransitState(s => ({ ...s, status: 'Pushed' }));
+      const payload = { ...forgeState, status: 'Pushed' };
+      const result = await saveTranscriptApi(payload);
+      if (result) {
+        savedStateRef.current = { ...forgeState, status: 'Pushed' };
+        setForgeState(s => ({ ...s, status: 'Pushed' }));
         showNotice({ type: 'success', message: 'Cognitive load committed to Cortex.' });
       }
-    } catch (e) {
-      showNotice({ type: 'error', message: 'Uplink failed. Retain local draft.' });
+    } catch (_) {
+      showNotice({ type: 'error', message: 'Cortex uplink failed. Draft retained.' });
     } finally {
       setSaving(false);
     }
   };
 
-  const RailHeader = ({ title, icon: Icon, colorClass }) => (
-    <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between bg-black/40">
-      <div className="flex items-center gap-2">
-        <Icon size={14} className={colorClass} />
-        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/90">{title}</span>
-      </div>
-      <div className="h-1.5 w-1.5 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
-    </div>
-  );
+  const isDirty = JSON.stringify(forgeState) !== JSON.stringify(savedStateRef.current);
 
-  const CategoryToggle = ({ title, count, isOpen, onToggle }) => (
-    <button 
-      onClick={onToggle}
-      className="w-full px-4 py-2 flex items-center justify-between hover:bg-white/[0.02] transition-colors group"
-    >
-      <div className="flex items-center gap-2">
-        {isOpen ? <ChevronDown size={10} className="text-slate-500" /> : <ChevronRight size={10} className="text-slate-500" />}
-        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-200">{title}</span>
-      </div>
-      <span className="text-[8px] font-mono text-slate-600">[{count || 0}]</span>
-    </button>
-  );
+  // ─── SUB-COMPONENTS ───────────────────────────────────────────────────────
 
-  return (
-    <div className="flex h-full flex-col bg-[#070708] text-slate-300 select-none overflow-hidden font-sans">
-      <ModuleHeader 
-        title="Forge" 
-        subtitle="3D Cognitive Assembler // Charlie → Alpha → Specialist"
-        leftActions={[
-          { label: 'UPLINK REFRESH', icon: RefreshCw, onClick: loadForgeContext, variant: 'secondary' }
-        ]}
-      />
-
-      <div className="flex-1 flex min-h-0 relative">
-        
-        {/* LEFT RAIL: VAULT APPLIANCE */}
-        <div className={`w-[260px] flex-shrink-0 flex flex-col border-r ${APPLIANCE_SURFACE} z-20`}>
-          <RailHeader title="Mission Vault" icon={Vault} colorClass="text-emerald-400" />
-          
-          <div className="flex-1 overflow-y-auto no-scrollbar py-2">
-            {[
-              { id: 'audio', label: 'Audio Stream', icon: AudioLines },
-              { id: 'video', label: 'Video Feed', icon: Video },
-              { id: 'images', label: 'Imaging', icon: ImageIcon },
-              { id: 'documents', label: 'Documents', icon: FileText },
-              { id: 'transcripts', label: 'Symbiology', icon: Mic },
-              { id: 'website', label: 'Web Artifacts', icon: Globe }
-            ].map(cat => {
-              const items = getVaultByCategory(cat.id);
+  const VaultCatRow = ({ cat, label }) => {
+    const items = getVaultByCategory(cat);
+    const isOpen = vaultExpandedCats[cat];
+    return (
+      <div>
+        <button
+          onClick={() => setVaultExpandedCats(s => ({ ...s, [cat]: !s[cat] }))}
+          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/[0.03] transition-colors group"
+        >
+          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">{label}</span>
+          <span className="text-[7px] text-slate-700">
+            {isOpen ? '▾' : '▸'}{' '}
+            {items.length > 0 && <span className="text-cyan-700">{items.length}</span>}
+          </span>
+        </button>
+        {isOpen && items.length > 0 && (
+          <div className="pb-1">
+            {items.map(item => {
+              const isActive = activeAsset?.assetId === item.assetId;
+              const { Icon, color } = getAssetMeta(item);
               return (
-                <div key={cat.id} className="mb-1">
-                  <CategoryToggle 
-                    title={cat.label} 
-                    count={items.length} 
-                    isOpen={vaultExpandedCats[cat.id]}
-                    onToggle={() => setVaultExpandedCats(s => ({ ...s, [cat.id]: !s[cat.id] }))}
-                  />
-                  {vaultExpandedCats[cat.id] && (
-                    <div className="px-2 pb-2 space-y-1">
-                      {items.map(item => (
-                        <div 
-                          key={item.assetId} 
-                          className={`p-2 rounded border border-transparent hover:border-white/10 hover:bg-white/[0.03] cursor-pointer group transition-all translate-x-0 active:scale-[0.98] active:translate-y-0.5`}
-                          onClick={() => {
-                            setTransitState(s => ({ ...s, title: item.title, status: 'Draft' }));
-                            showNotice({ type: 'info', message: `Mounted: ${item.title}` });
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[9px] font-black text-slate-300 truncate w-[140px] uppercase tracking-tight group-hover:text-cyan-400">{item.title}</span>
-                            <item.icon size={10} className="text-slate-600 group-hover:text-cyan-500" />
-                          </div>
-                          <div className="flex items-center gap-2">
-                             <span className="text-[6px] font-mono text-slate-600 uppercase">{new Date(item.createdAt).toLocaleDateString()}</span>
-                             <span className="text-[6px] font-mono text-cyan-600 uppercase">{item.mediaType || 'RAW'}</span>
-                          </div>
-                        </div>
-                      ))}
-                      {items.length === 0 && (
-                        <div className="px-4 py-2 text-[7px] font-mono text-white/5 uppercase tracking-widest italic">No Data Signal...</div>
-                      )}
+                <button
+                  key={item.assetId || item.id}
+                  onClick={() => handleMountAsset(item)}
+                  className={`w-full text-left px-3 py-1.5 transition-colors group flex items-center gap-2 ${
+                    isActive
+                      ? 'bg-cyan-500/10 border-l-2 border-cyan-500'
+                      : 'hover:bg-white/[0.03] border-l-2 border-transparent'
+                  }`}
+                >
+                  <Icon size={9} className={`flex-shrink-0 ${isActive ? 'text-cyan-400' : color} opacity-70`} />
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[8px] font-bold truncate leading-tight ${isActive ? 'text-cyan-300' : 'text-slate-400 group-hover:text-slate-200'} transition-colors`}>
+                      {item.title || item.filename || 'Asset'}
                     </div>
+                    <div className="text-[6px] text-slate-700 uppercase tracking-widest truncate mt-0.5">
+                      {item.source || item.status || ''}
+                    </div>
+                  </div>
+                  {isActive && (
+                    <CheckCircle size={8} className="text-cyan-500 flex-shrink-0" />
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
-        </div>
+        )}
+        {isOpen && items.length === 0 && (
+          <div className="px-3 pb-2 text-[7px] text-slate-800 font-mono italic">empty</div>
+        )}
+      </div>
+    );
+  };
 
-        {/* CENTER: THE FORGE WORKBENCH */}
-        <div className="flex-1 flex flex-col min-w-0 bg-black/60 relative p-4 gap-4 overflow-hidden">
-          
-          {/* TOP BAR / TITLE */}
-          <div className={`${APPLIANCE_SURFACE} p-4 rounded-xl flex items-center justify-between border`}>
-             <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                   <Cpu size={20} className="animate-pulse" />
-                </div>
-                <div>
-                   <input 
-                      value={transitState.title}
-                      onChange={(e) => setTransitState(s => ({ ...s, title: e.target.value }))}
-                      className="bg-transparent border-none text-xl font-black uppercase tracking-tighter text-white focus:outline-none w-[400px]"
-                      placeholder="NEW FORGE SESSION..."
-                   />
-                   <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest leading-none">POSTURE // {transitState.status}</span>
-                      <span className="text-[9px] font-mono text-slate-700 leading-none">// {new Date().toLocaleTimeString()}</span>
-                   </div>
-                </div>
-             </div>
-             
-             <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setIsEditorFullscreen(true)}
-                  className="h-9 px-4 rounded border border-white/10 text-slate-400 text-[10px] font-black hover:bg-white/5 hover:text-white transition-all uppercase tracking-widest"
-                >
-                  Focus Mode
-                </button>
-             </div>
+  const CortexCatRow = ({ cat }) => {
+    const items = getCortexByCategory(cat);
+    const isOpen = cortexExpandedCats[cat];
+    return (
+      <div>
+        <button
+          onClick={() => setCortexExpandedCats(s => ({ ...s, [cat]: !s[cat] }))}
+          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/[0.03] transition-colors group"
+        >
+          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">{cat}</span>
+          <span className="text-[7px] text-slate-700">
+            {isOpen ? '▾' : '▸'}{' '}
+            {items.length > 0 && <span className="text-indigo-700">{items.length}</span>}
+          </span>
+        </button>
+        {isOpen && items.length > 0 && (
+          <div className="pb-1">
+            {items.map(item => (
+              <div key={item.id} className="px-3 py-1.5 hover:bg-white/[0.03] cursor-default group">
+                <div className="text-[8px] font-bold text-slate-400 truncate group-hover:text-slate-200 transition-colors leading-tight">{item.title || 'Knowledge Item'}</div>
+                {item.content && <div className="text-[6px] text-slate-700 truncate mt-0.5 font-mono">{String(item.content).slice(0, 48)}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+        {isOpen && items.length === 0 && (
+          <div className="px-3 pb-2 text-[7px] text-slate-800 font-mono italic">empty</div>
+        )}
+      </div>
+    );
+  };
+
+  // ── INLINE ASSET REVIEW PANEL ─────────────────────────────────────────────
+  /**
+   * Renders a lightweight preview of the activeAsset in the center column.
+   * Placed above the editor. Never replaces the editor.
+   */
+  const AssetReviewPanel = ({ asset }) => {
+    if (!asset) return null;
+
+    const mt = (asset.mediaType || '').toLowerCase();
+    const rk = asset.recordKind || '';
+    const at = (asset.artifactType || '').toLowerCase();
+    const { label, Icon, color } = getAssetMeta(asset);
+
+    // ── IMAGE PREVIEW ──
+    if (mt === 'image' && asset.sourceUrl) {
+      return (
+        <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 flex flex-col overflow-hidden" style={{ maxHeight: '260px' }}>
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1E2024] flex-shrink-0">
+            <ImageIcon size={10} className="text-emerald-400" />
+            <span className="text-[7px] font-black text-emerald-400 uppercase tracking-[0.3em]">IMAGE REVIEW</span>
+            <span className="text-[7px] font-mono text-slate-700 ml-2 truncate">{asset.title}</span>
+            <button onClick={() => setActiveAsset(null)} className="ml-auto text-slate-600 hover:text-slate-400 transition">
+              <X size={10} />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center overflow-hidden p-3 min-h-0">
+            <img
+              src={asset.sourceUrl}
+              alt={asset.title}
+              className="max-h-full max-w-full object-contain rounded shadow-xl border border-white/5"
+              onError={e => { e.target.style.display = 'none'; }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // ── AUDIO PLAYER ──
+    if (mt === 'audio' && asset.sourceUrl) {
+      return (
+        <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <Music size={12} className="text-amber-400" />
+          </div>
+          <div className="flex flex-col min-w-0 flex-shrink-0" style={{ maxWidth: '180px' }}>
+            <span className="text-[7px] font-black text-amber-400 uppercase tracking-[0.3em]">AUDIO</span>
+            <span className="text-[8px] font-mono text-slate-400 truncate">{asset.title}</span>
+          </div>
+          <audio
+            controls
+            src={asset.sourceUrl}
+            className="flex-1 h-8 min-w-0"
+            style={{ accentColor: '#f59e0b' }}
+          />
+          <button onClick={() => setActiveAsset(null)} className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition ml-1">
+            <X size={10} />
+          </button>
+        </div>
+      );
+    }
+
+    // ── VIDEO PLAYER ──
+    if (mt === 'video' && asset.sourceUrl) {
+      return (
+        <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/80 flex flex-col overflow-hidden" style={{ maxHeight: '300px' }}>
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1E2024] flex-shrink-0">
+            <Video size={10} className="text-purple-400" />
+            <span className="text-[7px] font-black text-purple-400 uppercase tracking-[0.3em]">VIDEO REVIEW</span>
+            <span className="text-[7px] font-mono text-slate-700 ml-2 truncate">{asset.title}</span>
+            <button onClick={() => setActiveAsset(null)} className="ml-auto text-slate-600 hover:text-slate-400 transition">
+              <X size={10} />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center overflow-hidden p-2 bg-black min-h-0">
+            <video
+              controls
+              src={asset.sourceUrl}
+              className="max-h-full max-w-full rounded shadow-xl"
+              style={{ maxHeight: '240px' }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // ── ARTIFACT / DOCUMENT CARD ──
+    // For hydratable artifacts the content may already have been loaded into the
+    // editor. Show a compact mounted-asset indicator card.
+    const artifactContent = extractArtifactContent(asset);
+    const wasHydrated = isHydratableArtifact(asset) && Boolean(artifactContent);
+
+    return (
+      <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/40 px-4 py-3 flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg bg-black/60 border border-white/5 flex items-center justify-center flex-shrink-0`}>
+          <Icon size={12} className={color} />
+        </div>
+        <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className={`text-[7px] font-black uppercase tracking-[0.3em] ${color}`}>{label}</span>
+            {wasHydrated && (
+              <span className="text-[6px] font-black text-cyan-500 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                LOADED INTO EDITOR
+              </span>
+            )}
+            {!wasHydrated && isHydratableArtifact(asset) && (
+              <span className="text-[6px] font-black text-slate-600 border border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                NO INLINE CONTENT
+              </span>
+            )}
+          </div>
+          <span className="text-[9px] font-bold text-slate-300 truncate">{asset.title}</span>
+          {asset.source && (
+            <span className="text-[6px] font-mono text-slate-700 uppercase tracking-widest truncate">{asset.source}</span>
+          )}
+        </div>
+        <button onClick={() => setActiveAsset(null)} className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition">
+          <X size={10} />
+        </button>
+      </div>
+    );
+  };
+
+  // ─── EXPORT HELPERS ───────────────────────────────────────────────────────
+
+  const handleExportHtml = () => {
+    const s = forgeState;
+    const esc = str => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${esc(s.title || 'Forge Export')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:.25rem}</style></head><body><h1>${esc(s.title || 'Untitled')}</h1>${s.executiveSummary ? `<h2>Executive Summary</h2><p>${esc(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><div>${s.transcript}</div>` : ''}</body></html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.html`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportMd = () => {
+    const s = forgeState;
+    const stripHtml = h => { if (!h) return ''; let t = h; t = t.replace(/<br\s*\/?>/gi, '\n'); t = t.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n'); t = t.replace(/<[^>]+>/g, ''); t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'); return t.replace(/\n{3,}/g, '\n\n').trim(); };
+    const lines = [`# ${s.title || 'Untitled Forge Session'}`, ''];
+    if (s.executiveSummary) { lines.push('## Executive Summary', s.executiveSummary, ''); }
+    if (s.keyDecisions.length) { lines.push('## Key Decisions', ...s.keyDecisions.map(d => `- ${d}`), ''); }
+    if (s.actionItems.length) { lines.push('## Action Items', ...s.actionItems.map(a => `- ${a}`), ''); }
+    if (s.discussionHighlights.length) { lines.push('## Discussion Highlights', ...s.discussionHighlights.map(h => `- ${h}`), ''); }
+    if (s.transcript) { lines.push('## Transcript', stripHtml(s.transcript), ''); }
+    if (s.notesAndObservations.length) { lines.push('## Notes & Observations', ...s.notesAndObservations.map(n => `- ${n}`), ''); }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.md`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJson = () => {
+    const blob = new Blob([JSON.stringify(forgeState, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${(forgeState.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportTxt = () => {
+    const s = forgeState;
+    const strip = h => { if (!h) return ''; let t = h; t = t.replace(/<br\s*\/?>/gi, '\n'); t = t.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n'); t = t.replace(/<[^>]+>/g, ''); return t.replace(/\n{3,}/g, '\n\n').trim(); };
+    const lines = [s.title || 'Untitled', ''];
+    if (s.executiveSummary) { lines.push('Executive Summary', s.executiveSummary, ''); }
+    if (s.keyDecisions.length) { lines.push('Key Decisions', ...s.keyDecisions.map(d => `- ${d}`), ''); }
+    if (s.actionItems.length) { lines.push('Action Items', ...s.actionItems.map(a => `- ${a}`), ''); }
+    if (s.transcript) { lines.push('Transcript', strip(s.transcript), ''); }
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.txt`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── RENDER ───────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex h-full flex-col bg-[#070708] text-slate-300 select-none overflow-hidden font-sans">
+      <ModuleHeader
+        title="Forge"
+        subtitle="Digital Asset Workstation // Cognitive Assembler"
+        leftActions={[
+          { label: 'UPLINK REFRESH', icon: RefreshCw, onClick: loadForgeContext, variant: 'secondary' },
+        ]}
+      />
+
+      {/* BODY: FOUR COLUMN DAW */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+
+        {/* LEFT RAIL — VAULT (widened to 240px for readable asset titles) */}
+        <div className="w-[240px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
+          <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]" />
+            <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
+            {loading && <Loader2 size={8} className="text-slate-600 animate-spin ml-auto" />}
+            {activeAsset && !loading && (
+              <span className="ml-auto text-[6px] font-black text-cyan-600 uppercase tracking-widest">MOUNTED</span>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto no-scrollbar py-1">
+            {[
+              { cat: 'audio', label: 'Audio' },
+              { cat: 'video', label: 'Video' },
+              { cat: 'images', label: 'Images' },
+              { cat: 'transcripts', label: 'Transcripts' },
+              { cat: 'documents', label: 'Documents' },
+              { cat: 'website', label: 'Web Artifacts' },
+            ].map(({ cat, label }) => (
+              <VaultCatRow key={cat} cat={cat} label={label} />
+            ))}
           </div>
 
-          {/* MAIN EDITOR APPLIANCE */}
-          <div className={`flex-1 flex flex-col min-h-0 rounded-2xl border ${RECESSED_PANEL} overflow-hidden`}>
-             <div className="bg-black/40 border-b border-white/5 px-4 py-2 flex items-center justify-between">
+          {/* Active asset footer in vault rail */}
+          {activeAsset && (
+            <div className="border-t border-[#1E2024] px-3 py-2 bg-cyan-500/5 flex-shrink-0">
+              <div className="text-[6px] font-black text-cyan-600 uppercase tracking-widest mb-0.5">ACTIVE</div>
+              <div className="text-[8px] font-bold text-cyan-300 truncate">{activeAsset.title}</div>
+            </div>
+          )}
+        </div>
+
+        {/* CENTER — REVIEW + EDITOR */}
+        <div className="flex-1 flex flex-col bg-black/20 relative min-w-0 overflow-hidden">
+
+          {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
+          <AssetReviewPanel asset={activeAsset} />
+
+          {/* Editor status bar */}
+          <div className="absolute z-10 flex items-center gap-2 bg-black/40 px-2 py-0.5 rounded border border-white/5"
+            style={{ top: activeAsset ? undefined : '12px', left: '16px',
+              // When review panel is present, position below it dynamically isn't possible in CSS without state,
+              // so we use a relative container approach instead.
+              position: activeAsset ? 'relative' : 'absolute',
+              margin: activeAsset ? '8px 16px 0' : undefined,
+            }}
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+            <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
+              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
+            </span>
+            {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
+          </div>
+
+          <div className={`flex-1 flex flex-col min-h-0 bg-[#0A0A0C]/40 ${activeAsset ? 'p-4 pt-2' : 'p-4 pt-10'}`}>
+            <div className="flex-1 rounded border border-[#1E2024] overflow-hidden bg-black/40 shadow-inner flex flex-col h-full">
+              <RichTextEditor
+                key={forgeState.transcript ? 'data-loaded' : 'data-pending'}
+                value={forgeState.transcript}
+                onChange={(content) => setForgeState(s => ({ ...s, transcript: content, status: 'Draft' }))}
+                placeholder={activeAsset ? `Assembling from: ${activeAsset.title}...` : 'Input mission transcript data...'}
+                minHeight={400}
+                tools="full"
+              />
+            </div>
+          </div>
+
+          {/* Focus mode overlay */}
+          {isEditorFullscreen && (
+            <div
+              className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-xl flex flex-col p-10"
+              onKeyDown={e => { if (e.key === 'Escape') setIsEditorFullscreen(false); }}
+            >
+              <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
                 <div className="flex items-center gap-4">
-                   <div className="flex items-center gap-1.5 grayscale opacity-50">
-                      <div className="h-2 w-2 rounded-full bg-red-500" />
-                      <div className="h-2 w-2 rounded-full bg-yellow-500" />
-                      <div className="h-2 w-2 rounded-full bg-green-500" />
-                   </div>
-                   <span className="text-[8px] font-mono text-slate-500 uppercase tracking-[0.4em]">Cognitive Core // Active</span>
+                  <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 border border-cyan-500/30">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{forgeState.title || 'UNTITLED FORGE SESSION'}</h2>
+                    <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{forgeState.status} // FOCUS MODE</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-1 w-20 bg-slate-900 rounded-full overflow-hidden border border-white/5">
-                      <div className="h-full bg-cyan-500 w-[65%] animate-pulse" />
-                   </div>
-                   <span className="text-[8px] font-mono text-cyan-500/80 uppercase">Buffer: 65%</span>
-                </div>
-             </div>
-             <div className="flex-1 overflow-hidden">
-                <RichTextEditor 
-                  value={transitState.transcript}
-                  onChange={(val) => setTransitState(s => ({ ...s, transcript: val }))}
-                  minHeight="100%"
+                <button
+                  onClick={() => setIsEditorFullscreen(false)}
+                  className="h-10 px-6 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                >
+                  EXIT FOCUS <X size={14} />
+                </button>
+              </div>
+              <div className="flex-1 rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-black/40">
+                <RichTextEditor
+                  value={forgeState.transcript}
+                  onChange={(content) => setForgeState(s => ({ ...s, transcript: content, status: 'Draft' }))}
+                  placeholder="Full transcript focus session..."
+                  minHeight={800}
                   tools="full"
                 />
-             </div>
-          </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* RIGHT RAIL: CORTEX INTELLIGENCE */}
-        <div className={`w-[320px] flex-shrink-0 flex flex-col border-l ${APPLIANCE_SURFACE} z-20`}>
-          <RailHeader title="Cortex™ Intelligence" icon={Bot} colorClass="text-cyan-400" />
-          
-          <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-6">
-            
-            {/* SPECIALIST ROUTE (APPLIANCE STYLE) */}
-            <div className={`p-4 rounded-xl border ${RECESSED_PANEL} space-y-3`}>
-               <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
-                  <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Routing Schema</span>
-                  <Zap size={12} className="text-amber-500" />
-               </div>
-               
-               <div>
-                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">TARGET SPECIALIST</label>
+        {/* RIGHT RAIL — METADATA + ANALYSIS + ACTIONS */}
+        <div className="w-[340px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border-l border-[#1E2024] shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 no-scrollbar">
+
+            {/* METADATA */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">PROP // METADATA</span>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">DOCUMENT TITLE</label>
+                  <input
+                    value={forgeState.title}
+                    onChange={e => setForgeState(s => ({ ...s, title: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-xs text-white focus:border-cyan-500/40 focus:outline-none transition font-mono"
+                    placeholder="MISSION TITLE..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">INTENT</label>
+                    <select
+                      value={forgeState.intentHint}
+                      onChange={e => setForgeState(s => ({ ...s, intentHint: e.target.value, status: 'Draft' }))}
+                      className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition uppercase font-black"
+                    >
+                      <option value="">AUTO</option>
+                      <option value="meeting">MEETING</option>
+                      <option value="interview">INTERVIEW</option>
+                      <option value="presentation">PRESENTATION</option>
+                      <option value="call">CALL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">PRIORITY</label>
+                    <select
+                      value={forgeState.priority}
+                      onChange={e => setForgeState(s => ({ ...s, priority: e.target.value, status: 'Draft' }))}
+                      className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition uppercase font-black"
+                    >
+                      <option value="">NORMAL</option>
+                      <option value="low">LOW</option>
+                      <option value="medium">MEDIUM</option>
+                      <option value="high">HIGH</option>
+                      <option value="critical">CRITICAL</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center justify-between">
+                    <span>AGENT ROUTE</span>
+                    <span className="text-[7px] text-cyan-500/60 lowercase italic">Charlie → Alpha → {forgeState.specialist}</span>
+                  </label>
                   <select
-                    value={transitState.specialist}
-                    onChange={(e) => setTransitState(s => ({ ...s, specialist: e.target.value }))}
-                    className="w-full bg-black border border-[#2A2D35] text-white text-[10px] font-black uppercase p-2.5 rounded focus:border-cyan-500/50 outline-none transition-all shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer"
+                    value={forgeState.specialist}
+                    onChange={e => setForgeState(s => ({ ...s, specialist: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition uppercase font-black"
                   >
                     <option value="FORGE">FORGE (CONTENTS + ARTIFACTS)</option>
                     <option value="GHOST">GHOST (CODE + TECHNICAL)</option>
-                    <option value="OMEGA">OMEGA (GOVERNANCE + DNA)</option>
+                    <option value="OMEGA">OMEGA (BUSINESS DNA + SOPs)</option>
                   </select>
-                  <div className="mt-2 p-2 bg-cyan-500/5 border border-cyan-500/10 rounded flex items-center gap-2">
-                     <span className="text-[7px] font-mono text-cyan-400/80 uppercase">Uplink: Charlie → Alpha → {transitState.specialist}</span>
+                  <div className="mt-1 text-[7px] font-mono text-slate-700 tracking-wider">
+                    INTENT: ROUTE TO BEST-FIT AGENT → ALPHA QC → CORTEX
                   </div>
-               </div>
+                </div>
 
-               <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">INTENT</label>
-                    <select
-                      value={transitState.intentHint}
-                      onChange={(e) => setTransitState(s => ({ ...s, intentHint: e.target.value }))}
-                      className="w-full bg-black/60 border border-[#2A2D35] text-[9px] text-white p-2 rounded focus:border-cyan-500/30 outline-none uppercase font-black"
-                    >
-                      <option value="">AUTO</option>
-                      <option value="MEETING">MEETING</option>
-                      <option value="DOC">DOC</option>
-                      <option value="CODE">CODE</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">PRIORITY</label>
-                    <select
-                      value={transitState.priority}
-                      onChange={(e) => setTransitState(s => ({ ...s, priority: e.target.value }))}
-                      className="w-full bg-black/60 border border-[#2A2D35] text-[9px] text-white p-2 rounded focus:border-cyan-500/30 outline-none uppercase font-black"
-                    >
-                      <option value="">NORMAL</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="CRITICAL">CRITICAL</option>
-                    </select>
-                  </div>
-               </div>
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">PURPOSE NOTE</label>
+                  <textarea
+                    value={forgeState.purposeNote}
+                    onChange={e => setForgeState(s => ({ ...s, purposeNote: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-1.5 text-[10px] text-slate-300 focus:border-cyan-500/40 focus:outline-none transition font-mono resize-none"
+                    rows={2}
+                    placeholder="Contextual mission note..."
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* CORTEX ITEMS */}
+            {/* ANALYSIS */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Knowledge Feed</span>
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <span className="text-[9px] font-black text-cyan-500 uppercase tracking-widest">PROP // ANALYSIS</span>
+                <button
+                  onClick={() => setIsEditorFullscreen(!isEditorFullscreen)}
+                  className="text-[7px] font-black text-slate-600 hover:text-cyan-400 uppercase tracking-widest transition"
+                >
+                  {isEditorFullscreen ? 'COLLAPSE' : 'EXPAND EDITOR'}
+                </button>
               </div>
-              <div className="space-y-1">
-                {[
-                  { id: 'summaries', label: 'Summaries' },
-                  { id: 'reports', label: 'Analysis Reports' },
-                  { id: 'strategies', label: 'Tactical Strategies' }
-                ].map(cat => {
-                  const items = getCortexByCategory(cat.id);
-                  return (
-                    <div key={cat.id}>
-                      <CategoryToggle 
-                        title={cat.label} 
-                        count={items.length} 
-                        isOpen={cortexExpandedCats[cat.id]}
-                        onToggle={() => setCortexExpandedCats(s => ({ ...s, [cat.id]: !s[cat.id] }))}
-                      />
-                      {cortexExpandedCats[cat.id] && (
-                        <div className="px-2 pb-2 space-y-1 mt-1">
-                           {items.map(item => (
-                             <div 
-                                key={item.id}
-                                className="p-2.5 rounded bg-white/[0.01] border border-white/5 hover:border-cyan-500/30 transition-all cursor-pointer group"
-                                onClick={() => showNotice({ type: 'info', message: `Reference Loaded: ${item.title}` })}
-                             >
-                                <div className="text-[9px] font-black text-slate-200 uppercase tracking-tight mb-1 group-hover:text-cyan-400">{item.title}</div>
-                                <div className="text-[8px] text-slate-500 line-clamp-2 leading-relaxed font-mono">{item.content_excerpt || item.content}</div>
-                             </div>
-                           ))}
-                           {items.length === 0 && (
-                             <div className="px-4 py-3 text-[7px] font-mono text-white/5 uppercase tracking-[0.3em] text-center border border-dashed border-white/5 rounded-lg">Void Cluster</div>
-                           )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">EXECUTIVE SUMMARY</label>
+                  <textarea
+                    value={forgeState.executiveSummary}
+                    onChange={e => setForgeState(s => ({ ...s, executiveSummary: e.target.value, status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[11px] leading-relaxed text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[80px]"
+                    placeholder="Synthesized brief..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">KEY DECISIONS</label>
+                  <textarea
+                    value={forgeState.keyDecisions.join('\n')}
+                    onChange={e => setForgeState(s => ({ ...s, keyDecisions: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                    placeholder="One per line..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">ACTION ITEMS</label>
+                  <textarea
+                    value={forgeState.actionItems.join('\n')}
+                    onChange={e => setForgeState(s => ({ ...s, actionItems: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                    placeholder="One per line..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">DISCUSSION HIGHLIGHTS</label>
+                  <textarea
+                    value={forgeState.discussionHighlights.join('\n')}
+                    onChange={e => setForgeState(s => ({ ...s, discussionHighlights: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                    placeholder="Key takeaways..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">NOTES & OBSERVATIONS</label>
+                  <textarea
+                    value={forgeState.notesAndObservations.join('\n')}
+                    onChange={e => setForgeState(s => ({ ...s, notesAndObservations: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                    placeholder="Add mission logs..."
+                  />
+                </div>
               </div>
             </div>
+
+            <div className="h-4" />
           </div>
 
-          {/* ACTION BUTTONS (FORGE APPLIANCE) */}
-          <div className="p-4 border-t border-white/5 bg-black/40 space-y-3">
-             <div className="grid grid-cols-2 gap-2">
-                <button 
-                  onClick={() => showNotice({ type: 'info', message: 'Cognitive run triggered...' })}
-                  className={`h-11 rounded-lg border-2 ${GLOW_EMERALD} bg-emerald-500/5 hover:bg-emerald-500/10 transition-all text-[11px] font-black uppercase tracking-[0.1em] flex items-center justify-center gap-2 translate-y-0 active:translate-y-1 active:shadow-none shadow-[0_4px_0_rgba(16,185,129,0.3)]`}
-                >
-                  <Cpu size={16} /> FORGE
-                </button>
-                <button 
-                  onClick={handleSaveDraft}
-                  className={`h-11 rounded-lg border-2 border-white/10 bg-white/5 hover:bg-white/10 transition-all text-[11px] font-black uppercase tracking-[0.1em] text-white flex items-center justify-center gap-2 translate-y-0 active:translate-y-1 active:shadow-none shadow-[0_4px_0_rgba(255,255,255,0.05)]`}
-                >
-                  <Save size={16} /> SAVE
-                </button>
-             </div>
-             <button 
+          {/* STICKY ACTION BAR */}
+          <div className="p-5 border-t border-white/5 bg-[#0A0A0C] flex flex-col gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                onClick={() => showNotice({ type: 'info', message: `Dispatching to ${forgeState.specialist}...` })}
+                className="h-10 rounded border border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
+              >
+                <Cpu size={12} /> {forgeState.specialist} ASSIST
+              </button>
+              <button
+                onClick={handleSaveDraft}
+                className="h-10 rounded border border-white/10 bg-white/5 text-slate-400 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                <Save size={12} /> SAVE DRAFT
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                onClick={() => showNotice({ type: 'info', message: 'Archiving to Mission Vault...' })}
+                className="h-10 rounded border border-blue-500/30 bg-blue-500/5 text-blue-400 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-blue-500/10 transition-all flex items-center justify-center"
+              >
+                VAULT
+              </button>
+              <button
                 onClick={handlePushToCortex}
                 disabled={saving}
-                className={`w-full h-12 rounded-lg border-2 ${GLOW_CYAN} bg-cyan-500/10 hover:bg-cyan-500/20 transition-all text-[12px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 translate-y-0 active:translate-y-1 active:shadow-none shadow-[0_5px_0_rgba(6,182,212,0.3)] disabled:opacity-50`}
-             >
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />} PUSH TO CORTEX
-             </button>
+                className="h-10 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
+                {saving ? 'PUSHING...' : 'CORTEX'}
+              </button>
+            </div>
+
+            {/* EXPORT DROPDOWN */}
+            <div className="relative" onMouseLeave={() => setExportDropdownOpen(false)}>
+              <button
+                onMouseEnter={() => setExportDropdownOpen(true)}
+                onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                className="h-10 w-full rounded border border-white/5 bg-[#1A1C21] text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] hover:text-white transition-all flex items-center justify-center gap-2"
+              >
+                EXPORT <span className="text-[8px] opacity-40">▼</span>
+              </button>
+              {exportDropdownOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#111318] border border-[#2A2D35] rounded-xl shadow-2xl overflow-hidden z-[110]">
+                  {[
+                    { label: '.HTML DOCUMENT', action: handleExportHtml },
+                    { label: '.MD DOCUMENT', action: handleExportMd },
+                    { label: '.JSON DOCUMENT', action: handleExportJson },
+                    { label: '.TXT DOCUMENT', action: handleExportTxt },
+                  ].map(({ label, action }) => (
+                    <button
+                      key={label}
+                      onClick={() => { setExportDropdownOpen(false); action(); }}
+                      className="w-full text-left px-4 py-2 text-[9px] font-bold text-slate-400 hover:bg-white/5 hover:text-white border-b border-white/5 last:border-0 transition-colors uppercase tracking-[0.2em]"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* FULLSCREEN EDITOR OVERLAY */}
-        {isEditorFullscreen && (
-          <div className="fixed inset-0 z-[100] bg-[#070708] flex flex-col p-8 animate-in fade-in zoom-in duration-300">
-            <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
-               <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
-                     <Cpu size={24} className="animate-pulse" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">{transitState.title || 'FORGE SESSION'}</h2>
-                    <p className="text-[10px] font-mono text-cyan-500/60 uppercase tracking-[0.5em]">Cognitive Focus // Area 51 Isolation</p>
-                  </div>
-               </div>
-               <button 
-                  onClick={() => setIsEditorFullscreen(false)}
-                  className="h-12 px-8 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-3 text-[12px] font-black uppercase tracking-widest shadow-xl"
-               >
-                  DISENGAGE FOCUS <X size={18} />
-               </button>
-            </div>
-            <div className={`flex-1 rounded-3xl overflow-hidden border-4 border-white/5 ${RECESSED_PANEL}`}>
-               <RichTextEditor 
-                  value={transitState.transcript}
-                  onChange={(val) => setTransitState(s => ({ ...s, transcript: val }))}
-                  minHeight="100%"
-                  tools="full"
-               />
-            </div>
+        {/* RIGHT KNOWLEDGE RAIL — CORTEX */}
+        <div className="w-[180px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
+          <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em]">CORTEX</span>
           </div>
-        )}
+          <div className="flex-1 overflow-y-auto no-scrollbar py-1">
+            {['summaries', 'notes', 'reports', 'strategies', 'operations'].map(cat => (
+              <CortexCatRow key={cat} cat={cat} />
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

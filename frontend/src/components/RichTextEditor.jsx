@@ -50,7 +50,6 @@ const RichTextEditor = ({
           branding: false,
           statusbar: false,
           resize: true,
-          branding: false,
           promotion: false,
           entity_encoding: 'raw',
           formats: {
