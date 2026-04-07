@@ -21,6 +21,8 @@ import {
   getVaultApi,
   getBrainItemsApi,
   saveTranscriptApi,
+  getApiBaseUrl,
+  withSessionToken,
 } from '../../services/backendApi';
 
 // --- SESSION CACHE KEYS ---
@@ -82,6 +84,19 @@ const extractArtifactContent = (item) => {
 const isPreviewable = (item) => {
   const mt = (item?.mediaType || '').toLowerCase();
   return (mt === 'image' || mt === 'audio' || mt === 'video') && Boolean(item?.sourceUrl);
+};
+
+/** Resolve a raw sourceUrl to a playable URL, following Studio's exact playback path. */
+const resolvePlaybackUrl = (rawUrl) => {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  if (url.startsWith('/api/')) {
+    return withSessionToken(`${getApiBaseUrl()}${url}`);
+  }
+  return url;
 };
 
 /** True if this is a text/transcript artifact we can try to hydrate into the editor. */
@@ -348,6 +363,7 @@ const Forge = () => {
 
     // ── IMAGE PREVIEW ──
     if (mt === 'image' && asset.sourceUrl) {
+      const playbackUrl = resolvePlaybackUrl(asset.sourceUrl);
       return (
         <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 flex flex-col overflow-hidden" style={{ maxHeight: '260px' }}>
           <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1E2024] flex-shrink-0">
@@ -360,7 +376,7 @@ const Forge = () => {
           </div>
           <div className="flex-1 flex items-center justify-center overflow-hidden p-3 min-h-0">
             <img
-              src={asset.sourceUrl}
+              src={playbackUrl}
               alt={asset.title}
               className="max-h-full max-w-full object-contain rounded shadow-xl border border-white/5"
               onError={e => { e.target.style.display = 'none'; }}
@@ -372,6 +388,7 @@ const Forge = () => {
 
     // ── AUDIO PLAYER ──
     if (mt === 'audio' && asset.sourceUrl) {
+      const playbackUrl = resolvePlaybackUrl(asset.sourceUrl);
       return (
         <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 px-4 py-3 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
@@ -383,7 +400,7 @@ const Forge = () => {
           </div>
           <audio
             controls
-            src={asset.sourceUrl}
+            src={playbackUrl}
             className="flex-1 h-8 min-w-0"
             style={{ accentColor: '#f59e0b' }}
           />
@@ -396,6 +413,7 @@ const Forge = () => {
 
     // ── VIDEO PLAYER ──
     if (mt === 'video' && asset.sourceUrl) {
+      const playbackUrl = resolvePlaybackUrl(asset.sourceUrl);
       return (
         <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/80 flex flex-col overflow-hidden" style={{ maxHeight: '300px' }}>
           <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1E2024] flex-shrink-0">
@@ -409,7 +427,7 @@ const Forge = () => {
           <div className="flex-1 flex items-center justify-center overflow-hidden p-2 bg-black min-h-0">
             <video
               controls
-              src={asset.sourceUrl}
+              src={playbackUrl}
               className="max-h-full max-w-full rounded shadow-xl"
               style={{ maxHeight: '240px' }}
             />
