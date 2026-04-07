@@ -47,6 +47,7 @@ import {
   getOllamaModelsApi,
   upsertAiProviderConfigApi,
   getBrainItemsApi,
+  getVaultApi,
   createBrainItemApi,
   updateBrainItemApi,
   deleteBrainItemApi,
@@ -676,7 +677,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
   );
 };
 
-const SavedIntelligence = ({ items, onSelectCategory }) => {
+const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
   const getCount = (catId) => {
     const cat = CATEGORIES.find(c => c.id === catId);
     if (!cat) return 0;
@@ -690,6 +691,16 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
       }
       return itemCat === targetCat;
     }).length;
+  };
+
+  const getVaultCount = (type) => {
+    if (type === 'media') {
+      return vaultItems.filter(v => v.mediaType === 'audio' || v.mediaType === 'video').length;
+    }
+    if (type === 'transcript') {
+      return vaultItems.filter(v => v.artifactType === 'transcript' || v.type === 'transcript').length;
+    }
+    return 0;
   };
 
   const total = items.length;
@@ -708,7 +719,7 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
     <div className={COMMS_SUBPANEL + " p-5 flex-1 flex flex-col min-h-0 relative z-30 overflow-hidden"}>
       <SubPanelHeader title="Cortex" icon={Lock} />
       
-      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 mt-2">
+      <div className="grid grid-cols-2 gap-2 flex-none mt-2">
         {CATEGORIES.filter(c => c.id !== 'b-hlp').map(cat => {
           const count = getCount(cat.id);
           const isGhost = count === 0;
@@ -724,14 +735,30 @@ const SavedIntelligence = ({ items, onSelectCategory }) => {
               `}
             >
               <cat.icon size={20} className={isGhost ? 'text-slate-500' : 'text-sky-300 group-hover:scale-110 transition-transform'} />
-              <div className="mt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-200 transition-colors">{cat.label} bin</div>
+              <div className="mt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-200 transition-colors uppercase">{cat.label}</div>
               <div className="mt-0.5 text-[12px] font-black text-slate-200">{count}</div>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-white/5 flex justify-center">
+      <div className="mt-4 pt-4 border-t border-white/5 space-y-3">
+         <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Vault Statistics (Studio)</div>
+         <div className="grid grid-cols-2 gap-2">
+            <div className="surface-tertiary p-3 rounded-xl border border-white/5 flex flex-col items-center">
+              <Video size={14} className="text-magenta-400 mb-1" />
+              <div className="text-[14px] font-black text-slate-200">{getVaultCount('media')}</div>
+              <div className="text-[7px] font-black uppercase tracking-widest text-slate-500">Media Assets</div>
+            </div>
+            <div className="surface-tertiary p-3 rounded-xl border border-white/5 flex flex-col items-center">
+              <FileText size={14} className="text-sky-400 mb-1" />
+              <div className="text-[14px] font-black text-slate-200">{getVaultCount('transcript')}</div>
+              <div className="text-[7px] font-black uppercase tracking-widest text-slate-500">Transcripts</div>
+            </div>
+         </div>
+      </div>
+
+      <div className="mt-auto pt-4 border-t border-white/5 flex justify-center">
         <div className={`text-[9px] font-black uppercase tracking-[0.3em] ${statusColor} animate-pulse`}>{status}</div>
       </div>
     </div>
@@ -990,6 +1017,7 @@ const Cortex = () => {
   const [interactionArmed, setInteractionArmed] = useState(false);
   const [activeProviderId, setActiveProviderId] = useState('');
   const [activeModelId, setActiveModelId] = useState('');
+  const [vaultItems, setVaultItems] = useState([]);
   const [output, setOutput] = useState('');
   const [activeReportId, setActiveReportId] = useState('');
   const [savedIntelligence, setSavedIntelligence] = useState([]);
@@ -1046,14 +1074,19 @@ const Cortex = () => {
 
   const fetchOverview = async () => {
     try {
-      const data = await getBrainOverviewApi();
-      setProfile(data.profile || EMPTY_PROFILE);
-      setSources(data.sources || []);
-      setItems(data.items || []);
-      setLinks(data.links || []);
-      setSavedIntelligence(data.items || []); // Sync Cortex with items
-      // Sync providers with profile state
-      await fetchProviders(data.profile);
+      const [brainData, vaultData] = await Promise.all([
+        getBrainOverviewApi(),
+        getVaultApi()
+      ]);
+      
+      setProfile(brainData.profile || EMPTY_PROFILE);
+      setSources(brainData.sources || []);
+      setItems(brainData.items || []);
+      setLinks(brainData.links || []);
+      setSavedIntelligence(brainData.items || []);
+      setVaultItems(Array.isArray(vaultData) ? vaultData : []);
+      
+      await fetchProviders(brainData.profile);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
@@ -1079,10 +1112,13 @@ const Cortex = () => {
     ? {
         transform: `scale(${COMMS_WORKSPACE_SCALE})`,
         transformOrigin: 'top left',
-        width: `calc(100% / ${COMMS_WORKSPACE_SCALE})`,
-        height: `calc(100% / ${COMMS_WORKSPACE_SCALE})`
+        width: `${100 / COMMS_WORKSPACE_SCALE}%`,
+        height: `${100 / COMMS_WORKSPACE_SCALE}%`,
       }
-    : undefined;
+    : {
+        width: '100%',
+        height: '100%'
+      };
 
   return (
     <div className="h-full min-h-0 overflow-hidden bg-black flex flex-col">
@@ -1093,10 +1129,14 @@ const Cortex = () => {
           { label: 'UPLINK REFRESH', icon: RefreshCcw, onClick: fetchOverview, variant: 'secondary' }
         ]}
       />
-      <div className={`flex-1 bg-slate-900/50 border border-[var(--color-border)] flex flex-col overflow-hidden shadow-island relative`} style={cortexWindowStyle}>
-      <div className="flex flex-1 overflow-hidden relative min-h-0">
+      <div className="flex-1 relative bg-black overflow-hidden shadow-island">
+        <div 
+          className={`bg-slate-900/50 border border-[var(--color-border)] flex flex-col overflow-hidden transition-opacity`} 
+          style={cortexWindowStyle}
+        >
+          <div className="flex flex-1 overflow-hidden relative min-h-0">
         <aside 
-          className={`w-[300px] flex flex-col gap-[25px] p-4 border-r border-slate-800/60 ${COMMS_COLUMN_BG} z-30 h-full shadow-[20px_0_60px_rgba(0,0,0,0.5)] transition-all ${!interactionArmed ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
+          className={`w-[300px] flex flex-col gap-[25px] p-4 border-r border-slate-800/60 ${COMMS_COLUMN_BG} z-30 h-full shadow-[20px_0_60px_rgba(0,0,0,0.5)] transition-all`}
           onClick={() => setInteractionArmed(false)}
         >
           <NeuralEngine 
@@ -1148,6 +1188,7 @@ const Cortex = () => {
           />
           <SavedIntelligence 
             items={savedIntelligence} 
+            vaultItems={vaultItems}
             onSelectCategory={setSelectedCategory} 
           />
         </aside>
@@ -1165,7 +1206,7 @@ const Cortex = () => {
         </main>
 
         <aside 
-          className={`w-[540px] flex flex-col border-l border-slate-800/60 z-20 ${COMMS_COLUMN_BG} h-full shadow-[-20px_0_60px_rgba(0,0,0,0.5)] p-4 transition-all ${!interactionArmed ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
+          className={`w-[540px] flex flex-col border-l border-slate-800/60 z-20 ${COMMS_COLUMN_BG} h-full shadow-[-20px_0_60px_rgba(0,0,0,0.5)] transition-all`}
           onClick={() => setInteractionArmed(false)}
         >
           <AIInsights 
@@ -1329,6 +1370,7 @@ const Cortex = () => {
           }}
         />
       )}
+    </div>
     </div>
     </div>
   );
