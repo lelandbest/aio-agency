@@ -551,11 +551,11 @@ const Forge = () => {
         ]}
       />
 
-      {/* BODY: FOUR COLUMN DAW */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* BODY: GRID LAYOUT - RAIL-FIRST (2:1:1 RATIO) */}
+      <div className="flex-1 grid grid-cols-1 min-h-0 overflow-hidden xl:grid-cols-[minmax(280px,1fr)_minmax(560px,2fr)_minmax(280px,1fr)]">
 
-        {/* LEFT RAIL — VAULT (expanded for workstation usability) */}
-        <div className="w-[320px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
+        {/* LEFT RAIL — VAULT (matches Integrations left rail UI) */}
+        <div className="min-h-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
           <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]" />
             <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
@@ -586,8 +586,8 @@ const Forge = () => {
           )}
         </div>
 
-        {/* CENTER — REVIEW + EDITOR (constrained to ~30% of page) */}
-        <div className="w-[30%] max-w-[400px] min-w-[280px] flex-shrink-0 flex flex-col bg-black/20 relative overflow-hidden">
+        {/* CENTER — REVIEW + EDITOR (exactly 2x rail width) */}
+        <div className="min-w-0 flex flex-col bg-black/20 relative overflow-hidden">
 
           {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
           <AssetReviewPanel asset={activeAsset} />
@@ -657,9 +657,9 @@ const Forge = () => {
           )}
         </div>
 
-        {/* RIGHT RAIL — BRAIN / METADATA (expanded for workstation usability) */}
-        <div className="w-[380px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border-l border-[#1E2024] shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
-          <div className="flex-1 overflow-y-auto p-5 space-y-6 no-scrollbar">
+        {/* RIGHT RAIL — BRAIN / METADATA (matches Integrations right rail UI) */}
+        <div className="min-h-0 flex flex-col bg-[#0A0A0C] border-l border-[#1E2024] overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
 
             {/* METADATA */}
             <div className="space-y-4">
@@ -870,18 +870,6 @@ const Forge = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* RIGHT KNOWLEDGE RAIL — CORTEX (slim) */}
-        <div className="w-[70px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
-          <div className="px-2 py-2 border-b border-[#1E2024] flex items-center justify-center flex-shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-          </div>
-          <div className="flex-1 overflow-y-auto no-scrollbar py-1">
-            {['summaries', 'notes', 'reports', 'strategies', 'operations'].map(cat => (
-              <CortexCatRow key={cat} cat={cat} />
-            ))}
           </div>
         </div>
 
