@@ -379,13 +379,18 @@ const Forge = () => {
   const AssetReviewPanel = ({ asset }) => {
     if (!asset) {
       return (
-        <div className="p-4 border-b border-[#1E2024] bg-black/40 min-h-[120px] flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-2">
-              <FileText size={20} className="text-slate-600" />
+        <div className="flex flex-col flex-shrink-0 border-b border-[#1E2024] bg-black/40">
+          <div className="flex items-center gap-2 px-4 py-1 border-b border-[#1E2024] flex-shrink-0 bg-black/40">
+            <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // IDLE</span>
+          </div>
+          <div className="p-4 min-h-[100px] flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-2">
+                <FileText size={20} className="text-slate-600" />
+              </div>
+              <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">NO ASSET MOUNTED</div>
+              <div className="text-[8px] text-slate-700 mt-1">Select an asset from the Vault</div>
             </div>
-            <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">NO ASSET MOUNTED</div>
-            <div className="text-[8px] text-slate-700 mt-1">Select an asset from the Vault</div>
           </div>
         </div>
       );
@@ -401,7 +406,10 @@ const Forge = () => {
       const playbackUrl = resolvePlaybackUrl(asset.sourceUrl);
       return (
         <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 flex flex-col overflow-hidden" style={{ maxHeight: '260px' }}>
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1E2024] flex-shrink-0">
+          <div className="flex items-center gap-2 px-4 py-1 border-b border-[#1E2024] flex-shrink-0 bg-black/40">
+            <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // IMG</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-1 flex-shrink-0">
             <ImageIcon size={10} className="text-emerald-400" />
             <span className="text-[7px] font-black text-emerald-400 uppercase tracking-[0.3em]">IMAGE REVIEW</span>
             <span className="text-[7px] font-mono text-slate-700 ml-2 truncate">{asset.title}</span>
@@ -428,26 +436,31 @@ const Forge = () => {
     if (mt === 'audio' && asset.sourceUrl) {
       const playbackUrl = resolvePlaybackUrl(asset.sourceUrl);
       return (
-        <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 px-4 py-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-            <Music size={12} className="text-amber-400" />
+        <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/60 flex flex-col">
+          <div className="flex items-center gap-2 px-4 py-1 border-b border-[#1E2024] flex-shrink-0 bg-black/40">
+            <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // AUDIO</span>
           </div>
-          <div className="flex flex-col min-w-0 flex-shrink-0" style={{ maxWidth: '180px' }}>
-            <span className="text-[7px] font-black text-amber-400 uppercase tracking-[0.3em]">AUDIO</span>
-            <span className="text-[8px] font-mono text-slate-400 truncate">{asset.title}</span>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <Music size={12} className="text-amber-400" />
+            </div>
+            <div className="flex flex-col min-w-0 flex-shrink-0" style={{ maxWidth: '180px' }}>
+              <span className="text-[7px] font-black text-amber-400 uppercase tracking-[0.3em]">AUDIO</span>
+              <span className="text-[8px] font-mono text-slate-400 truncate">{asset.title}</span>
+            </div>
+            <audio
+              controls
+              src={playbackUrl}
+              className="flex-1 h-8 min-w-0"
+              style={{ accentColor: '#f59e0b' }}
+            />
+            <button onClick={() => setIsReviewModalOpen(true)} className="flex-shrink-0 text-[7px] font-black text-slate-500 hover:text-cyan-400 uppercase tracking-widest transition">
+              VIEW
+            </button>
+            <button onClick={() => setActiveAsset(null)} className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition ml-1">
+              <X size={10} />
+            </button>
           </div>
-          <audio
-            controls
-            src={playbackUrl}
-            className="flex-1 h-8 min-w-0"
-            style={{ accentColor: '#f59e0b' }}
-          />
-          <button onClick={() => setIsReviewModalOpen(true)} className="flex-shrink-0 text-[7px] font-black text-slate-500 hover:text-cyan-400 uppercase tracking-widest transition">
-            VIEW
-          </button>
-          <button onClick={() => setActiveAsset(null)} className="flex-shrink-0 text-slate-600 hover:text-slate-400 transition ml-1">
-            <X size={10} />
-          </button>
         </div>
       );
     }
@@ -457,7 +470,10 @@ const Forge = () => {
       const playbackUrl = resolvePlaybackUrl(asset.sourceUrl);
       return (
         <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/80 flex flex-col overflow-hidden" style={{ maxHeight: '300px' }}>
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-[#1E2024] flex-shrink-0">
+          <div className="flex items-center gap-2 px-4 py-1 border-b border-[#1E2024] flex-shrink-0 bg-black/40">
+            <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // VIDEO</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-1 flex-shrink-0">
             <Video size={10} className="text-purple-400" />
             <span className="text-[7px] font-black text-purple-400 uppercase tracking-[0.3em]">VIDEO REVIEW</span>
             <span className="text-[7px] font-mono text-slate-700 ml-2 truncate">{asset.title}</span>
