@@ -267,19 +267,18 @@ const Forge = () => {
     const items = getVaultByCategory(cat);
     const isOpen = vaultExpandedCats[cat];
     return (
-      <div>
+      <div className="space-y-1">
         <button
           onClick={() => setVaultExpandedCats(s => ({ ...s, [cat]: !s[cat] }))}
-          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-white/[0.03] transition-colors group"
+          className="w-full rounded-lg border border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 px-3 py-2.5 text-left transition hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75 flex items-center justify-between"
         >
-          <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">{label}</span>
-          <span className="text-[7px] text-slate-700">
-            {isOpen ? '▾' : '▸'}{' '}
-            {items.length > 0 && <span className="text-cyan-700">{items.length}</span>}
+          <span className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{label}</span>
+          <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+            {isOpen ? '▾' : '▸'} {items.length}
           </span>
         </button>
         {isOpen && items.length > 0 && (
-          <div className="pb-1">
+          <div className="space-y-2">
             {items.map(item => {
               const isActive = activeAsset?.assetId === item.assetId;
               const { Icon, color } = getAssetMeta(item);
@@ -287,31 +286,38 @@ const Forge = () => {
                 <button
                   key={item.assetId || item.id}
                   onClick={() => handleMountAsset(item)}
-                  className={`w-full text-left px-3 py-1.5 transition-colors group flex items-center gap-2 ${
+                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
                     isActive
-                      ? 'bg-cyan-500/10 border-l-2 border-cyan-500'
-                      : 'hover:bg-white/[0.03] border-l-2 border-transparent'
+                      ? 'border-[var(--color-primary)] bg-[var(--color-bg-secondary)] shadow-[0_0_0_1px_rgba(59,130,246,0.4),0_12px_24px_rgba(3,7,18,0.35)]'
+                      : 'border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75'
                   }`}
                 >
-                  <Icon size={9} className={`flex-shrink-0 ${isActive ? 'text-cyan-400' : color} opacity-70`} />
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-[8px] font-bold truncate leading-tight ${isActive ? 'text-cyan-300' : 'text-slate-400 group-hover:text-slate-200'} transition-colors`}>
-                      {item.title || item.filename || 'Asset'}
-                    </div>
-                    <div className="text-[6px] text-slate-700 uppercase tracking-widest truncate mt-0.5">
-                      {item.source || item.status || ''}
+                  <div className="flex items-start gap-2.5">
+                    {item.thumbnailUrl ? (
+                      <img src={item.thumbnailUrl} alt="" className="mt-0.5 h-8 w-8 rounded-lg object-cover border border-[var(--color-border)]" />
+                    ) : (
+                      <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
+                        <Icon size={16} />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)] truncate">
+                          {item.title || item.filename || 'Asset'}
+                        </div>
+                      </div>
+                      <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)] truncate">
+                        {item.source || item.status || ''}
+                      </div>
                     </div>
                   </div>
-                  {isActive && (
-                    <CheckCircle size={8} className="text-cyan-500 flex-shrink-0" />
-                  )}
                 </button>
               );
             })}
           </div>
         )}
         {isOpen && items.length === 0 && (
-          <div className="px-3 pb-2 text-[7px] text-slate-800 font-mono italic">empty</div>
+          <div className="text-[10px] text-[var(--color-text-tertiary)] italic px-2">empty</div>
         )}
       </div>
     );
@@ -551,8 +557,11 @@ const Forge = () => {
         ]}
       />
 
-      {/* BODY: GRID LAYOUT - RAIL-FIRST (2:1:1 RATIO) + CORTEX SLIM */}
-      <div className="flex-1 grid grid-cols-1 min-h-0 overflow-hidden xl:grid-cols-[minmax(280px,1fr)_minmax(560px,2fr)_minmax(280px,1fr)_70px]">
+      {/* 4px gap between toolbar and body */}
+      <div className="h-px bg-[#1E2024]" />
+
+      {/* BODY: GRID LAYOUT - TWO EQUAL RAILS + CENTER */}
+      <div className="flex-1 grid grid-cols-1 min-h-0 overflow-hidden xl:grid-cols-[500px_minmax(800px,2fr)_500px_70px]">
 
         {/* LEFT RAIL — VAULT (matches Integrations left rail UI) */}
         <div className="min-h-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
