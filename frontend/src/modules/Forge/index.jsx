@@ -551,8 +551,8 @@ const Forge = () => {
         ]}
       />
 
-      {/* BODY: GRID LAYOUT - RAIL-FIRST (2:1:1 RATIO) */}
-      <div className="flex-1 grid grid-cols-1 min-h-0 overflow-hidden xl:grid-cols-[minmax(280px,1fr)_minmax(560px,2fr)_minmax(280px,1fr)]">
+      {/* BODY: GRID LAYOUT - RAIL-FIRST (2:1:1 RATIO) + CORTEX SLIM */}
+      <div className="flex-1 grid grid-cols-1 min-h-0 overflow-hidden xl:grid-cols-[minmax(280px,1fr)_minmax(560px,2fr)_minmax(280px,1fr)_70px]">
 
         {/* LEFT RAIL — VAULT (matches Integrations left rail UI) */}
         <div className="min-h-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
@@ -870,6 +870,18 @@ const Forge = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* CORTEX SLIM RAIL (tertiary strip) */}
+        <div className="flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
+          <div className="px-2 py-2 border-b border-[#1E2024] flex items-center justify-center flex-shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+          </div>
+          <div className="flex-1 overflow-y-auto no-scrollbar py-1">
+            {['summaries', 'notes', 'reports', 'strategies', 'operations'].map(cat => (
+              <CortexCatRow key={cat} cat={cat} />
+            ))}
           </div>
         </div>
 
