@@ -118,10 +118,10 @@ const Forge = () => {
   const [vaultRailItems, setVaultRailItems] = useState([]);
   const [cortexRailItems, setCortexRailItems] = useState([]);
   const [vaultExpandedCats, setVaultExpandedCats] = useState({
-    audio: true, video: false, images: false, documents: false, transcripts: false, website: false,
+    audio: false, video: false, images: false, documents: false, transcripts: false, website: false,
   });
   const [cortexExpandedCats, setCortexExpandedCats] = useState({
-    summaries: true, notes: false, reports: false, strategies: false, operations: false,
+    summaries: false, notes: false, reports: false, strategies: false, operations: false,
   });
 
   // ── ACTIVE ASSET STATE ────────────────────────────────────────────────────
@@ -574,13 +574,13 @@ const Forge = () => {
       />
 
       {/* 4px gap between toolbar and body */}
-      <div className="h-px bg-[#1E2024]" />
+      <div className="h-1" />
 
-      {/* BODY: FLEX LAYOUT - EQUAL RAILS */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* BODY: 4 ISLAND COLUMNS WITH 4px GAP */}
+      <div className="flex-1 flex gap-1 p-1 min-h-0 overflow-hidden">
 
         {/* LEFT RAIL — VAULT */}
-        <div className="w-[350px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
+        <div className="w-[350px] flex-shrink-0 flex flex-col bg-black border border-[#1E2024] rounded-xl overflow-hidden select-none">
           <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]" />
             <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
@@ -612,7 +612,7 @@ const Forge = () => {
         </div>
 
         {/* CENTER — REVIEW + EDITOR */}
-        <div className="min-w-[150px] flex-1 flex flex-col bg-black/20 relative overflow-hidden">
+        <div className="min-w-[150px] flex-1 flex flex-col bg-black/20 relative overflow-hidden border border-[#1E2024] rounded-xl">
 
           {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
           <AssetReviewPanel asset={activeAsset} />
@@ -683,7 +683,7 @@ const Forge = () => {
         </div>
 
         {/* RIGHT RAIL — BRAIN / METADATA */}
-        <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border-l border-[#1E2024] overflow-hidden">
+        <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border border-[#1E2024] rounded-xl overflow-hidden">
           <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
 
             {/* METADATA */}
@@ -898,8 +898,8 @@ const Forge = () => {
           </div>
         </div>
 
-        {/* CORTEX SLIM RAIL (tertiary strip) */}
-        <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
+        {/* CORTEX RAIL */}
+        <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#08080A] border border-[#1E2024] rounded-xl overflow-hidden select-none">
           <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
             <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em]">CORTEX</span>
