@@ -121,20 +121,20 @@ export const INITIAL_MENU_STRUCTURE = [
   {
     category: "Main",
     items: [
-      { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "forge", label: "Forge", icon: "Cpu", type: "internal", visible: true, iconColor: "#06b6d4", description: "3D Cognitive Assembler // Charlie -> Alpha -> Specialist" },
       { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
-      { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" }
+      { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "forge", label: "Forge", icon: "Cpu", type: "internal", visible: true, iconColor: "#06b6d4", description: "3D Cognitive Assembler // Charlie -> Alpha -> Specialist" }
     ]
   },
-  {
-    category: "Systems",
+  {    category: "Systems",
     items: [
+      { id: "aio-academy", label: "Academy", icon: "GraduationCap", type: "iframe", url: "https://aiocrm.org/academy", visible: true, iconColor: "#9ca3af" },
       { id: "aio-bots", label: "Bots", icon: "Bot", type: "iframe", url: "https://go.aiobots.us", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-flows", label: "Flows", icon: "Workflow", type: "iframe", url: "https://work.aioflows.com", visible: true, iconColor: "#9ca3af" },
       { id: "aio-livebots", label: "LiveBots", icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
       { id: "aio-sniper", label: "Sniper", icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-academy", label: "Academy", icon: "GraduationCap", type: "iframe", url: "https://aiocrm.org/academy", visible: true, iconColor: "#9ca3af" }
+      { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
@@ -157,15 +157,8 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Growth",
     items: [
       { id: "marketplace", label: "MarketPlace", icon: "Globe", type: "internal", visible: false, iconColor: "#9ca3af" },
-      { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-market", label: "Market", icon: "Globe", type: "iframe", url: "https://aiomarket.us", visible: false, iconColor: "#9ca3af" },
       { id: "aio-systems", label: "Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full system stack and launch each workspace inside the embedded app frame." }
-    ]
-  },
-  {
-    category: "Automations",
-    items: []
+]
   },
   {
     category: "Admin",

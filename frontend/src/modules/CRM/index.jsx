@@ -1628,11 +1628,11 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
         <style>{`
           .crm-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
         `}</style>
-        <div ref={layoutRef} className="flex flex-1 min-h-0 overflow-hidden relative p-4 gap-3">
+        <div ref={layoutRef} className="flex flex-1 min-h-0 overflow-visible relative p-4 gap-3">
         {/* LEFT PANEL: Detailed Contact Info */}
         <div
-          style={{ width: leftPanelWidth, ...hiddenScrollbarStyle }}
-          className="crm-scroll-hidden flex-none flex flex-col gap-2 overflow-y-auto min-h-0 transition-all duration-75"
+          style={{ width: leftPanelWidth }}
+          className="flex-none flex flex-col gap-2 overflow-auto min-h-0 transition-all duration-75"
         >
           {/* Detail Card */}
           <div className={shellPanelClass + ' p-3 space-y-3'}>
@@ -2018,7 +2018,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
                 <button
                   key={tab}
                   onClick={() => setActivityTab(tab === 'Emails' ? 'Flow Emails' : tab === 'SMS' ? 'Flow SMS' : tab === 'Calls' ? 'Call Logs' : tab === 'Flows' ? 'Flow Activity' : tab)}
-                  className={`rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap transition ${
+                  className={`rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition ${
                     (activityTab === tab || (tab === 'Emails' && activityTab === 'Flow Emails') || (tab === 'SMS' && activityTab === 'Flow SMS') || (tab === 'Calls' && activityTab === 'Call Logs') || (tab === 'Flows' && activityTab === 'Flow Activity'))
                       ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' 
                       : 'border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
@@ -2032,8 +2032,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
 
             {/* Timeline */}
             <div 
-              style={hiddenScrollbarStyle}
-              className="crm-scroll-hidden flex-1 overflow-auto p-3 space-y-2"
+              className="flex-1 overflow-auto p-3 space-y-2"
             >
               {/* Note Input - Only show on Notes tab */}
               {activityTab === 'Notes' && (
@@ -2108,8 +2107,8 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
 
         {/* RIGHT: Relationship Assets */}
         <div 
-          style={{ width: rightPanelWidth, ...hiddenScrollbarStyle }}
-          className="crm-scroll-hidden flex-none overflow-y-auto transition-all duration-75"
+          style={{ width: rightPanelWidth }}
+          className="flex-none overflow-auto transition-all duration-75"
         >
           <div className={shellPanelClass + ' p-4 space-y-4'}>
             {/* Forms Submitted */}
@@ -3117,13 +3116,13 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
           { label: 'BACK TO LIST', icon: ArrowLeft, onClick: () => selectContact(null), variant: 'secondary' },
         ] : [
           { label: '+ ADD CONTACT', onClick: () => setShowCreateModal(true), variant: 'primary' },
-          { label: 'Import', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', groupStart: true },
-          { label: 'Export', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary' },
+          { label: 'IMPORT', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', groupStart: true },
+          { label: 'EXPORT', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary' },
         ]}
         toolbarLeftSlot={null}
         actions={[
           { label: 'JSON', icon: Zap, onClick: () => handleBulkAction('sendApi'), variant: 'secondary', color: 'slate' },
-          { label: 'Send Email', icon: Mail, onClick: () => handleBulkAction('sendEmail'), variant: 'secondary', color: 'sky' },
+          { label: 'SEND EMAIL', icon: Mail, onClick: () => handleBulkAction('sendEmail'), variant: 'secondary', color: 'sky' },
         ]}
         toolbarRightSlot={
           <div className="flex items-center gap-2">

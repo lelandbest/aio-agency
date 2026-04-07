@@ -382,7 +382,7 @@ const App = () => {
     };
   })();
 
-  const systemsLauncherIds = ['aio-bots', 'aio-livebots', 'aio-sniper', 'aio-academy', 'aio-hide', 'postly-ai'];
+  const systemsLauncherIds = ['aio-academy', 'aio-bots', 'aio-livebots', 'aio-hide', 'aio-sniper', 'postly-ai'];
   const systemsLauncherItems = renderedMenuStructure
     .flatMap(category => category.items)
     .filter(item => systemsLauncherIds.includes(item.id))

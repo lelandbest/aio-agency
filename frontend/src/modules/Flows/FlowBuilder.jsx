@@ -392,6 +392,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [edgeMenu, setEdgeMenu] = useState(null);
   const [nodeMenu, setNodeMenu] = useState(null);
   const [edgeFilterModal, setEdgeFilterModal] = useState(null);
+  const [providerStatuses, setProviderStatuses] = useState({});
   const [lastAddedPosition, setLastAddedPosition] = useState({ x: 240, y: 220 });
   const [nodeModalTab, setNodeModalTab] = useState('general');
   const [nodeConfigDraft, setNodeConfigDraft] = useState({});
@@ -1365,6 +1366,14 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
     loadFlowRunHistory(flow.id);
   }, [flow?.id, loadFlowRunHistory]);
+
+  // Fetch provider connection statuses when flow loads
+  useEffect(() => {
+    if (!flow?.id) return;
+    getFlowProviderStatusesApi(flow.id)
+      .then((data) => setProviderStatuses(data?.providers || {}))
+      .catch(() => setProviderStatuses({}));
+  }, [flow?.id]);
 
   // Inject provider connection status into provider-dependent nodes
   useEffect(() => {

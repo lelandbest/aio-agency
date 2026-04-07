@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
-import ModuleHeader from '../components/ModuleHeader';
+import ModuleHeader from '../../components/ModuleHeader';
 
 const STORAGE_KEY = 'aioDesignScene';
 
@@ -33,8 +33,8 @@ const DesignModule = () => {
       elements,
       appState: {
         ...appState,
-        viewBackgroundColor: appState?.viewBackgroundColor || '#ffffff',
-        theme: appState?.theme || 'light',
+        viewBackgroundColor: appState?.viewBackgroundColor || '#1a1a1a',
+        theme: appState?.theme || 'dark',
       },
       lastSavedAt: new Date().toISOString(),
     };
@@ -117,8 +117,8 @@ const DesignModule = () => {
             ref={excalidrawRef}
             initialData={initialData}
             onChange={handleSceneChange}
-            theme="light"
-            viewBackgroundColor="#ffffff"
+            theme="dark"
+            viewBackgroundColor="#1a1a1a"
             UIOptions={{
               tools: {
                 arrow: true,

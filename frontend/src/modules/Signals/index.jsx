@@ -508,11 +508,13 @@ export default function SignalsModule() {
             </div>
           </div>
         ) : (
-          <div className="grid h-full min-h-0 grid-cols-1 gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid h-full min-h-0 gap-4 p-4 xl:grid-cols-[1fr_1fr_1fr_320px]">
+            {/* CRITICAL COLUMN */}
             <div className="min-h-0 overflow-y-auto pr-1">
-              {signals.length ? (
-                <div className="space-y-4">
-                  {signals.map((signal) => (
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 mb-3 px-2">Critical ({counts.critical})</div>
+              {signals.filter(s => s.severity === 'critical').length ? (
+                <div className="space-y-3">
+                  {signals.filter(s => s.severity === 'critical').map((signal) => (
                     <SignalCard
                       key={signal.id}
                       signal={signal}
@@ -522,14 +524,55 @@ export default function SignalsModule() {
                   ))}
                 </div>
               ) : (
-                <div className="flex h-full min-h-[280px] items-center justify-center rounded-[var(--radius-inner)] border border-dashed border-white/10 bg-black/20">
-                  <div className="text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--color-text-tertiary)]">Signals Clear</p>
-                    <p className="mt-3 text-sm font-semibold text-[var(--color-text-secondary)]">No actionable items are waiting right now.</p>
-                  </div>
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-red-500/20 bg-red-500/5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-red-500/50">No Critical</span>
                 </div>
               )}
             </div>
+
+            {/* ALERT COLUMN */}
+            <div className="min-h-0 overflow-y-auto px-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400 mb-3 px-2">Alert ({counts.high})</div>
+              {signals.filter(s => s.severity === 'high').length ? (
+                <div className="space-y-3">
+                  {signals.filter(s => s.severity === 'high').map((signal) => (
+                    <SignalCard
+                      key={signal.id}
+                      signal={signal}
+                      busyActionType={busySignalId === signal.id ? busyActionType : ''}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-amber-500/20 bg-amber-500/5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500/50">No Alerts</span>
+                </div>
+              )}
+            </div>
+
+            {/* INFO COLUMN */}
+            <div className="min-h-0 overflow-y-auto pl-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-400 mb-3 px-2">Info ({counts.medium + counts.low})</div>
+              {signals.filter(s => s.severity === 'medium' || s.severity === 'low').length ? (
+                <div className="space-y-3">
+                  {signals.filter(s => s.severity === 'medium' || s.severity === 'low').map((signal) => (
+                    <SignalCard
+                      key={signal.id}
+                      signal={signal}
+                      busyActionType={busySignalId === signal.id ? busyActionType : ''}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-sky-500/20 bg-sky-500/5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-sky-500/50">No Info</span>
+                </div>
+              )}
+            </div>
+
+            {/* INSPECTOR COLUMN */}
             <div className="min-h-0 overflow-y-auto pl-1">
               <DetailInspector signal={selectedSignal} />
             </div>

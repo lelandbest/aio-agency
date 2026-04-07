@@ -2372,7 +2372,7 @@ const StudioModule = () => {
             <div className="flex-1 flex min-h-0 overflow-hidden">
 
               {/* LEFT RAIL: VAULT (RAW ASSETS) */}
-              <div className="w-[200px] flex-shrink-0 flex flex-col bg-[#08080A] border-r border-[#1E2024] overflow-hidden select-none">
+              <div className="w-[200px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
                 <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
                   <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
                   <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
