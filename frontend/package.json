@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
     "@remotion/cli": "4.0.441",
     "@remotion/renderer": "4.0.441",
     "@tinymce/tinymce-react": "^6.3.0",
