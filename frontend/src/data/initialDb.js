@@ -124,8 +124,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "forge", label: "Forge", icon: "Cpu", type: "internal", visible: true, iconColor: "#06b6d4", description: "3D Cognitive Assembler // Charlie -> Alpha -> Specialist" },
       { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
-      { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-systems", label: "Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full system stack and launch each workspace inside the embedded app frame." }
+      { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" }
     ]
   },
   {
@@ -143,6 +142,7 @@ export const INITIAL_MENU_STRUCTURE = [
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "chat", label: "Comms", icon: "RadioTower", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "comms-sms", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "studio", label: "Studio", icon: "Video", type: "internal", visible: true, iconColor: "#9ca3af", description: "Create scripts, voice, renders, transcripts, and ingest workflows from one workspace." },
@@ -160,7 +160,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" },
       { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
       { id: "aio-market", label: "Market", icon: "Globe", type: "iframe", url: "https://aiomarket.us", visible: false, iconColor: "#9ca3af" },
-      { id: "comms-sms", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" }
+      { id: "aio-systems", label: "Systems", icon: "Layers", type: "internal", visible: true, iconColor: "#9ca3af", description: "Browse the full system stack and launch each workspace inside the embedded app frame." }
     ]
   },
   {

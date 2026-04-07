@@ -526,7 +526,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
             return (
               <button
                 key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-3 text-xs font-medium border-b-2 transition whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id
                   ? 'text-[var(--color-text-primary)] border-blue-500'
                   : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
