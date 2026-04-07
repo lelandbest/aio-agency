@@ -560,11 +560,11 @@ const Forge = () => {
       {/* 4px gap between toolbar and body */}
       <div className="h-px bg-[#1E2024]" />
 
-      {/* BODY: GRID LAYOUT - TWO EQUAL RAILS + CENTER */}
-      <div className="flex-1 grid grid-cols-1 min-h-0 overflow-hidden xl:grid-cols-[500px_minmax(800px,2fr)_500px_70px]">
+      {/* BODY: FLEX LAYOUT - EQUAL RAILS */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
 
         {/* LEFT RAIL — VAULT (matches Integrations left rail UI) */}
-        <div className="min-h-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
+        <div className="w-[500px] flex-shrink-0 flex flex-col bg-black border-r border-[#1E2024] overflow-hidden select-none">
           <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]" />
             <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
@@ -667,7 +667,7 @@ const Forge = () => {
         </div>
 
         {/* RIGHT RAIL — BRAIN / METADATA (matches Integrations right rail UI) */}
-        <div className="min-h-0 flex flex-col bg-[#0A0A0C] border-l border-[#1E2024] overflow-hidden">
+        <div className="w-[500px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border-l border-[#1E2024] overflow-hidden">
           <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
 
             {/* METADATA */}
