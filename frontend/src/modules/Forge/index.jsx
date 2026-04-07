@@ -611,8 +611,8 @@ const Forge = () => {
           )}
         </div>
 
-        {/* CENTER — REVIEW + EDITOR (exactly 2x rail width) */}
-        <div className="min-w-0 flex flex-col bg-black/20 relative overflow-hidden">
+        {/* CENTER — REVIEW + EDITOR */}
+        <div className="min-w-[150px] flex-1 flex flex-col bg-black/20 relative overflow-hidden">
 
           {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
           <AssetReviewPanel asset={activeAsset} />
