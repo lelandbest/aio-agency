@@ -14,6 +14,7 @@ import {
   Globe,
   File,
   CheckCircle,
+  Anvil,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useNotice } from '../../contexts/NoticeContext';
@@ -596,6 +597,7 @@ const Forge = () => {
       <ModuleHeader
         title="Forge"
         subtitle="Digital Asset Workstation // Cognitive Assembler"
+        titleIcon={Anvil}
         leftActions={[
           { label: 'UPLINK REFRESH', icon: RefreshCw, onClick: loadForgeContext, variant: 'secondary' },
         ]}

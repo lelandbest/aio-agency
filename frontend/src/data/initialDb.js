@@ -8,6 +8,7 @@ import {
   Briefcase, FileInput, Columns, Filter, ArrowRight, Link, Webhook, Power,
   Download, Package, Clock, Copy, Calendar, Server, Chrome,
   PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
+  Anvil,
   User, Bell, Smartphone, MapPin, Receipt, CreditCard as CardIcon, Cpu, ShieldCheck, Terminal, MessageSquareCode, Layers,
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays,
   Activity as ActivityIcon, Hash, AtSign, MousePointer, Image, Table, Code, AlignCenter, AlignRight, Bold, Italic, Underline,
@@ -24,7 +25,7 @@ export const ICON_LIBRARY = {
   Server, Chrome, PhoneCall, Paperclip, CheckCircle, AlertCircle, Play, StopCircle, UploadCloud,
   User, Bell, Smartphone, MapPin, Receipt, CardIcon, Cpu, Target: TargetIcon, ShieldCheck, Terminal, MessageSquareCode, Layers,
   AlertOctagon, Bookmark, Flag, TrendingUp, DollarSign, GripVertical, Type, AlignLeft, ListChecks, CalendarDays, GraduationCap,
-  Brain: BrainIcon, AlertTriangle
+  Brain: BrainIcon, AlertTriangle, Anvil
 };
 
 const TM = '\u2122';
@@ -124,7 +125,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
       { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "forge", label: "Forge", icon: "Cpu", type: "internal", visible: true, iconColor: "#06b6d4", description: "3D Cognitive Assembler // Charlie -> Alpha -> Specialist" }
+      { id: "forge", label: "Forge", icon: "Anvil", type: "internal", visible: true, iconColor: "#06b6d4", description: "Digital Asset Workstation // Cognitive Assembler" }
     ]
   },
   {    category: "Systems",
