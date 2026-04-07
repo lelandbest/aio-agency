@@ -883,7 +883,7 @@ const Forge = () => {
         </div>
 
         {/* CORTEX SLIM RAIL (tertiary strip) */}
-        <div className="flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
+        <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#08080A] border-l border-[#1E2024] overflow-hidden select-none">
           <div className="px-2 py-2 border-b border-[#1E2024] flex items-center justify-center flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
           </div>
