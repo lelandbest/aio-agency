@@ -374,7 +374,7 @@ const Forge = () => {
   // ── INLINE ASSET REVIEW PANEL ─────────────────────────────────────────────
   /**
    * Renders a lightweight preview of the activeAsset in the center column.
-   * Placed above the editor. Always visible.
+   * Placed above the editor. Never replaces the editor.
    */
   const AssetReviewPanel = ({ asset }) => {
     if (!asset) {
@@ -646,7 +646,7 @@ const Forge = () => {
           </div>
 
           <div className={`flex-1 flex flex-col min-h-0 bg-[#0A0A0C]/40 ${activeAsset ? 'p-4 pt-2' : 'p-4 pt-10'}`}>
-            <div className="flex-1 rounded border border-[#1E2024] overflow-hidden bg-black/40 shadow-inner flex flex-col h-full">
+            <div className="flex-1 rounded overflow-hidden bg-black/40 shadow-inner flex flex-col h-full">
               <RichTextEditor
                 key={forgeState.transcript ? 'data-loaded' : 'data-pending'}
                 value={forgeState.transcript}
