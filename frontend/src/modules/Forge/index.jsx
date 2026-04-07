@@ -374,10 +374,22 @@ const Forge = () => {
   // ── INLINE ASSET REVIEW PANEL ─────────────────────────────────────────────
   /**
    * Renders a lightweight preview of the activeAsset in the center column.
-   * Placed above the editor. Never replaces the editor.
+   * Placed above the editor. Always visible.
    */
   const AssetReviewPanel = ({ asset }) => {
-    if (!asset) return null;
+    if (!asset) {
+      return (
+        <div className="p-4 border-b border-[#1E2024] bg-black/40 min-h-[120px] flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-2">
+              <FileText size={20} className="text-slate-600" />
+            </div>
+            <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">NO ASSET MOUNTED</div>
+            <div className="text-[8px] text-slate-700 mt-1">Select an asset from the Vault</div>
+          </div>
+        </div>
+      );
+    }
 
     const mt = (asset.mediaType || '').toLowerCase();
     const rk = asset.recordKind || '';
