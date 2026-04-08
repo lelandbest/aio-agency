@@ -812,9 +812,11 @@ const App = () => {
                   {/* Module Content */}
                   <div
                     className={`flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] ${
-                      effectiveActiveModule === 'aio-agents'
-                        ? 'p-4'
-                        : 'p-6'
+                      ['media', 'studio'].includes(effectiveActiveModule)
+                        ? 'p-0'
+                        : effectiveActiveModule === 'aio-agents'
+                          ? 'p-4'
+                          : 'p-6'
                     }`}
                   >
                     <Suspense key={effectiveActiveModule} fallback={

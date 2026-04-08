@@ -401,7 +401,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
     };
 
     return (
-        <div className="chrome-surface min-h-20 flex items-center justify-between gap-6 px-6">
+        <div className="chrome-surface h-16 flex items-center justify-between gap-6 px-6">
             <div className="flex items-center gap-3 min-w-0">
                 <button
                     onClick={onToggleMobileMenu}

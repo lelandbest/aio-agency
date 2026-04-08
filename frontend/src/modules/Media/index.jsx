@@ -280,7 +280,7 @@ const MEDIA_PILL_BASE =
 
 function mediaStatusPillTone(status) {
   const normalized = String(status || '').trim().toLowerCase();
-  if (['success', 'complete', 'ready', 'live', 'ok'].includes(normalized)) {
+  if (['success', 'complete', 'completed', 'ready', 'live', 'ok'].includes(normalized)) {
     return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
   }
   if (['running', 'processing', 'queued', 'loading'].includes(normalized)) {
@@ -1327,11 +1327,11 @@ const StudioModule = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className={`flex h-[290px] w-full max-w-[208px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed px-3.5 py-3 text-center transition-all ${nexusDragActive ? 'border-cyan-400 bg-cyan-950/10 shadow-[0_0_20px_rgba(34,211,238,0.14)]' : 'border-cyan-900/70 bg-[#05070B]'}`}
+              className={`flex h-[210px] w-full max-w-[156px] cursor-pointer flex-col items-center justify-center rounded-[14px] border border-dashed px-2 py-2 text-center transition-all ${nexusDragActive ? 'border-cyan-400 bg-cyan-950/10 shadow-[0_0_15px_rgba(34,211,238,0.14)]' : 'border-cyan-900/70 bg-[#05070B]'}`}
             >
               <div className="flex flex-col items-center justify-center shrink-0">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-cyan-950/80 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.15),rgba(8,15,32,0.96)_70%)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.06),0_0_18px_rgba(15,23,42,0.6)]">
-                  <CloudUpload size={38} className="text-cyan-400" strokeWidth={1.8} />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-cyan-950/80 bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.15),rgba(8,15,32,0.96)_70%)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.06),0_0_15px_rgba(15,23,42,0.6)] mt-[2px]">
+                  <CloudUpload size={30} className="text-cyan-400" strokeWidth={1.8} />
                 </div>
                 <div className="mt-3 flex flex-col items-center">
                   <div className="text-[18px] font-black uppercase leading-none tracking-[0.28em] text-slate-100">NEXUS</div>
@@ -1341,7 +1341,7 @@ const StudioModule = () => {
                   DROP ASSETS OR PASTE RAW DATA
                 </div>
               </div>
-              <div className="mt-[28px] rounded-full border border-cyan-900/70 bg-black/30 px-3 py-1 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-400">
+              <div className="mt-3 rounded-full border border-cyan-900/70 bg-black/30 px-2 py-0.5 text-[6px] font-black uppercase tracking-[0.2em] text-cyan-400">
                 EXTENSION AWARE
               </div>
             </button>
@@ -1561,7 +1561,7 @@ const StudioModule = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 bg-[#070708] text-slate-300">
+    <div className="flex h-full min-h-0 flex-col gap-1.5 bg-[#070708] text-slate-300 ps-4">
       <input
         ref={fileInputRef}
         type="file"
@@ -1617,9 +1617,9 @@ const StudioModule = () => {
         />
       </div>
 
-      <div className="flex-1 min-h-0 flex gap-4 pe-4 py-4 bg-[#08080A]">
+      <div className="flex-1 min-h-0 flex gap-4 pe-4 pt-1 pb-4">
         {/* LEFT WORKSTATION: MONITOR A */}
-        <div className="flex-[1.2] min-w-0 flex flex-col bg-[#111318] rounded-xl border border-[#1E2024] relative items-center gap-3">
+        <div className="flex-[1.2] min-w-0 flex flex-col relative items-center gap-3">
           <div className="absolute top-4 left-5 flex items-center gap-2 z-10 px-2 py-0.5 rounded bg-black/60 backdrop-blur border border-white/5">
             <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]"></div>
             <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // PROG</span>
@@ -1830,13 +1830,13 @@ const StudioModule = () => {
           </div>
 
           {/* AUDIO WORKSTATION ISLAND — MONITORING ONLY */}
-          <div className="w-full flex-1 min-h-[124px] bg-[#0A0A0C] rounded-xl border border-[#1E2024] flex flex-col p-2.5 gap-2.5 overflow-hidden">
+          <div className="w-full flex-1 min-h-[110px] bg-[#0A0A0C] rounded-xl border border-[#1E2024] flex flex-col p-1.5 gap-1.5 overflow-hidden shadow-inner">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <div className="flex items-center gap-2">
                 <AudioLines size={12} className="text-emerald-500" />
                 <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">AUDIO MONITOR</span>
               </div>
-              <span className={`${MEDIA_PILL_BASE} gap-1 border-emerald-500/20 bg-emerald-500/5 text-emerald-300`}>MONITORING</span>
+              <span className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} gap-1 border-emerald-500/20 bg-emerald-500/5 text-emerald-300`}>MONITORING</span>
             </div>
 
             {/* Asset ticker */}
@@ -1847,19 +1847,8 @@ const StudioModule = () => {
               </div>
             )}
 
-            <div className="flex-1 flex flex-col gap-2.5">
-              {/* TRUTHFUL REAL-TIME OSCILLOSCOPE — canvas-based analysis */}
-              <div className="flex-1 h-9 bg-black/40 rounded border border-white/5 relative overflow-hidden flex items-center shadow-inner">
-                <canvas ref={canvasRef} width={200} height={40} className="w-full h-full" />
-                {!playerState.isPlaying && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[7px] font-mono text-slate-700 uppercase tracking-widest">NO SIGNAL — IDLE</span>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20 pointer-events-none" />
-              </div>
-
-              <div className="flex-1 flex flex-col justify-end gap-1.5">
+            <div className="flex-1 flex flex-col gap-1.5">
+              <div className="flex flex-col justify-end gap-1">
                 <div className="flex justify-between items-center text-[7px] font-black text-slate-600 tracking-widest px-1">
                   <span>INPUT LEVEL</span>
                   <span className={audioLevel > 0 ? 'text-emerald-400' : 'text-slate-700'}>
@@ -1875,13 +1864,24 @@ const StudioModule = () => {
                 </div>
               </div>
 
+              {/* TRUTHFUL REAL-TIME OSCILLOSCOPE — canvas-based analysis */}
+              <div className="flex-1 h-6 bg-black/40 rounded border border-white/5 relative overflow-hidden flex items-center shadow-inner">
+                <canvas ref={canvasRef} width={200} height={40} className="w-full h-full" />
+                {!playerState.isPlaying && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-[7px] font-mono text-slate-700 uppercase tracking-widest">NO SIGNAL — IDLE</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20 pointer-events-none" />
+              </div>
+
               {/* Probe metadata — honest: only show what we actually know */}
-              <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-tighter gap-3">
+              <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-tighter gap-2">
                 <div className="flex gap-2 text-slate-700 flex-wrap">
                   {probeData?.probeStatus === 'ok' ? (
                     <>
-                      {probeData.width && probeData.height && <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/40 text-slate-400`}>{probeData.width}×{probeData.height}</span>}
-                      {probeData.codecSummary && <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/40 text-slate-400`}>{probeData.codecSummary.toUpperCase()}</span>}
+                      {probeData.width && probeData.height && <span className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} gap-1 border-slate-700 bg-black/40 text-slate-400`}>{probeData.width}×{probeData.height}</span>}
+                      {probeData.codecSummary && <span className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} gap-1 border-slate-700 bg-black/40 text-slate-400`}>{probeData.codecSummary.toUpperCase()}</span>}
                     </>
                   ) : probeData?.probeStatus === 'ffprobe_not_installed' ? (
                     <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone('loading')}`}>FFPROBE NOT AVAILABLE</span>
@@ -1905,26 +1905,37 @@ const StudioModule = () => {
             <span className="text-[10px] uppercase tracking-[0.5em] text-cyan-500/80 font-black">CONTROL DECK</span>
           </div>
 
-          <div className="p-3.5 flex flex-col gap-3 relative z-10">
+          <div className="pt-[10px] p-3.5 flex flex-col gap-3 relative z-10">
             {/* IMAGE ADJUSTMENTS */}
             <div className="grid grid-cols-1 gap-4">
-              <div className="bg-[#0A0A0C] p-2 rounded-lg border border-[#1E2024] flex flex-col gap-1.5 shadow-inner shrink-0 leading-none">
-                <div className="flex items-center justify-between">
-                  <span className="text-[7px] font-black text-cyan-500/60 uppercase tracking-[0.2em]">IMG ADJ</span>
-                  {!activeOutput?.sourceUrl && (
-                    <span className="text-[5px] font-mono text-slate-700 uppercase">PREVIEW ONLY</span>
-                  )}
+              <div className="bg-[#0A0A0C] p-3.5 rounded-lg border border-[#1E2024] flex flex-col gap-3 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_10px_20px_-10px_rgba(0,0,0,0.5)] shrink-0 leading-none relative overflow-hidden group/adj">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
+                    <span className="text-[8px] font-black text-slate-100 uppercase tracking-[0.3em]">IMAGERY ADJ</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[6px] font-mono text-slate-700 uppercase tracking-widest leading-none">HW-ID: ADJ-747X</span>
+                    {!activeOutput?.sourceUrl && (
+                      <span className="text-[6px] font-mono text-rose-500/80 uppercase border border-rose-500/30 px-1 bg-rose-500/5 leading-none">PREV_ONLY</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-3">
                   {[
-                    { key: 'brightness', label: 'BRI', min: 0, max: 200, unit: '%', default: 100 },
-                    { key: 'contrast', label: 'CON', min: 0, max: 200, unit: '%', default: 100 },
-                    { key: 'saturation', label: 'SAT', min: 0, max: 200, unit: '%', default: 100 },
-                    { key: 'hue', label: 'HUE', min: -180, max: 180, unit: '°', default: 0 },
-                    { key: 'opacity', label: 'OPA', min: 0, max: 100, unit: '%', default: 100 },
+                    { key: 'brightness', label: 'BRIGHTNESS', short: 'BRI', min: 0, max: 200, unit: '%', default: 100 },
+                    { key: 'contrast', label: 'CONTRAST', short: 'CON', min: 0, max: 200, unit: '%', default: 100 },
+                    { key: 'saturation', label: 'SATURATION', short: 'SAT', min: 0, max: 200, unit: '%', default: 100 },
+                    { key: 'hue', label: 'HUE SHIFT', short: 'HUE', min: -180, max: 180, unit: '°', default: 0 },
+                    { key: 'opacity', label: 'ALPHA OPA', short: 'OPA', min: 0, max: 100, unit: '%', default: 100 },
                   ].map((adj) => (
-                    <div key={adj.key} className="flex items-center gap-2 group">
-                      <span className="w-6 text-[6px] font-black text-slate-600 tracking-tight uppercase group-hover:text-slate-400 transition-colors shrink-0">{adj.label}</span>
+                    <div key={adj.key} className="flex flex-col gap-1.5 group/row">
+                      <div className="flex items-center justify-between px-0.5">
+                        <span className="text-[7px] font-black text-slate-500 tracking-[0.1em] uppercase group-hover/row:text-cyan-400/70 transition-colors uppercase">{adj.label}</span>
+                        <span className={`text-[8px] font-mono transition-all duration-300 ${imgAdj[adj.key] !== adj.default ? 'text-cyan-400 font-bold scale-110 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]' : 'text-slate-800'}`}>
+                          {imgAdj[adj.key]}{adj.unit}
+                        </span>
+                      </div>
                       <input
                         type="range"
                         min={adj.min}
@@ -1932,19 +1943,16 @@ const StudioModule = () => {
                         step="1"
                         value={imgAdj[adj.key]}
                         onChange={(e) => updateImgAdj(adj.key, Number(e.target.value))}
-                        className="flex-1 media-range cursor-pointer"
+                        className={`w-full media-range h-1.5 cursor-pointer ${imgAdj[adj.key] !== adj.default ? 'accent-cyan-400' : 'accent-slate-700'}`}
                       />
-                      <span className={`w-8 text-[6px] font-mono text-right transition-colors ${imgAdj[adj.key] !== adj.default ? 'text-cyan-400' : 'text-slate-800'}`}>
-                        {imgAdj[adj.key]}{adj.unit}
-                      </span>
                     </div>
                   ))}
                   {Object.values(imgAdj).some((v, i) => v !== [100, 100, 100, 0, 100][i]) && (
                     <button
                       onClick={() => setImgAdj({ brightness: 100, contrast: 100, saturation: 100, hue: 0, opacity: 100 })}
-                      className="mt-1 text-[6px] font-black uppercase tracking-widest text-slate-700 hover:text-rose-500 py-0.5 border border-white/5 rounded transition-all"
+                      className="mt-2 text-[7px] font-black uppercase tracking-[0.4em] text-slate-100 bg-rose-950/20 hover:bg-rose-500 hover:text-white py-2 border border-rose-500/30 rounded-md transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] active:scale-95"
                     >
-                      RESET
+                      FLUSH SETTINGS
                     </button>
                   )}
                 </div>
@@ -1952,7 +1960,7 @@ const StudioModule = () => {
             </div>
 
             {/* MATRIX PADS */}
-            <div className="flex flex-col gap-2 shrink-0">
+            <div className="flex flex-col gap-2 shrink-0 mt-[20px]">
               <div className="flex items-center justify-between px-1">
                 <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.4em]">MATRIX PADS</span>
                 <div className="flex items-center gap-1.5">
@@ -1996,7 +2004,7 @@ const StudioModule = () => {
             </div>
 
             {/* TACTICAL FORM */}
-            <div className="h-auto flex flex-col bg-[#0A0A0C] border border-white/5 rounded-lg p-3 pb-8 shadow-inner relative overflow-hidden">
+            <div className="h-auto flex flex-col bg-[#0A0A0C] border border-white/5 rounded-lg p-3 pb-4 shadow-inner relative overflow-hidden">
               <div className="overflow-y-auto no-scrollbar max-h-[560px]">{renderTacticalForm()}</div>
               {error && <div className="mt-2 text-[7px] text-rose-500 font-mono uppercase bg-rose-900/10 p-2 border border-rose-900/20 rounded leading-tight">{error}</div>}
             </div>
@@ -2006,7 +2014,7 @@ const StudioModule = () => {
           <button
             onClick={handleSubmitQuickAction}
             disabled={Boolean(launchingAction) || !canExecuteSelectedAction}
-            className={`absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-11 w-64 z-[100] bg-gradient-to-b border-t border-white/15 border-b border-black rounded-md flex items-center justify-center gap-4 shadow-[0_12px_24px_rgba(0,0,0,0.9),0_0_20px_rgba(6,182,212,0.15)] group active:translate-y-[calc(50%+2px)] transition-all
+            className={`absolute bottom-4 left-1/2 -translate-x-1/2 h-11 w-64 z-[100] bg-gradient-to-b border-t border-white/15 border-b border-black rounded-md flex items-center justify-center gap-4 shadow-[0_12px_24px_rgba(0,0,0,0.9),0_0_20px_rgba(6,182,212,0.15)] group active:scale-95 transition-all
               ${launchingAction ? 'from-amber-900/40 to-black cursor-wait opacity-80' : 'from-[#2A3442] to-[#0A0F14] hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
               ${!canExecuteSelectedAction && !launchingAction ? 'grayscale opacity-50' : ''}
             `}
@@ -2037,14 +2045,26 @@ const StudioModule = () => {
                   <FileText size={12} className="text-sky-500" />
                   <span className="text-[9px] font-black text-sky-700 uppercase tracking-widest">TXT READOUT</span>
                 </div>
-                <div className="flex items-center gap-2 text-[7px] font-mono font-black text-slate-600 uppercase tracking-widest flex-wrap justify-end">
-                  <span className={`${MEDIA_PILL_BASE} gap-1 border-slate-700 bg-black/40 text-slate-400`}>
-                    TARGET {activeOutput?.metadata?.publishTarget || 'UNKNOWN'}
+                <div className="flex items-center gap-3 text-[7px] font-mono font-black text-slate-600 uppercase tracking-widest flex-wrap justify-end h-auto">
+                  <span className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} gap-1 border-slate-700 bg-black/40 text-slate-400`}>
+                    {activeOutput?.metadata?.publishTarget 
+                      ? `TARGET ${activeOutput.metadata.publishTarget}`.toUpperCase() 
+                      : 'UNKNOWN'}
                   </span>
-                  <span className={`${MEDIA_PILL_BASE} ${mediaStatusPillTone(activeOutput?.status || 'unknown')} gap-1`}>
-                    STATUS {activeOutput?.status || 'UNKNOWN'}
+                  <span className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} ${mediaStatusPillTone(activeOutput?.status || 'COMPLETED')} gap-1`}>
+                    {activeOutput?.status 
+                      ? `STATUS ${activeOutput.status}`.toUpperCase() 
+                      : 'COMPLETED'}
                   </span>
-                  <button className={`${MEDIA_PILL_BASE} gap-1 border-sky-500/30 bg-sky-500/5 text-sky-400`}>COPY DATA</button>
+                  <button 
+                    onClick={() => {
+                      const data = activeOutput?.content || activeOutput?.transcriptText || JSON.stringify(activeOutput, null, 2);
+                      navigator.clipboard.writeText(data);
+                    }}
+                    className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} gap-1 border-sky-500/30 bg-sky-500/5 text-sky-400 hover:bg-sky-500/10 transition`}
+                  >
+                    COPY DATA
+                  </button>
                   <button
                     onClick={() => {
                       const saved = transcriptSavedStateRef.current;
@@ -2062,9 +2082,9 @@ const StudioModule = () => {
                       }
                       setIsTranscriptModalOpen(true);
                     }}
-                    className={`${MEDIA_PILL_BASE} gap-1 border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/10 transition`}
+                    className={`${MEDIA_PILL_BASE.replace('text-[5px]', 'text-[7px]').replace('px-1.5', 'px-2.5').replace('py-px', 'py-0.5')} gap-1 border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/10 transition`}
                   >
-                    OPEN EDITOR
+                    OPEN WORKBENCH
                   </button>
                 </div>
               </div>

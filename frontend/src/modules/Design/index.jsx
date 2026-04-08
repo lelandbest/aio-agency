@@ -29,10 +29,13 @@ const DesignModule = () => {
   const handleSceneChange = useCallback((elements, appState) => {
     if (!elements || elements.length === 0) return;
     
+    // Sanitize appState for storage (remove non-serializable fields)
+    const { collaborators, ...serializableAppState } = appState;
+    
     const data = {
       elements,
       appState: {
-        ...appState,
+        ...serializableAppState,
         viewBackgroundColor: appState?.viewBackgroundColor || '#1a1a1a',
         theme: appState?.theme || 'dark',
       },
@@ -85,7 +88,7 @@ const DesignModule = () => {
 
   const initialData = sceneData ? {
     elements: sceneData.elements || [],
-    appState: sceneData.appState || {},
+    appState: (({ collaborators, ...rest }) => rest)(sceneData.appState || {}),
   } : undefined;
 
   return (
