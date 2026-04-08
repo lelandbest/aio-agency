@@ -5634,7 +5634,14 @@ def _resolve_media_file_path(kind: str, filename: str) -> Path:
 async def serve_media_audio(filename: str, request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access audio files.")
     media_path = _resolve_media_file_path("audio", filename)
-    return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "audio/mpeg")
+    guessed_type, _ = mimetypes.guess_type(media_path.name)
+    if not guessed_type and media_path.suffix.lower() == ".wav":
+        guessed_type = "audio/wav"
+    return FileResponse(
+        str(media_path),
+        media_type=guessed_type or "audio/mpeg",
+        headers={"Accept-Ranges": "bytes"}
+    )
 
 
 @app.get("/api/media/video/{filename}")
@@ -5660,7 +5667,14 @@ async def serve_media_image(filename: str, request: Request):
 async def serve_media_voice(filename: str, request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access voice files.")
     media_path = _resolve_media_file_path("voice", filename)
-    return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "audio/mpeg")
+    guessed_type, _ = mimetypes.guess_type(media_path.name)
+    if not guessed_type and media_path.suffix.lower() == ".wav":
+        guessed_type = "audio/wav"
+    return FileResponse(
+        str(media_path),
+        media_type=guessed_type or "audio/mpeg",
+        headers={"Accept-Ranges": "bytes"}
+    )
 
 
 def _extract_uploaded_file_from_multipart(content_type: str, body: bytes, field_name: str = "file") -> tuple[str, str | None, bytes]:
