@@ -859,7 +859,7 @@ const generateTemplateReport = (reportId, analytics) => {
       if (c.qualityDistribution) {
         lines.push(`Quality Segmentation: ${Object.entries(c.qualityDistribution).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
       }
-      lines.push(`[COMMUNICATIONS] ${safeNum(com.activeThreads)} active threads`);
+      lines.push(`[DISPATCH] ${safeNum(com.activeThreads)} active threads`);
       lines.push('\n[STRATEGY] Identify positioning gaps. Benchmark against industry standards. Find blue ocean opportunities.');
       break;
       

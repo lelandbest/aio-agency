@@ -142,8 +142,8 @@ export const INITIAL_MENU_STRUCTURE = [
     category: "Operations",
     items: [
       { id: "calendar", label: "Calendar", icon: "CalendarIcon", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "chat", label: "Comms", icon: "RadioTower", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "comms-sms", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "chat", label: "Dispatch", icon: "RadioTower", type: "internal", visible: true, iconColor: "#9ca3af" },
+      { id: "sms_voip", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "studio", label: "Studio", icon: "Video", type: "internal", visible: true, iconColor: "#9ca3af", description: "Create scripts, voice, renders, transcripts, and ingest workflows from one workspace." },

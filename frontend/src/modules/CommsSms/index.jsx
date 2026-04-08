@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Phone, RadioTower, Clock3, MessageSquare, Users, Activity, Plus, ArrowLeft, ArrowRight, Settings, Zap, Send, User, X, PhoneCall, PhoneOff, History, Mic } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Phone, RadioTower, Clock3, MessageSquare, Users, Activity, Plus, ArrowLeft, ArrowRight, Settings, Zap, Send, User, X, PhoneCall, PhoneOff, History, Mic, Layers, Settings2, Search, Building2, Tag, FolderOpen } from 'lucide-react';
+import { BrainIcon, Crosshair } from '../../components/ui/icons';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 
 const playMilSimTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1000,7 +1002,7 @@ const CommsModule = () => {
         <div className="flex items-start justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">SMS / VoIP</div>
-            <h2 className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">Communications</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-[var(--color-text-primary)]">Dispatch</h2>
             <p className="mt-2 max-w-2xl text-sm text-[var(--color-text-secondary)]">
               Internal SMS and VoIP system. Currently running on simulated transport.
             </p>

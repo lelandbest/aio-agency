@@ -1,0 +1,161 @@
+# AIO UI CONTRACT — TOPBAR / TOOLBAR / CONTENT (ENFORCEMENT)
+
+## MODE
+You are enforcing an existing architectural decision across the AIO codebase.
+This is NOT a redesign. This is a contract enforcement pass.
+Do not invent new layout systems. Do not expand scope.
+
+---
+
+## PRIMARY CONTRACT (NON-NEGOTIABLE)
+
+The AIO application uses a **3-layer layout ONLY**:
+
+1. TopBar = identity + global controls
+2. Toolbar = module control surface
+3. Content = execution surface
+
+There is NO separate Module Header layer.
+
+---
+
+## HARD RULES
+
+- ModuleHeader is deprecated and must not be rendered
+- No empty spacer/div may simulate a module header
+- No duplicate title bars inside modules
+- No vertical dead zones between TopBar and Toolbar
+- Toolbar is REQUIRED for every active module
+- Toolbar is the FIRST element under TopBar
+
+---
+
+## LAYOUT SPEC
+
+### Vertical Stack
+
+TopBar (~62px)
+↓
+5px gap (max 6px if already standardized)
+↓
+Toolbar
+↓
+5px gap (max 6px)
+↓
+Content
+
+No additional layers allowed.
+
+---
+
+## TOPBAR CONTRACT
+
+TopBar now owns:
+- module title
+- module icon
+- search
+- system indicators (health, etc.)
+- workspace/account controls
+
+Modules must NOT re-render:
+- page titles
+- header blocks
+- duplicate identity UI
+
+---
+
+## TOOLBAR CONTRACT
+
+Toolbar is:
+- the ONLY module-level control strip
+- visually unified (single surface)
+- directly under TopBar
+
+Toolbar must:
+- contain module actions
+- use consistent padding, border, radius, and icon sizing
+- maintain right-side utility lock (Brain + Target)
+
+Toolbar must NOT:
+- be split into multiple stacked rows unless already intentional and consistent
+- be duplicated elsewhere in the page
+
+---
+
+## CONTENT CONTRACT
+
+Content:
+- begins immediately after toolbar gap
+- must not include fake header sections
+- must not introduce redundant outer frames
+- must follow existing island/appliance pattern already dominant in Studio
+
+---
+
+## ICON LOCK (ENFORCED)
+
+- Brain icon = global intelligence entry
+- Target (crosshair) = module-level AI / focus
+- Bullseye = action buttons ONLY (never toolbar utility)
+
+Do not swap or alias these.
+
+---
+
+## SCOPE OF ENFORCEMENT
+
+Apply to:
+- all modules under `src/modules`
+- especially: Studio, Comms, CRM, Flows, Forms, Integrations
+
+---
+
+## REQUIRED PRE-AUDIT
+
+Before making changes, report:
+
+1. Files rendering ModuleHeader or header-like blocks
+2. Instances of vertical gaps above toolbar
+3. Duplicate title/header rendering inside modules
+4. Any layout that violates 3-layer structure
+
+---
+
+## IMPLEMENTATION ACTIONS
+
+Perform ONLY the following:
+
+1. Remove ModuleHeader component usage
+2. Remove empty header containers/divs
+3. Collapse spacing to match:
+   - TopBar → 5px → Toolbar → 5px → Content
+4. Ensure toolbar is first visible module element
+5. Remove duplicate titles inside modules
+6. Preserve all existing functionality
+
+Do NOT:
+- restyle entire modules
+- refactor unrelated components
+- change business logic
+
+---
+
+## OUTPUT FORMAT
+
+### AUDIT FINDINGS
+- files with violations
+- type of violation
+
+### CHANGES MADE
+- exact files updated
+- what was removed or adjusted
+
+### CONTRACT CHECK
+- TopBar/Toolbar/Content: PASS/FAIL
+- Duplicate headers: PASS/FAIL
+- Spacing compliance: PASS/FAIL
+
+### REMAINING VIOLATIONS
+- list any blocked or unresolved cases
+
+STOP AFTER OUTPUT

@@ -1924,6 +1924,34 @@ export async function deleteSocialProviderConfigApi(configId) {
   });
 }
 
+// --- Communications Provider APIs ---
+
+export async function getCommunicationsProviderConfigsApi() {
+  const response = await request('/api/communications/providers');
+  return response.data || [];
+}
+
+export async function upsertCommunicationsProviderConfigApi(providerKey, payload) {
+  const response = await request(`/api/communications/providers/${encodeURIComponent(providerKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return response.data;
+}
+
+export async function deleteCommunicationsProviderConfigApi(configId) {
+  return request(`/api/communications/providers/${encodeURIComponent(configId)}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function testCommunicationsProviderConfigApi(configId) {
+  const response = await request(`/api/communications/providers/${encodeURIComponent(configId)}/test`, {
+    method: 'POST'
+  });
+  return response.data;
+}
+
 // --- Help Desk APIs ---
 
 export async function getHelpTicketsApi() {

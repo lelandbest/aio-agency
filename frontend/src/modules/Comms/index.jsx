@@ -21,6 +21,7 @@ import {
   Workflow
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
+import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import EmptyState from '../../components/EmptyState';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
@@ -1065,7 +1066,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     const assignedAgentName = `${selectedThread?.assignee || ''}`.trim().toUpperCase();
     const agentName = latestRuntimeSignal.name || assignedAgentName;
     if (!agentName) return '';
-    const agentZone = latestRuntimeSignal.name ? latestRuntimeSignal.zone : 'COMMS';
+    const agentZone = latestRuntimeSignal.name ? latestRuntimeSignal.zone : 'DISPATCH';
     return `${agentName} // ${agentZone}`;
   }, [latestAgentAction, latestAgentMessage, selectedThread?.activeAgentIdentity, selectedThread?.assignee]);
 
@@ -1232,14 +1233,67 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         .comms-thread-strip::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(96,165,250,0.75),rgba(59,130,246,0.58));border-radius:999px;border:2px solid rgba(15,23,42,0.34);}
         .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
       `}</style>
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <ModuleHeader
-          showTitle={false}
-          leftActions={primaryHeaderActions}
-          actions={headerActions}
-          hasSelection={!!selectedThread}
-          onModuleAi={() => openAIAssist({ context: { module: 'comms', threadId: selectedThread?.id } })}
-        />
+      <div className="flex h-full min-h-0 flex-col gap-1.5">
+        {/* Toolbar */}
+        <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+            {primaryHeaderActions.map((action, idx) => {
+              if (React.isValidElement(action)) return <React.Fragment key={idx}>{action}</React.Fragment>;
+              const Icon = action.icon;
+              return (
+                <React.Fragment key={idx}>
+                  {action.groupStart && <div className="mx-1 hidden h-6 w-px bg-[var(--color-border)] opacity-30 xl:block" />}
+                  <button
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    className={`${idx === 0 ? 'btn-toolbar-lead' : 'btn-secondary'} shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 disabled:opacity-40`}
+                  >
+                    {Icon && <Icon size={12} />}
+                    <span className="font-bold uppercase tracking-[0.14em]">{action.label}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          <div className="flex min-w-0 items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              {headerActions.map((action, idx) => {
+                const Icon = action.icon;
+                return (
+                  <React.Fragment key={idx}>
+                    {action.groupStart && <div className="mx-1 hidden h-6 w-px bg-[var(--color-border)] opacity-30 xl:block" />}
+                    <button
+                      onClick={action.onClick}
+                      disabled={action.disabled}
+                      className={`btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 ${action.color === 'sky' ? 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25' : ''} disabled:opacity-40`}
+                    >
+                      {Icon && <Icon size={12} />}
+                      <span className="font-bold uppercase tracking-[0.14em]">{action.label}</span>
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+              <button
+                onClick={() => openAIAssist()}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+                title="Brain (Global KB)"
+              >
+                <BrainIcon size={14} />
+              </button>
+              <button
+                onClick={() => openAIAssist({ context: { module: 'comms', threadId: selectedThread?.id } })}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+                title="Crosshair (Module AI)"
+              >
+                <Crosshair size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="relative flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island">
           <div ref={layoutRef} className="h-full min-h-0 grid grid-cols-1" style={workspaceLayoutStyle}>
             <aside style={hiddenScrollbarStyle} className={`comms-scroll-hidden min-w-0 border-b border-[var(--color-border)] ${COMMS_COLUMN_BG} flex flex-col min-h-0 overflow-y-auto ${isThreeColumnComms ? 'col-start-1 row-start-1 border-b-0 border-r' : isDesktopComms ? 'col-start-1 row-start-1 row-span-2 border-b-0 border-r' : ''}`}>

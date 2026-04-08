@@ -8,7 +8,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { BullseyeIcon } from '../../components/ui/icons';
+import { BullseyeIcon, BrainIcon, Crosshair } from '../../components/ui/icons';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import {
@@ -104,8 +104,8 @@ function formatModuleLabel(moduleId) {
     media: 'Media',
     integrations: 'Integrations',
     crm: 'CRM',
-    chat: 'Comms',
-    comms: 'Comms',
+    chat: 'Dispatch',
+    comms: 'Dispatch',
     'system-health': 'System Health',
   }[String(moduleId || '').toLowerCase()] || 'Workspace';
 }
@@ -479,25 +479,44 @@ export default function SignalsModule() {
   const toolbarSummary = `${signals.length} actionable • ${counts.critical} critical • ${counts.high} high`;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-      <ModuleHeader
-        showTitle={false}
-        leftActions={[
-          {
-            label: 'Refresh',
-            icon: RefreshCw,
-            onClick: () => reloadSignals(true),
-            variant: 'secondary',
-          },
-        ]}
-        toolbarCenterSlot={(
+    <div className="relative flex h-full min-h-0 flex-col gap-1.5 overflow-hidden">
+      {/* Toolbar */}
+      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <button
+            onClick={() => reloadSignals(true)}
+            className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+          >
+            <RefreshCw size={12} />
+            <span className="font-bold uppercase tracking-[0.14em]">Refresh</span>
+          </button>
+        </div>
+
+        <div className="flex flex-1 justify-center items-center h-full min-w-0">
           <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
             {refreshing ? 'Refreshing signals' : toolbarSummary}
           </div>
-        )}
-        onModuleAi={() => openAIAssist({ context: { module: 'signals', surface: 'action-feed', signalCount: signals.length } })}
-        hasSelection={false}
-      />
+        </div>
+
+        <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
+          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+            <button
+              onClick={() => openAIAssist()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Brain (Global KB)"
+            >
+              <BrainIcon size={14} />
+            </button>
+            <button
+              onClick={() => openAIAssist({ context: { module: 'signals', surface: 'action-feed', signalCount: signals.length } })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Crosshair (Module AI)"
+            >
+              <Crosshair size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island">
         {loading ? (

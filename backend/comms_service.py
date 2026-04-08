@@ -1,7 +1,7 @@
 from typing import Any
 from datetime import datetime, timezone
 
-from backend.data_provider import create_provider, unique_suffix
+from backend.data_provider import create_provider, unique_suffix, parse_string_list
 from comms_providers import (
     create_provider_adapter,
     ProviderConfig,
@@ -380,6 +380,87 @@ def get_sms_messages(thread_id: str) -> list[dict[str, Any]]:
         return [dict(row) for row in rows]
 
 
+def send_email_message(
+    thread_id: str | None, 
+    recipients: list[str] | Any, 
+    subject: str, 
+    body: str, 
+    mailbox_id: str | None = None, 
+    sender_name: str | None = None, 
+    sender_email: str | None = None, 
+    contact_id: str | None = None,
+    company_id: str | None = None,
+    execution_context: bool = False
+) -> dict[str, Any]:
+    """
+    CANONICAL EMAIL EXECUTION AUTHORITY
+    
+    Standardized entry point for Dispatch, Flows, and Agents.
+    """
+    # 1. INPUT VALIDATION
+    # Normalize recipients
+    if isinstance(recipients, str):
+        recipient_list = [r.strip() for r in parse_string_list(recipients) if r.strip()]
+    elif isinstance(recipients, list):
+        recipient_list = [str(r).strip() for r in recipients if str(r).strip()]
+    else:
+        recipient_list = []
+
+    msg_subject = (str(subject or "")).strip()
+    msg_body = (str(body or "")).strip()
+
+    if not recipient_list:
+        return {"success": False, "error": "At least one recipient is required.", "reason": "missing_recipient"}
+    if not msg_body:
+        return {"success": False, "error": "Message body is required.", "reason": "missing_body"}
+    
+    provider = create_provider()
+
+    # 2. THREAD RESOLUTION / CREATION
+    if not thread_id:
+        # If no thread_id, we must have at least a contact or basic context if not in execution_context
+        if not contact_id and not execution_context:
+            return {"success": False, "error": "Email requires a thread or contact context.", "reason": "missing_context"}
+        
+        created_thread = provider.create_thread(
+            subject=msg_subject or "New Message",
+            channel_type="email",
+            contact_id=contact_id,
+            company_id=company_id,
+            body="",
+            mailbox_id=mailbox_id,
+        )
+        thread_id = created_thread.get("id")
+
+    # 3. MAILBOX RESOLUTION & EXECUTION
+    try:
+        result = provider.send_thread_via_mailbox(
+            thread_id=thread_id,
+            body=msg_body,
+            mailbox_id=mailbox_id,
+            sender_name=(sender_name or "AIO Flow").strip(),
+            sender_email=sender_email.strip() if sender_email else None,
+            recipients=recipient_list,
+        )
+        
+        # Result normalization
+        if isinstance(result, dict) and (result.get("success") or "id" in result):
+            return {
+                "success": True,
+                "thread_id": thread_id,
+                "message_id": result.get("latestMessage", {}).get("id") or result.get("internalMessageId"),
+                "providerMessageId": result.get("providerMessageId"),
+                "mailbox_id": result.get("mailboxId") or mailbox_id
+            }
+        return {"success": False, "error": "Email delivery failed", "reason": "provider_error"}
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "reason": "execution_failed"
+        }
+
+
 def check_opt_out(phone_number: str) -> dict[str, Any]:
     provider = create_provider()
     with provider._connect() as conn:
@@ -396,57 +477,82 @@ def check_opt_out(phone_number: str) -> dict[str, Any]:
 
 
 def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_number: str | None = None, contact_id: str | None = None, execution_context: bool = False) -> dict[str, Any]:
-    """Send SMS — must be called via ExecutionEngine.
-    
-    execution_context=True when called from ExecutionEngine._send_sms.
-    Direct invocation without execution_context is rejected.
     """
-    if not execution_context:
+    CANONICAL SMS EXECUTION AUTHORITY (Alpha Gate Lite)
+    
+    Standardized entry point for Dispatch, Flows, and Agents.
+    """
+    # 1. AUTHORIZATION/CONTEXT VALIDATION
+    # We allow sending if either execution_context is True (Flows/Agents)
+    # or if it's an authorized internal call.
+    if not execution_context and not thread_id and not contact_id:
+        # If no context at all is provided, we require execution_context
+        # to prevent unauthorized or context-less direct API abuse.
         return {
             "success": False,
-            "error": "SMS must be sent via ExecutionEngine. Use action_type: send_sms in a flow.",
-            "reason": "execution_context_required"
+            "error": "SMS execution requires valid context or execution engine authority.",
+            "reason": "missing_authorization_context"
         }
-    
-    from comms_providers import SmsSendRequest
-    from comms_integration import emit_sms_message_sent, emit_sms_message_failed
-    
-    provider = create_provider()
+
+    # 2. INPUT VALIDATION (RECIPIENT & BODY)
+    recipient = (str(phone_number or "")).strip()
+    message_body = (str(body or "")).strip()
+
+    if not recipient:
+        return {"success": False, "error": "Recipient phone number is required.", "reason": "missing_recipient"}
+    if not message_body:
+        return {"success": False, "error": "Message body is required.", "reason": "missing_body"}
+
+    # 3. PROVIDER SELECTION & AVAILABILITY
     adapter = _get_active_adapter()
-    tenant_id = provider._tenantId()
-    
-    opt_out_check = check_opt_out(phone_number)
+    if not adapter or adapter.provider_type == "stub" and not execution_context:
+         # Note: We allow stub in execution_context for testing flows without live creds,
+         # but Dispatch usually wants a real provider or explicit acknowledgment.
+         pass
+
+    # 4. OPT-OUT PASSIVE GATE
+    opt_out_check = check_opt_out(recipient)
     if opt_out_check.get("opted_out"):
         return {
             "success": False,
-            "error": "Phone number has opted out",
-            "reason": f"Keyword '{opt_out_check.get('keyword')}' detected"
+            "error": "Phone number has opted out of communication.",
+            "reason": f"Opt-out keyword '{opt_out_check.get('keyword')}' detected"
         }
-    
+
+    # 5. THREAD & RECORD PREPARATION
+    provider = create_provider()
+    tenant_id = provider._tenantId()
+
     if not thread_id:
-        thread = provider.create_sms_thread(contact_id=contact_id, phone_number_id=None, subject=f"SMS with {phone_number}")
+        thread = provider.create_sms_thread(contact_id=contact_id, phone_number_id=None, subject=f"SMS with {recipient}")
         thread_id = thread["id"]
+
+    # 6. EXECUTION
+    from comms_providers import SmsSendRequest
+    from comms_integration import emit_sms_message_sent, emit_sms_message_failed
     
     sms_request = SmsSendRequest(
-        to_number=phone_number,
-        from_number=from_number or "",
-        body=body,
+        to_number=recipient,
+        from_number=(from_number or "").strip(),
+        body=message_body,
         thread_id=thread_id,
         contact_id=contact_id,
     )
     
     result = adapter.send_sms(sms_request)
     
+    # 7. PERSISTENCE (CRM LOGGING)
     message = provider.add_sms_message(
         thread_id=thread_id,
-        body=body,
+        body=message_body,
         direction="outbound",
         sender_number=from_number,
-        recipient_number=phone_number
+        recipient_number=recipient
     )
     
     message_id = message.get("id", "")
     
+    # 8. RESULT NORMALIZATION & SIGNAL EMISSION
     if result.success:
         provider.update_sms_message_status(message_id, result.status)
         event = emit_sms_message_sent(
@@ -454,9 +560,17 @@ def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_n
             thread_id=thread_id,
             message_id=message_id,
             contact_id=contact_id,
-            phone_number=phone_number,
+            phone_number=recipient,
         )
         _dispatch_signal_event(event)
+        
+        return {
+            "success": True, 
+            "thread_id": thread_id, 
+            "message_id": message_id, 
+            "status": result.status,
+            "provider": adapter.provider_name
+        }
     else:
         provider.update_sms_message_status(message_id, "provider_error")
         event = emit_sms_message_failed(
@@ -465,18 +579,18 @@ def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_n
             message_id=message_id,
             error_message=result.error or "Provider send failed",
             contact_id=contact_id,
-            phone_number=phone_number,
+            phone_number=recipient,
         )
         _dispatch_signal_event(event)
-        if adapter.provider_type != "stub":
-            return {
-                "success": False,
-                "error": result.error or "Provider send failed",
-                "status": result.status,
-                "message_id": message_id,
-            }
-    
-    return {"success": True, "thread_id": thread_id, "message_id": message_id, "status": result.status}
+        
+        return {
+            "success": False,
+            "error": result.error or "Provider send failed",
+            "reason": "provider_rejection",
+            "status": result.status,
+            "message_id": message_id,
+            "provider": adapter.provider_name
+        }
 
 
 def get_contacts_with_phone() -> list[dict[str, Any]]:

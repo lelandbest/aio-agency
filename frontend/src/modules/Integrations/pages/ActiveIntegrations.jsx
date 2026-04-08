@@ -1,10 +1,10 @@
-/**
+﻿/**
  * LOCKED: AI Provider Unified Architecture - Phase 1 & 2
  * Verified Stable: March 25, 2026
  * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Calendar, CalendarDays, CheckCircle2, Database, DollarSign, Footprints, LogOut, Mail, MessageSquare, Mic, RefreshCw, Settings, ShieldCheck, ShoppingCart, Trash2, User, Video, Zap } from 'lucide-react';
+import { Bot, Calendar, CalendarDays, CheckCircle2, Database, DollarSign, Footprints, LogOut, Mail, MessageSquare, Mic, RadioTower, RefreshCw, Settings, ShieldCheck, ShoppingCart, Trash2, User, Video, Zap } from 'lucide-react';
 import { BrainIcon } from '../../../components/ui/icons';
 import IntegrationCard from '../components/IntegrationCard';
 import { IntegrationProviderSelector } from '../components/AddIntegrationPanel';
@@ -60,7 +60,10 @@ import {
   upsertPaymentProviderConfigApi,
   getSocialProviderConfigsApi,
   upsertSocialProviderConfigApi,
-  deletePaymentProviderConfigApi
+  deletePaymentProviderConfigApi,
+  getCommsProviderConfigsApi,
+  saveCommsProviderConfigApi,
+  deleteCommsProviderConfigApi
 } from '../../../services/backendApi';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
 
@@ -302,6 +305,26 @@ const createDataStoreProviderDraft = (provider) => ({
   config: Object.fromEntries(
     (provider?.fields || [])
       .filter((field) => !['label', 'baseUrl', 'apiKey'].includes(field.name))
+      .map((field) => [field.name, field.default ?? (field.type === 'checkbox' ? false : '')])
+  )
+});
+
+const createSocialProviderDraft = (provider) => ({
+  label: provider?.name || '',
+  enabled: true,
+  ...Object.fromEntries(
+    (provider?.fields || [])
+      .filter((field) => !['label'].includes(field.name))
+      .map((field) => [field.name, field.default ?? (field.type === 'checkbox' ? false : '')])
+  )
+});
+
+const createCommsProviderDraft = (provider) => ({
+  label: provider?.name || '',
+  enabled: true,
+  ...Object.fromEntries(
+    (provider?.fields || [])
+      .filter((field) => !['label'].includes(field.name))
       .map((field) => [field.name, field.default ?? (field.type === 'checkbox' ? false : '')])
   )
 });
@@ -727,8 +750,8 @@ const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, sel
   <button
     onClick={onClick}
     className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${selected
-        ? 'border-[var(--color-primary)] bg-[var(--color-bg-secondary)] shadow-[0_0_0_1px_rgba(59,130,246,0.4),0_12px_24px_rgba(3,7,18,0.35)]'
-        : 'border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75'
+      ? 'border-[var(--color-primary)] bg-[var(--color-bg-secondary)] shadow-[0_0_0_1px_rgba(59,130,246,0.4),0_12px_24px_rgba(3,7,18,0.35)]'
+      : 'border-[var(--color-border)]/40 bg-[var(--color-bg-secondary)]/55 hover:border-[var(--color-primary)]/35 hover:bg-[var(--color-bg-secondary)]/75'
       }`}
   >
     <div className="flex items-start gap-2.5">
@@ -762,6 +785,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const [selectorProviderKey, setSelectorProviderKey] = useState(null);
   const [legacyActivationSelections, setLegacyActivationSelections] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const [mailboxes, setMailboxes] = useState([]);
   const [mailboxProviders, setMailboxProviders] = useState(DEFAULT_MAILBOX_PROVIDERS);
@@ -796,9 +820,13 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const [paymentProviderConfigs, setPaymentProviderConfigs] = useState([]);
   const [socialProviderConfigs, setSocialProviderConfigs] = useState([]);
+  const [commsProviderConfigs, setCommsProviderConfigs] = useState([]);
   const [selectedPaymentProviderKey, setSelectedPaymentProviderKey] = useState('stripe');
   const [selectedSocialProviderKey, setSelectedSocialProviderKey] = useState('youtube');
+  const [selectedCommsProviderKey, setSelectedCommsProviderKey] = useState('telnyx');
   const [paymentProviderForm, setPaymentProviderForm] = useState(() => createPaymentProviderDraft(getProviderConfig('stripe')));
+  const [socialProviderForm, setSocialProviderForm] = useState(() => createSocialProviderDraft(getProviderConfig('youtube')));
+  const [commsProviderForm, setCommsProviderForm] = useState(() => createCommsProviderDraft(getProviderConfig('telnyx')));
 
 
 
@@ -858,8 +886,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       if (cat.id === INTEGRATION_CATEGORIES.MEDIA) count = mediaProviderConfigs.length;
       if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) count = paymentProviderConfigs.length;
       if (cat.id === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) count = socialProviderConfigs.filter((p) => p.enabled || p.configured).length;
-      // SMS and Tracking are currently placeholders/empty in this version
-      if (cat.id === INTEGRATION_CATEGORIES.SMS || cat.id === INTEGRATION_CATEGORIES.TRACKING) count = 0;
+      // Communications and Tracking are currently placeholders/empty in this version
+      if (cat.id === INTEGRATION_CATEGORIES.COMMUNICATIONS || cat.id === INTEGRATION_CATEGORIES.TRACKING) count = 0;
 
       return { ...cat, providerCount: count };
     });
@@ -884,13 +912,11 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const loadAll = async () => {
     setLoading(true);
     let nextNotice = null;
-    setIntegrations([]);
 
     try {
       setAutomationProviderConfigs(await getAutomationProviderConfigsApi());
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setAutomationProviderConfigs([]);
     }
 
     try {
@@ -898,21 +924,19 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       setMailboxes((data || []).map(camelizeData).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setMailboxes([]);
     }
 
     try {
       const providers = await getMailboxProvidersApi();
       setMailboxProviders(providers?.length ? providers : DEFAULT_MAILBOX_PROVIDERS);
     } catch {
-      setMailboxProviders(DEFAULT_MAILBOX_PROVIDERS);
+      // Keep existing data or defaults
     }
 
     try {
       setEmailVerifierConfig(camelizeData(await getEmailVerifierConfigApi()));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setEmailVerifierConfig(null);
     }
 
     try {
@@ -920,14 +944,13 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       setCalendarSources((data || []).map(camelizeData).sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setCalendarSources([]);
     }
 
     try {
       const providers = await getCalendarProvidersApi();
       setCalendarProviders(providers?.length ? providers : DEFAULT_CALENDAR_PROVIDERS);
     } catch {
-      setCalendarProviders(DEFAULT_CALENDAR_PROVIDERS);
+      // Keep existing or defaults
     }
 
     try {
@@ -935,44 +958,54 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       const localCatalog = getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS);
       setAiProviderCatalog(catalog?.length ? catalog : localCatalog);
     } catch {
-      setAiProviderCatalog(getProvidersByCategory(INTEGRATION_CATEGORIES.LLMS));
+      // Keep existing catalog
     }
 
     try {
       setAiProviderConfigs((await getAiProviderConfigsApi()).map((provider) => normalizeAiProviderConfigRecord(camelizeData(provider))));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setAiProviderConfigs([]);
     }
 
     try {
       setDataStoreProviderConfigs((await getDataStoreProviderConfigsApi()).map(camelizeData));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setDataStoreProviderConfigs([]);
     }
 
     try {
       setMediaProviderConfigs((await getMediaProviderConfigsApi()).map(camelizeData));
     } catch (error) {
       nextNotice = { tone: 'error', message: readErrorMessage(error) };
-      setMediaProviderConfigs([]);
     }
 
     try {
       setPaymentProviderConfigs((await getPaymentProviderConfigsApi()).map(camelizeData));
     } catch (error) {
-      setPaymentProviderConfigs([]);
+      nextNotice = nextNotice || { tone: 'error', message: readErrorMessage(error) };
     }
 
     try {
       setSocialProviderConfigs((await getSocialProviderConfigsApi()).map(camelizeData));
     } catch (error) {
-      setSocialProviderConfigs([]);
+      nextNotice = nextNotice || { tone: 'error', message: readErrorMessage(error) };
+    }
+
+    try {
+      const rawCommsConfigs = (await getCommsProviderConfigsApi()).map(camelizeData);
+      // Normalize: backend returns providerType; UI matching expects providerKey
+      const normalizedCommsConfigs = rawCommsConfigs.map(c => ({
+        ...c,
+        providerKey: c.providerKey || c.providerType || '',
+      }));
+      setCommsProviderConfigs(normalizedCommsConfigs);
+    } catch (error) {
+      nextNotice = nextNotice || { tone: 'error', message: readErrorMessage(error) };
     }
 
     showNotice(nextNotice);
     setLoading(false);
+    setIsHydrated(true);
   };
 
   useEffect(() => {
@@ -980,14 +1013,15 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   }, []);
 
   useEffect(() => {
-    if (!mailboxes.length) {
+    if (!isHydrated || !mailboxes.length) {
       setSelectedMailboxId(null);
     } else if (!mailboxes.some((mailbox) => mailbox.id === selectedMailboxId)) {
       setSelectedMailboxId(mailboxes[0].id);
     }
-  }, [mailboxes, selectedMailboxId]);
+  }, [mailboxes, selectedMailboxId, isHydrated]);
 
   useEffect(() => {
+    if (!isHydrated) return;
     const mailboxSelectionStillExists = mailboxes.some((mailbox) => mailbox.id === selectedEmailResourceId);
     if (selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID || mailboxSelectionStillExists) {
       return;
@@ -1001,10 +1035,10 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       return;
     }
     setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
-  }, [mailboxes, selectedMailboxId, selectedEmailResourceId]);
+  }, [mailboxes, selectedMailboxId, selectedEmailResourceId, isHydrated]);
 
   useEffect(() => {
-    if (![INTEGRATION_CATEGORIES.CALENDAR, INTEGRATION_CATEGORIES.VIDEO_CONFERENCING].includes(activeCategory)) {
+    if (!isHydrated || ![INTEGRATION_CATEGORIES.CALENDAR, INTEGRATION_CATEGORIES.VIDEO_CONFERENCING].includes(activeCategory)) {
       return;
     }
     if (!scopedCalendarSources.length) {
@@ -1014,7 +1048,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (!scopedCalendarSources.some((source) => source.id === selectedCalendarSourceId)) {
       setSelectedCalendarSourceId(scopedCalendarSources[0].id);
     }
-  }, [activeCategory, scopedCalendarSources, selectedCalendarSourceId]);
+  }, [activeCategory, scopedCalendarSources, selectedCalendarSourceId, isHydrated]);
 
   useEffect(() => {
     const automationProviders = getProvidersByCategory(INTEGRATION_CATEGORIES.AUTOMATION);
@@ -1025,16 +1059,15 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   }, [selectedAutomationProviderKey]);
 
   useEffect(() => {
-    if (!aiProviderCatalog.length) return;
-    const defaultProvider = aiProviderConfigs.find((provider) => provider.isDefault)?.providerKey;
-    if (defaultProvider && defaultProvider !== selectedAiProviderKey) {
-      setSelectedAiProviderKey(defaultProvider);
-      return;
-    }
+    if (!aiProviderCatalog.length || !isHydrated) return;
+    
+    // Only enforce a fallback if the selected provider key does not match ANY available catalog module.
+    // Do NOT aggressively force selection back to the default provider, as this blocks users from viewing different LLM cards.
     if (!aiProviderCatalog.some((provider) => (provider.id || provider.key) === selectedAiProviderKey)) {
-      setSelectedAiProviderKey(aiProviderCatalog[0].id || aiProviderCatalog[0].key);
+      const defaultProvider = aiProviderConfigs.find((provider) => provider.isDefault)?.providerKey;
+      setSelectedAiProviderKey(defaultProvider || aiProviderCatalog[0].id || aiProviderCatalog[0].key);
     }
-  }, [aiProviderCatalog, aiProviderConfigs, selectedAiProviderKey]);
+  }, [aiProviderCatalog, aiProviderConfigs, selectedAiProviderKey, isHydrated]);
 
   const selectedMailbox = useMemo(
     () => mailboxes.find((mailbox) => mailbox.id === selectedMailboxId) || null,
@@ -1219,6 +1252,49 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       config: existing.config || {},
     });
   }, [selectedPaymentProviderCatalog, selectedPaymentProviderConfig]);
+
+  useEffect(() => {
+    if (!selectedSocialProviderCatalog) {
+      setSocialProviderForm(createSocialProviderDraft());
+      return;
+    }
+    const existing = selectedSocialProviderConfig;
+    if (!existing) {
+      setSocialProviderForm(createSocialProviderDraft(selectedSocialProviderCatalog));
+      return;
+    }
+    setSocialProviderForm({
+      label: existing.label || selectedSocialProviderCatalog.name,
+      enabled: existing.enabled,
+      ...(existing.config || {}),
+    });
+  }, [selectedSocialProviderCatalog, selectedSocialProviderConfig]);
+
+  const selectedCommsProviderCatalog = useMemo(
+    () => getProvidersByCategory(INTEGRATION_CATEGORIES.COMMUNICATIONS).find((p) => p.id === selectedCommsProviderKey) || null,
+    [selectedCommsProviderKey]
+  );
+  const selectedCommsProviderConfig = useMemo(
+    () => commsProviderConfigs.find((c) => c.providerKey === selectedCommsProviderKey || c.id === selectedCommsProviderKey) || null,
+    [commsProviderConfigs, selectedCommsProviderKey]
+  );
+
+  useEffect(() => {
+    if (!selectedCommsProviderCatalog) {
+      setCommsProviderForm(createCommsProviderDraft());
+      return;
+    }
+    const existing = selectedCommsProviderConfig;
+    if (!existing) {
+      setCommsProviderForm(createCommsProviderDraft(selectedCommsProviderCatalog));
+      return;
+    }
+    setCommsProviderForm({
+      label: existing.label || selectedCommsProviderCatalog.name,
+      enabled: existing.enabled !== false,
+      ...(existing.config || {}),
+    });
+  }, [selectedCommsProviderCatalog, selectedCommsProviderConfig]);
 
   useEffect(() => {
     if (!selectedDataStoreProviderCatalog) {
@@ -2104,21 +2180,62 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   };
 
   const handleSaveSocialProvider = async () => {
-    if (!socialProviderCatalog?.id) return;
+    if (!selectedSocialProviderCatalog?.id) return;
     try {
-      const fieldNames = (socialProviderCatalog.fields || []).map(f => f.name);
+      const fieldNames = (selectedSocialProviderCatalog.fields || []).map(f => f.name);
       const config = {};
       fieldNames.forEach(name => {
         if (socialProviderForm[name] !== undefined) config[name] = socialProviderForm[name];
       });
       const payload = {
-        label: (socialProviderForm.label || socialProviderCatalog.name).trim(),
+        label: (socialProviderForm.label || selectedSocialProviderCatalog.name).trim(),
         enabled: !!socialProviderForm.enabled,
         config,
       };
-      await upsertSocialProviderConfigApi(socialProviderCatalog.id, payload);
-      showNotice({ tone: 'success', message: `${socialProviderCatalog.name} social settings saved.` });
+      await upsertSocialProviderConfigApi(selectedSocialProviderCatalog.id, payload);
+      showNotice({ tone: 'success', message: `${selectedSocialProviderCatalog.name} social settings saved.` });
       triggerSavedAction('social-save');
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleSaveCommsProvider = async () => {
+    if (!selectedCommsProviderCatalog?.id) return;
+    try {
+      const fieldNames = (selectedCommsProviderCatalog.fields || []).map(f => f.name);
+      const config = {};
+      fieldNames.forEach(name => {
+        if (commsProviderForm[name] !== undefined) config[name] = commsProviderForm[name];
+      });
+      // Use real backend contract: POST /api/comms/provider-configs
+      await saveCommsProviderConfigApi(
+        selectedCommsProviderCatalog.id, // providerType
+        config,
+        true // isActive
+      );
+      showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog.name} communications settings saved.` });
+      triggerSavedAction('communications-save');
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  // No backend test endpoint exists for comms providers — handler is a no-op
+  const handleTestCommsProvider = async () => {
+    showNotice({ tone: 'warning', message: 'Connection testing is not yet available for communications providers. Save your credentials and they will be used automatically.' });
+  };
+
+  const handleDeleteCommsProvider = async () => {
+    if (!selectedCommsProviderKey) return;
+    if (!window.confirm(`Disconnect ${selectedCommsProviderCatalog?.name || 'this provider'} from this workspace?`)) return;
+    try {
+      // Use real backend contract: DELETE /api/comms/provider-configs/:providerType
+      await deleteCommsProviderConfigApi(selectedCommsProviderKey);
+      setCommsProviderForm(createCommsProviderDraft(selectedCommsProviderCatalog));
+      showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog?.name || 'Provider'} removed.` });
       await loadAll();
     } catch (error) {
       showNotice({ tone: 'error', message: readErrorMessage(error) });
@@ -2256,7 +2373,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Automation Providers</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Hub-and-spoke automation systems with webhook ingress and egress.</div>
         </div>
-        {selectedAutomationProviderCatalog && !selectedAutomationProviderConfig ? (
+        {selectedAutomationProviderCatalog && !selectedAutomationProviderConfig && isHydrated ? (
           <div className="rounded-xl border border-dashed border-[var(--node-webhook)]/40 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
             <div className="flex items-start gap-2.5">
               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-webhook)]">
@@ -2434,45 +2551,46 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 </div>
               ) : null}
               <div className="space-y-3">
-          {(() => {
-            const hasDraftProvider = mailboxProviders.some(p => p.id === selectorProviderKey);
-            const isConfigured = mailboxes.some(m => m.provider === selectorProviderKey);
-            const catalogEntry = mailboxProviders.find(p => p.id === selectorProviderKey);
-            
-            if (hasDraftProvider && !isConfigured && catalogEntry && !showMailboxComposer) {
-                return (
-                   <div className="rounded-xl border border-dashed border-[var(--node-input)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-lg">
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-input)]">
-                        {getBrandIcon(catalogEntry.id, 22)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{catalogEntry.label}</div>
-                          <span className="rounded-full border border-[var(--node-input)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-input)] bg-[var(--node-input)]/10 font-bold">
-                            Ghost Activation
-                          </span>
+                {(() => {
+                  const runtimeKey = resolveEmailRuntimeProvider(selectorProviderKey);
+                  const hasDraftProvider = mailboxProviders.some(p => p.id === runtimeKey);
+                  const isConfigured = mailboxes.some(m => m.provider === runtimeKey);
+                  const catalogEntry = mailboxProviders.find(p => p.id === runtimeKey);
+
+                  if (hasDraftProvider && !isConfigured && catalogEntry && !showMailboxComposer && isHydrated) {
+                    return (
+                      <div className="rounded-xl border border-dashed border-[var(--node-input)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-lg">
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-input)]">
+                            {getBrandIcon(catalogEntry.id, 22)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{catalogEntry.label}</div>
+                              <span className="rounded-full border border-[var(--node-input)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-input)] bg-[var(--node-input)]/10 font-bold">
+                                Ghost Activation
+                              </span>
+                            </div>
+                            <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">Bridge this endpoint into the workspace to begin syncing message threads.</div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setMailboxDraft({ ...mailboxDraft, name: catalogEntry.label, provider: catalogEntry.id });
+                                  setShowMailboxComposer(true);
+                                }}
+                                className="rounded-lg bg-[var(--node-input)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-md shadow-sky-500/20"
+                              >
+                                OPEN COMPOSER
+                              </button>
+                              <span className="text-[10px] text-[var(--color-text-tertiary)] italic">Targeting {catalogEntry.id} mesh</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">Bridge this endpoint into the workspace to begin syncing message threads.</div>
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <button
-                            onClick={() => {
-                                setMailboxDraft({ ...mailboxDraft, name: catalogEntry.label, provider: catalogEntry.id });
-                                setShowMailboxComposer(true);
-                            }}
-                            className="rounded-lg bg-[var(--node-input)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-md shadow-sky-500/20"
-                          >
-                            OPEN COMPOSER
-                          </button>
-                          <span className="text-[10px] text-[var(--color-text-tertiary)] italic">Targeting {catalogEntry.id} mesh</span>
-                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-            }
-            return null;
-          })()}
+                    );
+                  }
+                  return null;
+                })()}
                 {mailboxes.map((mailbox) => {
                   const mailboxStateMeta = mailboxStateMetaById[mailbox.id] || getMailboxStateMeta(mailbox);
                   return (
@@ -2655,40 +2773,41 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           ) : null}
           <div className="space-y-3">
             {(() => {
-              const hasDraftProvider = scopedProviders.some(p => p.id === selectorProviderKey);
-              const isConfigured = scopedSources.some(s => s.provider === selectorProviderKey);
-              const catalogEntry = scopedProviders.find(p => p.id === selectorProviderKey);
-              
-              if (hasDraftProvider && !isConfigured && catalogEntry && !showCalendarComposer) {
-                  return (
-                     <div className="rounded-xl border border-dashed border-[var(--node-trigger)]/40 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-lg">
-                      <div className="flex items-start gap-2.5">
-                        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-trigger)]">
-                          {getBrandIcon(catalogEntry.id, 22)}
+              const runtimeKey = resolveCalendarRuntimeProvider(selectorProviderKey);
+              const hasDraftProvider = scopedProviders.some(p => p.id === runtimeKey);
+              const isConfigured = scopedSources.some(s => s.provider === runtimeKey);
+              const catalogEntry = scopedProviders.find(p => p.id === runtimeKey);
+
+              if (hasDraftProvider && !isConfigured && catalogEntry && !showCalendarComposer && isHydrated) {
+                return (
+                  <div className="rounded-xl border border-dashed border-[var(--node-trigger)]/40 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-lg">
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-trigger)]">
+                        {getBrandIcon(catalogEntry.id, 22)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{catalogEntry.label}</div>
+                          <span className="rounded-full border border-[var(--node-trigger)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-trigger)] bg-[var(--node-trigger)]/10 font-bold">
+                            Ghost Activation
+                          </span>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{catalogEntry.label}</div>
-                            <span className="rounded-full border border-[var(--node-trigger)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-trigger)] bg-[var(--node-trigger)]/10 font-bold">
-                              Ghost Activation
-                            </span>
-                          </div>
-                          <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">Synchronize availability and room routing from this endpoint.</div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <button
-                              onClick={() => {
-                                  setCalendarSourceDraft({ ...calendarSourceDraft, name: catalogEntry.label, provider: catalogEntry.id });
-                                  setShowCalendarComposer(true);
-                              }}
-                              className="rounded-lg bg-[var(--node-trigger)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-md shadow-emerald-500/20"
-                            >
-                              OPEN COMPOSER
-                            </button>
-                          </div>
+                        <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">Synchronize availability and room routing from this endpoint.</div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setCalendarSourceDraft({ ...calendarSourceDraft, name: catalogEntry.label, provider: catalogEntry.id });
+                              setShowCalendarComposer(true);
+                            }}
+                            className="rounded-lg bg-[var(--node-trigger)] px-3 py-1.5 text-xs font-bold text-white hover:brightness-110 active:scale-95 transition-all shadow-md shadow-emerald-500/20"
+                          >
+                            OPEN COMPOSER
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
+                  </div>
+                );
               }
               return null;
             })()}
@@ -2782,7 +2901,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-sm text-[var(--color-text-secondary)]">Keep one local runtime active for private AI work, and stage external providers here for overflow, experiments, or model-specific tasks.</div>
         </div>
         <div className="space-y-3">
-          {selectedAiProviderCatalog && !selectedAiProviderConfig ? (
+          {selectedAiProviderCatalog && !selectedAiProviderConfig && isHydrated ? (
             <div className="rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3">
               <div className="flex items-start gap-2.5">
                 <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
@@ -2979,7 +3098,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Sources</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Select a provider from the left rail, then activate it here to configure live row operations.</div>
         </div>
-        {selectedDataStoreProviderCatalog && !selectedDataStoreProviderConfig ? (
+        {selectedDataStoreProviderCatalog && !selectedDataStoreProviderConfig && isHydrated ? (
           <div className="rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3">
             <div className="flex items-start gap-2.5">
               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
@@ -3011,7 +3130,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           const catalogEntry = getProviderConfig(provider.providerKey);
           return (
             <ResourceCard
-              key={provider.providerKey}
+              key={provider.id || provider.providerKey}
               icon={ShieldCheck}
               logoId={provider.providerKey}
               title={catalogEntry?.name || provider.providerKey}
@@ -3147,7 +3266,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Media Providers</div>
             <div className="text-sm text-[var(--color-text-secondary)]">Activate providers for transcription, voice synthesis, and Charlie voice routing.</div>
           </div>
-          {selectedMediaProviderCatalog && !isSelectedConfigured ? (
+          {selectedMediaProviderCatalog && !isSelectedConfigured && isHydrated ? (
             <div className="rounded-xl border border-dashed border-[var(--color-primary)]/40 bg-[linear-gradient(180deg,rgba(14,165,233,0.08),rgba(10,14,24,0.28))] px-3 py-3">
               <div className="flex items-start gap-2.5">
                 <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-primary)]">
@@ -3462,7 +3581,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Payment Providers</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Collect payments via Stripe, PayPal, and other processors.</div>
         </div>
-        {selectedPaymentProviderCatalog && !selectedPaymentProviderConfig ? (
+        {selectedPaymentProviderCatalog && !selectedPaymentProviderConfig && isHydrated ? (
           <div className="rounded-xl border border-dashed border-[var(--node-socket)]/40 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
             <div className="flex items-start gap-2.5">
               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-socket)]">
@@ -3607,7 +3726,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Social Networks</div>
           <div className="text-sm text-[var(--color-text-secondary)]">Connect destinations for asset distribution and publishing.</div>
         </div>
-        {selectedSocialProviderCatalog && !selectedSocialProviderConfig ? (
+        {selectedSocialProviderCatalog && !selectedSocialProviderConfig && isHydrated ? (
           <div className="rounded-xl border border-dashed border-[var(--node-action)]/40 bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
             <div className="flex items-start gap-2.5">
               <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-action)]">
@@ -3744,6 +3863,172 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     </div>
   );
 
+  const renderCommsAdmin = () => (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,1.75fr)_minmax(420px,2.25fr)]">
+      <div className="space-y-2.5 overflow-auto">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Communications</div>
+          <div className="text-sm text-[var(--color-text-secondary)]">Connect SMS, Voice, and generalized communication integrations.</div>
+        </div>
+        {selectedCommsProviderCatalog && !selectedCommsProviderConfig && isHydrated ? (
+          <div className="rounded-xl border border-dashed border-[var(--node-webhook)]/40 bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(10,14,24,0.28))] px-3 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--node-webhook)]">
+                {getBrandIcon(selectedCommsProviderCatalog.id, 22)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="text-[13px] font-semibold leading-tight text-[var(--color-text-primary)]">{selectedCommsProviderCatalog.name}</div>
+                  <span className="rounded-full border border-[var(--node-webhook)]/25 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--node-webhook)] bg-[var(--node-webhook)]/10 font-bold">
+                    Provider Activation
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">{selectedCommsProviderCatalog.id}</div>
+                <div className="mt-2 text-[12px] leading-snug text-[var(--color-text-secondary)]">{selectedCommsProviderCatalog.description}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {!selectedCommsProviderCatalog.stub ? (
+                    <button
+                      onClick={handleSaveCommsProvider}
+                      className="rounded-lg bg-[var(--node-webhook)] px-3 py-1.5 text-xs font-bold text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-sky-500/20"
+                    >
+                      ADD ACTIVATION
+                    </button>
+                  ) : null}
+                  <span className="text-[10px] text-[var(--color-text-tertiary)] italic">
+                    {selectedCommsProviderCatalog.stub ? 'Coming soon to your workspace' : 'Ready for workspace activation'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {commsProviderConfigs.length > 0 && (
+          <div className="mt-4 border-t border-[var(--color-border)]/40 pt-3">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2 px-1">Connected Communications</div>
+            <div className="space-y-2">
+              {commsProviderConfigs.map((config) => {
+                const providerCatalog = getProviderConfig(config.providerKey) || { name: config.label, description: 'Communications Provider' };
+                return (
+                  <ResourceCard
+                    key={config.id}
+                    icon={MessageSquare}
+                    logoId={config.providerKey}
+                    title={config.label || providerCatalog.name}
+                    subtitle={config.providerKey}
+                    status={config.enabled ? 'connected' : 'disabled'}
+                    detail={providerCatalog.description}
+                    selected={selectedCommsProviderKey === config.providerKey}
+                    onClick={() => setSelectedCommsProviderKey(config.providerKey)}
+                    chips={[
+                      config.enabled ? 'enabled' : 'disabled',
+                    ]}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {commsProviderConfigs.length === 0 && !selectedCommsProviderCatalog && (
+          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-[var(--color-border)]/40 rounded-2xl text-[var(--color-text-secondary)]">
+            <MessageSquare size={44} className="mb-4 opacity-10" />
+            <p className="text-sm font-medium">No communications providers established</p>
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)] max-w-[200px] text-center">Select a provider from the left rail to configure SMS hooks.</p>
+          </div>
+        )}
+      </div>
+
+      <div className={compactPanelClass}>
+        {selectedCommsProviderCatalog ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">Communications Control Plane</div>
+                <h3 className="mt-1 text-xl font-semibold text-[var(--color-text-primary)]">{commsProviderForm.label || selectedCommsProviderCatalog.name}</h3>
+                <p className="mt-1.5 max-w-3xl text-sm text-[var(--color-text-secondary)]">{selectedCommsProviderCatalog.description}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {!selectedCommsProviderCatalog.stub ? (
+                  <>
+                    <button onClick={handleTestCommsProvider} disabled={busyAction === 'communications-test'} className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'communications-test')}>
+                      {busyAction === 'communications-test' ? 'Testing...' : savedAction === 'communications-test' ? 'Tested' : 'Test'}
+                    </button>
+                    <button onClick={handleSaveCommsProvider} className={saveButtonClassName("btn-toolbar-lead !px-3 !py-1.5 !text-xs", savedAction === 'communications-save')}>
+                      {savedAction === 'communications-save' ? 'Saved' : 'Save'}
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCommsProviderCatalog.stub ? 'Coming Soon' : selectedCommsProviderConfig ? 'Configured' : 'Standby'}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCommsProviderCatalog.name}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Distribution</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Comms Relay</div></div>
+            </div>
+
+            <div className="space-y-3">
+              {(selectedCommsProviderCatalog.fields || []).map((field) => (
+                <div key={field.name} className={selectedCommsProviderCatalog.stub ? "opacity-50 pointer-events-none" : ""}>
+                  <label className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">{field.label}</label>
+                  {field.type === 'textarea' ? (
+                    <textarea
+                      value={commsProviderForm[field.name] || ''}
+                      onChange={(e) => setCommsProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      rows={2}
+                      placeholder={field.placeholder}
+                      disabled={selectedCommsProviderCatalog.stub}
+                    />
+                  ) : field.type === 'select' ? (
+                    <select
+                      value={commsProviderForm[field.name] || field.default || ''}
+                      onChange={(e) => setCommsProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      disabled={selectedCommsProviderCatalog.stub}
+                    >
+                      {(field.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : field.type === 'password' ? (
+                    <input
+                      type="password"
+                      value={commsProviderForm[field.name] || ''}
+                      onChange={(e) => setCommsProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      placeholder={field.placeholder}
+                      disabled={selectedCommsProviderCatalog.stub}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={commsProviderForm[field.name] || ''}
+                      onChange={(e) => setCommsProviderForm((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      placeholder={field.placeholder}
+                      disabled={selectedCommsProviderCatalog.stub}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {selectedCommsProviderConfig && !selectedCommsProviderCatalog.stub ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 space-y-2 mt-4">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-red-400 font-semibold">Danger Zone</div>
+                <button onClick={handleDeleteCommsProvider} className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"><Trash2 size={14} />Remove Provider</button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-tertiary)]">
+            Select a provider to configure
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
       <ModuleHeader
@@ -3769,7 +4054,13 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       />
       <div className="mt-4 flex-1 min-h-0 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island p-2">
         <div className="h-full flex-1 overflow-y-auto p-4">
-          <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
+          {!isHydrated && loading ? (
+            <div className="flex h-full flex-col items-center justify-center gap-4">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)]" />
+              <div className="text-sm font-medium text-[var(--color-text-secondary)]">Hydrating workspace integrations...</div>
+            </div>
+          ) : (
+            <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
             <div className="min-h-0 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
               <div className="flex h-full min-h-0 flex-col">
                 <div className="border-b border-[var(--color-border)] px-3 py-3">
@@ -3808,7 +4099,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                                   ? renderPaymentsAdmin()
                                   : activeCategory === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS
                                     ? renderSocialNetworksAdmin()
-                                    : null}
+                                    : activeCategory === INTEGRATION_CATEGORIES.COMMUNICATIONS
+                                      ? renderCommsAdmin()
+                                      : null}
                 </>
               ) : null}
               {showSplash && (
@@ -3841,13 +4134,13 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                         else if (cat.id === INTEGRATION_CATEGORIES.DATA_STORES) { colorVar = 'var(--node-logic)'; IconComp = Database; }
                         else if (cat.id === INTEGRATION_CATEGORIES.PAYMENTS) { colorVar = 'var(--node-socket)'; IconComp = ShoppingCart; }
                         else if (cat.id === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) { colorVar = 'var(--node-action)'; IconComp = User; }
-                        else if (cat.id === INTEGRATION_CATEGORIES.SMS) { colorVar = 'var(--node-webhook)'; IconComp = MessageSquare; }
+                        else if (cat.id === INTEGRATION_CATEGORIES.COMMUNICATIONS) { colorVar = 'var(--node-webhook)'; IconComp = RadioTower; }
                         else if (cat.id === INTEGRATION_CATEGORIES.PROPOSALS) { colorVar = 'var(--node-socket)'; IconComp = DollarSign; }
                         else if (cat.id === INTEGRATION_CATEGORIES.TRACKING) { colorVar = 'var(--node-logic)'; IconComp = Footprints; }
                         else { IconComp = Bot; }
 
                         return (
-                          <button 
+                          <button
                             key={cat.id}
                             onClick={() => handleSelectorCategoryChange(cat.id)}
                             className="text-left w-full h-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-strong)] transition-all p-2.5 space-y-1.5 cursor-pointer shadow-sm shadow-black/5 group min-w-0 flex flex-col min-h-[90px]"
@@ -3858,8 +4151,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                             </div>
                             <p className="m-0 text-[10px] text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)] leading-[1.2] flex-1 overflow-hidden">{cat.description}</p>
                             <div className="flex items-center justify-between pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="text-[8px] uppercase tracking-wider font-bold text-[var(--color-text-tertiary)]">Configure </span>
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="text-[var(--color-text-tertiary)]"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                              <span className="text-[8px] uppercase tracking-wider font-bold text-[var(--color-text-tertiary)]">Configure </span>
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="text-[var(--color-text-tertiary)]"><polyline points="9 18 15 12 9 6"></polyline></svg>
                             </div>
                           </button>
                         );
@@ -3874,7 +4167,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

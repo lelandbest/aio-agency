@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Flow Builder
  * Main orchestrator for the Flow Builder module
  * Manages canvas, nodes, edges, config, persistence

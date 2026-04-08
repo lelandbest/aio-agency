@@ -12,6 +12,7 @@ import {
   Building2
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
+import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
@@ -201,7 +202,7 @@ const PipelineModule = () => {
     window.dispatchEvent(
       new CustomEvent('aio:navigate', {
         detail: {
-          module: channelType === 'sms' ? 'sms-voip' : 'chat',
+          module: channelType === 'sms' ? 'sms_voip' : 'chat',
           threadId: thread.id
         }
       })
@@ -322,25 +323,24 @@ const PipelineModule = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <ModuleHeader
-        title="Pipelines"
-        showTitle={false}
-        leftActions={[
-          {
-            label: 'Add Stage',
-            icon: Plus,
-            onClick: () => {
+    <div className="flex h-full min-h-0 flex-col gap-1.5">
+      {/* Toolbar */}
+      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <button
+            onClick={() => {
               setShowCreateStage(true);
               setEditingColumnId(null);
               setNewColumnName('');
-            },
-            variant: 'secondary',
-          },
-        ]}
-        onModuleAi={runPipelineAssist}
-        hasSelection={!!selectedCard}
-        toolbarRightSlot={(
+            }}
+            className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+          >
+            <Plus size={12} />
+            <span className="font-bold uppercase tracking-[0.14em]">Add Stage</span>
+          </button>
+        </div>
+
+        <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
           <div className="flex items-center gap-2">
             {toolbarStats.map((stat) => (
               <div
@@ -353,8 +353,25 @@ const PipelineModule = () => {
               </div>
             ))}
           </div>
-        )}
-      />
+
+          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+            <button
+              onClick={() => openAIAssist()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Brain (Global KB)"
+            >
+              <BrainIcon size={14} />
+            </button>
+            <button
+              onClick={() => runPipelineAssist()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Crosshair (Module AI)"
+            >
+              <Crosshair size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island p-2">
         <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">

@@ -1351,36 +1351,36 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
           <div className="text-xs text-[var(--color-text-secondary)]">Tenant-scoped system notices and workflow emails.</div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[980px] text-sm" style={{ tableLayout: 'fixed' }}>
             <thead className="bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] uppercase text-xs tracking-wide">
               <tr>
-                <th className="text-left px-5 py-4">Email Type</th>
-                <th className="text-left px-5 py-4">Subject</th>
-                <th className="text-left px-5 py-4">Send To</th>
-                <th className="text-left px-5 py-4">Enabled</th>
-                <th className="text-left px-5 py-4">Edited By</th>
-                <th className="text-left px-5 py-4">Edited At</th>
-                <th className="text-left px-5 py-4">Action</th>
+                <th className="text-left px-5 py-4 w-[180px]">Email Type</th>
+                <th className="text-left px-5 py-4 w-[240px]">Subject</th>
+                <th className="text-left px-5 py-4 w-[140px]">Send To</th>
+                <th className="text-left px-5 py-4 w-[100px]">Enabled</th>
+                <th className="text-left px-5 py-4 w-[120px]">Edited By</th>
+                <th className="text-left px-5 py-4 w-[120px]">Edited At</th>
+                <th className="text-left px-5 py-4 w-[80px]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {loading && (
+              {loading && templates.length === 0 && (
                 <tr>
                   <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">Loading templates...</td>
                 </tr>
               )}
-              {!loading && templates.map(template => (
+              {templates.map(template => (
                 <tr key={template.id} className="bg-[var(--color-bg-secondary)]">
-                  <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium">{template.emailType}</td>
-                  <td className="px-5 py-4 text-[var(--color-text-primary)] max-w-[260px] truncate">{template.subject}</td>
-                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.sendTo}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium truncate">{template.emailType}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.subject}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.sendTo}</td>
                   <td className="px-5 py-4">
                     <button onClick={() => handleToggle(template)} className={`w-12 h-6 rounded-full border transition relative ${template.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
                       <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${template.enabled ? 'left-6' : 'left-0.5'}`} />
                     </button>
                   </td>
-                  <td className="px-5 py-4 text-[var(--color-text-primary)]">{template.editedByName || 'AIO Flow\u2122'}</td>
-                  <td className="px-5 py-4 text-[var(--color-text-secondary)]">{template.editedAt || template.updatedAt}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.editedByName || 'AIO Flow\u2122'}</td>
+                  <td className="px-5 py-4 text-[var(--color-text-secondary)] truncate">{template.editedAt || template.updatedAt}</td>
                   <td className="px-5 py-4">
                     <button onClick={() => openEditor(template)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)] text-[var(--color-text-primary)]">
                       <Edit2 size={14} /> Edit

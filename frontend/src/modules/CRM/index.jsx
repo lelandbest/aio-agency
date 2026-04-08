@@ -29,6 +29,7 @@ import {
   verifyEmailApi
 } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
+import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -759,7 +760,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
     if (!thread) return;
     window.dispatchEvent(new CustomEvent('aio:navigate', {
       detail: {
-        module: channelType === 'sms' ? 'sms-voip' : 'chat',
+        module: channelType === 'sms' ? 'sms_voip' : 'chat',
         threadId: thread.id
       }
     }));
@@ -788,7 +789,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       }));
     }
     navigateToCommsThread(threads[0], channelType);
-    showNotice({ type: 'success', message: `Opened ${threads.length} ${channelType.toUpperCase()} thread(s) in Comms` });
+    showNotice({ type: 'success', message: `Opened ${threads.length} ${channelType.toUpperCase()} thread(s) in Dispatch` });
   };
 
   // Bulk actions
@@ -3101,7 +3102,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
 
   // MAIN RENDER
   return (
-    <div className="h-full flex flex-col gap-4 overflow-hidden relative">
+    <div className="h-full flex flex-col gap-1.5 overflow-hidden relative">
       <input
         ref={importInputRef}
         type="file"
@@ -3110,37 +3111,62 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
         className="hidden"
       />
       {/* Header with Actions - 48px Island Toolbar */}
-      <ModuleHeader
-        showTitle={false}
-        leftActions={selectedContact ? [
-          { label: 'BACK TO LIST', icon: ArrowLeft, onClick: () => selectContact(null), variant: 'secondary' },
-        ] : [
-          { label: '+ ADD CONTACT', onClick: () => setShowCreateModal(true), variant: 'primary' },
-          { label: 'IMPORT', icon: FileInput, onClick: () => importInputRef.current?.click(), variant: 'secondary', groupStart: true },
-          { label: 'EXPORT', icon: Download, onClick: () => handleBulkAction('export'), variant: 'secondary' },
-        ]}
-        toolbarLeftSlot={null}
-        actions={[
-          { label: 'JSON', icon: Zap, onClick: () => handleBulkAction('sendApi'), variant: 'secondary', color: 'slate' },
-          { label: 'SEND EMAIL', icon: Mail, onClick: () => handleBulkAction('sendEmail'), variant: 'secondary', color: 'sky' },
-        ]}
-        toolbarRightSlot={
+      {/* Toolbar */}
+      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {selectedContact ? (
+            <button
+              onClick={() => setSelectedContact(null)}
+              className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft size={12} />
+              <span className="font-bold uppercase tracking-[0.14em]">Back to List</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+              >
+                <Plus size={12} />
+                <span className="font-bold uppercase tracking-[0.14em]">Add Contact</span>
+              </button>
+              <div className="mx-1 hidden h-6 w-px bg-[var(--color-border)] opacity-30 xl:block" />
+              <button
+                onClick={() => importInputRef.current?.click()}
+                className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+              >
+                <FileInput size={12} />
+                <span className="font-bold uppercase tracking-[0.14em]">Import</span>
+              </button>
+              <button
+                onClick={() => handleBulkAction('export')}
+                className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+              >
+                <Download size={12} />
+                <span className="font-bold uppercase tracking-[0.14em]">Export</span>
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
           <div className="flex items-center gap-2">
             {selectedContacts.size > 0 && (
-              <button 
-                onClick={() => handleBulkAction('delete')} 
+              <button
+                onClick={() => handleBulkAction('delete')}
                 className="flex items-center gap-2 px-3 h-8 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-bold rounded border border-red-500/30 transition shadow-sm mr-2"
               >
                 <Trash2 size={12} />
                 <span>DELETE ({selectedContacts.size})</span>
               </button>
             )}
-            {/* Verify Dropdown - Left side */}
+            {/* Verify Dropdown */}
             <div className="relative group">
               <button className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
                 <Shield size={12} /> Verify
               </button>
-              <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50">
+              <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-50">
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-xl p-1 min-w-[140px]">
                   <button onClick={() => startBulkEmailVerification('selected')} disabled={!canUseEmailVerification || bulkVerificationSubmitting} className="w-full text-left px-3 py-2 text-xs text-sky-300 hover:bg-sky-500/20 rounded disabled:opacity-40">Verify Selected ({selectedContacts.size})</button>
                   <button onClick={() => startBulkEmailVerification('filtered')} disabled={!canUseEmailVerification || bulkVerificationSubmitting} className="w-full text-left px-3 py-2 text-xs text-sky-300 hover:bg-sky-500/20 rounded disabled:opacity-40">Verify All Filtered</button>
@@ -3183,12 +3209,41 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
                 </div>
               </div>
             </div>
+            {/* Actions Mapping */}
+            <button
+              onClick={() => handleBulkAction('sendApi')}
+              className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+            >
+              <Zap size={12} />
+              <span className="font-bold uppercase tracking-[0.14em]">JSON</span>
+            </button>
+            <button
+              onClick={() => handleBulkAction('sendEmail')}
+              className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+            >
+              <Mail size={12} />
+              <span className="font-bold uppercase tracking-[0.14em]">Send Email</span>
+            </button>
           </div>
-        }
-        showActions={true}
-        onModuleAi={() => openAIAssist({ context: { module: 'crm', selectedCount: selectedContacts.size, selectedContactId: selectedContact?.id } })}
-        hasSelection={selectedContacts.size > 0}
-      />
+
+          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+            <button
+              onClick={() => openAIAssist()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Brain (Global KB)"
+            >
+              <BrainIcon size={14} />
+            </button>
+            <button
+              onClick={() => openAIAssist({ context: { module: 'crm', selectedCount: selectedContacts.size, selectedContactId: selectedContact?.id } })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Crosshair (Module AI)"
+            >
+              <Crosshair size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Content Island */}
       <div className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden">

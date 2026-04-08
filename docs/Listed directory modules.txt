@@ -1,0 +1,90 @@
+Listed directory modules
+Viewed App.jsx:1-800
+Viewed App.jsx:801-868
+Viewed index.jsx:1-800
+Viewed index.jsx:1-149
+Viewed ModuleHeader.jsx:1-188
+Viewed index.jsx:1-800
+Listed directory ui
+Viewed icons.jsx:1-7
+Viewed index.jsx:1-800
+Viewed index.css:1-507
+Viewed index.jsx:1-800
+Viewed index.jsx:1-800
+Searched for "BullseyeIcon"
+Ran command: `grep -n "BullseyeIcon" d:\AIOCRM\frontend\src\modules\Media\index.jsx`
+Searched for "BullseyeIcon"
+Viewed index.jsx:30-100
+Searched for "BullseyeIcon"
+Viewed VaultPage.jsx:1-224
+Searched for "Bullseye"
+Viewed index.jsx:2010-2040
+Viewed App.jsx:800-850
+Viewed index.jsx:1-800
+Viewed index.jsx:1-585
+
+# AIO CRM Structural Audit: "Contract of Truth" Extract
+
+This audit established the dominant structural and data patterns currently existing across the AIO CRM application. The following findings define the "real contract" of the system as it stands, distinguishing between validated standards and persistent outliers.
+
+## 1. App Page Structural Pattern: "The Shell & Island"
+The application has converged on a **Shell + Module Island** architecture. 
+
+| Layer | Standard Pattern | Implementation Detail |
+| :--- | :--- | :--- |
+| **Global Shell** | `App.jsx` Chassis | Handles `Sidebar` (Global Navigation) and `TopBar` (Global Identity/Search). |
+| **Module Header** | `ModuleHeader` | Standardized 48px (`h-12`) toolbar for all internal module actions. |
+| **Module Body** | Production Islands | Content is wrapped in `rounded-xl` containers with subtle borders. |
+| **Visual Rhythm** | The 6px Gap | Modules are trending toward a 6px (`gap-1.5`) vertical separation between the `ModuleHeader` and the body. |
+
+> [!IMPORTANT]
+> **Contract Truth:** All new modules MUST use the `ModuleHeader` component. The 48px toolbar height is the non-negotiable anchor for the Industrial UI.
+
+## 2. Data Surface & Module Content: "The Industrial Appliance"
+The app uses a high-density, "Appliance" aesthetic derived from the **Forge** and **Media** modules.
+
+### Component Surface Grammar
+*   **Containers:** `bg-[#070708]` (Dead Black) with `border-[#1E2024]` (Machined Gray).
+*   **Corners:** Outer islands use `rounded-xl` (12px). Inner controls use `rounded-[var(--radius-panel)]` (8px).
+*   **Layout Rails:** Complex modules use a 3-column "Rail" system (Left Detail, Center Workstation, Right Metadata/Inspector).
+*   **Density:** High-density telemetry. Font sizes often drop to `text-[10px]` or `text-[7px]` for metadata labels.
+
+## 3. Structured Content Formatting: "Label: Value Grammar"
+Content is surfaced using a rigid, industrial hierarchy.
+
+### The Metadata Contract
+*   **Labels:** `text-[9px] font-black uppercase tracking-[0.2em] text-slate-500`.
+*   **Values:** Sans-serif for human text; Monospaced (`font-mono`) for technical identifiers (IDs, timestamps, file sizes).
+*   **Cleanup:** `normalizeAiText` is the dominant utility for stripping email headers and HTML noise from AI-generated or ingested content.
+
+## 4. Icon & Action Protocol
+The audit reveals a clear—though occasionally aliased—hierarchy for AI and utility icons.
+
+| Icon | Intent | Usage Pattern |
+| :--- | :--- | :--- |
+| **BrainIcon** (`Brain`) | Global Intelligence | Portals to the Cortex / Global Knowledge base in the TopBar. |
+| **Crosshair** (`Crosshair`) | Specialist Focus | Module-specific AI assistance and Agent specialist portals. |
+| **BullseyeIcon** (`Target`) | Execution / Launch | The primary action icon for "Launch", "Execute", or "Start Job". |
+| **Lucide Icons** | Utilities | Standard Lucide set (Trash, Plus, Search) for general CRUD actions. |
+
+> [!WARNING]
+> **Alias Confusion:** `BullseyeIcon` and `TargetIcon` both point to the Lucide `Target` icon. In legacy code, they are used interchangeably, creating semantic drift. 
+
+## 5. Major Outliers & Violations
+Identified inconsistencies currently drifting from the "Industrial Appliance" goal:
+
+1.  **Padding Drift:** `App.jsx` enforces `p-6` (24px) for most modules, but newer "Appliance" modules require `p-0` or `p-1.5` (6px) to maintain the island integrity.
+2.  **Border Palette Hex Drift:** Multiple modules use slightly different "dark gray" borders (`#1E2024`, `#22252A`, `white/8`).
+3.  **Redundant Top-Level Headers:** Legacy modules sometimes include an internal `<h1>` that competes visually with the `ModuleHeader` title.
+
+## Roadmap for Alignment (Priority Order)
+
+1.  **Unify App Padding:** Migrate `App.jsx` module mount point to a unified spacing strategy that favors the 6px gap.
+2.  **Standardize "Machined Gray":** Centralize on `--color-border: #1E2024` to eliminate sub-hex drift across islands.
+3.  **Deprecate `TargetIcon` Alias:** Remove `TargetIcon` and enforce `BullseyeIcon` for Execution and `Crosshair` for Specialist Focus.
+4.  **Metadata Block Normalization:** Refactor CRM and Calendar detail panels to use the small-caps uppercase label pattern found in Forge.
+
+---
+**Audit Status:** COMPLETE  
+**Primary Pattern:** Industrial Appliance / Islands  
+**Verified Source Truth:** `Forge/index.jsx`, `Media/index.jsx`, `ModuleHeader.jsx`

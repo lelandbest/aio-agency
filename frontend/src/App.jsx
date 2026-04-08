@@ -48,7 +48,6 @@ const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
 const CommsModule = lazy(() => import('./modules/Comms'));
 const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
-const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
 const CommsSmsModule = lazy(() => import('./modules/CommsSms'));
 const DialerPage = lazy(() => import('./modules/CommsSms'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
@@ -284,7 +283,7 @@ const App = () => {
     'orders': 'Orders',
     'media': 'Studio',
     'studio': 'Studio',
-    'comms': 'Communications',
+    'comms': 'Dispatch',
     'calendar': 'Calendar',
     'forms': 'Forms',
     'flows': 'Flows',
@@ -747,9 +746,7 @@ const App = () => {
         return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} clientMode={clientMode} />;
       case 'marketplace':
         return <PlaceholderModule name="Marketplace" />;
-      case 'sms-voip':
-        return <SmsVoipModule />;
-      case 'comms-sms':
+      case 'sms_voip':
         return <CommsSmsModule />;
       case 'canned-responses':
         return <CannedResponsesModule onNavigate={setActiveModule} />;
@@ -814,9 +811,7 @@ const App = () => {
                     className={`flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] ${
                       ['media', 'studio'].includes(effectiveActiveModule)
                         ? 'p-0'
-                        : effectiveActiveModule === 'aio-agents'
-                          ? 'p-4'
-                          : 'p-6'
+                        : 'p-1.5'
                     }`}
                   >
                     <Suspense key={effectiveActiveModule} fallback={

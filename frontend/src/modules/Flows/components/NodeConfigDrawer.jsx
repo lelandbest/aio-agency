@@ -594,7 +594,7 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
                       <option value="">Select module...</option>
                       <option value="crm">CRM (Create Contact)</option>
                       <option value="pipeline">Pipeline (Create Deal)</option>
-                      <option value="comms">Comms (Send Message)</option>
+                      <option value="comms">Dispatch (Send Message)</option>
                       <option value="brain">Brain (Save to Memory)</option>
                     </select>
                   </div>

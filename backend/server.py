@@ -6791,17 +6791,22 @@ async def send_thread_message(thread_id: str, request: Request, payload: ThreadM
 @app.post("/api/comms/threads/{thread_id}/send-email")
 async def send_thread_email(thread_id: str, request: Request, payload: MailSendRequest):
     require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
-    try:
-        return provider.send_thread_via_mailbox(
-            thread_id=thread_id,
-            body=payload.body,
-            mailbox_id=payload.mailbox_id,
-            sender_name=payload.sender_name,
-            sender_email=payload.sender_email,
-            recipients=payload.recipients,
-        )
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+    from backend.comms_service import send_email_message
+    
+    result = send_email_message(
+        thread_id=thread_id,
+        recipients=payload.recipients,
+        subject="Email from Dispatch", # Fallback subject
+        body=payload.body,
+        mailbox_id=payload.mailbox_id,
+        sender_name=payload.sender_name,
+        sender_email=payload.sender_email
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Email delivery failed"))
+        
+    return result
 
 
 @app.patch("/api/comms/threads/{thread_id}/status")

@@ -3,6 +3,7 @@ import { ArrowRight, FolderOpen, Layers, Plus, Search, Tag, Workflow, Trash2, Fo
 import FolderTable from '../../components/FolderTable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
+import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import AIAssistButton from '../../components/AIAssistButton';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
@@ -420,26 +421,28 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <ModuleHeader
-        title="Flows"
-        showTitle={false}
-        leftActions={[
-          {
-            label: 'Create Flow',
-            icon: Plus,
-            onClick: handleCreateBlank,
-            variant: 'secondary',
-            disabled: Boolean(busyAction)
-          },
-          {
-            label: 'New Folder',
-            icon: FolderPlus,
-            onClick: handleCreateFolder,
-            variant: 'secondary'
-          }
-        ]}
-        toolbarCenterSlot={(
+    <div className="flex h-full min-h-0 flex-col gap-1.5">
+      {/* Toolbar */}
+      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <button
+            onClick={handleCreateBlank}
+            disabled={Boolean(busyAction)}
+            className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            <Plus size={12} />
+            <span className="font-bold uppercase tracking-[0.14em]">Create Flow</span>
+          </button>
+          <button
+            onClick={handleCreateFolder}
+            className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+          >
+            <FolderPlus size={12} />
+            <span className="font-bold uppercase tracking-[0.14em]">New Folder</span>
+          </button>
+        </div>
+
+        <div className="flex flex-1 justify-center items-center h-full min-w-0">
           <div className="relative w-full max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
             <input
@@ -447,11 +450,12 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               value={tableSearch}
               onChange={(event) => setTableSearch(event.target.value)}
               placeholder="Search flows"
-              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full h-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-[11px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
             />
           </div>
-        )}
-        toolbarRightSlot={(
+        </div>
+
+        <div className="flex min-w-0 items-center gap-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-8">
               <FolderOpen size={14} className="text-[var(--color-text-tertiary)]" />
@@ -466,15 +470,31 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             <button
               type="button"
               onClick={() => setShowTemplateGallery(true)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8 font-bold"
             >
               <Layers size={14} />
-              <span className="uppercase text-[10px] font-bold tracking-widest">Browse Templates</span>
+              <span className="uppercase text-[10px] font-bold tracking-widest">Browse</span>
             </button>
           </div>
-        )}
-        onModuleAi={() => openAIAssist({ context: { module: 'flows' } })}
-      />
+
+          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+            <button
+              onClick={() => openAIAssist()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Brain (Global KB)"
+            >
+              <BrainIcon size={14} />
+            </button>
+            <button
+              onClick={() => openAIAssist({ context: { module: 'flows' } })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Crosshair (Module AI)"
+            >
+              <Crosshair size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">

@@ -1711,61 +1711,48 @@ class StepExecutor:
                     "recipients": recipients,
                 },
             )
-        mailbox_id = None
-        try:
-            mailbox = self._select_mailbox(clean_text(resolved.get("mailboxId")) or None)
-            mailbox_id = mailbox.get("id")
-            thread_id = clean_text(resolved.get("threadId")) or None
-            if not thread_id:
-                created_thread = self.provider.create_thread(
-                    subject=clean_text(subject) or "Flow Email",
-                    channel_type="email",
-                    contact_id=clean_text(resolved.get("contactId")) or None,
-                    company_id=clean_text(resolved.get("companyId")) or None,
-                    body="",
-                    mailbox_id=mailbox.get("id"),
-                )
-                thread_id = created_thread.get("id")
-            sent = self.provider.send_thread_via_mailbox(
-                thread_id=thread_id,
-                body=clean_text(body),
-                mailbox_id=mailbox.get("id"),
-                sender_name=clean_text(resolved.get("senderName")) or "AIO Flow",
-                sender_email=clean_text(resolved.get("senderEmail")) or mailbox.get("address") or "mission@aiocrm.local",
-                recipients=recipients,
-            )
-        except Exception as exc:
-            delivery_mode = "provider_error"
-            if isinstance(mailbox_id, str):
-                selected_mailboxes = self.provider.list_mailboxes() if getattr(self.provider, "list_mailboxes", None) else []
-                selected_mailbox = next((item for item in selected_mailboxes if item.get("id") == mailbox_id), None)
-                if selected_mailbox and selected_mailbox.get("provider") == "local-stub":
-                    delivery_mode = "local_stub_error"
+        # 3. MAILBOX RESOLUTION & EXECUTION
+        from comms_service import send_email_message
+        
+        mailbox = self._select_mailbox(clean_text(resolved.get("mailboxId")) or None)
+        mailbox_id = mailbox.get("id")
+        
+        result = send_email_message(
+            thread_id=clean_text(resolved.get("threadId")) or None,
+            recipients=recipients,
+            subject=clean_text(subject) or "Flow Email",
+            body=clean_text(body),
+            mailbox_id=mailbox_id,
+            sender_name=clean_text(resolved.get("senderName")) or "AIO Flow",
+            sender_email=clean_text(resolved.get("senderEmail")) or mailbox.get("address"),
+            contact_id=clean_text(resolved.get("contactId")) or None,
+            company_id=clean_text(resolved.get("companyId")) or None,
+            execution_context=True
+        )
+        
+        if not result.get("success"):
             return self._service_error(
                 step,
-                str(exc),
+                result.get("error", "Email send failed"),
                 data={
                     "deliveryStatus": "error",
-                    "deliveryMode": delivery_mode,
-                    "providerMessageId": None,
-                    "internalMessageId": None,
+                    "deliveryMode": "provider_error",
                     "mailboxId": mailbox_id,
                     "recipients": recipients,
                 },
             )
-        latest_message = sent.get("latestMessage") if isinstance(sent.get("latestMessage"), dict) else {}
+
         return {
             "stepId": step.get("id"),
             "intent": step.get("intent"),
             "status": "success",
             "data": {
-                "deliveryStatus": sent.get("deliveryStatus") or latest_message.get("deliveryStatus") or "sent",
-                "deliveryMode": sent.get("deliveryMode") or ("local_stub" if mailbox.get("provider") == "local-stub" else "provider"),
-                "providerMessageId": sent.get("providerMessageId"),
-                "internalMessageId": sent.get("internalMessageId") or latest_message.get("id"),
-                "simulatedMessageId": sent.get("simulatedMessageId"),
-                "threadId": sent.get("id") or thread_id,
-                "mailboxId": mailbox.get("id"),
+                "deliveryStatus": "sent",
+                "deliveryMode": "provider",
+                "providerMessageId": result.get("providerMessageId"),
+                "internalMessageId": result.get("message_id"),
+                "threadId": result.get("thread_id"),
+                "mailboxId": result.get("mailbox_id"),
                 "recipients": recipients,
             },
             "metadata": {"service": "messagingService", "executionType": "deterministic"},
