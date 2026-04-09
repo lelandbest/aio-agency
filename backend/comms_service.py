@@ -2,7 +2,7 @@ from typing import Any
 from datetime import datetime, timezone
 
 from backend.data_provider import create_provider, unique_suffix, parse_string_list
-from comms_providers import (
+from backend.comms_providers import (
     create_provider_adapter,
     ProviderConfig,
     StubProviderAdapter,
@@ -193,7 +193,7 @@ def create_sms_thread(contact_id: str | None = None, phone_number_id: str | None
 def _dispatch_signal_event(event: Any) -> None:
     """Route comms event into existing signal → ExecutionEngine pathway."""
     try:
-        from orchestration import emit_system_event
+        from backend.orchestration import emit_system_event
         signal_event = {
             "type": event.event_type,
             "payload": event.to_dict(),
@@ -206,7 +206,7 @@ def _dispatch_signal_event(event: Any) -> None:
 
 
 def add_sms_message(thread_id: str, body: str, direction: str, sender_number: str | None = None, recipient_number: str | None = None) -> dict[str, Any]:
-    from comms_integration import emit_sms_message_sent, emit_sms_message_failed, emit_sms_received
+    from backend.comms_integration import emit_sms_message_sent, emit_sms_message_failed, emit_sms_received
     provider = create_provider()
     result = provider.add_sms_message(thread_id, body, direction, sender_number, recipient_number)
     
@@ -289,7 +289,7 @@ def update_call_session(id: str, **kwargs) -> dict[str, Any]:
 
 
 def start_outbound_call(phone_number: str, from_number: str | None = None, contact_id: str | None = None, extension_id: str | None = None) -> dict[str, Any]:
-    from comms_providers import CallStartRequest
+    from backend.comms_providers import CallStartRequest
     
     provider = create_provider()
     adapter = _get_active_adapter()
@@ -323,7 +323,7 @@ def start_outbound_call(phone_number: str, from_number: str | None = None, conta
 
 
 def end_call_session(call_id: str, disposition: str | None = None, duration_seconds: int | None = None) -> dict[str, Any]:
-    from comms_providers import CallEndResult
+    from backend.comms_providers import CallEndResult
     
     provider = create_provider()
     adapter = _get_active_adapter()
@@ -528,8 +528,8 @@ def send_sms_message(thread_id: str | None, phone_number: str, body: str, from_n
         thread_id = thread["id"]
 
     # 6. EXECUTION
-    from comms_providers import SmsSendRequest
-    from comms_integration import emit_sms_message_sent, emit_sms_message_failed
+    from backend.comms_providers import SmsSendRequest
+    from backend.comms_integration import emit_sms_message_sent, emit_sms_message_failed
     
     sms_request = SmsSendRequest(
         to_number=recipient,

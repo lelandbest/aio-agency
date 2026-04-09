@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from calendar_adapters import get_calendar_adapter, get_calendar_provider_catalog
-from mail_adapters import get_mail_adapter, get_provider_catalog
+from backend.calendar_adapters import get_calendar_adapter, get_calendar_provider_catalog
+from backend.mail_adapters import get_mail_adapter, get_provider_catalog
 try:
     from backend.agent_definitions import AGENT_DEFINITIONS
 except ModuleNotFoundError:

@@ -3,8 +3,7 @@
  * Handles form submissions, contact creation/updates, CMS storage, activity tracking, and Comms threads
  */
 
-import { getCmsTableDataApi, submitFormApi } from './backendApi';
-import { listTableRecords } from './commsService';
+import { getCmsTableDataApi, getFormByIdApi, submitFormApi } from './backendApi';
 
 export const processFormSubmission = async (formId, formData) => {
   try {
@@ -15,9 +14,14 @@ export const processFormSubmission = async (formId, formData) => {
   }
 };
 
-export const getFormSubmissions = async (formId) => listTableRecords('form_submissions')
-  .filter((submission) => submission.form_id === formId)
-  .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+export const getFormSubmissions = async (formId) => {
+  const form = await getFormByIdApi(formId);
+  if (!form?.slug) {
+    return [];
+  }
+  const submissions = await getCmsTableDataApi(form.slug);
+  return (submissions || []).sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+};
 
 export const getCMSTableData = async (formSlug) => {
   const data = await getCmsTableDataApi(formSlug);
