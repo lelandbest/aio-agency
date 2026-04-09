@@ -97,6 +97,25 @@ def _camelcase_metadata(metadata: Any) -> dict[str, Any]:
     return convert_to_camelcase(metadata)
 
 
+def _camelcase_ingest_meta(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {
+            "source": "system",
+            "stage": "raw",
+            "original": True,
+            "convertedFrom": None,
+            "conversionType": None,
+        }
+    normalized = convert_to_camelcase(value)
+    return {
+        "source": _clean_text(normalized.get("source")).lower() or "system",
+        "stage": _clean_text(normalized.get("stage")).lower() or "raw",
+        "original": bool(normalized.get("original")),
+        "convertedFrom": _clean_text(normalized.get("convertedFrom")) or None,
+        "conversionType": _clean_text(normalized.get("conversionType")) or None,
+    }
+
+
 def _resolve_source_url(record: dict[str, Any], asset_lookup: dict[str, dict[str, Any]]) -> str | None:
     source_url = _clean_text(record.get("source_url"))
     if source_url:
@@ -119,24 +138,6 @@ def _resolve_primary_source_asset(record: dict[str, Any], asset_lookup: dict[str
         if source_asset:
             return source_asset
     return None
-
-
-def _normalize_asset_source(record: dict[str, Any], source_url: str | None) -> str:
-    raw_source = _clean_text(record.get("source")).lower()
-    attachments = record.get("attachments") if isinstance(record.get("attachments"), list) else []
-    normalized_url = _clean_text(source_url)
-
-    if normalized_url.startswith("http://") or normalized_url.startswith("https://"):
-        return "url"
-    if raw_source in {"upload", "uploaded", "file_upload", "file", "manual", "import"}:
-        return "upload"
-    if raw_source in {"audio_render", "render", "generated", "transcription", "meeting_ingest"}:
-        return "generated"
-    if normalized_url.startswith("/api/media/"):
-        return "generated"
-    if any(_clean_text(item.get("type") or item.get("kind")).lower() in {"upload", "file"} for item in attachments if isinstance(item, dict)):
-        return "upload"
-    return "generated"
 
 
 def _build_artifact_metadata(record: dict[str, Any], *, artifact_type: str) -> dict[str, Any]:
@@ -181,7 +182,6 @@ def translate_asset_record(record: dict[str, Any], *, asset_lookup: dict[str, di
 
     return MediaLibraryItem(
         assetId=asset_id,
-        source=_normalize_asset_source(record, source_url),
         type="audio" if media_type == "audio" else "image" if media_type == "image" else "render",
         status=_clean_text(record.get("status")).lower() or "complete",
         sourceUrl=source_url,
@@ -191,6 +191,8 @@ def translate_asset_record(record: dict[str, Any], *, asset_lookup: dict[str, di
         createdAt=record.get("created_at"),
         deleteType="asset",
         mediaType=media_type,
+        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_camelcase_metadata(record.get("metadata")),
     )
 
@@ -203,7 +205,6 @@ def translate_transcript_artifact_record(record: dict[str, Any], *, asset_lookup
     source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
-        source="generated",
         type="transcript",
         status="complete",
         sourceUrl=source_url,
@@ -213,6 +214,8 @@ def translate_transcript_artifact_record(record: dict[str, Any], *, asset_lookup
         createdAt=record.get("created_at"),
         deleteType="transcript",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
+        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="transcript"),
     )
 
@@ -225,7 +228,6 @@ def translate_script_artifact_record(record: dict[str, Any], *, asset_lookup: di
     source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
-        source="generated",
         type="script",
         status="complete",
         sourceUrl=source_url,
@@ -235,6 +237,8 @@ def translate_script_artifact_record(record: dict[str, Any], *, asset_lookup: di
         createdAt=record.get("created_at"),
         deleteType="script",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
+        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="script"),
     )
 
@@ -247,7 +251,6 @@ def translate_run_of_show_artifact_record(record: dict[str, Any], *, asset_looku
     source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
-        source="generated",
         type="runOfShow",
         status="complete",
         sourceUrl=source_url,
@@ -257,6 +260,8 @@ def translate_run_of_show_artifact_record(record: dict[str, Any], *, asset_looku
         createdAt=record.get("created_at"),
         deleteType="run_of_show",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
+        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="run_of_show"),
     )
 
@@ -269,7 +274,6 @@ def translate_publish_artifact_record(record: dict[str, Any], *, asset_lookup: d
     source_url = _resolve_source_url(record, asset_lookup)
     return MediaLibraryItem(
         assetId=artifact_id,
-        source="generated",
         type="publish",
         status=_clean_text(record.get("publication_status")).lower() or "published",
         sourceUrl=source_url,
@@ -279,5 +283,7 @@ def translate_publish_artifact_record(record: dict[str, Any], *, asset_lookup: d
         createdAt=record.get("created_at"),
         deleteType="publish",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
+        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="publish"),
     )

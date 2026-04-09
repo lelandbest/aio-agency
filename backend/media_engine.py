@@ -630,9 +630,158 @@ finally {
 
 
 MEDIA_STAGES = ("temporary", "intermediate", "generated", "processing", "final")
-MEDIA_SOURCES = ("transcription", "render", "script", "audio_render", "publish", "meeting_ingest", "manual", "import")
+MEDIA_TAG_VALUES = {
+    "vault",
+    "cortex",
+    "raw",
+    "processed",
+    "structured",
+    "nexus",
+    "upload",
+    "import",
+    "system",
+    "original",
+    "converted",
+    "template",
+    "artifact",
+}
+MEDIA_INGEST_SOURCES = {"nexus", "upload", "import", "system"}
+MEDIA_INGEST_STAGES = {"raw", "processed", "structured"}
 
 MediaValidationError = type("MediaValidationError", (ValueError,), {})
+
+
+def normalize_controlled_tags(values: Any, defaults: list[str] | None = None) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in list(values or []) + list(defaults or []):
+        tag = clean_text(candidate).lower()
+        if not tag or tag not in MEDIA_TAG_VALUES or tag in seen:
+            continue
+        seen.add(tag)
+        normalized.append(tag)
+    return normalized
+
+
+def normalize_ingest_meta(
+    value: Any,
+    *,
+    default_source: str,
+    default_stage: str,
+    default_original: bool,
+    default_converted_from: str | None = None,
+    default_conversion_type: str | None = None,
+) -> dict[str, Any]:
+    payload = value if isinstance(value, dict) else {}
+    source = clean_text(payload.get("source")).lower()
+    if source not in MEDIA_INGEST_SOURCES:
+        source = default_source
+
+    stage = clean_text(payload.get("stage")).lower()
+    if stage not in MEDIA_INGEST_STAGES:
+        stage = default_stage
+
+    original = payload.get("original")
+    if not isinstance(original, bool):
+        original = bool(default_original)
+
+    converted_from = clean_text(payload.get("converted_from") or payload.get("convertedFrom")) or default_converted_from
+    conversion_type = clean_text(payload.get("conversion_type") or payload.get("conversionType")) or default_conversion_type
+
+    return {
+        "source": source,
+        "stage": stage,
+        "original": original,
+        "converted_from": converted_from or None,
+        "conversion_type": conversion_type or None,
+    }
+
+
+def build_contract_tags(
+    *,
+    namespace: str,
+    source: str,
+    stage: str,
+    original: bool,
+    include_artifact: bool = False,
+    existing: Any = None,
+) -> list[str]:
+    defaults = [namespace, stage, source, "original" if original else "converted"]
+    if include_artifact:
+        defaults.append("artifact")
+    return normalize_controlled_tags(existing, defaults)
+
+
+def normalize_asset_record_contract(record: dict[str, Any]) -> dict[str, Any]:
+    ingest_meta = normalize_ingest_meta(
+        record.get("ingest_meta"),
+        default_source="system",
+        default_stage="raw",
+        default_original=True,
+        default_converted_from=None,
+        default_conversion_type=clean_text(record.get("asset_type")) or None,
+    )
+    normalized_record = {key: value for key, value in record.items() if key != "source"}
+    return {
+        **normalized_record,
+        "tags": build_contract_tags(
+            namespace="vault",
+            source=ingest_meta["source"],
+            stage=ingest_meta["stage"],
+            original=bool(ingest_meta["original"]),
+            existing=record.get("tags"),
+        ),
+        "ingest_meta": ingest_meta,
+    }
+
+
+def normalize_artifact_record_contract(
+    record: dict[str, Any],
+    *,
+    conversion_type: str,
+    converted_from: str | None = None,
+    ingest_source: str = "system",
+) -> dict[str, Any]:
+    ingest_meta = normalize_ingest_meta(
+        record.get("ingest_meta"),
+        default_source=ingest_source,
+        default_stage="structured",
+        default_original=False,
+        default_converted_from=converted_from,
+        default_conversion_type=conversion_type,
+    )
+    normalized_record = {key: value for key, value in record.items() if key != "source"}
+    return {
+        **normalized_record,
+        "tags": build_contract_tags(
+            namespace="cortex",
+            source=ingest_meta["source"],
+            stage=ingest_meta["stage"],
+            original=bool(ingest_meta["original"]),
+            include_artifact=True,
+            existing=record.get("tags"),
+        ),
+        "ingest_meta": ingest_meta,
+    }
+
+
+def _normalize_media_collection_record(collection: str, record: dict[str, Any]) -> dict[str, Any]:
+    if collection == "assets":
+        return normalize_asset_record_contract(record)
+    if collection == "transcript_artifacts":
+        source_asset_ids = record.get("source_asset_ids") if isinstance(record.get("source_asset_ids"), list) else []
+        converted_from = clean_text(source_asset_ids[0] if source_asset_ids else None) or None
+        return normalize_artifact_record_contract(record, conversion_type="transcript", converted_from=converted_from)
+    if collection == "script_artifacts":
+        return normalize_artifact_record_contract(record, conversion_type="script")
+    if collection == "run_of_show_artifacts":
+        return normalize_artifact_record_contract(record, conversion_type="run_of_show")
+    if collection == "publish_artifacts":
+        asset_ids = record.get("source_asset_ids") if isinstance(record.get("source_asset_ids"), list) else []
+        artifact_ids = record.get("source_artifact_ids") if isinstance(record.get("source_artifact_ids"), list) else []
+        converted_from = clean_text(asset_ids[0] if asset_ids else artifact_ids[0] if artifact_ids else None) or None
+        return normalize_artifact_record_contract(record, conversion_type="publish", converted_from=converted_from)
+    return record
 
 
 def normalize_attachment_links(payload: dict[str, Any] | None, context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -693,7 +842,11 @@ def build_media_asset(
     asset_type: str,
     media_type: str,
     title: str,
-    source: str,
+    ingest_source: str,
+    ingest_stage: str = "raw",
+    original: bool = True,
+    converted_from: str | None = None,
+    conversion_type: str | None = None,
     stage: str = "final",
     linked_id: str | None = None,
     source_url: str | None = None,
@@ -715,14 +868,16 @@ def build_media_asset(
     )
 
     if validate:
-        if not clean_text(source):
-            raise MediaValidationError("Media asset requires 'source' field.")
         if not clean_text(asset_type):
             raise MediaValidationError("Media asset requires 'asset_type' field.")
         if not clean_text(media_type):
             raise MediaValidationError("Media asset requires 'media_type' field.")
         if stage not in MEDIA_STAGES:
             raise MediaValidationError(f"Invalid stage '{stage}'. Must be one of: {', '.join(MEDIA_STAGES)}")
+        if clean_text(ingest_source).lower() not in MEDIA_INGEST_SOURCES:
+            raise MediaValidationError(f"Invalid ingest source '{ingest_source}'. Must be one of: {', '.join(sorted(MEDIA_INGEST_SOURCES))}")
+        if clean_text(ingest_stage).lower() not in MEDIA_INGEST_STAGES:
+            raise MediaValidationError(f"Invalid ingest stage '{ingest_stage}'. Must be one of: {', '.join(sorted(MEDIA_INGEST_STAGES))}")
 
     asset_id = unique_id("media-asset")
     now = utcnow_iso()
@@ -734,10 +889,17 @@ def build_media_asset(
         "asset_type": asset_type,
         "media_type": normalized_media_type,
         "title": title or "Media Asset",
-        "source": source,
         "stage": stage,
         "linked_id": linked_id,
         "source_url": source_url_value or None,
+        "ingest_meta": normalize_ingest_meta(
+            None,
+            default_source=clean_text(ingest_source).lower() or "system",
+            default_stage=clean_text(ingest_stage).lower() or "raw",
+            default_original=original,
+            default_converted_from=converted_from,
+            default_conversion_type=conversion_type or clean_text(asset_type) or None,
+        ),
         "metadata": clone_json(metadata),
         "attachments": clone_json(attachments or []),
         "content_hash": content_hash,
@@ -748,7 +910,7 @@ def build_media_asset(
     if not content_hash and source_url_value:
         asset["content_hash"] = generate_content_hash({"url": source_url_value, "type": asset_type})
 
-    return asset
+    return normalize_asset_record_contract(asset)
 
 
 def build_render_job(
@@ -813,9 +975,10 @@ def build_transcript_artifact(
     timestamps: list[dict[str, Any]] | None,
     attachments: list[dict[str, Any]],
     source_asset_ids: list[str] | None = None,
+    ingest_source: str = "system",
 ) -> dict[str, Any]:
     now = utcnow_iso()
-    return {
+    artifact = {
         "id": unique_id("transcript-artifact"),
         "tenant_id": tenant_id,
         "provider": provider,
@@ -828,6 +991,13 @@ def build_transcript_artifact(
         "created_at": now,
         "updated_at": now,
     }
+    converted_from = clean_text((source_asset_ids or [None])[0]) or None
+    return normalize_artifact_record_contract(
+        artifact,
+        conversion_type="transcript",
+        converted_from=converted_from,
+        ingest_source=ingest_source,
+    )
 
 
 def build_script_job(
@@ -864,9 +1034,10 @@ def build_script_artifact(
     script_text: str,
     structured_script: dict[str, Any],
     attachments: list[dict[str, Any]],
+    ingest_source: str = "system",
 ) -> dict[str, Any]:
     now = utcnow_iso()
-    return {
+    artifact = {
         "id": unique_id("script-artifact"),
         "tenant_id": tenant_id,
         "provider": provider,
@@ -877,6 +1048,7 @@ def build_script_artifact(
         "created_at": now,
         "updated_at": now,
     }
+    return normalize_artifact_record_contract(artifact, conversion_type="script", ingest_source=ingest_source)
 
 
 def build_run_of_show_job(
@@ -913,9 +1085,10 @@ def build_run_of_show_artifact(
     run_of_show_text: str,
     structured_run_of_show: dict[str, Any],
     attachments: list[dict[str, Any]],
+    ingest_source: str = "system",
 ) -> dict[str, Any]:
     now = utcnow_iso()
-    return {
+    artifact = {
         "id": unique_id("run-of-show-artifact"),
         "tenant_id": tenant_id,
         "provider": provider,
@@ -926,6 +1099,7 @@ def build_run_of_show_artifact(
         "created_at": now,
         "updated_at": now,
     }
+    return normalize_artifact_record_contract(artifact, conversion_type="run_of_show", ingest_source=ingest_source)
 
 
 def build_audio_render_job(
@@ -987,9 +1161,10 @@ def build_publish_artifact(
     attachments: list[dict[str, Any]],
     source_asset_ids: list[str] | None = None,
     source_artifact_ids: list[str] | None = None,
+    ingest_source: str = "system",
 ) -> dict[str, Any]:
     now = utcnow_iso()
-    return {
+    artifact = {
         "id": unique_id("publish-artifact"),
         "tenant_id": tenant_id,
         "provider": "internal-publish",
@@ -1002,6 +1177,13 @@ def build_publish_artifact(
         "created_at": now,
         "updated_at": now,
     }
+    converted_from = clean_text((source_asset_ids or [None])[0] if source_asset_ids else (source_artifact_ids or [None])[0]) or None
+    return normalize_artifact_record_contract(
+        artifact,
+        conversion_type="publish",
+        converted_from=converted_from,
+        ingest_source=ingest_source,
+    )
 
 
 class MediaStateStore:
@@ -1036,7 +1218,10 @@ class MediaStateStore:
         state = self._empty_state()
         for key in state:
             if isinstance(payload.get(key), list):
-                state[key] = payload[key]
+                state[key] = [
+                    _normalize_media_collection_record(key, item) if isinstance(item, dict) else item
+                    for item in payload[key]
+                ]
         return state
 
     def _write_state(self, state: dict[str, Any]) -> None:
@@ -1096,7 +1281,8 @@ class MediaStateStore:
             rows = state.setdefault(collection, [])
             record_id = clean_text(record.get("id"))
             now = utcnow_iso()
-            payload = {**clone_json(record), "updated_at": now}
+            normalized_record = _normalize_media_collection_record(collection, clone_json(record))
+            payload = {**normalized_record, "updated_at": now}
             for index, existing in enumerate(rows):
                 if clean_text(existing.get("id")) == record_id:
                     rows[index] = payload
@@ -1937,6 +2123,15 @@ class MediaEngine:
     def get_asset(self, asset_id: str) -> dict[str, Any] | None:
         return self.store.get("assets", asset_id)
 
+    def _resolve_ingest_source_from_asset_ids(self, source_asset_ids: list[str] | None = None) -> str:
+        for asset_id in source_asset_ids or []:
+            asset = self.get_asset(asset_id)
+            ingest_meta = asset.get("ingest_meta") if isinstance(asset, dict) and isinstance(asset.get("ingest_meta"), dict) else {}
+            source = clean_text(ingest_meta.get("source")).lower()
+            if source in MEDIA_INGEST_SOURCES:
+                return source
+        return "system"
+
     def get_assets_by_pipeline(self, pipeline_type: str, pipeline_id: str) -> list[dict[str, Any]]:
         return self.store.get_assets_by_linked_id(f"{pipeline_type}-{pipeline_id}")
 
@@ -1991,7 +2186,9 @@ class MediaEngine:
             asset_type="uploaded_file",
             media_type=media_type,
             title=clean_text(title) or Path(safe_name).stem or "Uploaded File",
-            source="upload",
+            ingest_source="upload",
+            ingest_stage="raw",
+            original=True,
             stage="final",
             source_url=f"{source_prefix}/{stored_filename}",
             metadata={
@@ -2021,7 +2218,8 @@ class MediaEngine:
             "by_linked_id": {},
         }
         for asset in assets:
-            source = asset.get("source") or "unknown"
+            ingest_meta = asset.get("ingest_meta") if isinstance(asset.get("ingest_meta"), dict) else {}
+            source = ingest_meta.get("source") or "unknown"
             stage = asset.get("stage") or "unknown"
             linked_id = asset.get("linked_id") or "unlinked"
             groups["by_source"].setdefault(source, []).append(asset)
@@ -2188,7 +2386,10 @@ class MediaEngine:
                     asset_type=clean_text(asset_payload.get("asset_type")) or "audio_render",
                     media_type=clean_text(asset_payload.get("media_type")) or "audio",
                     title=clean_text(asset_payload.get("title")) or clean_text(started.get("title")) or "Audio Asset",
-                    source="audio_render",
+                    ingest_source="system",
+                    ingest_stage="processed",
+                    original=False,
+                    conversion_type=clean_text(asset_payload.get("asset_type")) or "audio_render",
                     stage="final",
                     linked_id=linked_id,
                     source_url=clean_text(asset_payload.get("source_url")) or None,
@@ -2242,6 +2443,7 @@ class MediaEngine:
                 attachments=attachments,
                 source_asset_ids=asset_ids,
                 source_artifact_ids=artifact_ids,
+                ingest_source=self._resolve_ingest_source_from_asset_ids(asset_ids),
             )
             stored_artifact = self.store.upsert("publish_artifacts", artifact)
             completed = {
@@ -2301,7 +2503,10 @@ class MediaEngine:
                     asset_type=clean_text(asset_payload.get("asset_type")) or "render_output",
                     media_type=clean_text(asset_payload.get("media_type")) or "video",
                     title=clean_text(asset_payload.get("title")) or clean_text(started.get("title")) or "Rendered Asset",
-                    source="render",
+                    ingest_source="system",
+                    ingest_stage="processed",
+                    original=False,
+                    conversion_type=clean_text(asset_payload.get("asset_type")) or "render_output",
                     source_url=clean_text(asset_payload.get("source_url")) or None,
                     metadata=asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {},
                     attachments=attachments,
@@ -2389,6 +2594,7 @@ class MediaEngine:
                 timestamps=result.get("timestamps") if isinstance(result.get("timestamps"), list) else [],
                 attachments=attachments,
                 source_asset_ids=source_asset_ids,
+                ingest_source=self._resolve_ingest_source_from_asset_ids(source_asset_ids),
             )
             stored_artifact = self.store.upsert("transcript_artifacts", artifact)
             completed = {
@@ -2460,7 +2666,9 @@ class MediaEngine:
                 asset_type=clean_text(asset_payload.get("asset_type")) or "meeting_recording",
                 media_type=clean_text(asset_payload.get("media_type")) or "video",
                 title=clean_text(asset_payload.get("title")) or clean_text(normalized.get("meeting", {}).get("title")) or "Meeting Artifact",
-                source="meeting_ingest",
+                ingest_source="nexus",
+                ingest_stage="raw",
+                original=True,
                 source_url=source_url,
                 metadata=asset_metadata,
                 attachments=attachments,
@@ -2481,6 +2689,7 @@ class MediaEngine:
                     "title": clean_text(normalized.get("meeting", {}).get("title")) or "Meeting Transcript",
                     "transcript_text": transcript.get("transcript_text"),
                     "speaker_segments": transcript.get("speaker_segments"),
+                    "source_asset_ids": [asset.get("id") for asset in assets if clean_text(asset.get("id"))],
                     "attachments": attachments,
                 },
                 tenant_id=tenant_id,
@@ -2493,6 +2702,7 @@ class MediaEngine:
                 {
                     "provider": clean_text(payload.get("transcription_provider")) or ElevenLabsScribeTranscriptionProvider.provider_id,
                     "title": clean_text(normalized.get("meeting", {}).get("title")) or "Meeting Transcript",
+                    "source_asset_ids": [assets[0].get("id")] if clean_text(assets[0].get("id")) else [],
                     "source_url": assets[0].get("source_url"),
                     "attachments": attachments,
                 },

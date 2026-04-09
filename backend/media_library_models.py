@@ -5,11 +5,20 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class MediaLibraryIngestMeta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["nexus", "upload", "import", "system"]
+    stage: Literal["raw", "processed", "structured"]
+    original: bool
+    convertedFrom: str | None = None
+    conversionType: str | None = None
+
+
 class MediaLibraryItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     assetId: str
-    source: str
     type: str
     status: str
     sourceUrl: str | None = None
@@ -19,6 +28,8 @@ class MediaLibraryItem(BaseModel):
     createdAt: str | None = None
     deleteType: str
     mediaType: str
+    tags: list[str] = Field(default_factory=list)
+    ingestMeta: MediaLibraryIngestMeta
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
