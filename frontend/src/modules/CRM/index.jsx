@@ -1197,11 +1197,11 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
     }
 
     return (
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* LEFT: Contact Table - 75% */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Contact Table */}
-          <div className="flex-1 overflow-hidden px-4 pb-4 pt-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 pt-0">
             {loading ? (
               <div className={shellPanelClass + ' flex h-full items-center justify-center'}>
                 <div className="text-[var(--color-text-secondary)]">Loading contacts...</div>
@@ -1348,7 +1348,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
         </div>
 
         {/* RIGHT: Filters - 25% */}
-        <div className="w-72 border-l border-[var(--color-border)] flex flex-col overflow-hidden">
+        <div className="w-72 min-h-0 border-l border-[var(--color-border)] flex flex-col overflow-hidden">
           {/* Section Label */}
           <div className="px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
             <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Refine Records - Filters</div>
@@ -1625,7 +1625,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
     const currentContact = isEditingContact ? editedContact : selectedContact;
 
     return (
-      <div className="flex-1 flex flex-col bg-[var(--color-bg-secondary)] overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <style>{`
           .crm-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
         `}</style>
@@ -3102,7 +3102,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
 
   // MAIN RENDER
   return (
-    <div className="h-full flex flex-col gap-1.5 overflow-hidden relative">
+    <div className="module-root-standard relative">
       <input
         ref={importInputRef}
         type="file"
@@ -3112,7 +3112,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       />
       {/* Header with Actions - 48px Island Toolbar */}
       {/* Toolbar */}
-      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+      <div className="module-toolbar">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {selectedContact ? (
             <button
@@ -3226,7 +3226,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+          <div className="module-toolbar-utility">
             <button
               onClick={() => openAIAssist()}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
@@ -3246,7 +3246,7 @@ const CRMModule = ({ initialContactId = null, onSelectContact = null }) => {
       </div>
 
       {/* Content Island */}
-      <div className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden">
+      <div className="module-content-stage module-surface-shell">
         {/* Alert Pills */}
         {!canUseEmailVerification ? (
           <div className="px-4 py-2">

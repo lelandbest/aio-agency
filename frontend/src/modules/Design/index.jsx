@@ -95,9 +95,9 @@ const DesignModule = () => {
   } : undefined;
 
   return (
-    <div className="flex flex-col h-full gap-1.5">
+    <div className="module-root-standard">
       {/* Toolbar */}
-      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+      <div className="module-toolbar">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button
             onClick={handleClearCanvas}
@@ -120,7 +120,7 @@ const DesignModule = () => {
         </div>
 
         <div className="flex min-w-0 items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+          <div className="module-toolbar-utility">
             <button
               onClick={() => openAIAssist()}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
@@ -139,7 +139,7 @@ const DesignModule = () => {
         </div>
       </div>
       
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="module-content-stage module-surface-shell">
         {isClient ? (
           <Excalidraw
             ref={excalidrawRef}

@@ -1762,7 +1762,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] overflow-hidden relative font-sans">
+    <div className="module-root-standard relative w-full bg-[var(--color-bg-primary)] font-sans">
       <style>{`
         .flow-controls button {
           width: 28px !important;
@@ -1854,14 +1854,15 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onBrowseTemplates={() => setShowTemplateLibrary(true)}
       />
 
-      {assistError && (
-        <div className="mx-4 mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-200 z-50">
-          {assistError}
-        </div>
-      )}
+      <div className="module-content-stage relative flex flex-col gap-1.5 overflow-hidden px-1.5 pb-1.5">
+        {assistError && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-200 z-50">
+            {assistError}
+          </div>
+        )}
 
       {/* Main Layout: 3 Columns */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="module-surface-shell relative flex flex-1 overflow-hidden bg-[var(--color-bg-primary)]">
 
         {/* LEFT: Node & Template Library */}
         <div
@@ -2033,6 +2034,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* TOP OVERLAY: Stable Floating Controls (Moved out so it won't shift with panel) */}

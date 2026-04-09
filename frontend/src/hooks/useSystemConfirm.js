@@ -13,7 +13,8 @@ export const useSystemConfirm = () => {
     showPrompt: false,
     promptValue: '',
     promptPlaceholder: '',
-    requiredPrompt: ''
+    requiredPrompt: '',
+    validationError: ''
   });
 
   const confirm = useCallback((config) => {
@@ -31,7 +32,7 @@ export const useSystemConfirm = () => {
         promptValue: '',
         onConfirm: (promptVal = '') => {
           if (config.requiredPrompt && promptVal !== config.requiredPrompt) {
-            alert(`Please type "${config.requiredPrompt}" exactly.`);
+            setModalState((prev) => ({ ...prev, validationError: `Please type "${config.requiredPrompt}" exactly.` }));
             return;
           }
           setModalState((prev) => ({ ...prev, isOpen: false }));

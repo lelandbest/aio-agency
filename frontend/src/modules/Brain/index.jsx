@@ -1121,7 +1121,7 @@ const Cortex = () => {
       };
 
   return (
-    <div className="h-full min-h-0 overflow-hidden bg-black flex flex-col">
+    <div className="module-root-standard bg-black">
       <ModuleHeader 
         title="Cortex™" 
         subtitle="Structured Knowledge // Operational DNA // CRM Synthesis"
@@ -1129,7 +1129,7 @@ const Cortex = () => {
           { label: 'UPLINK REFRESH', icon: RefreshCcw, onClick: fetchOverview, variant: 'secondary' }
         ]}
       />
-      <div className="flex-1 relative bg-black overflow-hidden shadow-island">
+      <div className="module-content-stage module-surface-shell relative bg-black">
         <div 
           className={`bg-slate-900/50 border border-[var(--color-border)] flex flex-col overflow-hidden transition-opacity`} 
           style={cortexWindowStyle}

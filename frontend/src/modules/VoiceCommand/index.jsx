@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Mic, MicOff, Send, X, ChevronRight, MessageSquare, Lock, Square, Volume2, VolumeX, Play } from 'lucide-react';
 import { useVTT } from '../../contexts/VTTContext';
 import { useVoiceCommand } from '../../hooks/useVoiceCommand';
@@ -169,11 +169,19 @@ function resolveSpokenText(data) {
 
 function resolveMonitorReply(message) {
   if (!message) return "";
-  if (message.role === 'command') {
+  if (message.role === 'command' || message.role === 'charlie') {
     return resolveSpokenText(message.result) || message.result?.phrase || "";
   }
   return "";
 }
+
+function resolveUserText(message) {
+  if (!message) return '';
+  return String(message.phrase || message.text || '').trim();
+}
+
+const IDLE_PROMPT = '> HOLD CTRL...';
+const CHARLIE_OUTPUT_HOLD_MS = 10000;
 
 function pickPreferredSystemVoice(voices = []) {
   if (!Array.isArray(voices) || !voices.length) return null;
@@ -249,14 +257,16 @@ export default function VoiceCommandModule() {
   const [ghostTranscript, setGhostTranscript] = useState('');
   const [monitorTab, setMonitorTab] = useState('input');
   const [showHistory, setShowHistory] = useState(false);
+  const [heldOutput, setHeldOutput] = useState('');
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const activeAudioRef = useRef(null);
   const lastPlaybackRef = useRef({ key: '', ts: 0 });
   const spokenResponseIds = useRef(new Set());
-  const lastCtrlRef = useRef(0);
   const isPlayingRef = useRef(false);
+  const outputResetRef = useRef(null);
+  const altTranscriptionTimerRef = useRef(null);
 
   const stopAudio = useCallback(() => {
     try {
@@ -273,7 +283,17 @@ export default function VoiceCommandModule() {
   const micLevel = useMicLevel(isOpen, selectedMicId);
   const latestMessage = messages.length ? messages[messages.length - 1] : null;
   const liveTranscript = ghostTranscript.trim();
-  const monitorReply = !liveTranscript ? resolveMonitorReply(latestMessage).trim() : '';
+  const latestOutput = useMemo(() => resolveMonitorReply(latestMessage).trim(), [latestMessage]);
+  const monitorReply = !liveTranscript ? heldOutput.trim() : '';
+
+  const scheduleOutputReset = useCallback((text) => {
+    window.clearTimeout(outputResetRef.current);
+    setHeldOutput(text);
+    if (!text) return;
+    outputResetRef.current = window.setTimeout(() => {
+      setHeldOutput('');
+    }, CHARLIE_OUTPUT_HOLD_MS);
+  }, []);
 
   const fallbackSpeak = useCallback((text) => {
     if (!text || !window.speechSynthesis) return;
@@ -304,6 +324,30 @@ export default function VoiceCommandModule() {
       }));
     }
   }, []);
+
+  const stopContinuousTranscriptCapture = useCallback(() => {
+    setGhostTranscript('');
+    setIsContinuous(false);
+    closeVTT();
+    requestTranscriptEditorOpen();
+  }, [closeVTT]);
+
+  const startContinuousTranscriptCapture = useCallback(() => {
+    if (!isOpen) return;
+    clearTranscriptDraft();
+    setGhostTranscript('');
+    setMonitorTab('input');
+    setIsContinuous(true);
+  }, [isOpen]);
+
+  const cancelVttActivity = useCallback(() => {
+    stopAudio();
+    setGhostTranscript('');
+    setLoading(false);
+    setIsListening(false);
+    setIsContinuous(false);
+    closeVTT();
+  }, [closeVTT, setIsListening, stopAudio]);
 
   const playResponse = useCallback((audioUrl, text) => {
     // ── Duplicate guard: drop if already playing ──────────────────────────────
@@ -432,13 +476,15 @@ export default function VoiceCommandModule() {
         if (action === 'navigate') navigateToModule(result.module);
         
         const msg = resolveSpokenText(res);
+        scheduleOutputReset(msg);
         if (voiceEnabled && voiceAutoPlay && msg) {
           playResponse(res.audioUrl || null, msg, res.response?.id);
         }
       } else if (res.type === 'conversational') {
         addCharlieMessage(raw, res);
+        const msg = resolveSpokenText(res);
+        scheduleOutputReset(msg);
         if (voiceEnabled && voiceAutoPlay) {
-          const msg = resolveSpokenText(res);
           if (msg) {
             playResponse(res.audioUrl || null, msg, res.response?.id);
           } else if (!msg) {
@@ -451,7 +497,7 @@ export default function VoiceCommandModule() {
     } finally {
       setLoading(false);
     }
-  }, [isContinuous, pushTranscriptToEditor, isOpen, openVTT, clearTranscript, addCommandMessage, addCharlieMessage, setIsListening, voiceEnabled, voiceProvider, voiceAutoPlay, playResponse]);
+  }, [isContinuous, pushTranscriptToEditor, isOpen, openVTT, clearTranscript, addCommandMessage, addCharlieMessage, setIsListening, voiceEnabled, voiceProvider, voiceAutoPlay, playResponse, scheduleOutputReset]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -501,27 +547,78 @@ export default function VoiceCommandModule() {
     disarm,
     isContinuous,
     stopContinuous: () => setIsContinuous(false),
+    onControlArm: () => {
+      if (!isOpen) openVTT();
+      setMonitorTab('input');
+    },
+    onControlDoubleTap: cancelVttActivity,
   });
 
   useEffect(() => {
-    const handler = (e) => { 
-      if (e.key === 'Control') {
-        const now = Date.now();
-        if (now - lastCtrlRef.current < 400) {
-          stopAudio();
-          lastCtrlRef.current = 0;
-        } else {
-          lastCtrlRef.current = now;
-        }
-      }
+    const handler = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        stopAudio();
-        closeVTT(); 
+        cancelVttActivity();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isOpen, closeVTT, stopAudio]);
+  }, [cancelVttActivity, isOpen]);
+
+  useEffect(() => {
+    const startAltToggleTimer = () => {
+      if (!isOpen) return;
+      window.clearTimeout(altTranscriptionTimerRef.current);
+      altTranscriptionTimerRef.current = window.setTimeout(() => {
+        if (isContinuous) {
+          stopContinuousTranscriptCapture();
+          return;
+        }
+        startContinuousTranscriptCapture();
+      }, 1000);
+    };
+
+    const cancelAltToggleTimer = () => {
+      window.clearTimeout(altTranscriptionTimerRef.current);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.repeat || e.key !== 'Alt') return;
+      if (isOpen && isContinuous) {
+        cancelAltToggleTimer();
+        stopContinuousTranscriptCapture();
+        return;
+      }
+      startAltToggleTimer();
+    };
+
+    const onKeyUp = (e) => {
+      if (e.key !== 'Alt') return;
+      cancelAltToggleTimer();
+    };
+
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    window.addEventListener('blur', cancelAltToggleTimer);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+      window.removeEventListener('blur', cancelAltToggleTimer);
+      window.clearTimeout(altTranscriptionTimerRef.current);
+    };
+  }, [isContinuous, isOpen, startContinuousTranscriptCapture, stopContinuousTranscriptCapture]);
+
+  useEffect(() => {
+    if (!latestOutput) return;
+    scheduleOutputReset(latestOutput);
+    setMonitorTab('output');
+  }, [latestOutput, scheduleOutputReset]);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(outputResetRef.current);
+      window.clearTimeout(altTranscriptionTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) stopAudio();
@@ -554,15 +651,11 @@ export default function VoiceCommandModule() {
         <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
           <button
             onClick={() => {
-              setIsContinuous((current) => {
-                const next = !current;
-                if (!next) {
-                  requestTranscriptEditorOpen();
-                } else {
-                  clearTranscriptDraft();
-                }
-                return next;
-              });
+              if (isContinuous) {
+                stopContinuousTranscriptCapture();
+                return;
+              }
+              startContinuousTranscriptCapture();
             }}
             className={`flex-shrink-0 p-1.5 rounded-md border transition-all ${isContinuous ? 'border-rose-500/50 bg-rose-500/10 text-rose-400' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
             title={isContinuous ? "Dictation ON" : "Dictation OFF"}
@@ -597,7 +690,7 @@ export default function VoiceCommandModule() {
           >
             {voiceEnabled ? <Volume2 size={10} /> : <VolumeX size={10} />}
           </button>
-          <button onClick={closeVTT} className="flex-shrink-0 text-slate-500 hover:text-slate-300 p-1">
+          <button onClick={cancelVttActivity} className="flex-shrink-0 text-slate-500 hover:text-slate-300 p-1">
             <X size={12} />
           </button>
         </div>
@@ -631,25 +724,25 @@ export default function VoiceCommandModule() {
           <div className="mt-2 min-h-[56px] flex items-center justify-center text-center">
             {monitorTab === 'input' ? (
               liveTranscript ? (
-              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-amber-500 [text-shadow:0_0_8px_rgba(245,158,11,0.5)]">
+              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-emerald-400 [text-shadow:0_0_8px_rgba(52,211,153,0.5)]">
                 {liveTranscript}
               </div>
               ) : (
               <div className="max-w-[15.5rem] text-[9px] leading-4 text-emerald-700 uppercase tracking-[0.2em] [text-shadow:0_0_2px_rgba(4,120,87,0.5)]">
-                {isContinuous ? 'Dictation mode pushes transcript to editor.' : '❯ Hold CTRL to capture live speech'}
+                {isContinuous ? 'Dictation mode pushes transcript to editor.' : IDLE_PROMPT}
               </div>
               )
             ) : loading ? (
-              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-emerald-400 animate-pulse [text-shadow:0_0_8px_rgba(52,211,153,0.5)]">
-                ❯ Routing transcript to Charlie...
+              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-amber-300 animate-pulse [text-shadow:0_0_8px_rgba(245,158,11,0.45)]">
+                {'> CHARLIE PROCESSING...'}
               </div>
             ) : monitorReply ? (
-              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-emerald-400 [text-shadow:0_0_8px_rgba(52,211,153,0.5)]">
+              <div className="max-w-[15.5rem] text-[10px] leading-4 font-bold text-amber-300 [text-shadow:0_0_8px_rgba(245,158,11,0.45)]">
                 {monitorReply}
               </div>
             ) : (
               <div className="max-w-[15.5rem] text-[9px] leading-4 text-emerald-700 uppercase tracking-[0.2em] [text-shadow:0_0_2px_rgba(4,120,87,0.5)]">
-                ❯ Hold CTRL to capture live speech
+                {IDLE_PROMPT}
               </div>
             )}
           </div>
@@ -674,16 +767,16 @@ export default function VoiceCommandModule() {
           )}
           {messages.map((msg) => (
             <div key={msg.id} className="flex flex-col gap-0.5">
-              <div className="text-[8px] text-slate-600 uppercase tracking-widest font-black flex items-center gap-1">
-                 {msg.role === 'command' ? <Mic size={8} /> : null} {msg.role === 'command' ? 'you (voice)' : 'you'}:
+              <div className="text-[8px] text-emerald-500 uppercase tracking-widest font-black flex items-center gap-1">
+                 <Mic size={8} /> {msg.role === 'command' ? 'you (voice)' : 'you'}:
               </div>
-              <div className="text-[10px] text-slate-300 pl-2 border-l border-white/5">{msg.phrase || msg.text}</div>
+              <div className="text-[10px] text-emerald-400 pl-2 border-l border-emerald-500/30">{resolveUserText(msg)}</div>
               
-              {msg.role === 'charlie' && (
+              {resolveMonitorReply(msg) && (
                 <>
-                  <div className="text-[8px] text-slate-600 uppercase tracking-widest font-black mt-1">charlie:</div>
-                  <div className="pl-2 border-l border-cyan-500/30">
-                    <div className="text-[10px] text-cyan-400">{resolveSpokenText(msg.result) || 'Processed'}</div>
+                  <div className="text-[8px] text-amber-500 uppercase tracking-widest font-black mt-1">charlie:</div>
+                  <div className="pl-2 border-l border-amber-500/30">
+                    <div className="text-[10px] text-amber-300">{resolveMonitorReply(msg) || 'Processed'}</div>
                   </div>
                 </>
               )}

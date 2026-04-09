@@ -49,7 +49,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `} style={{ backgroundColor: 'var(--color-sidebar-bg, var(--color-bg-secondary, #E3E7ED))', color: 'var(--color-sidebar-text, var(--color-text-primary, #0B1220))' }}>
                 {/* Logo */}
-                <div className="h-14 border-b border-[var(--color-border)] flex items-center justify-between px-3 flex-shrink-0">
+                <div className="h-[var(--topbar-height)] min-h-[var(--topbar-height)] flex items-center justify-between px-3 flex-shrink-0">
                     <div className={`flex items-center gap-2.5 ${isCollapsed ? 'hidden' : ''}`}>
                         <img
                             src={displayLogoUrl}

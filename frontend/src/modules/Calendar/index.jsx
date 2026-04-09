@@ -1380,7 +1380,7 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   return (
-    <div className="calendar-surface h-full flex flex-col gap-4 overflow-hidden relative">
+    <div className="module-root-standard calendar-surface relative">
       <ModuleHeader
         showTitle={false}
         showActions={true}
@@ -1444,8 +1444,7 @@ const CalendarModule = ({ clientMode = false }) => {
         onModuleAi={() => openAIAssist({ context: { module: 'calendar', activeTab } })}
       />
 
-      <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden">
-        <div className="h-full flex-1 min-h-0 overflow-hidden relative">
+      <div className="module-content-stage module-surface-shell relative">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-[var(--color-text-secondary)]">Loading...</div>
@@ -1453,7 +1452,6 @@ const CalendarModule = ({ clientMode = false }) => {
         ) : (
           renderContent()
         )}
-        </div>
       </div>
 
       {/* Event Modal */}

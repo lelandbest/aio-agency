@@ -8,6 +8,7 @@ import {
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
+import ModuleHeader from '../../components/ModuleHeader';
 import { getSystemHealthApi } from '../../services/backendApi';
 
 const STATUS_STYLES = {
@@ -93,36 +94,38 @@ const SystemHealthModule = () => {
   const summary = health?.summary || {};
   const alerts = Array.isArray(health?.alerts) ? health.alerts : [];
 
-  if (loading) {
-    return (
-      <div className="h-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6">
-        <div className="flex items-center gap-3 text-[var(--color-text-primary)]">
-          <RefreshCw size={18} className="animate-spin" />
-          <span>Loading system health...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-full rounded-xl border border-rose-500/30 bg-rose-500/8 p-6 text-rose-200">
-        <div className="font-semibold">System Health unavailable</div>
-        <div className="mt-2 text-sm">{error}</div>
-        <button
-          type="button"
-          onClick={() => loadHealth()}
-          className="mt-4 inline-flex items-center gap-2 rounded-full border border-rose-400/30 px-4 py-2 text-sm hover:bg-rose-500/10"
-        >
-          <RefreshCw size={14} />
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="module-root-standard">
+      <ModuleHeader
+        showTitle={false}
+        leftActions={[
+          { label: 'Refresh', icon: RefreshCw, onClick: () => loadHealth(), variant: 'secondary' }
+        ]}
+        actions={[]}
+      />
+      <div className="module-content-stage overflow-y-auto px-1.5 pb-1.5">
+      {loading ? (
+        <div className="module-surface-shell p-6">
+          <div className="flex items-center gap-3 text-[var(--color-text-primary)]">
+            <RefreshCw size={18} className="animate-spin" />
+            <span>Loading system health...</span>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/8 p-6 text-rose-200">
+          <div className="font-semibold">System Health unavailable</div>
+          <div className="mt-2 text-sm">{error}</div>
+          <button
+            type="button"
+            onClick={() => loadHealth()}
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-rose-400/30 px-4 py-2 text-sm hover:bg-rose-500/10"
+          >
+            <RefreshCw size={14} />
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-6">
       <section className="surface-elevated rounded-[var(--radius-modal)] p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -222,6 +225,9 @@ const SystemHealthModule = () => {
           </div>
         )}
       </section>
+        </div>
+      )}
+      </div>
     </div>
   );
 };

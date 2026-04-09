@@ -63,6 +63,8 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
   const [savedFlowsExpanded, setSavedFlowsExpanded] = useState(true);
   const [tableSearch, setTableSearch] = useState('');
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
 
   const loadFlows = useCallback(async () => {
     setLoading(true);
@@ -132,13 +134,20 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
   const handleFolderDelete = async (folderId, e) => {
     e?.stopPropagation();
-    if (!confirm('Delete this folder?')) return;
-    try {
-      await deleteFlowFolderApi(folderId);
-      setBackendFolders(prev => prev.filter(f => f.id !== folderId));
-    } catch (err) {
-      showNotice({ type: 'error', message: 'Delete failed: ' + err.message });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Folder',
+      message: 'Delete this folder? This action cannot be undone.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteFlowFolderApi(folderId);
+          setBackendFolders(prev => prev.filter(f => f.id !== folderId));
+        } catch (err) {
+          showNotice({ type: 'error', message: 'Delete failed: ' + err.message });
+        }
+      }
+    });
   };
 
   const startRename = useCallback((flow) => {
@@ -188,15 +197,22 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }, [onCreateFlow]);
 
   const handleCreateFolder = useCallback(async () => {
-    const name = prompt("Enter folder name:", "New Folder");
-    if (name) {
-      try {
-        await createFlowFolderApi(name);
-        loadFlows();
-      } catch (err) {
-        showNotice({ type: 'error', message: 'Failed to create folder: ' + err.message });
+    setPromptModal({
+      isOpen: true,
+      title: 'Create Folder',
+      message: 'Enter folder name:',
+      defaultValue: 'New Folder',
+      onConfirm: async (name) => {
+        if (name) {
+          try {
+            await createFlowFolderApi(name);
+            loadFlows();
+          } catch (err) {
+            showNotice({ type: 'error', message: 'Failed to create folder: ' + err.message });
+          }
+        }
       }
-    }
+    });
   }, [loadFlows]);
 
   const toggleSelectAllFlows = useCallback(() => {
@@ -370,9 +386,15 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm('Delete this flow? This cannot be undone.')) {
-                    deleteFlowApi(flow.id).then(() => loadFlows());
-                  }
+                  setConfirmModal({
+                    isOpen: true,
+                    title: 'Delete Flow',
+                    message: 'Delete this flow? This cannot be undone.',
+                    variant: 'danger',
+                    onConfirm: () => {
+                      deleteFlowApi(flow.id).then(() => loadFlows());
+                    }
+                  });
                 }}
                 className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
                 title="Delete flow"
@@ -421,9 +443,41 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5">
+    <div className="module-root-standard">
+      <SystemConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={() => {
+          if (confirmModal.onConfirm) confirmModal.onConfirm();
+          setConfirmModal({ ...confirmModal, isOpen: false });
+        }}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        variant={confirmModal.variant}
+      />
+      
+      <SystemConfirmModal
+        isOpen={promptModal.isOpen}
+        onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
+        onConfirm={() => {
+          if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
+          setPromptModal({ ...promptModal, isOpen: false });
+        }}
+        title={promptModal.title}
+        message={promptModal.message}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        showPrompt={true}
+        promptValue={promptModal.promptValue || ''}
+        onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
+        promptPlaceholder={promptModal.defaultValue || 'Enter name...'}
+        variant="info"
+      />
+      
       {/* Toolbar */}
-      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+      <div className="module-toolbar">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button
             onClick={handleCreateBlank}
@@ -477,7 +531,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+          <div className="module-toolbar-utility">
             <button
               onClick={() => openAIAssist()}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
@@ -496,7 +550,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
+      <div className="module-surface-shell px-3 py-3">
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
           <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
             <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Flows</div>
@@ -532,7 +586,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1">
+      <div className="module-content-stage">
         <FolderTable
           title="Flows"
           description="Open, rename, or launch your saved flows."

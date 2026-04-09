@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LOCKED: AI Provider Unified Architecture - Phase 1 & 2
  * Verified Stable: March 25, 2026
  * DO NOT MODIFY SCHEMA OR STATS LOGIC WITHOUT OPERATOR APPROVAL
@@ -66,6 +66,7 @@ import {
   deleteCommsProviderConfigApi
 } from '../../../services/backendApi';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
+import SystemConfirmModal from '../../../components/Modals/SystemConfirmModal';
 
 const DEFAULT_MAILBOX_PROVIDERS = [
   {
@@ -838,6 +839,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false);
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
   const [busyAction, setBusyAction] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
   const configuredEmailVerifierCount = emailVerifierConfig?.hasApiKey ? 1 : 0;
   const activeEmailVerifierCount = emailVerifierConfig?.hasApiKey && emailVerifierConfig?.enabled ? 1 : 0;
 
@@ -1668,8 +1670,15 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   };
 
   const handleRemoveIntegration = async (integrationId) => {
-    if (!window.confirm('Delete this integration?')) return;
-    showNotice({ tone: 'warning', message: 'Legacy integration removal is disabled until backed by workspace APIs.' });
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Integration',
+      message: 'Delete this integration? This action cannot be undone.',
+      variant: 'danger',
+      onConfirm: () => {
+        showNotice({ tone: 'warning', message: 'Legacy integration removal is disabled until backed by workspace APIs.' });
+      }
+    });
   };
 
   const handleSaveMailbox = async () => {
@@ -1764,17 +1773,24 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   };
 
   const handleDeleteEmailVerifier = async () => {
-    if (!window.confirm('Disconnect Reoon for this tenant? Stored API credentials will be removed.')) return;
-    try {
-      const cleared = await deleteEmailVerifierConfigApi();
-      setEmailVerifierConfig(cleared);
-      setEmailVerifierForm(createEmailVerifierDraft(cleared || {}));
-      setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
-      showNotice({ tone: 'success', message: 'Reoon disconnected.' });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Reoon',
+      message: 'Disconnect Reoon for this tenant? Stored API credentials will be removed.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const cleared = await deleteEmailVerifierConfigApi();
+          setEmailVerifierConfig(cleared);
+          setEmailVerifierForm(createEmailVerifierDraft(cleared || {}));
+          setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
+          showNotice({ tone: 'success', message: 'Reoon disconnected.' });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleAuthorizeMailbox = async () => {
@@ -1836,18 +1852,25 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
     const fallbackMailbox = mailboxDeleteTarget;
     const fallbackLabel = fallbackMailbox?.name ? ` Threads will move to ${fallbackMailbox.name}.` : '';
-    if (!window.confirm(`Delete ${selectedMailbox.name}?${fallbackLabel}`)) return;
-    try {
-      const response = camelizeData(await deleteMailboxApi(selectedMailbox.id, fallbackMailbox?.id));
-      showNotice({
-        tone: 'success',
-        message: `${response?.deletedMailboxName || selectedMailbox.name} deleted.${response?.reassignedThreads ? ` ${response.reassignedThreads} thread(s) moved to ${response?.fallbackMailboxName || fallbackMailbox?.name}.` : ''}`
-      });
-      await loadAll();
-      setSelectedMailboxId(response?.fallbackMailboxId || fallbackMailbox?.id || null);
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Mailbox',
+      message: `Delete ${selectedMailbox.name}?${fallbackLabel}`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = camelizeData(await deleteMailboxApi(selectedMailbox.id, fallbackMailbox?.id));
+          showNotice({
+            tone: 'success',
+            message: `${response?.deletedMailboxName || selectedMailbox.name} deleted.${response?.reassignedThreads ? ` ${response.reassignedThreads} thread(s) moved to ${response?.fallbackMailboxName || fallbackMailbox?.name}.` : ''}`
+          });
+          await loadAll();
+          setSelectedMailboxId(response?.fallbackMailboxId || fallbackMailbox?.id || null);
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleDisconnectMailbox = async () => {
@@ -1856,15 +1879,22 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       showNotice({ tone: selectedMailboxStateMeta.tone, message: selectedMailboxStateMeta.detail });
       return;
     }
-    if (!window.confirm(`Disconnect ${selectedMailbox.name}? OAuth/session state will be cleared and the mailbox will require reconnect before use.`)) return;
-    try {
-      const response = await disconnectMailboxApi(selectedMailbox.id);
-      showNotice({ tone: 'success', message: `${response?.mailbox?.name || selectedMailbox.name} disconnected.` });
-      await loadAll();
-      setSelectedMailboxId(selectedMailbox.id);
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Mailbox',
+      message: `Disconnect ${selectedMailbox.name}? OAuth/session state will be cleared and the mailbox will require reconnect before use.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await disconnectMailboxApi(selectedMailbox.id);
+          showNotice({ tone: 'success', message: `${response?.mailbox?.name || selectedMailbox.name} disconnected.` });
+          await loadAll();
+          setSelectedMailboxId(selectedMailbox.id);
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSaveCalendarSource = async () => {
@@ -1975,18 +2005,25 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (!selectedCalendarSource?.id) return;
     const fallbackSource = calendarSourceDeleteTarget;
     const fallbackLabel = fallbackSource?.name ? ` Events will move to ${fallbackSource.name}.` : ' Events currently tied to it will become unscoped.';
-    if (!window.confirm(`Delete ${selectedCalendarSource.name}?${fallbackLabel}`)) return;
-    try {
-      const response = camelizeData(await deleteCalendarSourceApi(selectedCalendarSource.id, fallbackSource?.id));
-      showNotice({
-        tone: 'success',
-        message: `${response?.deletedSourceName || selectedCalendarSource.name} deleted.${response?.reassignedEvents ? ` ${response.reassignedEvents} event(s) moved to ${response?.fallbackSourceName || fallbackSource?.name}.` : response?.clearedEvents ? ` ${response.clearedEvents} event(s) were detached from that source.` : ''}`
-      });
-      await loadAll();
-      setSelectedCalendarSourceId(response?.fallbackSourceId || fallbackSource?.id || null);
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Calendar Source',
+      message: `Delete ${selectedCalendarSource.name}?${fallbackLabel}`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = camelizeData(await deleteCalendarSourceApi(selectedCalendarSource.id, fallbackSource?.id));
+          showNotice({
+            tone: 'success',
+            message: `${response?.deletedSourceName || selectedCalendarSource.name} deleted.${response?.reassignedEvents ? ` ${response.reassignedEvents} event(s) moved to ${response?.fallbackSourceName || fallbackSource?.name}.` : response?.clearedEvents ? ` ${response.clearedEvents} event(s) were detached from that source.` : ''}`
+          });
+          await loadAll();
+          setSelectedCalendarSourceId(response?.fallbackSourceId || fallbackSource?.id || null);
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleDisconnectCalendarSource = async () => {
@@ -1995,16 +2032,23 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       showNotice({ tone: selectedCalendarSourceStateMeta.tone, message: selectedCalendarSourceStateMeta.detail });
       return;
     }
-    if (!window.confirm(`Disconnect ${selectedCalendarSource.name}? OAuth/feed sync state will be cleared and the source will require reconnect before use.`)) return;
-    try {
-      const response = await disconnectCalendarSourceApi(selectedCalendarSource.id);
-      showNotice({ tone: 'success', message: `${response?.source?.name || selectedCalendarSource.name} disconnected.` });
-      await loadAll();
-      setCalendarOptions([]);
-      setSelectedCalendarSourceId(selectedCalendarSource.id);
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Calendar',
+      message: `Disconnect ${selectedCalendarSource.name}? OAuth/feed sync state will be cleared and the source will require reconnect before use.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await disconnectCalendarSourceApi(selectedCalendarSource.id);
+          showNotice({ tone: 'success', message: `${response?.source?.name || selectedCalendarSource.name} disconnected.` });
+          await loadAll();
+          setCalendarOptions([]);
+          setSelectedCalendarSourceId(selectedCalendarSource.id);
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSaveAiProvider = async () => {
@@ -2077,14 +2121,21 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeleteAiProvider = async () => {
     if (!selectedAiProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ${selectedAiProviderCatalog.label}? Saved credentials and runtime preference will be removed for this workspace.`)) return;
-    try {
-      await deleteAiProviderConfigApi(selectedAiProviderConfig.id);
-      showNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} removed from this workspace.` });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect AI Provider',
+      message: `Disconnect ${selectedAiProviderCatalog.label}? Saved credentials and runtime preference will be removed for this workspace.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteAiProviderConfigApi(selectedAiProviderConfig.id);
+          showNotice({ tone: 'success', message: `${selectedAiProviderCatalog.displayName || selectedAiProviderCatalog.label} removed from this workspace.` });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSaveAutomationProvider = async () => {
@@ -2134,14 +2185,21 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeleteAutomationProvider = async () => {
     if (!selectedAutomationProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ${selectedAutomationProviderCatalog?.name || 'this automation provider'} from this workspace?`)) return;
-    try {
-      await deleteAutomationProviderConfigApi(selectedAutomationProviderConfig.id);
-      showNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog?.name || 'Automation provider'} removed from this workspace.` });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Automation Provider',
+      message: `Disconnect ${selectedAutomationProviderCatalog?.name || 'this automation provider'} from this workspace?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteAutomationProviderConfigApi(selectedAutomationProviderConfig.id);
+          showNotice({ tone: 'success', message: `${selectedAutomationProviderCatalog?.name || 'Automation provider'} removed from this workspace.` });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSavePaymentProvider = async () => {
@@ -2169,14 +2227,21 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeletePaymentProvider = async () => {
     if (!selectedPaymentProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ${selectedPaymentProviderCatalog?.name || 'this payment provider'} from this workspace?`)) return;
-    try {
-      await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
-      showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Payment Provider',
+      message: `Disconnect ${selectedPaymentProviderCatalog?.name || 'this payment provider'} from this workspace?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deletePaymentProviderConfigApi(selectedPaymentProviderConfig.id);
+          showNotice({ tone: 'success', message: `${selectedPaymentProviderCatalog?.name || 'Payment provider'} removed from this workspace.` });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSaveSocialProvider = async () => {
@@ -2223,23 +2288,29 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
   };
 
-  // No backend test endpoint exists for comms providers — handler is a no-op
+  // No backend test endpoint exists for comms providers � handler is a no-op
   const handleTestCommsProvider = async () => {
     showNotice({ tone: 'warning', message: 'Connection testing is not yet available for communications providers. Save your credentials and they will be used automatically.' });
   };
 
   const handleDeleteCommsProvider = async () => {
     if (!selectedCommsProviderKey) return;
-    if (!window.confirm(`Disconnect ${selectedCommsProviderCatalog?.name || 'this provider'} from this workspace?`)) return;
-    try {
-      // Use real backend contract: DELETE /api/comms/provider-configs/:providerType
-      await deleteCommsProviderConfigApi(selectedCommsProviderKey);
-      setCommsProviderForm(createCommsProviderDraft(selectedCommsProviderCatalog));
-      showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog?.name || 'Provider'} removed.` });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Communications Provider',
+      message: `Disconnect ${selectedCommsProviderCatalog?.name || 'this provider'} from this workspace?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteCommsProviderConfigApi(selectedCommsProviderKey);
+          setCommsProviderForm(createCommsProviderDraft(selectedCommsProviderCatalog));
+          showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog?.name || 'Provider'} removed.` });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSaveDataStoreProvider = async () => {
@@ -2290,18 +2361,25 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeleteDataStoreProvider = async () => {
     if (!selectedDataStoreProviderConfig?.providerKey) return;
-    if (!window.confirm(`Disconnect ${selectedDataStoreProviderCatalog?.name || 'this data store'} from this workspace?`)) return;
-    try {
-      await deleteDataStoreProviderConfigApi(selectedDataStoreProviderConfig.providerKey);
-      setDataStoreProviderForm(createDataStoreProviderDraft(selectedDataStoreProviderCatalog));
-      showNotice({
-        tone: 'success',
-        message: `${selectedDataStoreProviderCatalog?.name || 'Data store'} removed from this workspace.`,
-      });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Data Store',
+      message: `Disconnect ${selectedDataStoreProviderCatalog?.name || 'this data store'} from this workspace?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteDataStoreProviderConfigApi(selectedDataStoreProviderConfig.providerKey);
+          setDataStoreProviderForm(createDataStoreProviderDraft(selectedDataStoreProviderCatalog));
+          showNotice({
+            tone: 'success',
+            message: `${selectedDataStoreProviderCatalog?.name || 'Data store'} removed from this workspace.`,
+          });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const handleSaveMediaProvider = async () => {
@@ -2352,18 +2430,25 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleDeleteMediaProvider = async () => {
     if (!selectedMediaProviderConfig?.id) return;
-    if (!window.confirm(`Disconnect ${selectedMediaProviderCatalog?.name || 'this media provider'} from this workspace?`)) return;
-    try {
-      await deleteMediaProviderConfigApi(selectedMediaProviderConfig.id);
-      setMediaProviderForm(createMediaProviderDraft(selectedMediaProviderCatalog));
-      showNotice({
-        tone: 'success',
-        message: `${selectedMediaProviderCatalog?.name || 'Media provider'} removed from this workspace.`,
-      });
-      await loadAll();
-    } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Disconnect Media Provider',
+      message: `Disconnect ${selectedMediaProviderCatalog?.name || 'this media provider'} from this workspace?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteMediaProviderConfigApi(selectedMediaProviderConfig.id);
+          setMediaProviderForm(createMediaProviderDraft(selectedMediaProviderCatalog));
+          showNotice({
+            tone: 'success',
+            message: `${selectedMediaProviderCatalog?.name || 'Media provider'} removed from this workspace.`,
+          });
+          await loadAll();
+        } catch (error) {
+          showNotice({ tone: 'error', message: readErrorMessage(error) });
+        }
+      }
+    });
   };
 
   const renderAutomationAdmin = () => (
@@ -4030,7 +4115,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-[var(--color-bg-primary)]">
+    <>
+    <div className="module-root-standard relative bg-[var(--color-bg-primary)]">
       <ModuleHeader
         showTitle={false}
         leftActions={[
@@ -4052,8 +4138,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         showActions
         onModuleAi={() => openAIAssist({ context: { module: 'integrations', activeCategory, providerCount: integrations.length } })}
       />
-      <div className="mt-4 flex-1 min-h-0 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island p-2">
-        <div className="h-full flex-1 overflow-y-auto p-4">
+      <div className="module-content-stage module-surface-shell p-1.5">
+        <div className="h-full flex-1 overflow-y-auto p-3">
           {!isHydrated && loading ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)]" />
@@ -4172,6 +4258,21 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         </div>
       </div>
     </div>
+
+      <SystemConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={() => {
+          if (confirmModal.onConfirm) confirmModal.onConfirm();
+          setConfirmModal({ ...confirmModal, isOpen: false });
+        }}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        variant={confirmModal.variant}
+      />
+    </>
   );
 };
 

@@ -479,9 +479,9 @@ export default function SignalsModule() {
   const toolbarSummary = `${signals.length} actionable • ${counts.critical} critical • ${counts.high} high`;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col gap-1.5 overflow-hidden">
+    <div className="module-root-standard relative">
       {/* Toolbar */}
-      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+      <div className="module-toolbar">
         <div className="flex items-center gap-4 min-w-0 flex-1">
           <button
             onClick={() => reloadSignals(true)}
@@ -499,7 +499,7 @@ export default function SignalsModule() {
         </div>
 
         <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
-          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+          <div className="module-toolbar-utility">
             <button
               onClick={() => openAIAssist()}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
@@ -518,7 +518,7 @@ export default function SignalsModule() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-island">
+      <div className="module-content-stage module-surface-shell">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <div className="inline-flex items-center gap-3 rounded-[var(--radius-inner)] border border-white/10 bg-black/20 px-5 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">
@@ -527,7 +527,7 @@ export default function SignalsModule() {
             </div>
           </div>
         ) : (
-          <div className="grid h-full min-h-0 gap-4 p-4 xl:grid-cols-[1fr_1fr_1fr_320px]">
+          <div className="grid h-full min-h-0 gap-3 p-3 xl:grid-cols-[1fr_1fr_1fr_320px]">
             {/* CRITICAL COLUMN */}
             <div className="min-h-0 overflow-y-auto pr-1">
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 mb-3 px-2">Critical ({counts.critical})</div>

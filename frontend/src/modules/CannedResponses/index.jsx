@@ -260,22 +260,30 @@ const CannedResponsesModule = ({ onNavigate }) => {
   );
 
   return (
-    <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
-      <div className="px-6 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {onNavigate && (
-            <button 
-              onClick={() => onNavigate('chat')}
-              className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition"
-              title="Back to Comms"
-            >
-              <ArrowRight size={16} className="rotate-180" />
-            </button>
-          )}
-          <MessageSquare size={16} className="text-sky-400" />
-          <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Canned Responses</h2>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="module-root-standard">
+      <ModuleHeader
+        showTitle={false}
+        actions={[
+          { label: 'New Response', icon: Plus, onClick: handleCreate, variant: 'primary' }
+        ]}
+        toolbarLeftSlot={(
+          <div className="flex items-center gap-3">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('chat')}
+                className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition"
+                title="Back to Comms"
+              >
+                <ArrowRight size={16} className="rotate-180" />
+              </button>
+            )}
+            <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+              <MessageSquare size={14} className="text-sky-400" />
+              <span>Library</span>
+            </div>
+          </div>
+        )}
+        toolbarRightSlot={(
           <div className="relative w-48">
             <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
             <input
@@ -286,16 +294,10 @@ const CannedResponsesModule = ({ onNavigate }) => {
               className="w-full pl-8 pr-3 py-1.5 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] text-xs focus:border-[var(--color-primary)] focus:outline-none"
             />
           </div>
-          <button
-            onClick={handleCreate}
-            className="px-3 py-1.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition"
-          >
-            <Plus size={14} />
-            New Response
-          </button>
-        </div>
-      </div>
+        )}
+      />
 
+      <div className="module-content-stage module-surface-shell">
       <div className="flex-1 overflow-y-auto">
         <table className="w-full">
           <thead className="sticky top-0 bg-[var(--color-bg-secondary)] z-10">
@@ -353,6 +355,7 @@ const CannedResponsesModule = ({ onNavigate }) => {
             <p className="text-sm">{searchQuery ? 'No matching responses' : 'No responses yet'}</p>
           </div>
         )}
+      </div>
       </div>
 
       {showEditor && (

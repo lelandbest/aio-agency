@@ -64,6 +64,7 @@ import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_S
 import { templates } from '../Flows/data/templates';
 import { ingestFlowSource } from '../Flows/utils/flowIngestion';
 import flowRepository from '../Flows/utils/flowRepository';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
 const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
 const TRANSCRIPT_DRAFT_TITLE_KEY = 'aio_transcript_editor_draft_title';
@@ -400,6 +401,7 @@ const StudioModule = () => {
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [launchingAction, setLaunchingAction] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
   const [chatInput, setChatInput] = useState('');
   const [isRunPending, setIsRunPending] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState('ALPHA');
@@ -1561,15 +1563,8 @@ const StudioModule = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5 bg-[#070708] text-slate-300 ps-4">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="audio/*,video/*,image/*"
-        className="hidden"
-        onChange={handleFileInputChange}
-      />
-      <div className="shrink-0">
+    <>
+      <div className="module-root-standard bg-[#070708] text-slate-300">
         <ModuleHeader
           title="WorkBench"
           showTitle={false}
@@ -1581,9 +1576,9 @@ const StudioModule = () => {
               variant: 'secondary',
             },
             {
-              label: 'FORGE',
+              label: 'HAMMER',
               icon: Cpu,
-              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } })),
+              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'hammer' } })),
               variant: 'primary',
               className: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 font-black'
             },
@@ -1615,9 +1610,15 @@ const StudioModule = () => {
             }
           ]}
         />
-      </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="audio/*,video/*,image/*"
+          className="hidden"
+          onChange={handleFileInputChange}
+        />
 
-      <div className="flex-1 min-h-0 flex gap-4 pe-4 pt-1 pb-4">
+      <div className="module-content-stage flex gap-1.5 px-1.5 pb-1.5">
         {/* LEFT WORKSTATION: MONITOR A */}
         <div className="flex-[1.2] min-w-0 flex flex-col relative items-center gap-3">
           <div className="absolute top-4 left-5 flex items-center gap-2 z-10 px-2 py-0.5 rounded bg-black/60 backdrop-blur border border-white/5">
@@ -2365,18 +2366,24 @@ const StudioModule = () => {
 
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'hammer' } }))}
                   className="flex items-center gap-2 px-3 py-1.5 rounded border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 text-[9px] font-black uppercase tracking-widest hover:bg-cyan-500/10 transition-all shadow-[0_0_10px_rgba(6,182,212,0.1)]"
                 >
-                  <Cpu size={12} /> FULL FORGE UPLINK
+                  <Cpu size={12} /> FULL HAMMER UPLINK
                 </button>
                 <button
                   onClick={() => {
                     const isDirty = JSON.stringify(transcriptState) !== JSON.stringify(transcriptSavedStateRef.current);
                     if (isDirty) {
-                      if (window.confirm('Unsaved changes will be lost. Discard and close?')) {
-                        setIsTranscriptModalOpen(false);
-                      }
+                      setConfirmModal({
+                        isOpen: true,
+                        title: 'Discard Changes',
+                        message: 'Unsaved changes will be lost. Discard and close?',
+                        variant: 'warning',
+                        onConfirm: () => {
+                          setIsTranscriptModalOpen(false);
+                        }
+                      });
                     } else {
                       setIsTranscriptModalOpen(false);
                     }
@@ -2899,6 +2906,21 @@ const StudioModule = () => {
         </div>
       )}
     </div>
+
+      <SystemConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={() => {
+          if (confirmModal.onConfirm) confirmModal.onConfirm();
+          setConfirmModal({ ...confirmModal, isOpen: false });
+        }}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        variant={confirmModal.variant}
+      />
+    </>
   );
 };
 

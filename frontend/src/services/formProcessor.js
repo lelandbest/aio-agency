@@ -27,8 +27,7 @@ export const getCMSTableData = async (formSlug) => {
 export const exportCMSToCSV = async (formSlug, formName) => {
   const data = await getCMSTableData(formSlug);
   if (!data.length) {
-    alert('No data to export');
-    return;
+    throw new Error('No data to export');
   }
 
   const headers = [...new Set(data.flatMap((row) => Object.keys(row)))];

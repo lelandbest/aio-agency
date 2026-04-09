@@ -53,7 +53,7 @@ const DialerPage = lazy(() => import('./modules/CommsSms'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
-const ForgeModule = lazy(() => import('./modules/Forge'));
+const HammerModule = lazy(() => import('./modules/Hammer'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -291,7 +291,7 @@ const App = () => {
     'settings': 'Settings',
     'chat': 'Chat',
     'agents': 'Agents',
-    'forge': 'Forge',
+    'hammer': 'Hammer',
   };
   const activeModuleLabel = moduleLabels[activeModule] || activeModule;
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
@@ -756,8 +756,8 @@ const App = () => {
         return <HelpModule activeModule={activeModule} />;
       case 'system-health':
         return <SystemHealthModule />;
-      case 'forge':
-        return <ForgeModule />;
+      case 'hammer':
+        return <HammerModule />;
       default:
         return <PlaceholderModule name="Module" />;
     }
@@ -807,13 +807,7 @@ const App = () => {
                   )}
 
                   {/* Module Content */}
-                  <div
-                    className={`flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] ${
-                      ['media', 'studio'].includes(effectiveActiveModule)
-                        ? 'p-0'
-                        : 'p-1.5'
-                    }`}
-                  >
+                  <div className="flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] p-1.5">
                     <Suspense key={effectiveActiveModule} fallback={
                       <div className="h-full flex items-center justify-center">
                         <LoadingSpinner size="lg" message="Loading module..." />

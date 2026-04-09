@@ -22,7 +22,7 @@ const FlowBuilderHeader = ({
   onBrowseTemplates,
 }) => {
   return (
-    <div className="h-12 shrink-0 flex items-center justify-between gap-4 px-5 mx-1 mt-1 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-hidden rounded-xl shadow-island-sm transition-all duration-300">
+    <div className="module-toolbar overflow-hidden transition-all duration-300">
       {/* Left: Single context-aware button */}
       <div className="flex items-center gap-2 min-w-0 h-full">
         {onExit && (

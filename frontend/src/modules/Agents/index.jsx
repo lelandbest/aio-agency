@@ -940,7 +940,7 @@ const AIOAgentsModule = () => {
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
 
   return (
-     <div className="h-full min-h-0 flex flex-col gap-4 overflow-hidden relative selection:bg-purple-900/50">
+     <div className="module-root-standard relative selection:bg-purple-900/50">
       <ModuleHeader
         showTitle={false}
         leftActions={[
@@ -963,8 +963,7 @@ const AIOAgentsModule = () => {
       />
 
       {/* Main Workspace */}
-      <div className="flex-1 min-h-0 flex rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/[0.02] pointer-events-none" />
+      <div className="module-content-stage flex rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island relative">
         
         {/* BARRACKS VIEW */}
         {view === 'barracks' && (() => {
@@ -1076,7 +1075,7 @@ const AIOAgentsModule = () => {
           })();
 
           return (
-            <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-hidden relative">
+            <div className="flex-1 min-h-0 flex gap-1.5 p-1.5 overflow-hidden relative">
               <style>{`
                 @keyframes route-flow {
                   0% { transform: translateX(-10%); opacity: 0.25; }

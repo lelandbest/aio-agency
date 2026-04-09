@@ -130,9 +130,8 @@ const ModuleHeader = ({
   const { openAIAssist } = useAIAssist?.() || {};
   const toolbarIconButtonClass = 'p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group disabled:opacity-20 disabled:cursor-not-allowed';
   
-  // Industrial Island Standard: 48px height, rounded corners, floating background
   return (
-    <div className={`h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md overflow-visible rounded-xl shadow-island-sm transition-all duration-300 ${className}`}>
+    <div className={`module-toolbar shrink-0 overflow-visible transition-all duration-300 ${className}`}>
       <div className="flex items-center gap-4 min-w-0 flex-1 h-full font-bold">
         {leftActions.length > 0 && <Actions actions={leftActions} leadIndex={0} />}
         {toolbarLeftSlot}
@@ -156,7 +155,7 @@ const ModuleHeader = ({
         </div>
         
         {/* Standardized AI Assistance Toolbar */}
-        <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+        <div className="module-toolbar-utility">
           {/* Brain - Global Knowledge */}
           <button
             onClick={() => {

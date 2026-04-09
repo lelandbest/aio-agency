@@ -3,6 +3,7 @@ import {
   Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, Link, X, Check
 } from 'lucide-react';
+import SystemConfirmModal from './Modals/SystemConfirmModal';
 
 const InlineEditor = ({ 
   value, 
@@ -13,6 +14,7 @@ const InlineEditor = ({
   const [isEditing, setIsEditing] = useState(false);
   const [localValue, setLocalValue] = useState(value || '');
   const [selection, setSelection] = useState(null);
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: 'Add Link', message: 'Enter URL:', defaultValue: 'https://', onConfirm: null, promptValue: 'https://' });
   const editorRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -63,10 +65,18 @@ const InlineEditor = ({
   };
 
   const handleLink = () => {
-    const url = prompt('Enter URL:', 'https://');
-    if (url) {
-      execCommand('createLink', url);
-    }
+    setPromptModal({
+      isOpen: true,
+      title: 'Add Link',
+      message: 'Enter URL:',
+      defaultValue: 'https://',
+      promptValue: 'https://',
+      onConfirm: (url) => {
+        if (url) {
+          execCommand('createLink', url);
+        }
+      }
+    });
   };
 
   if (isEditing) {
@@ -178,6 +188,24 @@ const InlineEditor = ({
     >
       {localValue || <span className="text-[var(--color-text-tertiary)] italic">{placeholder}</span>}
     </div>
+
+    <SystemConfirmModal
+      isOpen={promptModal.isOpen}
+      onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
+      onConfirm={() => {
+        if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
+        setPromptModal({ ...promptModal, isOpen: false });
+      }}
+      title={promptModal.title}
+      message={promptModal.message}
+      confirmText="Add"
+      cancelText="Cancel"
+      showPrompt={true}
+      promptValue={promptModal.promptValue || ''}
+      onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
+      promptPlaceholder={promptModal.defaultValue || 'Enter URL...'}
+      variant="info"
+    />
   );
 };
 

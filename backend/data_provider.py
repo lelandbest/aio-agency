@@ -134,6 +134,14 @@ def unique_suffix() -> str:
     return uuid4().hex[:10]
 
 
+def parse_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in re.split(r'[\n,]+', value) if item.strip()]
+    return []
+
+
 def normalize_text_content(value: str | None) -> str:
     raw = str(value or "").replace("\r", "\n")
     lines = [" ".join(line.split()) for line in raw.split("\n")]
@@ -10140,3 +10148,4 @@ def create_provider() -> BaseProvider:
         return MockProvider()
     db_path = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "data" / "aio_crm.db"))
     return SQLiteProvider(db_path)
+

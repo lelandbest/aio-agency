@@ -323,9 +323,9 @@ const PipelineModule = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5">
+    <div className="module-root-standard">
       {/* Toolbar */}
-      <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+      <div className="module-toolbar">
         <div className="flex items-center gap-4 min-w-0 flex-1">
           <button
             onClick={() => {
@@ -354,7 +354,7 @@ const PipelineModule = () => {
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+          <div className="module-toolbar-utility">
             <button
               onClick={() => openAIAssist()}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
@@ -373,8 +373,8 @@ const PipelineModule = () => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island p-2">
-        <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
+      <div className="module-content-stage module-surface-shell p-1.5">
+        <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-4">
         {loading ? (
           <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
             Loading pipeline...

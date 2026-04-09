@@ -34,17 +34,32 @@ export function useVoiceCommand({
   arm, 
   disarm,
   isContinuous = false,
-  stopContinuous 
+  stopContinuous,
+  onControlArm,
+  onControlDoubleTap,
 }) {
   const isSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
   
   // Stable settings ref to avoid hook dependency flickering
   const settingsRef = useRef({});
-  settingsRef.current = { onTranscript, onInterim, onError, setIsListening, arm, disarm, isContinuous, stopContinuous };
+  settingsRef.current = {
+    onTranscript,
+    onInterim,
+    onError,
+    setIsListening,
+    arm,
+    disarm,
+    isContinuous,
+    stopContinuous,
+    onControlArm,
+    onControlDoubleTap,
+  };
 
   const isHoldingRef   = useRef(false);
   const isArmedRef     = useRef(false);
   const armTimerRef    = useRef(null);
+  const handledDoubleTapRef = useRef(false);
+  const lastControlTapRef = useRef(0);
   const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef('');
   const interimTranscriptRef = useRef('');
@@ -111,33 +126,52 @@ export function useVoiceCommand({
   const onKeyUpRef   = useRef(null);
 
   onKeyDownRef.current = (e) => {
-    if (settingsRef.current.isContinuous) return;
     if (e.key !== 'Control') return;
     if (e.repeat) return;
 
-    // Wake audio inside the real key gesture so the later cue is allowed.
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume().then(() => ctx.close()).catch(() => {});
+    const now = Date.now();
+    if ((now - lastControlTapRef.current) < 400) {
+      lastControlTapRef.current = 0;
+      isHoldingRef.current = false;
+      isArmedRef.current = false;
+      handledDoubleTapRef.current = true;
+      clearTimeout(armTimerRef.current);
+      stopRecognition(true);
+      settingsRef.current.disarm?.();
+      settingsRef.current.onControlDoubleTap?.();
+      return;
+    }
+    lastControlTapRef.current = now;
 
     isHoldingRef.current = true;
     isArmedRef.current = false;
+    handledDoubleTapRef.current = false;
 
     clearTimeout(armTimerRef.current);
     armTimerRef.current = setTimeout(() => {
-      if (isHoldingRef.current) {
-        isArmedRef.current = true;
-        playSyntheticPing(760, 0.035, 60);
-        settingsRef.current.arm?.();
-        startRecognition();
-      }
+      if (!isHoldingRef.current) return;
+
+      // Wake audio inside the real key gesture so the later cue is allowed.
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ctx.resume().then(() => ctx.close()).catch(() => {});
+
+      isArmedRef.current = true;
+      playSyntheticPing(760, 0.035, 60);
+      settingsRef.current.onControlArm?.();
+      settingsRef.current.arm?.();
+      startRecognition();
     }, ARM_DELAY_MS);
   };
 
   onKeyUpRef.current = (e) => {
-    if (settingsRef.current.isContinuous) return;
     if (e.key !== 'Control') return;
     isHoldingRef.current = false;
     clearTimeout(armTimerRef.current);
+
+    if (handledDoubleTapRef.current) {
+      handledDoubleTapRef.current = false;
+      return;
+    }
     
     if (isArmedRef.current) {
       // Small buffer to let the last syllable reach the STT engine

@@ -109,7 +109,7 @@ const isHydratableArtifact = (item) => {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-const Forge = () => {
+const Hammer = () => {
   const { showNotice } = useNotice();
   const [loading, setLoading] = useState(true);
   const [forgeState, setForgeState] = useState(EMPTY_STATE);
@@ -147,7 +147,7 @@ const Forge = () => {
       if (vaultData.status === 'fulfilled') setVaultRailItems(Array.isArray(vaultData.value) ? vaultData.value : []);
       if (cortexData.status === 'fulfilled') setCortexRailItems(Array.isArray(cortexData.value) ? cortexData.value : []);
     } catch (_) {
-      showNotice({ type: 'error', message: 'Forge uplink degraded. Some context data may be missing.' });
+      showNotice({ type: 'error', message: 'Hammer uplink degraded. Some context data may be missing.' });
     } finally {
       setLoading(false);
     }
@@ -239,7 +239,7 @@ const Forge = () => {
     sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, forgeState.transcript);
     savedStateRef.current = { ...forgeState };
     setForgeState(s => ({ ...s, status: 'Draft' }));
-    showNotice({ type: 'success', message: 'Forge draft cached locally.' });
+    showNotice({ type: 'success', message: 'Hammer draft cached locally.' });
   };
 
   const handlePushToCortex = async () => {
@@ -542,18 +542,18 @@ const Forge = () => {
   const handleExportHtml = () => {
     const s = forgeState;
     const esc = str => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${esc(s.title || 'Forge Export')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:.25rem}</style></head><body><h1>${esc(s.title || 'Untitled')}</h1>${s.executiveSummary ? `<h2>Executive Summary</h2><p>${esc(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><div>${s.transcript}</div>` : ''}</body></html>`;
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${esc(s.title || 'Hammer Export')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:.25rem}</style></head><body><h1>${esc(s.title || 'Untitled')}</h1>${s.executiveSummary ? `<h2>Executive Summary</h2><p>${esc(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><div>${s.transcript}</div>` : ''}</body></html>`;
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.html`; a.click();
+    a.href = url; a.download = `${(s.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.html`; a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportMd = () => {
     const s = forgeState;
     const stripHtml = h => { if (!h) return ''; let t = h; t = t.replace(/<br\s*\/?>/gi, '\n'); t = t.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n'); t = t.replace(/<[^>]+>/g, ''); t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'); return t.replace(/\n{3,}/g, '\n\n').trim(); };
-    const lines = [`# ${s.title || 'Untitled Forge Session'}`, ''];
+    const lines = [`# ${s.title || 'Untitled Hammer Session'}`, ''];
     if (s.executiveSummary) { lines.push('## Executive Summary', s.executiveSummary, ''); }
     if (s.keyDecisions.length) { lines.push('## Key Decisions', ...s.keyDecisions.map(d => `- ${d}`), ''); }
     if (s.actionItems.length) { lines.push('## Action Items', ...s.actionItems.map(a => `- ${a}`), ''); }
@@ -563,7 +563,7 @@ const Forge = () => {
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.md`; a.click();
+    a.href = url; a.download = `${(s.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.md`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -571,7 +571,7 @@ const Forge = () => {
     const blob = new Blob([JSON.stringify(forgeState, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(forgeState.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.json`; a.click();
+    a.href = url; a.download = `${(forgeState.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.json`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -586,14 +586,14 @@ const Forge = () => {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.txt`; a.click();
+    a.href = url; a.download = `${(s.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.txt`; a.click();
     URL.revokeObjectURL(url);
   };
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col bg-[#070708] text-slate-300 select-none overflow-hidden font-sans">
+    <div className="module-root-standard bg-[#070708] text-slate-300 select-none font-sans">
       <ModuleHeader
         showTitle={false}
         leftActions={[
@@ -601,14 +601,10 @@ const Forge = () => {
         ]}
       />
 
-      {/* 4px gap between toolbar and body */}
-      <div className="h-1" />
-
-      {/* BODY: 4 ISLAND COLUMNS WITH 6px GAP */}
-      <div className="flex-1 flex gap-1.5 p-1.5 min-h-0 overflow-hidden">
+      <div className="module-content-stage flex gap-1.5 px-1.5 pb-1.5">
 
         {/* LEFT RAIL — VAULT */}
-        <div className="w-[350px] flex-shrink-0 flex flex-col bg-black border border-[#1E2024] rounded-xl overflow-hidden select-none">
+        <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border border-[#1E2024] rounded-xl overflow-hidden select-none">
           <div className="px-3 py-2 border-b border-[#1E2024] flex items-center gap-2 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]" />
             <span className="text-[7px] font-black text-cyan-500 uppercase tracking-[0.3em]">VAULT</span>
@@ -640,7 +636,7 @@ const Forge = () => {
         </div>
 
         {/* CENTER — REVIEW + EDITOR */}
-        <div className="min-w-[150px] flex-1 flex-col bg-black/20 relative overflow-hidden border border-[#1E2024] rounded-xl">
+        <div className="min-w-[150px] flex-1 flex-col bg-[#0A0A0C] relative overflow-hidden border border-[#1E2024] rounded-xl">
 
           {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
           <AssetReviewPanel asset={activeAsset} />
@@ -649,13 +645,13 @@ const Forge = () => {
           <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-white/5 mx-2 mt-2 mb-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
             <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
-              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
+              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'HAMMER CORE // LIVE EDITOR'}
             </span>
             {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
           </div>
 
-          <div className={`flex-1 flex flex-col min-h-0 bg-[#0A0A0C]/40 ${activeAsset ? 'p-4 pt-2' : 'p-4 pt-10'}`}>
-            <div className="flex-1 rounded overflow-hidden bg-black/40 shadow-inner flex flex-col h-full">
+          <div className={`flex-1 flex flex-col min-h-0 ${activeAsset ? 'px-2 pb-2' : 'px-2 pb-2 pt-8'}`}>
+            <div className="flex-1 rounded overflow-hidden bg-black/40 flex flex-col h-full">
               <RichTextEditor
                 key={forgeState.transcript ? 'data-loaded' : 'data-pending'}
                 value={forgeState.transcript}
@@ -679,7 +675,7 @@ const Forge = () => {
                     <FileText size={20} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{forgeState.title || 'UNTITLED FORGE SESSION'}</h2>
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{forgeState.title || 'UNTITLED HAMMER SESSION'}</h2>
                     <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{forgeState.status} // FOCUS MODE</p>
                   </div>
                 </div>
@@ -705,14 +701,14 @@ const Forge = () => {
 
         {/* RIGHT RAIL — BRAIN / METADATA */}
         <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border border-[#1E2024] rounded-xl overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar">
 
             {/* METADATA */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center gap-2 border-b border-white/5 pb-2">
                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">PROP // METADATA</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 <div>
                   <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">DOCUMENT TITLE</label>
                   <input
@@ -787,7 +783,7 @@ const Forge = () => {
             </div>
 
             {/* ANALYSIS */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
                 <span className="text-[9px] font-black text-cyan-500 uppercase tracking-widest">PROP // ANALYSIS</span>
                 <button
@@ -798,7 +794,7 @@ const Forge = () => {
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-2.5">
                 <div>
                   <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">EXECUTIVE SUMMARY</label>
                   <textarea
@@ -851,11 +847,11 @@ const Forge = () => {
               </div>
             </div>
 
-            <div className="h-4" />
+            <div className="h-1.5" />
           </div>
 
           {/* STICKY ACTION BAR */}
-          <div className="p-5 border-t border-white/5 bg-[#0A0A0C] flex flex-col gap-2.5">
+          <div className="p-3 border-t border-white/5 bg-[#0A0A0C] flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 onClick={() => showNotice({ type: 'info', message: `Dispatching to ${forgeState.specialist}...` })}
@@ -1029,4 +1025,4 @@ const Forge = () => {
   );
 };
 
-export default Forge;
+export default Hammer;

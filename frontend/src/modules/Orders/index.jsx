@@ -4,6 +4,7 @@ import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderApi } from '../../services/backendApi';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
 const OrdersModule = () => {
   const { openAIAssist } = useAIAssist();
@@ -11,6 +12,8 @@ const OrdersModule = () => {
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
   const runOrdersAssist = async () => {
     try {
       const response = await draftAiApi({
@@ -30,25 +33,39 @@ const OrdersModule = () => {
   };
 
   const handleCreateOrder = async () => {
-    const contact = prompt('Contact ID or email:');
-    if (!contact) return;
-    try {
-      await createOrderApi({ contactId: contact, totalAmount: 0, items: [] });
-      fetchData('orders');
-    } catch (err) {
-      showNotice({ type: 'error', message: 'Failed to create order: ' + err.message });
-    }
+    setPromptModal({
+      isOpen: true,
+      title: 'Create Order',
+      message: 'Enter contact ID or email:',
+      defaultValue: '',
+      onConfirm: async (contact) => {
+        if (!contact) return;
+        try {
+          await createOrderApi({ contactId: contact, totalAmount: 0, items: [] });
+          fetchData('orders');
+        } catch (err) {
+          showNotice({ type: 'error', message: 'Failed to create order: ' + err.message });
+        }
+      }
+    });
   };
 
   const handleDeleteOrder = async (orderId, e) => {
     e.stopPropagation();
-    if (!confirm('Delete this order?')) return;
-    try {
-      await deleteOrderApi(orderId);
-      fetchData('orders');
-    } catch (err) {
-      showNotice({ type: 'error', message: 'Failed to delete order: ' + err.message });
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Order',
+      message: 'Delete this order? This action cannot be undone.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteOrderApi(orderId);
+          fetchData('orders');
+        } catch (err) {
+          showNotice({ type: 'error', message: 'Failed to delete order: ' + err.message });
+        }
+      }
+    });
   };
 
   useEffect(() => {
@@ -80,7 +97,7 @@ const OrdersModule = () => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-4 relative overflow-hidden">
+    <div className="module-root-standard relative">
       <ModuleHeader
         showTitle={false}
         leftActions={[
@@ -139,8 +156,40 @@ const OrdersModule = () => {
         hasSelection={false}
         onModuleAi={() => openAIAssist({ context: { module: 'orders', tab: activeTab } })}
       />
-      <div className="flex-1 min-h-0 bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] shadow-island overflow-hidden p-2">
-        <div className="h-full flex-1 overflow-auto p-4 relative">
+      <div className="module-content-stage module-surface-shell p-1.5">
+        <SystemConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+          onConfirm={() => {
+            if (confirmModal.onConfirm) confirmModal.onConfirm();
+            setConfirmModal({ ...confirmModal, isOpen: false });
+          }}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant={confirmModal.variant}
+        />
+        
+        <SystemConfirmModal
+          isOpen={promptModal.isOpen}
+          onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
+          onConfirm={() => {
+            if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
+            setPromptModal({ ...promptModal, isOpen: false });
+          }}
+          title={promptModal.title}
+          message={promptModal.message}
+          confirmText="Create"
+          cancelText="Cancel"
+          showPrompt={true}
+          promptValue={promptModal.promptValue || ''}
+          onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
+          promptPlaceholder="Contact ID or email..."
+          variant="info"
+        />
+        
+        <div className="h-full flex-1 overflow-auto p-3 relative">
         {loading ? (
           <div className="text-center text-gray-500 mt-10">Loading Orders...</div>
         ) : activeTab !== 'orders' ? (

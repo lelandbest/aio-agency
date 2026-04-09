@@ -125,7 +125,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
       { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "forge", label: "Forge", icon: "Anvil", type: "internal", visible: true, iconColor: "#06b6d4", description: "Digital Asset Workstation // Cognitive Assembler" }
+      { id: "hammer", label: "Hammer", icon: "Anvil", type: "internal", visible: true, iconColor: "#06b6d4", description: "Digital Asset Workstation // Cognitive Assembler" }
     ]
   },
   {    category: "Systems",

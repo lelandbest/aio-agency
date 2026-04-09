@@ -388,31 +388,33 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
   }
 
   return (
-    <div className="h-full flex flex-col no-scrollbar">
-      {/* Breadcrumbs & Status Row */}
-      <div className="mb-4 flex items-center justify-between h-5">
-        <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">
-          <span className="opacity-50">Support</span>
-          <ChevronRight size={10} className="opacity-30" />
-          <span className="text-[var(--color-text-primary)]">Home</span>
-        </div>
-
-        <div className="flex items-center gap-2 bg-white/[0.03] border border-white/5 px-3 py-1.5 rounded-full overflow-hidden">
-          <span className="text-[8px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mr-1 shrink-0">SYSTEM STATUS:</span>
-          <span className="text-[9px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest truncate">
-            AIO Neural Network
-          </span>
-          <div className={`ml-1 px-2 py-0.5 rounded-full text-[7px] font-black border transition-all duration-1000 ${
-            aiActive 
-            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.4)] animate-pulse' 
-            : 'bg-emerald-500/5 text-emerald-500/40 border-emerald-500/10'
-          }`}>
-            {aiActive ? 'ACTIVE' : 'IDLE'}
+    <div className="module-root-standard">
+      <ModuleHeader
+        showTitle={false}
+        actions={[]}
+        toolbarLeftSlot={(
+          <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest">
+            <span className="opacity-50">Support</span>
+            <ChevronRight size={10} className="opacity-30" />
+            <span className="text-[var(--color-text-primary)]">Home</span>
           </div>
-        </div>
-      </div>
+        )}
+        toolbarCenterSlot={(
+          <div className="flex items-center gap-2 rounded-full border border-white/5 bg-white/[0.03] px-3 py-1.5 overflow-hidden">
+            <span className="text-[8px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mr-1 shrink-0">System Status:</span>
+            <span className="text-[9px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest truncate">AIO Neural Network</span>
+            <div className={`ml-1 px-2 py-0.5 rounded-full text-[7px] font-black border transition-all duration-1000 ${
+              aiActive
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.4)] animate-pulse'
+                : 'bg-emerald-500/5 text-emerald-500/40 border-emerald-500/10'
+            }`}>
+              {aiActive ? 'ACTIVE' : 'IDLE'}
+            </div>
+          </div>
+        )}
+      />
 
-      <div className="flex-1 overflow-auto no-scrollbar space-y-2 pb-20">
+      <div className="module-content-stage overflow-auto no-scrollbar space-y-2 px-1.5 pb-1.5">
         {/* Hero Section */}
         <div className="text-center space-y-2 pt-2 pb-0">
           <h1 className="text-4xl font-black text-[var(--color-text-primary)] uppercase tracking-tighter leading-none">

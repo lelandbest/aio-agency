@@ -224,6 +224,12 @@ const FormBuilderModule = () => {
   const [headerImageUploading, setHeaderImageUploading] = useState(false);
   const headerImageInputRef = useRef(null);
   const selectedFieldSupportsAssist = Boolean(selectedField?.isContent);
+  
+  // Alert message state for error display
+  const [alertMessage, setAlertMessage] = useState(null);
+  
+  // Prompt modal state for folder name input
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
 
   // Sidebar Category State
   const [expandedCategories, setExpandedCategories] = useState({ 0: true });
@@ -567,7 +573,8 @@ const FormBuilderModule = () => {
       }
     } catch (error) {
       console.error('Error uploading form header image:', error);
-      alert(`Failed to upload header image: ${error.message}`);
+      setAlertMessage(`Failed to upload header image: ${error.message}`);
+      setTimeout(() => setAlertMessage(null), 3000);
     } finally {
       setHeaderImageUploading(false);
       if (headerImageInputRef.current) {
@@ -577,22 +584,31 @@ const FormBuilderModule = () => {
   };
 
   const handleCreateFolder = async () => {
-    const name = prompt("Enter folder name:", "New Folder");
-    if (name) {
-      try {
-        const data = await createFormFolderApi({
-          name,
-          userId: '1',
-          createdAt: new Date().toISOString(),
-          expanded: true
-        });
-        if (data) {
-          setFolders(prev => [...prev, data]);
+    setPromptModal({
+      isOpen: true,
+      title: 'Create Folder',
+      message: 'Enter a name for the new folder:',
+      defaultValue: 'New Folder',
+      onConfirm: async (name) => {
+        if (name) {
+          try {
+            const data = await createFormFolderApi({
+              name,
+              userId: '1',
+              createdAt: new Date().toISOString(),
+              expanded: true
+            });
+            if (data) {
+              setFolders(prev => [...prev, data]);
+            }
+          } catch (error) {
+            console.error('Error creating folder:', error);
+            setAlertMessage('Failed to create folder: ' + error.message);
+            setTimeout(() => setAlertMessage(null), 3000);
+          }
         }
-      } catch (error) {
-        console.error('Error creating folder:', error);
       }
-    }
+    });
   };
 
   const handleRenameFolder = async (folderId, newName) => {
@@ -600,7 +616,8 @@ const FormBuilderModule = () => {
       await updateFormFolderApi(folderId, { name: newName });
       await fetchFolders();
     } catch (error) {
-      alert('Failed to rename folder: ' + error.message);
+      setAlertMessage('Failed to rename folder: ' + error.message);
+      setTimeout(() => setAlertMessage(null), 3000);
     }
   };
 
@@ -611,13 +628,15 @@ const FormBuilderModule = () => {
       confirmText: 'Delete Folder',
       variant: 'danger'
     });
+
     if (isConfirmed) {
       try {
         await deleteFormFolderApi(folderId);
         await fetchFolders();
         await fetchForms();
       } catch (error) {
-        alert('Failed to delete folder: ' + error.message);
+        setAlertMessage('Failed to delete folder: ' + error.message);
+        setTimeout(() => setAlertMessage(null), 3000);
       }
     }
   };
@@ -627,7 +646,8 @@ const FormBuilderModule = () => {
       await createFormFolderApi({ name: `${folder.name} (Copy)` });
       await fetchFolders();
     } catch (error) {
-      alert('Failed to copy folder: ' + error.message);
+      setAlertMessage('Failed to copy folder: ' + error.message);
+      setTimeout(() => setAlertMessage(null), 3000);
     }
   };
 
@@ -646,7 +666,8 @@ const FormBuilderModule = () => {
         setSelectedForms([]);
         await fetchForms();
       } catch (error) {
-        alert('Failed to delete forms: ' + error.message);
+        setAlertMessage('Failed to delete forms: ' + error.message);
+        setTimeout(() => setAlertMessage(null), 3000);
       } finally {
         setLoading(false);
       }
@@ -810,7 +831,8 @@ const FormBuilderModule = () => {
       fetchCmsTables();
     } catch (error) {
       console.error('Error saving form:', error);
-      alert('Failed to save form: ' + error.message);
+      setAlertMessage('Failed to save form: ' + error.message);
+      setTimeout(() => setAlertMessage(null), 3000);
     } finally {
       setIsSaving(false);
     }
@@ -973,7 +995,7 @@ const FormBuilderModule = () => {
 
     return (
       <>
-        <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="module-root-standard">
           <ModuleHeader
             title="Forms"
             showTitle={false}
@@ -1026,7 +1048,7 @@ const FormBuilderModule = () => {
             )}
           />
 
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
+          <div className="module-surface-shell px-1.5 py-1.5">
             <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
               <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
                 <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Forms</div>
@@ -1148,7 +1170,7 @@ const FormBuilderModule = () => {
 
   // Editor View
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 bg-transparent">
+      <div className="module-root-standard bg-transparent">
       <ModuleHeader
         title="Forms"
         showTitle={false}
@@ -1207,7 +1229,30 @@ const FormBuilderModule = () => {
           </div>
         )}
       />
-      <div className="flex min-h-0 flex-1 bg-transparent gap-[5px]">
+      {alertMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500/20 border border-red-500/30 text-red-200 px-4 py-3 rounded-lg shadow-xl">
+          {alertMessage}
+        </div>
+      )}
+      
+      <SystemConfirmModal
+        isOpen={promptModal.isOpen}
+        onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
+        onConfirm={() => {
+          if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
+          setPromptModal({ ...promptModal, isOpen: false });
+        }}
+        title={promptModal.title}
+        message={promptModal.message}
+        confirmText="Create"
+        cancelText="Cancel"
+        showPrompt={true}
+        promptValue={promptModal.promptValue || ''}
+        onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
+        promptPlaceholder={promptModal.defaultValue || 'Enter name...'}
+        variant="info"
+      />
+      <div className="module-content-stage flex bg-transparent gap-1.5">
       {/* Left Sidebar - Field Tools */}
       <div className="w-56 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
         <div className="p-1.5 space-y-0.5">

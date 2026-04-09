@@ -26,6 +26,7 @@ import EmptyState from '../../components/EmptyState';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import { SPECIALIST_REGISTRY, VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE } from '../Agents/data/agentRegistry';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import {
   advanceThreadStageApi,
   assignThreadApi,
@@ -516,6 +517,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const [rightPanelWidth, setRightPanelWidth] = useState(328);
   const [activeResizeSide, setActiveResizeSide] = useState(null);
   const layoutRef = useRef(null);
+  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
 
   const refresh = async () => {
     try {
@@ -770,12 +772,19 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   };
 
   const handleCreateThread = async () => {
-    const subject = window.prompt('Subject for the new thread');
-    if (!subject) return;
-    await runAction('Creating', async () => {
-      const mailboxId = activeMailbox?.id || selectedMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
-      const thread = await createThreadApi({ subject, channelType: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailboxId: mailboxId });
-      setSelectedThreadId(thread?.id || null);
+    setPromptModal({
+      isOpen: true,
+      title: 'Create Thread',
+      message: 'Enter subject for the new thread:',
+      defaultValue: '',
+      onConfirm: async (subject) => {
+        if (!subject) return;
+        await runAction('Creating', async () => {
+          const mailboxId = activeMailbox?.id || selectedMailbox?.id || snapshot.mailboxes?.[0]?.id || null;
+          const thread = await createThreadApi({ subject, channelType: channel === 'all' ? 'email' : channel, body: 'New thread initiated from Comms mission control.', mailboxId: mailboxId });
+          setSelectedThreadId(thread?.id || null);
+        });
+      }
     });
   };
 
@@ -1224,7 +1233,25 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const headerActions = isCompactComms && !clientMode ? compactPrimaryHeaderActions : secondaryHeaderActions;
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
+    <div className="module-root-standard">
+      <SystemConfirmModal
+        isOpen={promptModal.isOpen}
+        onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
+        onConfirm={() => {
+          if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
+          setPromptModal({ ...promptModal, isOpen: false });
+        }}
+        title={promptModal.title}
+        message={promptModal.message}
+        confirmText="Create"
+        cancelText="Cancel"
+        showPrompt={true}
+        promptValue={promptModal.promptValue || ''}
+        onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
+        promptPlaceholder={promptModal.defaultValue || 'Enter subject...'}
+        variant="info"
+      />
+      
       <style>{`
         .comms-scroll-hidden::-webkit-scrollbar{display:none;width:0;height:0;}
         .comms-thread-strip{scrollbar-width:thin;scrollbar-color:rgba(96,165,250,0.58) rgba(15,23,42,0.42);}
@@ -1233,9 +1260,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         .comms-thread-strip::-webkit-scrollbar-thumb{background:linear-gradient(90deg,rgba(96,165,250,0.75),rgba(59,130,246,0.58));border-radius:999px;border:2px solid rgba(15,23,42,0.34);}
         .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
       `}</style>
-      <div className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="module-root-standard">
         {/* Toolbar */}
-        <div className="h-12 shrink-0 flex items-center justify-between gap-3 px-4 border border-[var(--color-border)]/50 bg-[var(--color-bg-tertiary)]/90 backdrop-blur-md rounded-xl shadow-island-sm">
+        <div className="module-toolbar">
           <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {primaryHeaderActions.map((action, idx) => {
               if (React.isValidElement(action)) return <React.Fragment key={idx}>{action}</React.Fragment>;
@@ -1276,7 +1303,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
               })}
             </div>
 
-            <div className="flex items-center gap-1.5 px-1.5 py-1 bg-black/30 rounded-lg border border-white/10">
+            <div className="module-toolbar-utility">
               <button
                 onClick={() => openAIAssist()}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
@@ -1294,7 +1321,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
             </div>
           </div>
         </div>
-        <div className="relative flex-1 min-h-0 rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island">
+        <div className="module-content-stage module-surface-shell relative">
           <div ref={layoutRef} className="h-full min-h-0 grid grid-cols-1" style={workspaceLayoutStyle}>
             <aside style={hiddenScrollbarStyle} className={`comms-scroll-hidden min-w-0 border-b border-[var(--color-border)] ${COMMS_COLUMN_BG} flex flex-col min-h-0 overflow-y-auto ${isThreeColumnComms ? 'col-start-1 row-start-1 border-b-0 border-r' : isDesktopComms ? 'col-start-1 row-start-1 row-span-2 border-b-0 border-r' : ''}`}>
               <div className={`${isCompactComms ? 'p-2.5' : 'p-3'} border-b border-[var(--color-border)] space-y-2.5 ${COMMS_SECTION_BG}`}>
