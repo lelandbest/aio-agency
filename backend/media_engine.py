@@ -106,6 +106,8 @@ def normalize_media_type_hint(*values: Any) -> str:
             return "video"
         if hint.startswith("image/"):
             return "image"
+        if hint.startswith("text/") or hint in {"application/json", "application/xml"}:
+            return "document"
     image_hints = {
         "image",
         "jpg",
@@ -150,6 +152,18 @@ def normalize_media_type_hint(*values: Any) -> str:
         "mpeg4",
         "quicktime",
     }
+    document_hints = {
+        "document",
+        "txt",
+        "text",
+        "plain",
+        "json",
+        "xml",
+        "csv",
+        "md",
+        "markdown",
+        "pdf",
+    }
     for hint in hints:
         normalized = hint.replace(".", "").replace("_", "-").replace("/", "-")
         if normalized in image_hints or normalized.endswith("-image"):
@@ -158,6 +172,8 @@ def normalize_media_type_hint(*values: Any) -> str:
             return "audio"
         if normalized in video_hints or normalized.endswith("-video"):
             return "video"
+        if normalized in document_hints or normalized.endswith("-document"):
+            return "document"
     return "video"
 
 
@@ -911,6 +927,48 @@ def build_media_asset(
         asset["content_hash"] = generate_content_hash({"url": source_url_value, "type": asset_type})
 
     return normalize_asset_record_contract(asset)
+
+
+def build_workflow_json_asset(
+    *,
+    tenant_id: str | None,
+    workflow_json: Any,
+    ingest_source: str,
+    title: str | None = None,
+    file_name: str | None = None,
+    workflow_format: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_workflow = clone_json(workflow_json)
+    normalized_text = json.dumps(normalized_workflow, indent=2, sort_keys=True)
+    workflow_metadata = {
+        **(metadata if isinstance(metadata, dict) else {}),
+        "mime_type": "application/json",
+        "original_filename": clean_text(file_name) or None,
+        "workflow_format": clean_text(workflow_format) or None,
+        "workflow_json": normalized_workflow,
+        "raw_json_text": normalized_text,
+    }
+    conversion_type = f"{clean_text(workflow_format).lower()}_workflow_json" if clean_text(workflow_format) else None
+    return build_media_asset(
+        tenant_id=tenant_id,
+        provider="workflow_ingest",
+        asset_type="workflow_json",
+        media_type="application/json",
+        title=clean_text(title) or clean_text(file_name) or "Imported Workflow JSON",
+        ingest_source=ingest_source,
+        ingest_stage="raw",
+        original=True,
+        converted_from=None,
+        conversion_type=conversion_type,
+        stage="final",
+        linked_id=None,
+        source_url=None,
+        metadata=workflow_metadata,
+        attachments=[],
+        content_hash=generate_content_hash({"workflow_json": normalized_workflow}),
+        validate=True,
+    )
 
 
 def build_render_job(
@@ -2122,6 +2180,28 @@ class MediaEngine:
 
     def get_asset(self, asset_id: str) -> dict[str, Any] | None:
         return self.store.get("assets", asset_id)
+
+    def ingest_workflow_json_asset(
+        self,
+        workflow_json: Any,
+        *,
+        tenant_id: str | None = None,
+        ingest_source: str = "import",
+        title: str | None = None,
+        file_name: str | None = None,
+        workflow_format: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        asset = build_workflow_json_asset(
+            tenant_id=tenant_id,
+            workflow_json=workflow_json,
+            ingest_source=ingest_source,
+            title=title,
+            file_name=file_name,
+            workflow_format=workflow_format,
+            metadata=metadata,
+        )
+        return self.store.upsert_asset(asset, deduplicate=True)
 
     def _resolve_ingest_source_from_asset_ids(self, source_asset_ids: list[str] | None = None) -> str:
         for asset_id in source_asset_ids or []:

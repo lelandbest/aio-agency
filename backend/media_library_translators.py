@@ -34,6 +34,8 @@ def _normalize_media_type(*values: Any) -> str:
             return "video"
         if hint.startswith("image/"):
             return "image"
+        if hint.startswith("text/") or hint in {"application/json", "application/xml"}:
+            return "document"
 
     image_hints = {
         "image",
@@ -79,6 +81,18 @@ def _normalize_media_type(*values: Any) -> str:
         "mpeg4",
         "quicktime",
     }
+    document_hints = {
+        "document",
+        "txt",
+        "text",
+        "plain",
+        "json",
+        "xml",
+        "csv",
+        "md",
+        "markdown",
+        "pdf",
+    }
 
     for hint in hints:
         normalized = hint.replace(".", "").replace("_", "-").replace("/", "-")
@@ -88,6 +102,8 @@ def _normalize_media_type(*values: Any) -> str:
             return "audio"
         if normalized in video_hints or normalized.endswith("-video"):
             return "video"
+        if normalized in document_hints or normalized.endswith("-document"):
+            return "document"
     return "video"
 
 
@@ -182,7 +198,7 @@ def translate_asset_record(record: dict[str, Any], *, asset_lookup: dict[str, di
 
     return MediaLibraryItem(
         assetId=asset_id,
-        type="audio" if media_type == "audio" else "image" if media_type == "image" else "render",
+        type="audio" if media_type == "audio" else "image" if media_type == "image" else "document" if media_type == "document" else "render",
         status=_clean_text(record.get("status")).lower() or "complete",
         sourceUrl=source_url,
         title=_clean_text(record.get("title")) or "Media Asset",

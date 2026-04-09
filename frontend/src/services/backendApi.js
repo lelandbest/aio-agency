@@ -635,6 +635,19 @@ export async function bulkDeleteFlowsApi(ids = null) {
   });
 }
 
+export async function importWorkflowJsonApi({ templateJson, fileName = null, title = null }) {
+  const response = await request('/api/flows/ingest-workflow-json', {
+    method: 'POST',
+    body: JSON.stringify({
+      ingestSource: 'import',
+      templateJson,
+      fileName: fileName || null,
+      title: title || null,
+    }),
+  });
+  return response.data || null;
+}
+
 export async function getMediaAssetsApi() {
   const response = await request('/api/media/assets');
   return toCamelCase(response.data || []);

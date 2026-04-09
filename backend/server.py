@@ -69,6 +69,7 @@ try:
         build_audio_render_job, build_render_job, build_transcript_job,
         clone_json,
         get_transcription_provider_lock, normalize_attachment_links,
+        normalize_controlled_tags, normalize_ingest_meta,
         resolve_ffprobe_path, resolve_local_media_path,
         resolve_transcription_provider_id_from_lock,
     )
@@ -99,6 +100,7 @@ except ModuleNotFoundError:
         build_audio_render_job, build_render_job, build_transcript_job,
         clone_json,
         get_transcription_provider_lock, normalize_attachment_links,
+        normalize_controlled_tags, normalize_ingest_meta,
         resolve_ffprobe_path, resolve_local_media_path,
         resolve_transcription_provider_id_from_lock,
     )
@@ -2288,6 +2290,15 @@ class FlowManualTriggerRequest(BaseModel):
 class FlowImportRequest(BaseModel):
     source: str
     templateJson: dict[str, Any]
+
+
+class WorkflowJsonIngestRequest(BaseModel):
+    ingestSource: str = "import"
+    templateJson: Any | None = None
+    jsonText: str | None = None
+    assetId: str | None = None
+    fileName: str | None = None
+    title: str | None = None
 
 
 class MediaRenderRequest(BaseModel):
@@ -5416,14 +5427,231 @@ async def save_flow(flow_id: str, request: Request, payload: FlowSaveRequest):
     return {"data": {**saved, "validation": preflight}}
 
 
+def _camelcase_ingest_meta_value(value: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = normalize_ingest_meta(
+        value,
+        default_source="system",
+        default_stage="raw",
+        default_original=True,
+        default_converted_from=None,
+        default_conversion_type=None,
+    )
+    return {
+        "source": normalized["source"],
+        "stage": normalized["stage"],
+        "original": bool(normalized["original"]),
+        "convertedFrom": clean_text(normalized.get("converted_from")) or None,
+        "conversionType": clean_text(normalized.get("conversion_type")) or None,
+    }
+
+
+def _extract_workflow_json_from_asset(asset: dict[str, Any]) -> Any:
+    metadata = asset.get("metadata") if isinstance(asset.get("metadata"), dict) else {}
+    for key in ("workflow_json", "workflowJson", "content", "json"):
+        value = metadata.get(key)
+        if value is not None:
+            return clone_json(value)
+    for key in ("raw_json_text", "rawJsonText", "text", "content_text"):
+        raw_text = clean_text(metadata.get(key))
+        if raw_text:
+            return json.loads(raw_text)
+    raise ValueError("Stored asset does not contain recoverable workflow JSON content.")
+
+
+def ingest_workflow_json_pipeline(
+    *,
+    ingest_source: str = "import",
+    template_json: Any = None,
+    json_text: str | None = None,
+    asset_id: str | None = None,
+    file_name: str | None = None,
+    title: str | None = None,
+    tenant_id: str | None = None,
+    created_by: str = "Current User",
+    provider_instance: Any | None = None,
+    media_engine_instance: Any | None = None,
+) -> dict[str, Any]:
+    provider_instance = provider_instance or provider
+    media_engine_instance = media_engine_instance or get_media_engine()
+    tenant_token = set_request_tenant_id(tenant_id)
+
+    try:
+        normalized_ingest_source = clean_text(ingest_source).lower() or "import"
+        if normalized_ingest_source not in {"nexus", "upload", "import", "system"}:
+            raise ValueError("ingestSource must be one of nexus, upload, import, or system.")
+
+        workflow_json: Any
+        original_asset: dict[str, Any] | None = None
+
+        if template_json is not None:
+            workflow_json = clone_json(template_json)
+        elif clean_text(json_text):
+            try:
+                workflow_json = json.loads(clean_text(json_text))
+            except json.JSONDecodeError as error:
+                raise ValueError(f"Malformed JSON input: {error.msg}") from error
+        elif clean_text(asset_id):
+            original_asset = media_engine_instance.get_asset(clean_text(asset_id))
+            if not original_asset:
+                raise ValueError(f"Workflow asset '{asset_id}' was not found.")
+            workflow_json = _extract_workflow_json_from_asset(original_asset)
+        else:
+            raise ValueError("Provide templateJson, jsonText, or assetId.")
+
+        try:
+            from backend.flow_importer import detect_external_workflow_format, normalize_to_aio_flow, parse_external_template
+        except ModuleNotFoundError:
+            from flow_importer import detect_external_workflow_format, normalize_to_aio_flow, parse_external_template
+
+        detection = detect_external_workflow_format(workflow_json)
+
+        if original_asset:
+            original_ingest_meta = original_asset.get("ingest_meta") if isinstance(original_asset.get("ingest_meta"), dict) else {}
+            normalized_ingest_source = clean_text(original_ingest_meta.get("source")).lower() or normalized_ingest_source
+        else:
+            original_asset = media_engine_instance.ingest_workflow_json_asset(
+                workflow_json,
+                tenant_id=tenant_id,
+                ingest_source=normalized_ingest_source,
+                title=clean_text(title) or None,
+                file_name=clean_text(file_name) or None,
+                workflow_format=clean_text(detection.get("source")) or None,
+                metadata={
+                    "detected_workflow_format": clean_text(detection.get("source")) or None,
+                    "detection_reason": clean_text(detection.get("reason")) or None,
+                },
+            )
+
+        original_asset_id = clean_text(original_asset.get("id"))
+
+        if not detection.get("supported") or not detection.get("convertible"):
+            return {
+                "detected": bool(detection.get("detected")),
+                "supported": False,
+                "converted": False,
+                "originalPreserved": bool(original_asset_id),
+                "originalAsset": original_asset,
+                "convertedFlow": None,
+                "lineage": {
+                    "originalAssetId": original_asset_id or None,
+                    "convertedFlowId": None,
+                },
+                "detection": detection,
+                "validation": None,
+                "reason": clean_text(detection.get("reason")) or "Unsupported workflow JSON format.",
+            }
+
+        parsed = parse_external_template(clean_text(detection.get("source")), workflow_json)
+        normalized = normalize_to_aio_flow(parsed)
+        normalized_flow = normalized.get("flow") if isinstance(normalized.get("flow"), dict) else {}
+        imported_metadata = normalized_flow.get("metadata") if isinstance(normalized_flow.get("metadata"), dict) else {}
+        converted_ingest_meta = _camelcase_ingest_meta_value(
+            {
+                "source": normalized_ingest_source,
+                "stage": "structured",
+                "original": False,
+                "converted_from": original_asset_id or None,
+                "conversion_type": f"{clean_text(detection.get('source'))}_to_aio_flow_template",
+            }
+        )
+        flow_payload = {
+            "name": clean_text(title) or clean_text(normalized_flow.get("name")) or f"Imported {clean_text(detection.get('label')) or 'Workflow'}",
+            "status": "Draft",
+            "nodes": normalized_flow.get("nodes") if isinstance(normalized_flow.get("nodes"), list) else [],
+            "edges": normalized_flow.get("edges") if isinstance(normalized_flow.get("edges"), list) else [],
+            "spec": None,
+            "createdBy": created_by or "Current User",
+            "lastEditedBy": created_by or "Current User",
+            "metadata": {
+                "tags": normalize_controlled_tags(None, ["cortex", "structured", normalized_ingest_source, "converted", "template"]),
+                "ingestMeta": converted_ingest_meta,
+                "importSourceFormat": clean_text(detection.get("source")),
+                "originalAssetId": original_asset_id or None,
+                "warnings": clone_json(imported_metadata.get("warnings") or []),
+                "conversionSummary": clone_json(imported_metadata.get("conversionSummary") or {}),
+            },
+        }
+
+        raw_steps, _ = build_flow_execution_steps(
+            flow_payload,
+            f"Imported workflow conversion for {flow_payload['name']}",
+            "ALPHA",
+            runtime_context={},
+        )
+        preflight = flow_preflight_validation(flow_payload, raw_steps)
+        if preflight["blockers"]:
+            return {
+                "detected": True,
+                "supported": True,
+                "converted": False,
+                "originalPreserved": bool(original_asset_id),
+                "originalAsset": original_asset,
+                "convertedFlow": None,
+                "lineage": {
+                    "originalAssetId": original_asset_id or None,
+                    "convertedFlowId": None,
+                },
+                "detection": detection,
+                "validation": preflight,
+                "reason": "Converted flow failed AIO preflight validation.",
+            }
+
+        saved_flow = provider_instance.save_flow(flow_payload)
+        return {
+            "detected": True,
+            "supported": True,
+            "converted": True,
+            "originalPreserved": bool(original_asset_id),
+            "originalAsset": original_asset,
+            "convertedFlow": {
+                **saved_flow,
+                "validation": preflight,
+            },
+            "lineage": {
+                "originalAssetId": original_asset_id or None,
+                "convertedFlowId": clean_text(saved_flow.get("id")) or None,
+            },
+            "detection": detection,
+            "validation": preflight,
+            "reason": "Workflow JSON preserved and converted into an AIO-native draft flow.",
+        }
+    finally:
+        reset_request_tenant(tenant_token)
+
+
 @app.post("/api/flows/import-template")
 async def import_flow_template(request: Request, payload: FlowImportRequest):
     """Convert n8n/Make workflow JSON into preview-ready AIO flow draft. No DB writes, no execution."""
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can import flow templates.")
-    from flow_importer import parse_external_template, normalize_to_aio_flow
+    try:
+        from backend.flow_importer import parse_external_template, normalize_to_aio_flow
+    except ModuleNotFoundError:
+        from flow_importer import parse_external_template, normalize_to_aio_flow
     parsed = parse_external_template(payload.source, payload.templateJson)
     result = normalize_to_aio_flow(parsed)
     return result
+
+
+@app.post("/api/flows/ingest-workflow-json")
+async def ingest_workflow_json(request: Request, payload: WorkflowJsonIngestRequest):
+    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest workflow JSON.")
+    tenant = session.get("tenant") or {}
+    user = session.get("user") or {}
+    try:
+        result = ingest_workflow_json_pipeline(
+            ingest_source=payload.ingestSource,
+            template_json=payload.templateJson,
+            json_text=payload.jsonText,
+            asset_id=payload.assetId,
+            file_name=payload.fileName,
+            title=payload.title,
+            tenant_id=str(tenant.get("id") or "").strip() or None,
+            created_by=clean_text(user.get("name")) or "Current User",
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    status_code = 200 if result.get("converted") or result.get("originalPreserved") else 422
+    return JSONResponse(content={"data": result}, status_code=status_code)
 
 
 @app.post("/api/flows/{flow_id}/trigger/manual")

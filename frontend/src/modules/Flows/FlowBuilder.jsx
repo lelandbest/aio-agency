@@ -41,7 +41,8 @@ import {
   getAiRunsApi,
   triggerFlowManualApi,
   getFlowApi,
-  getFlowProviderStatusesApi
+  getFlowProviderStatusesApi,
+  importWorkflowJsonApi,
 } from '../../services/backendApi';
 import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
@@ -615,6 +616,74 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setAssistTarget('');
     }
   }, [requestFlowAssist]);
+
+  // Hidden file input ref for import
+  const importFileInputRef = useRef(null);
+
+  const handleImportFlow = useCallback(() => {
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = '';
+      importFileInputRef.current.click();
+    }
+  }, []);
+
+  const handleImportFileSelected = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    let parsed;
+    try {
+      const text = await file.text();
+      parsed = JSON.parse(text);
+    } catch {
+      showNotice({ message: 'Could not read file — must be valid JSON.', type: 'error' });
+      return;
+    }
+
+    try {
+      const result = await importWorkflowJsonApi({
+        templateJson: parsed,
+        fileName: file.name,
+        title: file.name.replace(/\.json$/i, ''),
+      });
+
+      if (!result?.supported) {
+        showNotice({ message: `Unsupported format: ${result?.detection?.reason || 'JSON does not match a supported workflow export.'}`, type: 'warning' });
+        return;
+      }
+
+      if (!result?.converted || !result?.convertedFlow) {
+        showNotice({ message: `Import failed: ${result?.reason || 'Conversion did not produce a valid flow.'}`, type: 'error' });
+        return;
+      }
+
+      const convertedFlow = result.convertedFlow;
+      const templateId = String(convertedFlow.id || `imported-${Date.now()}`);
+      
+      const template = {
+        id: templateId,
+        name: convertedFlow.name || file.name.replace(/\.json$/i, ''),
+        description: [
+          `Imported ${result.detection?.label || 'workflow'}.`,
+          ...(convertedFlow.metadata?.warnings?.length ? [`Warnings: ${convertedFlow.metadata.warnings.length}`] : []),
+        ].join(' '),
+        category: 'Imported',
+        complexity: result.detection?.source === 'make' ? 'Intermediate' : 'Advanced',
+        nodes: Array.isArray(convertedFlow.nodes) ? convertedFlow.nodes : [],
+        edges: Array.isArray(convertedFlow.edges) ? convertedFlow.edges : [],
+        placeholders: [],
+      };
+
+      const nextTemplates = saveStoredCustomTemplate(template);
+      setCustomTemplates(nextTemplates);
+      setLeftPanelOpen(true);
+      setLeftPanelTab('templates');
+      showNotice({ message: `"${template.name}" imported and available in Templates.`, type: 'success' });
+    } catch (error) {
+      showNotice({ message: error?.message || 'Import failed. Check the file and try again.', type: 'error' });
+    }
+  }, [showNotice]);
+
 
   const createGhostStarterNode = () => ({
     id: 'ghost-starter',
@@ -1842,6 +1911,16 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         }
       `}</style>
 
+      {/* Hidden file input for workflow import */}
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: 'none' }}
+        onChange={handleImportFileSelected}
+        aria-hidden="true"
+      />
+
       <FlowBuilderHeader
         flowName={flow?.name}
         status={flow?.status}
@@ -1852,6 +1931,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         onSave={handleSaveFlow}
         onSaveAsNew={handleSaveAsNewFlow}
         onBrowseTemplates={() => setShowTemplateLibrary(true)}
+        onImport={handleImportFlow}
       />
 
       <div className="module-content-stage relative flex flex-col gap-1.5 overflow-hidden px-1.5 pb-1.5">
