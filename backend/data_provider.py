@@ -1069,68 +1069,9 @@ class MockProvider(BaseProvider):
         self.mail_adapter = get_mail_adapter(self.provider_name)
         self.calendar_adapter = get_calendar_adapter("local-stub")
         now = utcnow()
-        self.tags = [
-            {"id": "tag-vip", "name": "VIP", "color": "#8b5cf6", "type": "contact", "usage_count": 5, "createdAt": now},
-            {"id": "tag-hot", "name": "Hot Lead", "color": "#ef4444", "type": "contact", "usage_count": 8, "createdAt": now},
-            {"id": "tag-customer", "name": "Customer", "color": "#10b981", "type": "contact", "usage_count": 12, "createdAt": now},
-        ]
-        self.companies = [
-            {"id": "company-techcorp", "name": "TechCorp Solutions", "industry": "Technology", "size": "51-200", "website": "https://techcorp.com", "owner": "AIO Flow"},
-            {"id": "company-finserve", "name": "FinServe Inc", "industry": "Finance", "size": "201-500", "website": "https://finserve.com", "owner": "AIO Flow"},
-            {"id": "company-edulearn", "name": "EduLearn Platform", "industry": "Education", "size": "51-200", "website": "https://edulearn.com", "owner": "Adam B."},
-        ]
-        self.contacts = [
-            {
-                "id": "contact-jenna",
-                "contact_id": "CNT-001",
-                "organization_id": "org-1",
-                "first_name": "Jenna",
-                "last_name": "Best",
-                "email": "jennalarinbest@gmail.com",
-                "phone": "+1 (555) 123-4567",
-                "company": "TechCorp Solutions",
-                "company_id": "company-techcorp",
-                "title": "Marketing Director",
-                "department": "Marketing",
-                "owner": "AIO Flow",
-                "source": "Website Form",
-                "status": "customer",
-                "lead_score": 92,
-                "quality": "hot",
-                "engagement": "high",
-                "tags": ["VIP", "Customer"],
-                "last_contacted_at": now,
-                "pipeline_stage": "Closed Won",
-                "createdAt": now,
-                "updatedAt": now,
-                "deleted_at": None,
-            },
-            {
-                "id": "contact-sarah",
-                "contact_id": "CNT-002",
-                "organization_id": "org-1",
-                "first_name": "Sarah",
-                "last_name": "Chen",
-                "email": "sarah.chen@finserve.com",
-                "phone": "+1 (555) 111-2222",
-                "company": "FinServe Inc",
-                "company_id": "company-finserve",
-                "title": "VP of Operations",
-                "department": "Operations",
-                "owner": "AIO Flow",
-                "source": "Conference",
-                "status": "customer",
-                "lead_score": 95,
-                "quality": "hot",
-                "engagement": "high",
-                "tags": ["VIP", "Customer"],
-                "last_contacted_at": now,
-                "pipeline_stage": "Closed Won",
-                "createdAt": now,
-                "updatedAt": now,
-                "deleted_at": None,
-            },
-        ]
+        self.tags = []
+        self.companies = []
+        self.contacts = []
         self.forms = [
             {
                 "id": "form-contact",
@@ -2030,68 +1971,9 @@ class MockProvider(BaseProvider):
         self.mail_adapter = get_mail_adapter(self.provider_name)
         self.calendar_adapter = get_calendar_adapter("local-stub")
         now = utcnow()
-        self.tags = [
-            {"id": "tag-vip", "name": "VIP", "color": "#8b5cf6", "type": "contact", "usage_count": 5, "createdAt": now},
-            {"id": "tag-hot", "name": "Hot Lead", "color": "#ef4444", "type": "contact", "usage_count": 8, "createdAt": now},
-            {"id": "tag-customer", "name": "Customer", "color": "#10b981", "type": "contact", "usage_count": 12, "createdAt": now},
-        ]
-        self.companies = [
-            {"id": "company-techcorp", "name": "TechCorp Solutions", "industry": "Technology", "size": "51-200", "website": "https://techcorp.com", "owner": "AIO Flow"},
-            {"id": "company-finserve", "name": "FinServe Inc", "industry": "Finance", "size": "201-500", "website": "https://finserve.com", "owner": "AIO Flow"},
-            {"id": "company-edulearn", "name": "EduLearn Platform", "industry": "Education", "size": "51-200", "website": "https://edulearn.com", "owner": "Adam B."},
-        ]
-        self.contacts = [
-            {
-                "id": "contact-jenna",
-                "contact_id": "CNT-001",
-                "organization_id": "org-1",
-                "first_name": "Jenna",
-                "last_name": "Best",
-                "email": "jennalarinbest@gmail.com",
-                "phone": "+1 (555) 123-4567",
-                "company": "TechCorp Solutions",
-                "company_id": "company-techcorp",
-                "title": "Marketing Director",
-                "department": "Marketing",
-                "owner": "AIO Flow",
-                "source": "Website Form",
-                "status": "customer",
-                "lead_score": 92,
-                "quality": "hot",
-                "engagement": "high",
-                "tags": ["VIP", "Customer"],
-                "last_contacted_at": now,
-                "pipeline_stage": "Closed Won",
-                "createdAt": now,
-                "updatedAt": now,
-                "deleted_at": None,
-            },
-            {
-                "id": "contact-sarah",
-                "contact_id": "CNT-002",
-                "organization_id": "org-1",
-                "first_name": "Sarah",
-                "last_name": "Chen",
-                "email": "sarah.chen@finserve.com",
-                "phone": "+1 (555) 111-2222",
-                "company": "FinServe Inc",
-                "company_id": "company-finserve",
-                "title": "VP of Operations",
-                "department": "Operations",
-                "owner": "AIO Flow",
-                "source": "Conference",
-                "status": "customer",
-                "lead_score": 95,
-                "quality": "hot",
-                "engagement": "high",
-                "tags": ["VIP", "Customer"],
-                "last_contacted_at": now,
-                "pipeline_stage": "Closed Won",
-                "createdAt": now,
-                "updatedAt": now,
-                "deleted_at": None,
-            },
-        ]
+        self.tags = []
+        self.companies = []
+        self.contacts = []
         self.forms = [
             {
                 "id": "form-contact",
@@ -4170,6 +4052,32 @@ class SQLiteProvider(BaseProvider):
         ]:
             conn.execute(f"UPDATE {table} SET tenantId = COALESCE(tenantId, ?)", (tenantId,))
 
+    def _purge_legacy_crm_seed_data(self, conn: sqlite3.Connection) -> None:
+        tenant_id = self._default_tenantId()
+        seed_contacts = ("contact-jenna", "contact-sarah", "contact-emily")
+        seed_companies = ("company-techcorp", "company-finserve", "company-edulearn")
+        seed_hit = conn.execute(
+            """
+            SELECT 1
+            FROM contacts
+            WHERE tenantId = ? AND id IN (?, ?, ?)
+            UNION
+            SELECT 1
+            FROM companies
+            WHERE tenantId = ? AND id IN (?, ?, ?)
+            LIMIT 1
+            """,
+            (tenant_id, *seed_contacts, tenant_id, *seed_companies),
+        ).fetchone()
+        if not seed_hit:
+            return
+
+        conn.execute("DELETE FROM contact_activities WHERE tenantId = ?", (tenant_id,))
+        conn.execute("DELETE FROM contacts WHERE tenantId = ?", (tenant_id,))
+        conn.execute("DELETE FROM companies WHERE tenantId = ?", (tenant_id,))
+        conn.execute("UPDATE threads SET contactId = NULL, companyId = NULL WHERE tenantId = ?", (tenant_id,))
+        conn.execute("UPDATE calendar_events SET contactId = NULL, companyId = NULL WHERE tenantId = ?", (tenant_id,))
+
     def _init_db(self) -> None:
         with self._connect() as conn:
             conn.executescript(
@@ -5243,42 +5151,17 @@ class SQLiteProvider(BaseProvider):
                     ],
                 )
             self.seed_canonical_tags(conn)
+            self._purge_legacy_crm_seed_data(conn)
 
-            existing = conn.execute("SELECT COUNT(*) AS count FROM contacts").fetchone()["count"]
+            existing = conn.execute("SELECT COUNT(*) AS count FROM forms").fetchone()["count"]
             if existing:
+                self._backfill_tenantIds(conn)
                 return
 
             now = utcnow()
-            contacts = [
-                (
-                    "contact-jenna", "CNT-001", "org-1", "Jenna", "Best", "jennalarinbest@gmail.com",
-                    "+1 (555) 123-4567", "TechCorp Solutions", "company-techcorp", "Marketing Director", "Marketing",
-                    "AIO Flow", "Website Form", "customer", 92, "hot", "high",
-                    json.dumps(["VIP", "Customer"]), now, "Closed Won", now, now, None,
-                ),
-                (
-                    "contact-sarah", "CNT-002", "org-1", "Sarah", "Chen", "sarah.chen@finserve.com",
-                    "+1 (555) 111-2222", "FinServe Inc", "company-finserve", "VP of Operations", "Operations",
-                    "AIO Flow", "Conference", "customer", 95, "hot", "high",
-                    json.dumps(["VIP", "Customer"]), now, "Closed Won", now, now, None,
-                ),
-                (
-                    "contact-emily", "CNT-003", "org-1", "Emily", "Watson", "emily.watson@edulearn.com",
-                    "+1 (555) 333-4444", "EduLearn Platform", "company-edulearn", "Product Manager", "Product",
-                    "Adam B.", "Website Form", "lead", 64, "warm", "medium",
-                    json.dumps(["Trial", "Prospect"]), now, "Discovery", now, now, None,
-                ),
-            ]
-            companies = [
-                ("company-techcorp", "TechCorp Solutions", "Technology", "51-200", "https://techcorp.com", "AIO Flow"),
-                ("company-finserve", "FinServe Inc", "Finance", "201-500", "https://finserve.com", "AIO Flow"),
-                ("company-edulearn", "EduLearn Platform", "Education", "51-200", "https://edulearn.com", "Adam B."),
-            ]
-            tags = [
-                ("tag-vip", "VIP", "#8b5cf6", "contact", 5, now),
-                ("tag-hot", "Hot Lead", "#ef4444", "contact", 8, now),
-                ("tag-customer", "Customer", "#10b981", "contact", 12, now),
-            ]
+            contacts = []
+            companies = []
+            tags = []
             forms = [
                 (
                     "form-contact",
@@ -6015,15 +5898,23 @@ class SQLiteProvider(BaseProvider):
 
     def create_contact(self, payload: dict[str, Any]) -> dict[str, Any]:
         now = utcnow()
+        first_name = str(payload.get("firstName") or "").strip()
+        last_name = str(payload.get("lastName") or "").strip()
+        email = str(payload.get("email") or "").strip().lower() or None
+        phone = str(payload.get("phone") or "").strip() or None
+        custom_fields = payload.get("customFields") or {}
+        display_name = str(payload.get("displayName") or custom_fields.get("displayName") or "").strip()
+        if not any([display_name, first_name, last_name, email, phone]):
+            raise ValueError("A contact requires a name, email, or phone number.")
         record = {
             "id": payload.get("id") or f"contact-{unique_suffix()}",
             "contactId": payload.get("contactId") or f"CNT-{unique_suffix().upper()}",
             "organizationId": payload.get("organizationId") or "org-1",
             "tenantId": self._tenantId(),
-            "firstName": payload.get("firstName"),
-            "lastName": payload.get("lastName"),
-            "email": payload.get("email"),
-            "phone": payload.get("phone"),
+            "firstName": first_name or None,
+            "lastName": last_name or None,
+            "email": email,
+            "phone": phone,
             "company": payload.get("company"),
             "companyId": payload.get("companyId"),
             "title": payload.get("title"),
@@ -6048,7 +5939,7 @@ class SQLiteProvider(BaseProvider):
             "dob": payload.get("dob"),
             "ownerId": payload.get("ownerId"),
             "addressJson": json.dumps(payload.get("address") or {}),
-            "customFieldsJson": json.dumps(payload.get("customFields") or {}),
+            "customFieldsJson": json.dumps(custom_fields),
             "optInEmail": int(payload.get("optInEmail", True)),
             "optInSms": int(payload.get("optInSms", True)),
             "optInCalls": int(payload.get("optInCalls", True)),
@@ -6088,6 +5979,7 @@ class SQLiteProvider(BaseProvider):
             existing = conn.execute("SELECT * FROM contacts WHERE id = ? AND tenantId = ?", (contact_id, self._tenantId())).fetchone()
             if not existing:
                 raise ValueError("Contact not found")
+            existing_contact = self._contact_from_row(dict(existing))
             payload = {}
             for key in allowed_scalar:
                 if key in updates:
@@ -6112,6 +6004,14 @@ class SQLiteProvider(BaseProvider):
             for key in ["optInEmail", "optInSms", "optInCalls", "optInFlows"]:
                 if key in updates:
                     payload[key] = int(bool(updates[key]))
+            next_custom_fields = updates.get("customFields", existing_contact.get("customFields") or {})
+            next_display_name = str(updates.get("displayName") or next_custom_fields.get("displayName") or "").strip()
+            next_first_name = str(payload.get("firstName", existing_contact.get("firstName")) or "").strip()
+            next_last_name = str(payload.get("lastName", existing_contact.get("lastName")) or "").strip()
+            next_email = str(payload.get("email", existing_contact.get("email")) or "").strip().lower()
+            next_phone = str(payload.get("phone", existing_contact.get("phone")) or "").strip()
+            if not any([next_display_name, next_first_name, next_last_name, next_email, next_phone]):
+                raise ValueError("A contact requires a name, email, or phone number.")
             if not payload:
                 return self._contact_from_row(dict(existing))
             payload["updatedAt"] = utcnow()

@@ -91,7 +91,7 @@ export const SPECIALIST_REGISTRY = {
   },
   FORGE: {
     agentId: 'AGT-CPY-006',
-    label: 'Content/Copywriting',
+    label: 'Hammer',
     rank: 'AI Agent',
     role: 'Copy',
     specialization: 'Content/Copywriting',

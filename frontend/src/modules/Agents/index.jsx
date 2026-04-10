@@ -147,6 +147,7 @@ const formatRunTimestamp = (value) => {
 
 const resolveAgentLabel = (key) => {
   if (!key || key === 'SYSTEM' || key === 'OPERATOR') return 'System Operator';
+  if (key === 'FORGE') return 'Hammer';
   const entry = SPECIALIST_REGISTRY[key];
   if (entry?.label) return entry.label;
   
@@ -468,7 +469,7 @@ const AIOAgentsModule = () => {
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: `${activeAgent?.name || 'CHARLIE'} Activated! ${pickSalutation()}`, rank: activeAgent?.registryKey || 'CHARLIE' }
+    { role: 'assistant', content: `${resolveAgentLabel(activeAgent?.registryKey || activeAgent?.name || 'CHARLIE')} Activated! ${pickSalutation()}`, rank: activeAgent?.registryKey || 'CHARLIE' }
   ]);
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
@@ -848,7 +849,7 @@ const AIOAgentsModule = () => {
 
   useEffect(() => {
     if (!activeAgent) return;
-    const agentName = activeAgent.name === 'CHARLIE' ? 'CHARLIE' : (activeAgent.name || activeAgent.registryKey);
+    const agentName = resolveAgentLabel(activeAgent.registryKey || activeAgent.name || 'CHARLIE');
     const greeting = `${agentName} Activated! ${pickSalutation()}`;
     setMessages(prev => {
       const last = prev[prev.length - 1];
@@ -894,6 +895,7 @@ const AIOAgentsModule = () => {
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && resolveMessageContent(message));
   const mainAgentLabel = resolveAgentLabel(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
   const mainAgentId = resolveAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
+  const activeAgentDisplayLabel = resolveAgentLabel(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || 'CHARLIE');
 
   const getAgentColor = (key) => {
     if (key === 'ALPHA') return HQ_AGENT_STYLE;
@@ -926,7 +928,7 @@ const AIOAgentsModule = () => {
       .filter((key) => key && key !== 'ALPHA' && key !== 'OMEGA');
     return commandPostOrder.length ? commandPostOrder : (SPECIALIST_REGISTRY.ALPHA?.subordinates || []);
   })();
-  const contextAgentLabel = activeRunAgent || selectedAgent || '';
+  const contextAgentLabel = resolveAgentLabel(activeRunAgent || selectedAgent || '');
   const contextAgentId = resolveAgentId(activeRunAgent || selectedAgent || '');
   const commandModeLabel = activeFlowLabel && contextAgentLabel ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentLabel ? 'Agent' : 'System';
   const sessionDirective = hasActiveRun
@@ -1426,7 +1428,7 @@ const AIOAgentsModule = () => {
              <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
                    <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight flex items-baseline gap-3">
-                     {activeAgent?.name || mainAgentLabel}
+                     {activeAgentDisplayLabel || mainAgentLabel}
                      {mainAgentId && (
                        <span className="text-[11px] font-mono text-[var(--color-text-tertiary)] opacity-60 tracking-[0.2em]">
                          {mainAgentId}
@@ -1502,7 +1504,7 @@ const AIOAgentsModule = () => {
                   <div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-3">
-                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgent?.name || mainAgentLabel}</h4>
+                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentDisplayLabel || mainAgentLabel}</h4>
                         <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
                         <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentLabel(activeRunAgent)})` : sessionStatusLabel}</span>
                       </div>
@@ -1804,7 +1806,7 @@ const AIOAgentsModule = () => {
                                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                              } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                            >
-                             {agentKey}
+                             {resolveAgentLabel(agentKey)}
                            </button>
                          );
                        })}

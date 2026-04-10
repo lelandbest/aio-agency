@@ -36,6 +36,7 @@ function VTTOpener() {
 const SignalsModule = lazy(() => import('./modules/Signals'));
 const BrainModule = lazy(() => import('./modules/Brain'));
 const CRMModule = lazy(() => import('./modules/CRM'));
+const CRM1Module = lazy(() => import('./modules/CRM1'));
 const FormBuilderModule = lazy(() => import('./modules/Forms'));
 const PipelineModule = lazy(() => import('./modules/Pipeline'));
 const CalendarModule = lazy(() => import('./modules/Calendar'));
@@ -152,6 +153,7 @@ const MODULE_SUBTITLE_MAP = {
   'aio-agents': 'Coordinate specialist agents, live command runs, and system execution posture.',
   calendar: 'Coordinate sources, booking types, and scheduled meetings from one workspace.',
   crm: 'Search, segment, and operate on contact records from one workspace.',
+  crm1: 'Legacy CRM visual snapshot preserved as an isolated mock reference module.',
   flows: 'Manage and launch your automation flows.',
   forms: 'Create, organize, and deploy workspace forms.',
   chat: 'Thread-first Comms for triage, actions, and audit logs.',
@@ -277,10 +279,11 @@ const App = () => {
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
   const [showTicketModal, setShowTicketModal] = useState(false);
 
-  const moduleLabels = {
-    'aio-brain': 'Brain',
-    'crm': 'AIO',
-    'orders': 'Orders',
+    const moduleLabels = {
+      'aio-brain': 'Brain',
+      'crm': 'AIO',
+      'crm1': 'CRM1',
+      'orders': 'Orders',
     'media': 'Studio',
     'studio': 'Studio',
     'comms': 'Dispatch',
@@ -723,6 +726,8 @@ const App = () => {
         );
       case 'crm':
         return <CRMModule initialContactId={crmContactId} onSelectContact={setCrmContactId} />;
+      case 'crm1':
+        return <CRM1Module />;
       case 'forms':
         return <FormBuilderModule />;
       case 'pipelines':

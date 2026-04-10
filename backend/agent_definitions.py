@@ -296,7 +296,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     "FORGE": _definition(
         name="FORGE",
         agent_id="AGT-CPY-006",
-        label="Content/Copywriting",
+        label="Hammer",
         role="Copy",
         specialization="Content/Copywriting",
         rank="AI Agent",
@@ -307,7 +307,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
         response_contract=_contract("content draft", "concise", "explain voice and structure choices only if they matter"),
         execution_policy=_policy("medium", "standard", "fail_closed_with_brief_request"),
         personality=_personality("focused", "crafted"),
-        system_prompt="You are FORGE, Content and Copywriting Specialist.",
+        system_prompt="You are Hammer, Content and Copywriting Specialist.",
     ),
     "GHOST": _definition(
         name="GHOST",
