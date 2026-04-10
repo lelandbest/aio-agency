@@ -24,6 +24,8 @@ from urllib import request as urlrequest
 from urllib.parse import urlencode
 from uuid import uuid4
 
+from media_render_registry import list_templates
+
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
@@ -2303,6 +2305,7 @@ class WorkflowJsonIngestRequest(BaseModel):
 
 class MediaRenderRequest(BaseModel):
     provider: str | None = None
+    templateId: str | None = None
     title: str | None = None
     assetType: str | None = None
     mediaType: str | None = "video"
@@ -2339,6 +2342,7 @@ class MediaIngestRequest(BaseModel):
     transcriptionProvider: str | None = None
     autoTranscribe: bool = True
     attachments: list[dict[str, Any]] | None = None
+    tags: list[str] | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -4353,6 +4357,12 @@ async def test_automation_provider_config(config_id: str, request: Request):
         raise HTTPException(status_code=400, detail=updated.get("last_error") or str(error)) from error
 
 
+@app.get("/api/media/render-templates")
+async def get_media_render_templates(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace viewers can list media templates.")
+    return {"data": {"templates": list_templates()}}
+
+
 @app.get("/api/media/providers")
 async def list_media_provider_configs(request: Request):
     session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media providers.")
@@ -5939,14 +5949,31 @@ async def upload_media_file(request: Request):
         content_type = request.headers.get("content-type") or ""
         if "multipart/form-data" not in content_type:
             raise HTTPException(status_code=400, detail="media upload expects multipart/form-data.")
-        filename, uploaded_content_type, payload = _extract_uploaded_file_from_multipart(content_type, await request.body())
+        
+        form = await request.form()
+        file_field = form.get("file")
+        if not file_field or not hasattr(file_field, "filename"):
+             raise HTTPException(status_code=400, detail="No 'file' field provided in multipart form.")
+             
+        payload = await file_field.read()
         if not payload:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+            
+        # Support tags as a comma-separated string or multiple 'tags' fields
+        tags_raw = form.getlist("tags")
+        tags = []
+        for val in tags_raw:
+            if isinstance(val, str) and "," in val:
+                tags.extend([t.strip() for t in val.split(",") if t.strip()])
+            elif isinstance(val, str):
+                tags.append(val.strip())
+        
         result = get_media_engine().upload_local_media(
             file_bytes=payload,
-            filename=filename,
-            content_type=uploaded_content_type,
+            filename=file_field.filename or "upload.bin",
+            content_type=file_field.content_type,
             tenant_id=tenant.get("id"),
+            tags=tags if tags else None,
             context={},
         )
         asset = result.get("asset") if isinstance(result, dict) else None

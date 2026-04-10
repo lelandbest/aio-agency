@@ -21,6 +21,8 @@ from threading import Lock
 from typing import Any
 from uuid import uuid4
 
+from media_render_registry import resolve_template
+
 from backend.utils.provider_normalizer import normalize_provider_key, get_elevenlabs_api_key, get_elevenlabs_voice_selection
 
 
@@ -667,15 +669,27 @@ MEDIA_INGEST_STAGES = {"raw", "processed", "structured"}
 MediaValidationError = type("MediaValidationError", (ValueError,), {})
 
 
+# DO NOT change tag casing rules locally. 
+# Tag casing contract is UPPERCASE system-wide.
+# Any new tag path must reuse this normalization or follow the UPPERCASE contract.
 def normalize_controlled_tags(values: Any, defaults: list[str] | None = None) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
-    for candidate in list(values or []) + list(defaults or []):
-        tag = clean_text(candidate).lower()
-        if not tag or tag not in MEDIA_TAG_VALUES or tag in seen:
-            continue
-        seen.add(tag)
-        normalized.append(tag)
+    
+    # SYSTEM TAGS FIRST: maintain priority for controlled values
+    for candidate in (defaults or []):
+        tag = clean_text(candidate).upper()
+        if tag and tag in MEDIA_TAG_VALUES and tag not in seen:
+            seen.add(tag)
+            normalized.append(tag)
+            
+    # USER TAGS SECOND: allow arbitrary values but keep clean+dedupe
+    for candidate in (values or []):
+        tag = clean_text(candidate).upper()
+        if tag and tag not in seen:
+            seen.add(tag)
+            normalized.append(tag)
+            
     return normalized
 
 
@@ -745,7 +759,7 @@ def normalize_asset_record_contract(record: dict[str, Any]) -> dict[str, Any]:
             source=ingest_meta["source"],
             stage=ingest_meta["stage"],
             original=bool(ingest_meta["original"]),
-            existing=record.get("tags"),
+            existing=record.get("tags") or record.get("user_tags"),
         ),
         "ingest_meta": ingest_meta,
     }
@@ -868,6 +882,7 @@ def build_media_asset(
     source_url: str | None = None,
     metadata: dict[str, Any] | None = None,
     attachments: list[dict[str, Any]] | None = None,
+    tags: list[str] | None = None,
     content_hash: str | None = None,
     validate: bool = True,
 ) -> dict[str, Any]:
@@ -918,6 +933,7 @@ def build_media_asset(
         ),
         "metadata": clone_json(metadata),
         "attachments": clone_json(attachments or []),
+        "tags": clone_json(tags or []),
         "content_hash": content_hash,
         "created_at": now,
         "updated_at": now,
@@ -1554,6 +1570,14 @@ class RemotionLocalRenderProvider(BaseRenderProvider):
         if branding:
             props["branding"] = branding
 
+        # Resolve Template
+        template_id = clean_text(payload.get("templateId") or payload.get("template_id"))
+        template = resolve_template(template_id)
+        composition_id = template["compositionId"]
+        
+        # Merge template default props with provided props if needed in future
+        # For now, we trust the registry resolution
+        
         job_id = clean_text(job.get("id")) or unique_id("video")
         video_filename = f"{job_id}.mp4"
         video_dir = Path(__file__).resolve().parent / "data" / "video"
@@ -1566,7 +1590,7 @@ class RemotionLocalRenderProvider(BaseRenderProvider):
             "remotion",
             "render",
             "remotion/index.ts",
-            "VideoComposition",
+            composition_id,
             str(video_path),
             "--props",
             json.dumps(props),
@@ -1600,6 +1624,8 @@ class RemotionLocalRenderProvider(BaseRenderProvider):
                     "source_url": f"/api/media/video/{video_filename}",
                     "metadata": {
                         "provider": "RemotionLocalRenderProvider",
+                        "templateId": template["templateId"],
+                        "compositionId": composition_id,
                         "script": clean_text(payload.get("script")),
                         "renderProfile": clean_text(payload.get("renderProfile") or payload.get("render_profile")) or "foundation",
                     },
@@ -2246,6 +2272,7 @@ class MediaEngine:
         content_type: str | None = None,
         tenant_id: str | None = None,
         title: str | None = None,
+        tags: list[str] | None = None,
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         safe_name = Path(clean_text(filename) or "upload.bin").name
@@ -2294,6 +2321,7 @@ class MediaEngine:
                 "size_bytes": len(payload),
             },
             attachments=normalize_attachment_links({}, context),
+            tags=tags,
             content_hash=dedup_hash,
         )
         persisted = self.store.upsert_asset(asset, deduplicate=True)
@@ -2769,6 +2797,7 @@ class MediaEngine:
                 source_url=source_url,
                 metadata=asset_metadata,
                 attachments=attachments,
+                tags=payload.get("tags") or payload.get("user_tags"),
                 content_hash=content_hash,
             )
             persisted = self.store.upsert_asset(asset, deduplicate=True)

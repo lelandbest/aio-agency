@@ -207,7 +207,7 @@ def translate_asset_record(record: dict[str, Any], *, asset_lookup: dict[str, di
         createdAt=record.get("created_at"),
         deleteType="asset",
         mediaType=media_type,
-        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        tags=[_clean_text(tag).upper() for tag in (record.get("tags") or []) if _clean_text(tag)],
         ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_camelcase_metadata(record.get("metadata")),
     )
@@ -230,7 +230,7 @@ def translate_transcript_artifact_record(record: dict[str, Any], *, asset_lookup
         createdAt=record.get("created_at"),
         deleteType="transcript",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
-        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        tags=[_clean_text(tag).upper() for tag in (record.get("tags") or []) if _clean_text(tag)],
         ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="transcript"),
     )
@@ -253,7 +253,7 @@ def translate_script_artifact_record(record: dict[str, Any], *, asset_lookup: di
         createdAt=record.get("created_at"),
         deleteType="script",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
-        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        tags=[_clean_text(tag).upper() for tag in (record.get("tags") or []) if _clean_text(tag)],
         ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="script"),
     )
@@ -276,7 +276,7 @@ def translate_run_of_show_artifact_record(record: dict[str, Any], *, asset_looku
         createdAt=record.get("created_at"),
         deleteType="run_of_show",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
-        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        tags=[_clean_text(tag).upper() for tag in (record.get("tags") or []) if _clean_text(tag)],
         ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="run_of_show"),
     )
@@ -299,7 +299,7 @@ def translate_publish_artifact_record(record: dict[str, Any], *, asset_lookup: d
         createdAt=record.get("created_at"),
         deleteType="publish",
         mediaType=_resolve_media_type(record, asset_lookup=asset_lookup, source_url=source_url),
-        tags=[_clean_text(tag).lower() for tag in (record.get("tags") or []) if _clean_text(tag)],
+        tags=[_clean_text(tag).upper() for tag in (record.get("tags") or []) if _clean_text(tag)],
         ingestMeta=_camelcase_ingest_meta(record.get("ingest_meta")),
         metadata=_build_artifact_metadata(record, artifact_type="publish"),
     )

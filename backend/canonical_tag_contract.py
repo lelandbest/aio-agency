@@ -127,6 +127,19 @@ are preserved but:
 These should be reviewed for potential migration to canonical format.
 
 ------------------------------------------------------------------------
+CASING CONTRACT (UPPERCASE ENFORCEMENT)
+------------------------------------------------------------------------
+
+- All tags (system and user) are canonically stored in UPPERCASE.
+- Mixed-case or lowercase tags are NOT permitted in persistence.
+- Normalization to UPPERCASE is enforced before database/state writes.
+- API-returned tags are guaranteed to be uppercase by the service layer.
+- UI must NOT be treated as the source of truth for casing logic.
+- NEW TAG WRITE PATHS must reuse the canonical normalization helpers 
+  (e.g., media_engine.py:normalize_controlled_tags or data_provider.py 
+  creation methods) and MUST NOT implement local casing behavior.
+
+------------------------------------------------------------------------
 """
 
 CANONICAL_PREFIXES = frozenset({

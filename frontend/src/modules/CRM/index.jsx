@@ -246,7 +246,7 @@ const buildContactPayload = (draft, companies) => {
     owner: normalizeText(draft.owner) || null,
     status: draft.status || 'active',
     source: normalizeText(draft.source) || null,
-    tags: String(draft.tagsText || '').split(',').map((item) => item.trim()).filter(Boolean),
+    tags: String(draft.tagsText || '').split(',').map((item) => item.trim().toUpperCase()).filter(Boolean),
     website: normalizeText(draft.website) || null,
     aiEmployee: normalizeText(draft.aiEmployee) || null,
     quality: normalizedQuality,
@@ -1058,7 +1058,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   };
 
   const handleBulkTag = async (tagsText) => {
-    const nextTags = String(tagsText || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const nextTags = String(tagsText || '').split(',').map((item) => item.trim().toUpperCase()).filter(Boolean);
     if (!nextTags.length) return;
     setBulkSaving(true);
     try {

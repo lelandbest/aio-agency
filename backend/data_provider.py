@@ -5128,7 +5128,7 @@ class SQLiteProvider(BaseProvider):
                             "AIO CRM is the local-first operator console where CRM, Comms, workflows, and AI agents share one memory layer.",
                             "brain-source-profile",
                             "active",
-                            json.dumps(["positioning", "ai", "local-first"]),
+                            json.dumps(["POSITIONING", "AI", "LOCAL-FIRST"]),
                             72.0,
                             26.0,
                             seeded_now,
@@ -5142,7 +5142,7 @@ class SQLiteProvider(BaseProvider):
                             "Named agents should pull from workspace memory before drafting, summarizing, or recommending next steps.",
                             "brain-source-ops",
                             "draft",
-                            json.dumps(["agents", "memory", "rules"]),
+                            json.dumps(["AGENTS", "MEMORY", "RULES"]),
                             76.0,
                             58.0,
                             seeded_now,
@@ -5925,7 +5925,7 @@ class SQLiteProvider(BaseProvider):
             "leadScore": payload.get("leadScore") or 50,
             "quality": payload.get("quality") or "warm",
             "engagement": payload.get("engagement") or "medium",
-            "tagsJson": json.dumps(payload.get("tags") or []),
+            "tagsJson": json.dumps([str(t).strip().upper() for t in (payload.get("tags") or [])]),
             "lastContactedAt": payload.get("lastContactedAt"),
             "pipelineStage": payload.get("pipelineStage") or "New",
             "emailVerified": None if "emailVerified" not in payload else (None if payload.get("emailVerified") is None else int(bool(payload.get("emailVerified")))),
@@ -5996,7 +5996,7 @@ class SQLiteProvider(BaseProvider):
                     payload["emailVerificationStatus"] = None
                     payload["emailVerificationScore"] = None
             if "tags" in updates:
-                payload["tagsJson"] = json.dumps(updates.get("tags") or [])
+                payload["tagsJson"] = json.dumps([str(t).strip().upper() for t in (updates.get("tags") or [])])
             if "address" in updates:
                 payload["addressJson"] = json.dumps(updates.get("address") or {})
             if "customFields" in updates:
@@ -6105,6 +6105,8 @@ class SQLiteProvider(BaseProvider):
             ).fetchone()
         return dict(row) if row else None
 
+    # DO NOT change tag casing rules locally. Tag casing contract is UPPERCASE system-wide.
+    # Any new tag path must reuse this normalization or follow the UPPERCASE contract.
     def create_tag(self, payload: dict[str, Any]) -> dict[str, Any]:
         name = str(payload.get("name", "")).strip().upper()
         if ":" not in name:
@@ -6648,7 +6650,7 @@ class SQLiteProvider(BaseProvider):
             "content": payload.get("content") or "",
             "source_id": payload.get("source_id"),
             "status": payload.get("status") or "draft",
-            "tags_json": json.dumps(payload.get("tags") or []),
+            "tags_json": json.dumps([str(t).strip().upper() for t in (payload.get("tags") or [])]),
             "graph_x": payload.get("graph_x"),
             "graph_y": payload.get("graph_y"),
             "createdAt": payload.get("createdAt") or now,

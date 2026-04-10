@@ -210,7 +210,7 @@ function OverviewTab({ setTab }) {
           <SectionTitle
             eyebrow="Runtime"
             title="SMS / VoIP Control Surface"
-            detail="This page only exposes repo-backed communications APIs. Provider credentials can be managed here or from Integrations."
+            detail="Manage provider credentials and runtime transport settings for the workspace."
             action={(
               <div className="flex gap-2">
                 <button onClick={() => navigate({ module: 'integrations', integrationCategory: 'communications' })} className="rounded-full border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-primary)] transition hover:bg-[var(--color-primary)]/20">Open Integrations</button>
@@ -227,7 +227,7 @@ function OverviewTab({ setTab }) {
         </div>
 
         <div className={`${islandClass} p-4`}>
-          <SectionTitle eyebrow="Providers" title="Twilio / Telnyx" detail="These are the live-capable provider adapters present in the repo today." />
+          <SectionTitle eyebrow="Providers" title="Twilio / Telnyx" />
           <div className="mt-4 grid gap-3 xl:grid-cols-2">
             {liveProviders.map((providerType) => {
               const state = providerState(providerType, activeProviderType, providerConfigs);
@@ -245,7 +245,6 @@ function OverviewTab({ setTab }) {
               );
             })}
           </div>
-          <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-3 text-sm text-amber-100">The repo does not expose a dedicated communications provider test endpoint. Save and delete flows are real; runtime health beyond active-provider selection is not available from this UI.</div>
         </div>
       </div>
 
@@ -254,7 +253,6 @@ function OverviewTab({ setTab }) {
           <SectionTitle eyebrow="Truth" title="Operational Status" />
           <div className="mt-3 space-y-3">
             <div className={`${cardClass} p-3 text-sm text-[var(--color-text-secondary)]`}>CRM integration: {integrationInfo.crmIntegration || 'unknown'}<br />Signals integration: {integrationInfo.signalsIntegration || 'unknown'}<br />Flow triggers: {integrationInfo.flowsTriggerReadiness || 'unknown'}</div>
-            <div className={`${cardClass} p-3 text-sm text-[var(--color-text-secondary)]`}>Webhook ingest route exists at <code>/api/comms/webhook/{"{provider}"}</code> for the active adapter. This page reports the capability but does not fake inbound traffic.</div>
             <div className="grid gap-2">
               <button onClick={() => setTab('inbox')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-white transition hover:bg-white/[0.08]">Open SMS Inbox</button>
               <button onClick={() => setTab('numbers')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-white transition hover:bg-white/[0.08]">Manage Numbers</button>
@@ -331,7 +329,7 @@ function ProvidersTab() {
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.6fr)]">
       <div className={`${islandClass} flex min-h-0 flex-col p-4`}>
-        <SectionTitle eyebrow="Providers" title="Twilio / Telnyx" detail="Save and delete flows are live. This repo does not expose a communications provider test endpoint, so testing is truthfully unavailable." action={<button onClick={load} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)] transition hover:text-white">Refresh</button>} />
+        <SectionTitle eyebrow="Providers" title="Twilio / Telnyx" action={<button onClick={load} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)] transition hover:text-white">Refresh</button>} />
         <div className="mt-4 space-y-3">
           {liveProviders.map((providerType) => {
             const state = providerState(providerType, integrationInfo.providerStatus || 'stub', configs);
@@ -351,7 +349,7 @@ function ProvidersTab() {
       </div>
 
       <div className={`${islandClass} p-4`}>
-        <SectionTitle eyebrow="Provider Config" title={selectedProvider === 'twilio' ? 'Twilio' : 'Telnyx'} detail={existingConfig ? 'Backend readback for saved comms config is partial. Re-enter all required values when updating to avoid wiping provider settings.' : 'Saving here writes to /api/comms/provider-configs and activates this provider.'} />
+        <SectionTitle eyebrow="Provider Config" title={selectedProvider === 'twilio' ? 'Twilio' : 'Telnyx'} detail={existingConfig ? 'Update your provider credentials below. Changes take effect on the next outbound request.' : 'Configure credentials to activate this provider for the workspace.'} />
         <div className="mt-4 grid gap-3">
           <div className={`${cardClass} grid gap-3 p-3 md:grid-cols-3`}>
             <div><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm text-white">{currentState.label}</div></div>
@@ -364,7 +362,6 @@ function ProvidersTab() {
               <input type={field.type === 'password' ? 'password' : 'text'} value={form[field.name] || ''} onChange={(event) => setForm((current) => ({ ...current, [field.name]: event.target.value }))} className="mt-1 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-primary)]/45" placeholder={field.defaultValue || field.placeholder || ''} />
             </div>
           ))}
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-3 text-sm text-amber-100">Testing is intentionally disabled because the backend exposes no communications provider test route. Save and delete actions are wired to the real API.</div>
           <div className="flex flex-wrap gap-2">
             <button onClick={save} disabled={saving} className={`${buttonClass} border-[var(--color-primary)]/35 bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]`}>{saving ? 'Saving...' : 'Save and Activate'}</button>
             <button onClick={remove} disabled={saving || !existingConfig} className={`${buttonClass} border-red-500/30 bg-red-500/10 text-red-100`}>Delete Provider Config</button>
@@ -591,7 +588,7 @@ function InboxTab() {
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(22rem,0.95fr)_minmax(0,1.55fr)]">
       <div className={`${islandClass} flex min-h-0 flex-col p-4`}>
-        <SectionTitle eyebrow="SMS Threads" title="Inbox" detail="Backed by /api/comms/sms-threads and /api/comms/sms/send." action={<button onClick={() => setShowNew((current) => !current)} className="rounded-full border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-primary)] transition hover:bg-[var(--color-primary)]/20"><span className="inline-flex items-center gap-1.5"><Plus size={12} /> New SMS</span></button>} />
+        <SectionTitle eyebrow="SMS Threads" title="Inbox" action={<button onClick={() => setShowNew((current) => !current)} className="rounded-full border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-primary)] transition hover:bg-[var(--color-primary)]/20"><span className="inline-flex items-center gap-1.5"><Plus size={12} /> New SMS</span></button>} />
         {showNew ? (
           <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/8 p-4">
             <div className="flex items-center justify-between gap-3"><div className="text-sm font-semibold text-white">New outbound thread</div><button onClick={() => setShowNew(false)} className="rounded-full border border-white/10 bg-white/5 p-1 text-[var(--color-text-secondary)] transition hover:text-white"><X size={14} /></button></div>
@@ -712,7 +709,7 @@ function DialerTab() {
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.6fr)]">
       <div className={`${islandClass} p-4`}>
-        <SectionTitle eyebrow="Dialer" title="Outbound Call Surface" detail="Uses /api/comms/calls/start and /api/comms/calls/{id}/end. Stub mode is truthful when no live provider is active." />
+        <SectionTitle eyebrow="Dialer" title="Outbound Call Surface" />
         {loading ? <div className="mt-6 text-sm text-[var(--color-text-secondary)]">Loading routes...</div> : (
           <div className="mt-4 space-y-3">
             <input value={dialer.phoneNumber} onChange={(event) => setDialer((current) => ({ ...current, phoneNumber: event.target.value }))} className={inputClass} placeholder="Destination phone number" disabled={pending || Boolean(activeCall)} />
@@ -781,7 +778,7 @@ function HistoryTab() {
   return (
     <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[minmax(22rem,0.95fr)_minmax(0,1.55fr)]">
       <div className={`${islandClass} flex min-h-0 flex-col p-4`}>
-        <SectionTitle eyebrow="Call Sessions" title="History" detail="Backed by /api/comms/call-sessions." action={<button onClick={load} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)] transition hover:text-white">Refresh</button>} />
+        <SectionTitle eyebrow="Call Sessions" title="History" action={<button onClick={load} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)] transition hover:text-white">Refresh</button>} />
         <div className="mt-4 flex-1 overflow-auto">
           {loading ? <div className="flex h-full items-center justify-center text-sm text-[var(--color-text-secondary)]">Loading call history...</div> : null}
           {!loading && calls.length === 0 ? <div className={`${cardClass} flex h-full min-h-[18rem] items-center justify-center px-6 text-center text-sm text-[var(--color-text-secondary)]`}>No call sessions are stored yet.</div> : null}
@@ -825,12 +822,14 @@ export default function SmsVoipModule() {
     <div className="module-root-standard">
       <ModuleHeader
         showTitle={false}
+        leftActions={[
+          { label: 'Open Dispatch', onClick: () => navigate({ module: 'chat' }), variant: 'secondary' }
+        ]}
         actions={[
-          { label: 'Open Dispatch', onClick: () => navigate({ module: 'chat' }), variant: 'secondary' },
           { label: 'Provider Settings', onClick: () => navigate({ module: 'integrations', integrationCategory: 'communications' }), variant: 'primary' }
         ]}
         toolbarCenterSlot={(
-          <div className="flex flex-wrap justify-center gap-1.5">
+          <div className="flex items-center justify-center gap-1">
             {tabs.map((entry) => {
               const Icon = entry.icon;
               const active = entry.id === tab;
