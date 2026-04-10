@@ -76,3 +76,15 @@ def get_media_library_item(asset_id: str) -> MediaLibraryItem | None:
         if item.assetId == str(asset_id).strip():
             return item
     return None
+
+
+def update_media_library_item_tags(asset_id: str, tags: list[str]) -> MediaLibraryItem | None:
+    engine = get_media_engine()
+    updated_record = engine.update_asset_tags(asset_id, tags)
+    if not updated_record:
+        return None
+    
+    # We need an asset lookup for the translator
+    assets = [updated_record]
+    asset_lookup = {str(updated_record.get("id")).strip(): updated_record}
+    return translate_asset_record(updated_record, asset_lookup=asset_lookup)

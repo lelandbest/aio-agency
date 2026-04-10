@@ -23,6 +23,7 @@ import {
   getOllamaModelsApi,
   createCalendarSourceApi,
   createMailboxApi,
+  createThreadApi,
   deleteMailboxApi,
   deleteCalendarSourceApi,
   disconnectCalendarSourceApi,
@@ -33,6 +34,7 @@ import {
   getMailboxAuthorizeUrl,
   getMailboxProvidersApi,
   getMailboxesApi,
+  ingestMailboxMessageApi,
   getEmailVerifierConfigApi,
   importCalendarSourceApi,
   listCalendarSourceCalendarsApi,
@@ -46,6 +48,7 @@ import {
   updateCalendarSourceApi,
   updateEmailVerifierConfigApi,
   updateMailboxApi,
+  sendThreadMessageApi,
   upsertAutomationProviderConfigApi,
   upsertAiProviderConfigApi,
   getMediaProviderConfigsApi,
@@ -1075,6 +1078,10 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     () => mailboxes.find((mailbox) => mailbox.id === selectedMailboxId) || null,
     [mailboxes, selectedMailboxId]
   );
+  const selectedEmailResourceMailbox = useMemo(
+    () => mailboxes.find((mailbox) => mailbox.id === selectedEmailResourceId) || null,
+    [mailboxes, selectedEmailResourceId]
+  );
 
   const emailVerifierProviderConfig = useMemo(
     () => getProviderConfig(EMAIL_VERIFIER_RESOURCE_ID),
@@ -1195,8 +1202,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     if (activeCategory === INTEGRATION_CATEGORIES.PAYMENTS) return selectedPaymentProviderKey;
     if (activeCategory === INTEGRATION_CATEGORIES.SOCIAL_NETWORKS) return selectedSocialProviderKey;
     if (activeCategory === INTEGRATION_CATEGORIES.EMAIL) {
+      if (selectedEmailResourceId === EMAIL_VERIFIER_RESOURCE_ID) return EMAIL_VERIFIER_RESOURCE_ID;
       if (showMailboxComposer) return resolveEmailSelectorProvider(mailboxDraft.provider);
-      return resolveEmailSelectorProvider(selectedMailbox?.provider || selectorProviderKey);
+      return resolveEmailSelectorProvider(selectedEmailResourceMailbox?.provider || selectorProviderKey);
     }
     if (activeCategory === INTEGRATION_CATEGORIES.CALENDAR || activeCategory === INTEGRATION_CATEGORIES.VIDEO_CONFERENCING) {
       if (showCalendarComposer) return resolveCalendarSelectorProvider(calendarSourceDraft.provider);
@@ -1210,14 +1218,38 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     selectedAiProviderKey,
     selectedAutomationProviderKey,
     selectedDataStoreProviderKey,
+    selectedEmailResourceId,
+    selectedEmailResourceMailbox?.provider,
     selectedMediaProviderKey,
     selectedCalendarSource?.provider,
-    selectedMailbox?.provider,
     selectedPaymentProviderKey,
     selectorProviderKey,
     showCalendarComposer,
     showMailboxComposer,
   ]);
+
+  useEffect(() => {
+    if (!isHydrated || activeCategory != INTEGRATION_CATEGORIES.EMAIL || !selectorProviderKey) {
+      return;
+    }
+    if (selectorProviderKey === EMAIL_VERIFIER_RESOURCE_ID) {
+      if (selectedEmailResourceId != EMAIL_VERIFIER_RESOURCE_ID) {
+        setSelectedEmailResourceId(EMAIL_VERIFIER_RESOURCE_ID);
+      }
+      return;
+    }
+    const runtimeProviderId = resolveEmailRuntimeProvider(selectorProviderKey);
+    const matchingMailbox = mailboxes.find((mailbox) => mailbox.provider === runtimeProviderId) || null;
+    if (!matchingMailbox) {
+      return;
+    }
+    if (selectedEmailResourceId != matchingMailbox.id) {
+      setSelectedEmailResourceId(matchingMailbox.id);
+    }
+    if (selectedMailboxId != matchingMailbox.id) {
+      setSelectedMailboxId(matchingMailbox.id);
+    }
+  }, [activeCategory, isHydrated, mailboxes, selectedEmailResourceId, selectedMailboxId, selectorProviderKey]);
 
   useEffect(() => {
     const paymentProviders = getProvidersByCategory(INTEGRATION_CATEGORIES.PAYMENTS);
@@ -1841,6 +1873,58 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       loadAll();
     } catch (error) {
       showNotice({ tone: 'error', message: readErrorMessage(error) });
+    }
+  };
+
+  const handleRunMailboxIngestTest = async () => {
+    if (!selectedMailbox?.id) return;
+    setBusyAction('mailbox-ingest-test');
+    try {
+      await ingestMailboxMessageApi(selectedMailbox.id, {
+        subject: `${selectedMailbox.name || 'Mailbox'} ingest test`,
+        body: 'Inbound mailbox test generated from Integrations so provider routing and mailbox ingestion can be validated without using the Dispatch toolbar.',
+        senderName: 'Inbound Test Contact',
+        sender_email: 'contact@inbox.local',
+        recipients: [selectedMailbox.address].filter(Boolean)
+      });
+      showNotice({ tone: 'success', message: 'Mailbox ingest test queued.' });
+      triggerSavedAction('mailbox-ingest-test');
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
+    }
+  };
+
+  const handleRunThreadInboundTest = async () => {
+    if (!selectedMailbox?.id) return;
+    setBusyAction('mailbox-thread-test');
+    try {
+      const thread = await createThreadApi({
+        subject: `${selectedMailbox.name || 'Mailbox'} thread test`,
+        channelType: 'email',
+        body: 'Thread test initiated from Integrations mailbox controls.',
+        mailboxId: selectedMailbox.id
+      });
+      if (!thread?.id) {
+        throw new Error('Failed to create thread test.');
+      }
+      await sendThreadMessageApi(thread.id, {
+        body: 'Inbound thread test generated from Integrations so thread hydration and inbound handling can be validated without using the Dispatch toolbar.',
+        channelType: 'email',
+        senderName: 'Inbound Test Contact',
+        sender_email: 'contact@inbox.local',
+        recipients: [selectedMailbox.address].filter(Boolean),
+        direction: 'inbound'
+      });
+      showNotice({ tone: 'success', message: 'Thread inbound test queued.' });
+      triggerSavedAction('mailbox-thread-test');
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
     }
   };
 
@@ -2717,6 +2801,26 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
                     emailVerifierForm.enabled ? 'Enabled' : 'Disabled'
                   ]}
                 />
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mailbox Tests</div>
+                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Run mailbox-owned inbound checks from Integrations after provider setup. These utilities are no longer exposed in Dispatch.</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={handleRunMailboxIngestTest}
+                      disabled={!selectedMailbox?.id || busyAction === 'mailbox-ingest-test'}
+                      className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-ingest-test')}
+                    >
+                      {busyAction === 'mailbox-ingest-test' ? 'Running...' : savedAction === 'mailbox-ingest-test' ? 'Ran' : 'MAILBOX INGEST TEST'}
+                    </button>
+                    <button
+                      onClick={handleRunThreadInboundTest}
+                      disabled={!selectedMailbox?.id || busyAction === 'mailbox-thread-test'}
+                      className={saveButtonClassName("rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-60 disabled:cursor-not-allowed", savedAction === 'mailbox-thread-test')}
+                    >
+                      {busyAction === 'mailbox-thread-test' ? 'Running...' : savedAction === 'mailbox-thread-test' ? 'Ran' : 'THREAD INBOUND TEST'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="min-h-0 space-y-3 overflow-y-auto no-scrollbar pl-1">

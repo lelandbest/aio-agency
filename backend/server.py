@@ -73,8 +73,8 @@ try:
         resolve_ffprobe_path, resolve_local_media_path,
         resolve_transcription_provider_id_from_lock,
     )
-    from backend.media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
-    from backend.media_library_service import get_media_library_item, list_media_library_items
+    from backend.media_library_models import MediaAssetTagsUpdatePayload, MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
+    from backend.media_library_service import get_media_library_item, list_media_library_items, update_media_library_item_tags
     from backend.auth_store import get_auth_store
     from backend.vtt_service import process_transcript
     from backend.data_store_adapters import (
@@ -104,8 +104,8 @@ except ModuleNotFoundError:
         resolve_ffprobe_path, resolve_local_media_path,
         resolve_transcription_provider_id_from_lock,
     )
-    from media_library_models import MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
-    from media_library_service import get_media_library_item, list_media_library_items
+    from media_library_models import MediaAssetTagsUpdatePayload, MediaLibraryItemResponse, MediaLibraryMutationPayload, MediaLibraryMutationResponse, MediaLibraryResponse
+    from media_library_service import get_media_library_item, list_media_library_items, update_media_library_item_tags
     from auth_store import get_auth_store
     from data_store_adapters import (
         create_data_store_record,
@@ -151,7 +151,7 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "specialization": "Commander-in-Chief",
         "visibility": "visible",
         "capability_tier": "tier-1",
-        "subordinates": ["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
+        "subordinates": ["BRAVO", "CHARLIE", "DELTA", "ECHO", "HAMMER", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
         "tools": [
             "Mission Brief Generator",
             "Resource Allocation Optimizer",
@@ -205,8 +205,8 @@ AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
         "subordinates": [],
         "tools": ["Email Template Generator", "Newsletter Builder", "Communication Plan Creator", "Social Campaign Builder", "query_vault"],
     },
-    "FORGE": {
-        "registry_key": "FORGE",
+    "HAMMER": {
+        "registry_key": "HAMMER",
         "label": "Content/Copywriting",
         "rank": "AI Agent",
         "role": "Copy",
@@ -859,7 +859,7 @@ def choose_specialist_for_command(module: str, surface: str, field: str, command
     if any(term in haystack for term in ["analytics", "financial", "roi", "kpi", "forecast", "reporting", "budget"]):
         return "ARCHER"
     if any(term in haystack for term in ["content", "copy", "article", "landing page", "brand story", "product description"]):
-        return "FORGE"
+        return "HAMMER"
     if any(term in haystack for term in ["seo", "keyword", "ranking", "meta description", "organic"]):
         return "RANGER"
     if any(term in haystack for term in ["hire", "recruit", "candidate", "interview", "onboarding"]):
@@ -2979,6 +2979,23 @@ async def query_brain_mcp(source_id: str, request: Request, payload: BrainMCPQue
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@app.get("/api/vault", response_model=MediaLibraryResponse)
+async def list_vault_items(request: Request):
+    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view vault.")
+    return {"data": list_media_library_items()}
+
+
+@app.patch("/api/vault/assets/{asset_id}/tags", response_model=MediaLibraryItemResponse)
+async def update_vault_asset_tags(request: Request, asset_id: str, payload: MediaAssetTagsUpdatePayload):
+    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors or higher can update asset tags.")
+    
+    updated_item = update_media_library_item_tags(asset_id, payload.tags)
+    if not updated_item:
+        raise HTTPException(status_code=404, detail=f"Media asset '{asset_id}' not found.")
+    
+    return {"data": updated_item}
+
+
 @app.get("/api/brain/items")
 async def list_brain_items(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain knowledge.")
@@ -3136,7 +3153,7 @@ async def create_help_ticket(request: Request, payload: HelpTicketCreateRequest)
     routing_map = {
         "technical": "GHOST",
         "billing": "BRAVO",
-        "feature": "FORGE",
+        "feature": "HAMMER",
         "general": "CHARLIE"
     }
     assigned_agent = routing_map.get(category, "DELTA")
@@ -5841,12 +5858,6 @@ async def delete_flow_folder(request: Request, folderId: str):
 async def list_media_assets(request: Request):
     require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media assets.")
     return {"data": get_media_engine().list_assets()}
-
-
-@app.get("/api/vault", response_model=MediaLibraryResponse)
-async def list_media_library(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view the media library.")
-    return MediaLibraryResponse(data=list_media_library_items())
 
 
 def _resolve_media_file_path(kind: str, filename: str) -> Path:

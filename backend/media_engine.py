@@ -2181,6 +2181,23 @@ class MediaEngine:
     def get_asset(self, asset_id: str) -> dict[str, Any] | None:
         return self.store.get("assets", asset_id)
 
+    def update_asset_tags(self, asset_id: str, tags: list[str]) -> dict[str, Any] | None:
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return None
+        
+        # Minimal normalization: trim, remove empty, and dedupe preserving order
+        seen = set()
+        normalized_tags = []
+        for t in tags:
+            cleaned = str(t or "").strip()
+            if cleaned and cleaned not in seen:
+                normalized_tags.append(cleaned)
+                seen.add(cleaned)
+        
+        asset["tags"] = normalized_tags
+        return self.store.upsert_asset(asset, deduplicate=False)
+
     def ingest_workflow_json_asset(
         self,
         workflow_json: Any,

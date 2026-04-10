@@ -145,19 +145,23 @@ const formatRunTimestamp = (value) => {
   return parsed.toLocaleTimeString([], { hour12: false });
 };
 
-const resolveAgentLabel = (key) => {
+const resolveAgentName = (key) => {
   if (!key || key === 'SYSTEM' || key === 'OPERATOR') return 'System Operator';
-  if (key === 'FORGE') return 'Hammer';
-  const entry = SPECIALIST_REGISTRY[key];
-  if (entry?.label) return entry.label;
-  
-  return key
+  const normalized = String(key || '').trim().toUpperCase();
+  if (SPECIALIST_REGISTRY[normalized]) return normalized;
+  return String(key || '')
     .replace(/[_-]+/g, ' ')
     .trim()
-    .toLowerCase()
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+    .toUpperCase();
+};
+
+const resolveAgentSkillset = (key) => {
+  if (!key || key === 'SYSTEM' || key === 'OPERATOR') return 'System Operator';
+  const normalized = String(key || '').trim().toUpperCase();
+  const entry = SPECIALIST_REGISTRY[normalized];
+  if (entry?.specialization) return entry.specialization;
+  if (entry?.label) return entry.label;
+  return resolveAgentName(normalized);
 };
 
 const resolveAgentId = (key) => {
@@ -171,11 +175,11 @@ const normalizeDelegateChain = (value) => {
   if (Array.isArray(value)) {
     return value
       .filter(Boolean)
-      .map((key) => resolveAgentLabel(key))
+      .map((key) => resolveAgentName(key))
       .join(' -> ');
   }
   if (typeof value === 'string' && value.trim()) {
-    return resolveAgentLabel(value);
+    return resolveAgentName(value);
   }
   return '';
 };
@@ -469,7 +473,7 @@ const AIOAgentsModule = () => {
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: `${resolveAgentLabel(activeAgent?.registryKey || activeAgent?.name || 'CHARLIE')} Activated! ${pickSalutation()}`, rank: activeAgent?.registryKey || 'CHARLIE' }
+    { role: 'assistant', content: `${resolveAgentName(activeAgent?.registryKey || activeAgent?.name || 'CHARLIE')} Activated! ${pickSalutation()}`, rank: activeAgent?.registryKey || 'CHARLIE' }
   ]);
   const [agents, setAgents] = useState([]);
   const [view, setView] = useState('barracks'); // 'barracks' (list) or 'command' (detail)
@@ -849,7 +853,7 @@ const AIOAgentsModule = () => {
 
   useEffect(() => {
     if (!activeAgent) return;
-    const agentName = resolveAgentLabel(activeAgent.registryKey || activeAgent.name || 'CHARLIE');
+    const agentName = resolveAgentName(activeAgent.registryKey || activeAgent.name || 'CHARLIE');
     const greeting = `${agentName} Activated! ${pickSalutation()}`;
     setMessages(prev => {
       const last = prev[prev.length - 1];
@@ -893,9 +897,10 @@ const AIOAgentsModule = () => {
   const hasActiveRun = Boolean(activeRun);
   const isRunPending = messages.some((message) => message.role === 'assistant' && message.pending);
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && resolveMessageContent(message));
-  const mainAgentLabel = resolveAgentLabel(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
+  const mainAgentName = resolveAgentName(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
   const mainAgentId = resolveAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
-  const activeAgentDisplayLabel = resolveAgentLabel(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || 'CHARLIE');
+  const activeAgentDisplayName = resolveAgentName(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || 'CHARLIE');
+  const activeAgentSkillset = resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE');
 
   const getAgentColor = (key) => {
     if (key === 'ALPHA') return HQ_AGENT_STYLE;
@@ -928,17 +933,17 @@ const AIOAgentsModule = () => {
       .filter((key) => key && key !== 'ALPHA' && key !== 'OMEGA');
     return commandPostOrder.length ? commandPostOrder : (SPECIALIST_REGISTRY.ALPHA?.subordinates || []);
   })();
-  const contextAgentLabel = resolveAgentLabel(activeRunAgent || selectedAgent || '');
+  const contextAgentName = resolveAgentName(activeRunAgent || selectedAgent || '');
   const contextAgentId = resolveAgentId(activeRunAgent || selectedAgent || '');
-  const commandModeLabel = activeFlowLabel && contextAgentLabel ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentLabel ? 'Agent' : 'System';
+  const commandModeLabel = activeFlowLabel && contextAgentName ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentName ? 'Agent' : 'System';
   const sessionDirective = hasActiveRun
-    ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${SPECIALIST_REGISTRY[activeRunAgent]?.label || activeRunAgent}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
+    ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${resolveAgentName(activeRunAgent)}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
     : selectedFlow
       ? `SYSTEM READY. FLOW ${selectedFlow.name.toUpperCase()} IS BOUND FOR EXECUTION. SUBMIT A COMMAND TO START A CANONICAL RUN.`
       : selectedAgent
-        ? `SYSTEM READY. TARGET ${mainAgentLabel} IS SELECTED.${collabAgents.length ? ` COLLAB: ${collabAgents.map(k => resolveAgentLabel(k)).join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
+        ? `SYSTEM READY. TARGET ${mainAgentName} IS SELECTED.${collabAgents.length ? ` COLLAB: ${collabAgents.map(k => resolveAgentName(k)).join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
         : collabAgents.length
-          ? `SYSTEM READY. COLLAB GROUP ${collabAgents.map(k => resolveAgentLabel(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
+          ? `SYSTEM READY. COLLAB GROUP ${collabAgents.map(k => resolveAgentName(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
 
   return (
@@ -1428,7 +1433,7 @@ const AIOAgentsModule = () => {
              <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
                 <div className="p-6 border-b border-[var(--color-border)]">
                    <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight flex items-baseline gap-3">
-                     {activeAgentDisplayLabel || mainAgentLabel}
+                     {activeAgentDisplayName || mainAgentName}
                      {mainAgentId && (
                        <span className="text-[11px] font-mono text-[var(--color-text-tertiary)] opacity-60 tracking-[0.2em]">
                          {mainAgentId}
@@ -1463,7 +1468,7 @@ const AIOAgentsModule = () => {
                         <div className="flex items-center justify-between bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3 rounded-[var(--radius-card)]">
                           <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active Agent</span>
                           <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
-                            {contextAgentLabel}
+                            {contextAgentName}
                             {contextAgentId && <span className="ml-2 opacity-50 font-mono text-[9px] tracking-widest">{contextAgentId}</span>}
                           </span>
                         </div>
@@ -1504,9 +1509,9 @@ const AIOAgentsModule = () => {
                   <div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-3">
-                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentDisplayLabel || mainAgentLabel}</h4>
+                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentSkillset}</h4>
                         <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
-                        <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentLabel(activeRunAgent)})` : sessionStatusLabel}</span>
+                        <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentName(activeRunAgent)})` : sessionStatusLabel}</span>
                       </div>
                       
                       {collabAgents.length > 0 && (
@@ -1516,7 +1521,7 @@ const AIOAgentsModule = () => {
                             return (
                               <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
                                 <div className={`w-1.5 h-1.5 rounded-full ${colors.icon.split(' ')[0]} animate-pulse`} />
-                                <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentLabel(key)}</span>
+                                <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentName(key)}</span>
                               </div>
                             );
                           })}
@@ -1680,14 +1685,14 @@ const AIOAgentsModule = () => {
                             <div className="absolute right-4 bottom-2 flex items-center justify-end gap-2 max-w-[calc(100%-32px)] overflow-hidden">
                               {selectedAgent ? (
                                 <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
-                                  Target: {resolveAgentLabel(selectedAgent)}
+                                  Target: {resolveAgentName(selectedAgent)}
                                 </span>
                               ) : null}
                               {collabAgents.length > 0 && !hasActiveRun ? (
                                 <div className="flex gap-1 overflow-hidden">
                                   {collabAgents.slice(0, 2).map(key => (
                                     <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
-                                      {resolveAgentLabel(key)}
+                                      {resolveAgentName(key)}
                                     </span>
                                   ))}
                                   {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
@@ -1806,7 +1811,7 @@ const AIOAgentsModule = () => {
                                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                              } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                            >
-                             {resolveAgentLabel(agentKey)}
+                             {resolveAgentName(agentKey)}
                            </button>
                          );
                        })}
@@ -1839,7 +1844,7 @@ const AIOAgentsModule = () => {
                     </div>
                     <div>
                       <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Active Agent</div>
-                      <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{contextAgentLabel || 'No Active Agent'}</div>
+                      <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{contextAgentName || 'No Active Agent'}</div>
                     </div>
                     <div>
                       <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Timestamps</div>
@@ -1888,3 +1893,5 @@ const AIOAgentsModule = () => {
 };
 
 export default AIOAgentsModule;
+
+

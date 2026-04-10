@@ -7,7 +7,7 @@ export const SPECIALIST_REGISTRY = {
     specialization: 'Commander-in-Chief',
     visibility: 'visible',
     capabilityTier: 'tier-1',
-    subordinates: ['BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FORGE', 'GHOST', 'ARCHER', 'ATLAS', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR'],
+    subordinates: ['BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'HAMMER', 'GHOST', 'ARCHER', 'ATLAS', 'RANGER', 'SCOUT', 'STRIKER', 'VECTOR'],
     tools: [
       'Mission Brief Generator',
       'Resource Allocation Optimizer',
@@ -89,7 +89,7 @@ export const SPECIALIST_REGISTRY = {
       'Social Campaign Builder',
     ],
   },
-  FORGE: {
+  HAMMER: {
     agentId: 'AGT-CPY-006',
     label: 'Hammer',
     rank: 'AI Agent',

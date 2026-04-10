@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowRight,
   Bot,
   Building2,
   CalendarDays,
@@ -90,7 +89,7 @@ const AGENT_ROLE_HINTS = {
   CHARLIE: 'Owns support-facing intake, customer care, and service response.',
   DELTA: 'Coordinates timelines, milestones, and project movement.',
   ECHO: 'Owns communication craft, channel packaging, and socials output.',
-  FORGE: 'Shapes copy, narrative, and content assets.',
+  HAMMER: 'Shapes copy, narrative, and content assets.',
   GHOST: 'Owns engineering, IT, integrations, and systems build.',
   ARCHER: 'Handles analytics, finance, ROI, and reporting.',
   ATLAS: 'Owns logistics, deployment coordination, and systems mapping.',
@@ -104,7 +103,7 @@ const CHANNEL_FILTERS = [
   { id: 'all', label: 'All', icon: Radio },
   { id: 'email', label: 'Email', icon: Mail },
   { id: 'sms', label: 'SMS', icon: Smartphone },
-  { id: 'internal', label: 'Internal', icon: MessageSquare }
+  { id: 'internal', label: 'Local', icon: MessageSquare }
 ];
 
 const COMPOSER_CHANNEL_LABELS = {
@@ -910,20 +909,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     });
   };
 
-  const handleReceiveForMailbox = async () => {
-    if (!selectedMailbox?.id) return;
-    await runAction('Receiving sample', async () => {
-      const seedThread = visibleThreads[0] || snapshot.allThreads?.find((thread) => thread.mailboxId === selectedMailbox.id) || snapshot.allThreads?.[0];
-      await ingestMailboxMessageApi(selectedMailbox.id, {
-        subject: seedThread?.subject || `${selectedMailbox.name} inbound sample`,
-        body: 'Inbound signal generated from the mailbox operations strip so you can validate routing, AI brief refresh, and queue movement in one step.',
-        senderName: seedThread?.contact ? `${seedThread.contact.firstName} ${seedThread.contact.lastName}` : 'Inbound Contact',
-        sender_email: seedThread?.contact?.email || 'contact@inbox.local',
-        recipients: [selectedMailbox.address].filter(Boolean)
-      });
-    });
-  };
-
   const handleCreateDeal = async () => {
     if (!selectedThread?.id) return;
     await runAction('Creating deal', async () => {
@@ -1179,43 +1164,17 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const primaryHeaderActions = [
     { label: '+ ADD THREAD', onClick: handleCreateThread, variant: 'primary' },
     threadCountPill,
-    { label: 'Manage Mailboxes', icon: Settings2, onClick: openMailboxAdmin, variant: 'secondary', groupStart: true },
     { label: 'Canned Responses', icon: MessageSquare, onClick: () => onNavigate?.('canned-responses'), variant: 'secondary' }
   ];
   const secondaryHeaderActions = clientMode
     ? []
     : [
       {
-        label: 'Simulate Receive', icon: ArrowRight, onClick: () => runAction('Simulating', async () => {
-          const seedThread = visibleThreads[0] || snapshot.allThreads?.[0];
-          const targetChannel = channel === 'all' ? 'email' : channel;
-          if (seedThread && targetChannel === 'email' && (seedThread.mailboxId || snapshot.mailboxes?.[0]?.id)) {
-            await ingestMailboxMessageApi(seedThread.mailboxId || snapshot.mailboxes?.[0]?.id, {
-              subject: seedThread.subject,
-              body: 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
-              senderName: seedThread.contact ? `${seedThread.contact.firstName} ${seedThread.contact.lastName}` : 'Incoming Contact',
-              sender_email: seedThread.contact?.email || 'contact@inbox.local',
-              recipients: [seedThread.mailbox?.address || snapshot.mailboxes?.[0]?.address].filter(Boolean)
-            });
-          } else if (seedThread) {
-            await sendThreadMessageApi(seedThread.id, {
-              body: targetChannel === 'sms' ? 'Quick check-in. Are we still on for the follow-up and do you have the latest scope details handy?' : 'Following up because the latest proposal looks close. I just need the cleanest next step and the right owner on your side.',
-              channelType: targetChannel,
-              senderName: seedThread.contact ? `${seedThread.contact.firstName} ${seedThread.contact.lastName}` : 'Incoming Contact',
-              sender_email: seedThread.contact?.email || 'contact@inbox.local',
-              recipients: [seedThread.mailbox?.address || snapshot.mailboxes?.[0]?.address || 'mail@aiocrm.org'],
-              direction: 'inbound'
-            });
-          }
-        }), variant: 'secondary'
-      },
-      {
         label: 'Sync Mailbox', icon: Mail, onClick: () => runAction('Syncing', async () => {
           if (!selectedMailbox?.id) return;
           await syncMailboxApi(selectedMailbox.id);
         }), variant: 'secondary'
       },
-      { label: 'Inject Inbound', icon: ArrowRight, onClick: handleReceiveForMailbox, disabled: !selectedMailbox?.id, variant: 'secondary' },
       { label: 'Draft Reply', icon: MessageSquare, onClick: () => handleAiAction('reply'), disabled: !selectedThread?.id, variant: 'secondary', groupStart: true },
       { label: 'Extract Tasks', icon: Workflow, onClick: () => handleAiAction('extract'), disabled: !selectedThread?.id, variant: 'secondary' },
       { label: 'Run Workflow', icon: Bot, onClick: handleWorkflowNote, disabled: !selectedThread?.id, variant: 'secondary' },
@@ -1225,7 +1184,6 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const compactPrimaryHeaderActions = clientMode
     ? secondaryHeaderActions
     : [
-      secondaryHeaderActions.find((action) => action.label === 'Simulate Receive'),
       secondaryHeaderActions.find((action) => action.label === 'Sync Mailbox'),
       secondaryHeaderActions.find((action) => action.label === 'Run Workflow'),
       secondaryHeaderActions.find((action) => action.label === 'Extract Tasks'),
@@ -1438,10 +1396,10 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
                   <div className={`${isCompactComms ? 'p-2.5' : 'p-3'} border-b border-[var(--color-border)] space-y-2.5 ${COMMS_SECTION_BG}`}>
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailbox Admin</div>
+                      <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-semibold"><Mail size={16} /> Mailboxes</div>
                       <div className="flex items-center gap-2">
+                        <button onClick={openMailboxAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">ADMIN</button>
                         <button onClick={handleTestMailbox} disabled={!selectedMailbox?.id} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
-                        <button onClick={openMailboxAdmin} className="px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Open Integrations</button>
                       </div>
                     </div>
                     <div className={`rounded-[var(--radius-panel)] border px-3 py-2.5 shadow-sm ${selectedMailboxHealth.card}`}>
@@ -2104,5 +2062,3 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 };
 
 export default CommsModule;
-
-

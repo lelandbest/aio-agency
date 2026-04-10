@@ -56,3 +56,9 @@ class MediaLibraryMutationResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data: MediaLibraryMutationPayload
+
+
+class MediaAssetTagsUpdatePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tags: list[str]

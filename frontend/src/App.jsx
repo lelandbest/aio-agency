@@ -36,7 +36,6 @@ function VTTOpener() {
 const SignalsModule = lazy(() => import('./modules/Signals'));
 const BrainModule = lazy(() => import('./modules/Brain'));
 const CRMModule = lazy(() => import('./modules/CRM'));
-const CRM1Module = lazy(() => import('./modules/CRM1'));
 const FormBuilderModule = lazy(() => import('./modules/Forms'));
 const PipelineModule = lazy(() => import('./modules/Pipeline'));
 const CalendarModule = lazy(() => import('./modules/Calendar'));
@@ -54,7 +53,7 @@ const DialerPage = lazy(() => import('./modules/CommsSms'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
-const HammerModule = lazy(() => import('./modules/Hammer'));
+const ForgeModule = lazy(() => import('./modules/Forge'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -153,7 +152,6 @@ const MODULE_SUBTITLE_MAP = {
   'aio-agents': 'Coordinate specialist agents, live command runs, and system execution posture.',
   calendar: 'Coordinate sources, booking types, and scheduled meetings from one workspace.',
   crm: 'Search, segment, and operate on contact records from one workspace.',
-  crm1: 'Legacy CRM visual snapshot preserved as an isolated mock reference module.',
   flows: 'Manage and launch your automation flows.',
   forms: 'Create, organize, and deploy workspace forms.',
   chat: 'Thread-first Comms for triage, actions, and audit logs.',
@@ -282,7 +280,6 @@ const App = () => {
     const moduleLabels = {
       'aio-brain': 'Brain',
       'crm': 'AIO',
-      'crm1': 'CRM1',
       'orders': 'Orders',
     'media': 'Studio',
     'studio': 'Studio',
@@ -294,7 +291,7 @@ const App = () => {
     'settings': 'Settings',
     'chat': 'Chat',
     'agents': 'Agents',
-    'hammer': 'Hammer',
+    'forge': 'Forge',
   };
   const activeModuleLabel = moduleLabels[activeModule] || activeModule;
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
@@ -726,8 +723,6 @@ const App = () => {
         );
       case 'crm':
         return <CRMModule initialContactId={crmContactId} onSelectContact={setCrmContactId} />;
-      case 'crm1':
-        return <CRM1Module />;
       case 'forms':
         return <FormBuilderModule />;
       case 'pipelines':
@@ -761,8 +756,8 @@ const App = () => {
         return <HelpModule activeModule={activeModule} />;
       case 'system-health':
         return <SystemHealthModule />;
-      case 'hammer':
-        return <HammerModule />;
+      case 'forge':
+        return <ForgeModule />;
       default:
         return <PlaceholderModule name="Module" />;
     }
@@ -853,6 +848,7 @@ export default function AppWithErrorBoundary() {
     </ErrorBoundary>
   );
 }
+
 
 
 

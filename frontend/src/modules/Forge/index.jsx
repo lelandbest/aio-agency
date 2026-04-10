@@ -42,7 +42,7 @@ const EMPTY_STATE = {
   purposeNote: '',
   priority: '',
   status: 'Draft',
-  specialist: 'FORGE',
+  specialist: 'HAMMER',
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -107,9 +107,11 @@ const isHydratableArtifact = (item) => {
   return at === 'transcript' || at === 'script' || at === 'runofshow';
 };
 
+const getSpecialistLabel = () => 'Hammer';
+
 // ── Main Component ──────────────────────────────────────────────────────────
 
-const Hammer = () => {
+const Forge = () => {
   const { showNotice } = useNotice();
   const [loading, setLoading] = useState(true);
   const [forgeState, setForgeState] = useState(EMPTY_STATE);
@@ -147,7 +149,7 @@ const Hammer = () => {
       if (vaultData.status === 'fulfilled') setVaultRailItems(Array.isArray(vaultData.value) ? vaultData.value : []);
       if (cortexData.status === 'fulfilled') setCortexRailItems(Array.isArray(cortexData.value) ? cortexData.value : []);
     } catch (_) {
-      showNotice({ type: 'error', message: 'Hammer uplink degraded. Some context data may be missing.' });
+      showNotice({ type: 'error', message: 'Forge uplink degraded. Some context data may be missing.' });
     } finally {
       setLoading(false);
     }
@@ -164,6 +166,7 @@ const Hammer = () => {
         title: cachedTitle || '',
         transcript: cachedHtml || '',
         status: 'Draft',
+        specialist: 'HAMMER',
       };
       setForgeState(restored);
       savedStateRef.current = restored;
@@ -239,7 +242,7 @@ const Hammer = () => {
     sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, forgeState.transcript);
     savedStateRef.current = { ...forgeState };
     setForgeState(s => ({ ...s, status: 'Draft' }));
-    showNotice({ type: 'success', message: 'Hammer draft cached locally.' });
+    showNotice({ type: 'success', message: 'Forge draft cached locally.' });
   };
 
   const handlePushToCortex = async () => {
@@ -542,18 +545,18 @@ const Hammer = () => {
   const handleExportHtml = () => {
     const s = forgeState;
     const esc = str => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${esc(s.title || 'Hammer Export')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:.25rem}</style></head><body><h1>${esc(s.title || 'Untitled')}</h1>${s.executiveSummary ? `<h2>Executive Summary</h2><p>${esc(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><div>${s.transcript}</div>` : ''}</body></html>`;
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${esc(s.title || 'Forge Export')}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1a1a1a;line-height:1.6}h1{border-bottom:2px solid #0ea5e9;padding-bottom:.5rem}h2{color:#0369a1;margin-top:2rem}ul{padding-left:1.5rem}li{margin-bottom:.25rem}</style></head><body><h1>${esc(s.title || 'Untitled')}</h1>${s.executiveSummary ? `<h2>Executive Summary</h2><p>${esc(s.executiveSummary)}</p>` : ''}${s.keyDecisions.length ? `<h2>Key Decisions</h2><ul>${s.keyDecisions.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}${s.actionItems.length ? `<h2>Action Items</h2><ul>${s.actionItems.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${s.transcript ? `<h2>Transcript</h2><div>${s.transcript}</div>` : ''}</body></html>`;
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(s.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.html`; a.click();
+    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.html`; a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportMd = () => {
     const s = forgeState;
     const stripHtml = h => { if (!h) return ''; let t = h; t = t.replace(/<br\s*\/?>/gi, '\n'); t = t.replace(/<\/?(?:h[1-6]|p|div|li)[^>]*>/gi, '\n'); t = t.replace(/<[^>]+>/g, ''); t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'); return t.replace(/\n{3,}/g, '\n\n').trim(); };
-    const lines = [`# ${s.title || 'Untitled Hammer Session'}`, ''];
+    const lines = [`# ${s.title || 'Untitled Forge Session'}`, ''];
     if (s.executiveSummary) { lines.push('## Executive Summary', s.executiveSummary, ''); }
     if (s.keyDecisions.length) { lines.push('## Key Decisions', ...s.keyDecisions.map(d => `- ${d}`), ''); }
     if (s.actionItems.length) { lines.push('## Action Items', ...s.actionItems.map(a => `- ${a}`), ''); }
@@ -563,7 +566,7 @@ const Hammer = () => {
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(s.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.md`; a.click();
+    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.md`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -571,7 +574,7 @@ const Hammer = () => {
     const blob = new Blob([JSON.stringify(forgeState, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(forgeState.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.json`; a.click();
+    a.href = url; a.download = `${(forgeState.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.json`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -586,7 +589,7 @@ const Hammer = () => {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `${(s.title || 'hammer').replace(/[^a-zA-Z0-9]/g, '_')}.txt`; a.click();
+    a.href = url; a.download = `${(s.title || 'forge').replace(/[^a-zA-Z0-9]/g, '_')}.txt`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -645,7 +648,7 @@ const Hammer = () => {
           <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-white/5 mx-2 mt-2 mb-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
             <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
-              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'HAMMER CORE // LIVE EDITOR'}
+              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
             </span>
             {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
           </div>
@@ -675,8 +678,8 @@ const Hammer = () => {
                     <FileText size={20} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{forgeState.title || 'UNTITLED HAMMER SESSION'}</h2>
-                    <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{forgeState.status} // FOCUS MODE</p>
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{forgeState.title || 'UNTITLED FORGE SESSION'}</h2>
+                    <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{forgeState.status} // FORGE FOCUS</p>
                   </div>
                 </div>
                 <button
@@ -753,16 +756,15 @@ const Hammer = () => {
                 <div>
                   <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center justify-between">
                     <span>AGENT ROUTE</span>
-                    <span className="text-[7px] text-cyan-500/60 lowercase italic">Charlie → Alpha → {forgeState.specialist}</span>
+                    <span className="text-[7px] text-cyan-500/60 lowercase italic">Charlie → Alpha → {getSpecialistLabel(forgeState.specialist)}</span>
                   </label>
                   <select
                     value={forgeState.specialist}
                     onChange={e => setForgeState(s => ({ ...s, specialist: e.target.value, status: 'Draft' }))}
                     className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition uppercase font-black"
                   >
-                    <option value="FORGE">FORGE (CONTENTS + ARTIFACTS)</option>
+                    <option value="HAMMER">HAMMER (CONTENT + ARTIFACTS)</option>
                     <option value="GHOST">GHOST (CODE + TECHNICAL)</option>
-                    <option value="OMEGA">OMEGA (BUSINESS DNA + SOPs)</option>
                   </select>
                   <div className="mt-1 text-[7px] font-mono text-slate-700 tracking-wider">
                     INTENT: ROUTE TO BEST-FIT AGENT → ALPHA QC → CORTEX
@@ -1025,4 +1027,8 @@ const Hammer = () => {
   );
 };
 
-export default Hammer;
+export default Forge;
+
+
+
+

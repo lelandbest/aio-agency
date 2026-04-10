@@ -224,7 +224,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
         response_contract=_contract("structured operator response", "concise", "explain only key rationale and blockers"),
         execution_policy=_policy("high", "deep", "fail_closed_with_clear_reroute"),
         personality=_personality("calm", "directive", "one crisp prioritization note when needed"),
-        subordinates=["BRAVO", "CHARLIE", "DELTA", "ECHO", "FORGE", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
+        subordinates=["BRAVO", "CHARLIE", "DELTA", "ECHO", "HAMMER", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
         system_prompt="You are ALPHA, Commander-in-Chief. You govern all subordinate AI agents and synthesize multi-agent intelligence contexts.",
     ),
     "BRAVO": _definition(
@@ -293,8 +293,8 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
         personality=_personality("clear", "polished", "one short phrase that sharpens the message when useful"),
         system_prompt="You are ECHO, Communications and Email Specialist.",
     ),
-    "FORGE": _definition(
-        name="FORGE",
+    "HAMMER": _definition(
+        name="HAMMER",
         agent_id="AGT-CPY-006",
         label="Hammer",
         role="Copy",
@@ -452,3 +452,5 @@ def get_agent_definition(name_or_id: str) -> Optional[AgentDefinition]:
     name_map = {definition.agent_id: key for key, definition in AGENT_DEFINITIONS.items()}
     name = name_map.get(name_or_id, name_or_id.upper())
     return AGENT_DEFINITIONS.get(name)
+
+

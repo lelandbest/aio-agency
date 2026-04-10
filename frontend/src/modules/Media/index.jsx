@@ -395,7 +395,7 @@ const StudioModule = () => {
     purposeNote: '',
     priority: '',
     status: 'Draft',
-    specialist: 'FORGE',
+    specialist: 'HAMMER',
   });
   const transcriptSavedStateRef = useRef(null); // Last saved state for dirty detection + reopen
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
@@ -464,6 +464,8 @@ const StudioModule = () => {
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
   const sourceNodeRef = useRef(null);
+  const gainNodeRef = useRef(null);
+  const graphMediaRef = useRef(null);
   const animFrameRef = useRef(null);
   const canvasRef = useRef(null);
   const [playerState, setPlayerState] = useState({
@@ -592,6 +594,27 @@ const StudioModule = () => {
     setError(message);
   }, []);
 
+  const resetAudioGraph = useCallback(() => {
+    graphMediaRef.current = null;
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.disconnect(); } catch (_) { }
+      sourceNodeRef.current = null;
+    }
+    if (analyserRef.current) {
+      try { analyserRef.current.disconnect(); } catch (_) { }
+      analyserRef.current = null;
+    }
+    if (gainNodeRef.current) {
+      try { gainNodeRef.current.disconnect(); } catch (_) { }
+      gainNodeRef.current = null;
+    }
+    const ctx = audioCtxRef.current;
+    audioCtxRef.current = null;
+    if (ctx && ctx.state !== 'closed') {
+      ctx.close().catch(() => { });
+    }
+  }, []);
+
   // --- PROBE ON ACTIVE OUTPUT CHANGE ---
   useEffect(() => {
     setProbeData(null);
@@ -599,10 +622,16 @@ const StudioModule = () => {
     if (mediaRef.current) {
       mediaRef.current.pause();
       mediaRef.current.currentTime = 0;
+      mediaRef.current.muted = false;
     }
+    resetAudioGraph();
     setPlayerState(prev => ({ ...prev, isPlaying: false, currentTime: 0, duration: 0, loadError: null }));
     setAudioLevel(0);
-  }, [activeOutputId]);
+  }, [activeOutputId, resetAudioGraph]);
+
+  useEffect(() => () => {
+    resetAudioGraph();
+  }, [resetAudioGraph]);
 
   useEffect(() => {
     const outputIds = workspace.outputs.map((output) => output.assetId);
@@ -750,30 +779,46 @@ const StudioModule = () => {
   }, [playerState.isPlaying, drawOscilloscope]);
 
   // --- REAL TRANSPORT HANDLERS ---
-  const handlePlay = useCallback(() => {
+  const handlePlay = useCallback(async () => {
     const el = mediaRef.current;
     if (!el) return;
-    // Set up Web Audio analyser if not yet connected
-    if (!audioCtxRef.current) {
+
+    if (!audioCtxRef.current || graphMediaRef.current !== el) {
+      resetAudioGraph();
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+          throw new Error('AudioContext unavailable');
+        }
+        const ctx = new AudioContextCtor();
         const analyser = ctx.createAnalyser();
+        const gain = ctx.createGain();
         analyser.fftSize = 2048;
+        gain.gain.value = playerState.volume;
         const src = ctx.createMediaElementSource(el);
         src.connect(analyser);
-        analyser.connect(ctx.destination);
+        analyser.connect(gain);
+        gain.connect(ctx.destination);
+        el.muted = true;
         audioCtxRef.current = ctx;
         analyserRef.current = analyser;
         sourceNodeRef.current = src;
+        gainNodeRef.current = gain;
+        graphMediaRef.current = el;
       } catch (e) {
         console.error('AudioContext fail', e);
+        el.muted = false;
       }
     }
+
     if (audioCtxRef.current?.state === 'suspended') {
-      audioCtxRef.current.resume();
+      try {
+        await audioCtxRef.current.resume();
+      } catch (_) { }
     }
+
     el.play().catch(() => { });
-  }, []);
+  }, [playerState.volume, resetAudioGraph]);
 
   const handlePause = useCallback(() => {
     mediaRef.current?.pause();
@@ -796,7 +841,12 @@ const StudioModule = () => {
 
   const handleVolume = useCallback((e) => {
     const vol = parseFloat(e.target.value);
-    if (mediaRef.current) mediaRef.current.volume = vol;
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = vol;
+    }
+    if (mediaRef.current) {
+      mediaRef.current.volume = vol;
+    }
     setPlayerState(prev => ({ ...prev, volume: vol }));
   }, []);
 
@@ -1576,9 +1626,9 @@ const StudioModule = () => {
               variant: 'secondary',
             },
             {
-              label: 'HAMMER',
+              label: 'FORGE',
               icon: Cpu,
-              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'hammer' } })),
+              onClick: () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } })),
               variant: 'primary',
               className: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 font-black'
             },
@@ -2366,10 +2416,10 @@ const StudioModule = () => {
 
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'hammer' } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } }))}
                   className="flex items-center gap-2 px-3 py-1.5 rounded border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 text-[9px] font-black uppercase tracking-widest hover:bg-cyan-500/10 transition-all shadow-[0_0_10px_rgba(6,182,212,0.1)]"
                 >
-                  <Cpu size={12} /> FULL HAMMER UPLINK
+                  <Cpu size={12} /> FULL FORGE UPLINK
                 </button>
                 <button
                   onClick={() => {
@@ -2561,7 +2611,7 @@ const StudioModule = () => {
                           onChange={(e) => setTranscriptState(s => ({ ...s, specialist: e.target.value, status: 'Draft' }))}
                           className="w-full rounded bg-black/60 border border-[#2A2D35] px-2 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition uppercase font-black"
                         >
-                          <option value="FORGE">FORGE (CONTENTS + ARTIFACTS)</option>
+                          <option value="HAMMER">HAMMER (CONTENTS + ARTIFACTS)</option>
                           <option value="GHOST">GHOST (CODE + TECHNICAL)</option>
                           <option value="OMEGA">OMEGA (BUSINESS DNA + SOPs)</option>
                         </select>

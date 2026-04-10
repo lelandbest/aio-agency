@@ -47,7 +47,7 @@ export const initialDb = {
     { id: 3, name: "CHARLIE", registryKey: "CHARLIE", rank: "AI Agent", role: "Support", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Customer Support", visibility: "visible", capabilityTier: "tier-1" },
     { id: 4, name: "DELTA", registryKey: "DELTA", rank: "AI Agent", role: "Coordination", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Visual/Project Coordination", visibility: "visible", capabilityTier: "tier-2" },
     { id: 5, name: "ECHO", registryKey: "ECHO", rank: "AI Agent", role: "Comms", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Email/Comms/Socials", visibility: "visible", capabilityTier: "tier-1" },
-    { id: 6, name: "FORGE", registryKey: "FORGE", rank: "AI Agent", role: "Copy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Content/Copywriting", visibility: "visible", capabilityTier: "tier-2" },
+    { id: 6, name: "HAMMER", registryKey: "HAMMER", rank: "AI Agent", role: "Copy", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Content/Copywriting", visibility: "visible", capabilityTier: "tier-2" },
     { id: 7, name: "GHOST", registryKey: "GHOST", rank: "AI Agent", role: "Engineering", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Systems Engineering", visibility: "visible", capabilityTier: "tier-1" },
     { id: 8, name: "ARCHER", registryKey: "ARCHER", rank: "AI Agent", role: "Analytics", status: "Active", model: "GPT-4o", subordinates: [], specialization: "Analytics/Financial", visibility: "visible", capabilityTier: "tier-1" },
     { id: 9, name: "RANGER", registryKey: "RANGER", rank: "AI Agent", role: "SEO", status: "Active", model: "GPT-4o", subordinates: [], specialization: "SEO/Content Optimization", visibility: "visible", capabilityTier: "tier-2" },
@@ -125,7 +125,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "aio-brain", label: "Cortex", icon: "Brain", type: "internal", visible: true, iconColor: "#9ca3af", searchPlaceholder: "Search Cortex..." },
       { id: "dashboard", label: "Signals", icon: "AlertTriangle", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "aio-agents", label: "Agents", icon: "Bot", type: "internal", visible: true, iconColor: "#9ca3af" },
-      { id: "hammer", label: "Hammer", icon: "Anvil", type: "internal", visible: true, iconColor: "#06b6d4", description: "Digital Asset Workstation // Cognitive Assembler" }
+      { id: "forge", label: "Forge", icon: "Anvil", type: "internal", visible: true, iconColor: "#06b6d4", description: "Forge workspace // Digital Asset Workstation" }
     ]
   },
   {    category: "Systems",
@@ -145,7 +145,6 @@ export const INITIAL_MENU_STRUCTURE = [
         { id: "chat", label: "Dispatch", icon: "RadioTower", type: "internal", visible: true, iconColor: "#9ca3af" },
         { id: "sms_voip", label: "SMS/VoIP", icon: "Phone", type: "internal", visible: true, iconColor: "#9ca3af" },
         { id: "crm", label: "CRM", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af" },
-        { id: "crm1", label: "CRM1", icon: "Users", type: "internal", visible: true, iconColor: "#9ca3af", description: "Legacy CRM visual snapshot module." },
         { id: "design", label: "Design", icon: "PenTool", type: "internal", visible: true, iconColor: "#9ca3af" },
       { id: "studio", label: "Studio", icon: "Video", type: "internal", visible: true, iconColor: "#9ca3af", description: "Create scripts, voice, renders, transcripts, and ingest workflows from one workspace." },
       { id: "flows", label: "Flows", icon: "Workflow", type: "internal", visible: true, iconColor: "#9ca3af" },
@@ -189,4 +188,6 @@ export const INITIAL_PIPELINE = {
 };
 
 // Already exported as named exports above - no need to re-export
+
+
 
