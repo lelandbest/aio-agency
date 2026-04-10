@@ -159,39 +159,36 @@ export default function CRM1Module() {
   }, [searchTerm]);
 
   return (
-    <div className="module-root-standard relative">
-      <div className="module-toolbar">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+    <div className="module-root-standard relative !bg-[#050505]">
+      <div className="module-toolbar !bg-transparent !border-b-0 backdrop-blur-md">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           <button type="button" className="btn-primary-skeuo !px-3 !py-1.5 !h-8 !text-[10px] !tracking-[0.14em] flex items-center gap-2 shrink-0"><Plus size={12} />Create</button>
           <div className="relative min-w-[240px] max-w-[340px] flex-1">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search legacy CRM snapshot..." className="h-8 w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] pl-9 pr-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-primary)]" />
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search legacy CRM snapshot..." className="h-8 w-full rounded border border-slate-800 bg-[#0a0a0a] pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500 shadow-inner" />
           </div>
-          <button type="button" onClick={() => setViewMode('All Contacts')} className="btn-secondary text-[10px] py-1.5 px-3 h-8">All Contacts</button>
-          <button type="button" onClick={() => setViewMode('Needs Review')} className="btn-secondary text-[10px] py-1.5 px-3 h-8">Needs Review</button>
+          <button type="button" onClick={() => setViewMode('All Contacts')} className="btn-secondary !bg-[#111] !border-slate-800 text-[10px] py-1.5 px-3 h-8">All Contacts</button>
+          <button type="button" onClick={() => setViewMode('Needs Review')} className="btn-secondary !bg-[#111] !border-slate-800 text-[10px] py-1.5 px-3 h-8">Needs Review</button>
         </div>
         <div className="flex min-w-0 items-center gap-2 flex-shrink-0 h-full">
-          <button type="button" className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Filter size={12} />Filter</button>
-          <button type="button" className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Shield size={12} />Verify</button>
-          <button type="button" className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Tag size={12} />Tag</button>
-          <button type="button" className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Trash2 size={12} />Delete</button>
-          <button type="button" className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Import size={12} />Import</button>
-          <button type="button" className="btn-secondary text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Download size={12} />Export</button>
-          <button type="button" className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/15 transition-all" title="Brain"><BrainIcon size={14} /></button>
-          <button type="button" className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all" title="Crosshair"><Crosshair size={14} /></button>
+          <button type="button" className="btn-secondary !bg-[#111] !border-slate-800 text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Filter size={12} />Filter</button>
+          <button type="button" className="btn-secondary !bg-[#111] !border-slate-800 text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Shield size={12} />Verify</button>
+          <button type="button" className="btn-secondary !bg-[#111] !border-slate-800 text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Tag size={12} />Tag</button>
+          <button type="button" className="btn-secondary !bg-[#111] !border-slate-800 text-[10px] py-1.5 px-3 h-8 flex items-center gap-2"><Trash2 size={12} />Delete</button>
+          <button type="button" className="p-1.5 rounded-lg text-slate-600 hover:text-cyan-400 transition-all" title="Brain"><BrainIcon size={14} /></button>
+          <button type="button" className="p-1.5 rounded-lg text-slate-600 hover:text-blue-400 transition-all" title="Crosshair"><Crosshair size={14} /></button>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2">
-        <div className="mb-2 grid gap-2 md:grid-cols-4">
+        <div className="mb-1.5 grid gap-1.5 md:grid-cols-4">
           {snapshotStats.map((item) => (
-            <div key={item.label} className="rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 shadow-sm">
-              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] opacity-60">{item.label}</div>
-              <div className="mt-1 text-xl font-black text-[var(--color-text-primary)] leading-tight">{item.value}</div>
-              <div className="text-[9px] text-[var(--color-text-tertiary)] italic">{item.hint}</div>
+            <div key={item.label} className="rounded border border-slate-800/60 bg-[#0d0d0d] px-2.5 py-1.5 shadow-lg">
+              <div className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 opacity-60">{item.label}</div>
+              <div className="mt-0.5 text-lg font-black text-slate-100 leading-none">{item.value}</div>
             </div>
           ))}
         </div>
-        <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[605px_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[520px_minmax(0,1fr)]">
           <CRM1List contacts={filteredContacts} selectedContactId={selectedContactId} onSelectContact={setSelectedContactId} viewMode={viewMode} />
           <CRM1Detail contact={selectedContact} />
         </div>
