@@ -14,6 +14,7 @@ import { OrchestrationProvider } from './orchestration';
 import { BrandProvider } from './contexts/BrandContext';
 import TicketModal from './components/TicketModal';
 import OperatorAssistDock from './components/OperatorAssistDock';
+import GlobalOverlay from './components/GlobalOverlay';
 import { AIAssistProvider } from './contexts/AIAssistContext';
 import { SignalProvider } from './contexts/SignalContext';
 import { NoticeProvider, GlobalNoticeViewport } from './contexts/NoticeContext';
@@ -148,7 +149,7 @@ const ICON_MAP = {
 
 const MODULE_SUBTITLE_MAP = {
   'aio-brain': 'Direct the Cortex layer for reasoning, planning, and system-level AI coordination.',
-  dashboard: 'Operator feed for bookings, comms, pipeline, and automation heuristics.',
+  signals: 'Operator feed for bookings, comms, pipeline, and automation heuristics.',
   'aio-agents': 'Coordinate specialist agents, live command runs, and system execution posture.',
   calendar: 'Coordinate sources, booking types, and scheduled meetings from one workspace.',
   crm: 'Search, segment, and operate on contact records from one workspace.',
@@ -709,7 +710,7 @@ const App = () => {
     }
 
     switch (effectiveActiveModule) {
-      case 'dashboard':
+      case 'signals':
         return <SignalsModule />;
       case 'aio-brain':
         return <BrainModule />;
@@ -824,6 +825,7 @@ const App = () => {
           activeModule={activeModule} 
           activeModuleLabel={activeModuleLabel} 
         />
+        <GlobalOverlay activeModule={activeModule} />
         </AuthContext.Provider>
         {/* VTTOpener wires the sidebar aio:open-charlie event to openVTT */}
         <VTTOpener />

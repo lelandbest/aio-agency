@@ -27,6 +27,7 @@ import {
   Trash2,
   CloudUpload,
   ChevronLeft,
+  ChevronDown,
   Cpu,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
@@ -39,6 +40,7 @@ import {
   createMediaRunOfShowJobApi,
   createMediaScriptJobApi,
   createMediaTranscriptJobApi,
+  getMediaRenderTemplatesApi,
   getVaultApi,
   getMediaAudioRenderJobsApi,
   getMediaPublishJobsApi,
@@ -57,7 +59,6 @@ import {
   getApiBaseUrl,
   probeMediaAssetApi,
   withSessionToken,
-  saveTranscriptApi,
   getBrainItemsApi,
 } from '../../services/backendApi';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from '../Agents/data/agentRegistry';
@@ -69,6 +70,7 @@ import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
 const TRANSCRIPT_DRAFT_TITLE_KEY = 'aio_transcript_editor_draft_title';
 const TRANSCRIPT_EDITOR_OPEN_KEY = 'aio_transcript_editor_open';
+const FORGE_WORKBENCH_STATE_KEY = 'aio_forge_workbench_state';
 
 // Format seconds -> HH:MM:SS:FF (timecode display)
 function formatTimecode(seconds) {
@@ -90,6 +92,29 @@ function readTranscriptDraftCache() {
     title: sessionStorage.getItem(TRANSCRIPT_DRAFT_TITLE_KEY) || 'Live Transcript',
     transcript: sessionStorage.getItem(TRANSCRIPT_DRAFT_HTML_KEY) || '',
   };
+}
+
+function buildForgeSourceContextFromAsset(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+  return {
+    assetId: item.assetId || item.id || null,
+    title: item.title || item.filename || 'Source Asset',
+    filename: item.filename || item.metadata?.original_filename || item.title || '',
+    sourceUrl: item.sourceUrl || '',
+    mediaType: item.mediaType || '',
+    recordKind: item.recordKind || '',
+    artifactType: item.artifactType || '',
+    source: item.source || '',
+    ingestMeta: item.ingestMeta || item.ingest_meta || item.metadata?.ingestMeta || item.metadata?.ingest_meta || null,
+  };
+}
+
+function writeForgeWorkbenchState(state) {
+  sessionStorage.setItem(FORGE_WORKBENCH_STATE_KEY, JSON.stringify(state));
+  sessionStorage.setItem(TRANSCRIPT_DRAFT_TITLE_KEY, state?.title || '');
+  sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, state?.transcript || '');
 }
 
 function formatDuration(seconds) {
@@ -122,7 +147,9 @@ const INGESTION_SOURCES = [
 ];
 
 const DEFAULT_FORM_STATE = {
+  templateId: 'bltv_169',
   title: '',
+  description: '',
   topic: '',
   tone: '',
   duration: '',
@@ -132,6 +159,7 @@ const DEFAULT_FORM_STATE = {
   subtitle: '',
   prompt: '',
   script: '',
+  scriptPrompt: '',
   transcriptText: '',
   sourceUrl: '',
   meetingProvider: 'zoom',
@@ -141,6 +169,11 @@ const DEFAULT_FORM_STATE = {
   rawPayload: '',
   assetId: '',
   publishTarget: '',
+  includeAudio: false,
+  voiceId: '21m00Tcm4TlvDq8ikWAM',  // Rachel
+  audioAssetId: '',
+  imageAssetIds: [],
+  videoAssetIds: [],
 };
 
 const NEXUS_TABS = [
@@ -399,7 +432,6 @@ const StudioModule = () => {
   });
   const transcriptSavedStateRef = useRef(null); // Last saved state for dirty detection + reopen
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
-  const [transcriptSaving, setTranscriptSaving] = useState(false);
   const [launchingAction, setLaunchingAction] = useState('');
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
   const [chatInput, setChatInput] = useState('');
@@ -414,6 +446,9 @@ const StudioModule = () => {
   const [cortexRailItems, setCortexRailItems] = useState([]);
   const [vaultExpandedCats, setVaultExpandedCats] = useState({ audio: true });
   const [cortexExpandedCats, setCortexExpandedCats] = useState({ summaries: true });
+  const [mediaRenderTemplates, setMediaRenderTemplates] = useState([]);
+  const [isVideoTemplatePickerOpen, setIsVideoTemplatePickerOpen] = useState(false);
+  const [isVoicePickerOpen, setIsVoicePickerOpen] = useState(false);
   const [workspace, setWorkspace] = useState({
     jobs: [],
     outputs: [],
@@ -458,9 +493,29 @@ const StudioModule = () => {
     return () => { active = false; };
   }, [isTranscriptModalOpen]);
 
+  useEffect(() => {
+    let active = true;
+    const loadMediaRenderTemplates = async () => {
+      try {
+        const data = await getMediaRenderTemplatesApi();
+        if (!active) return;
+        setMediaRenderTemplates(Array.isArray(data?.templates) ? data.templates : []);
+      } catch (_) {
+        if (!active) return;
+        setMediaRenderTemplates([]);
+      }
+    };
+    loadMediaRenderTemplates();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // --- REAL PLAYER STATE ---
   const mediaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const videoTemplatePickerRef = useRef(null);
+  const voicePickerRef = useRef(null);
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
   const sourceNodeRef = useRef(null);
@@ -594,12 +649,7 @@ const StudioModule = () => {
     setError(message);
   }, []);
 
-  const resetAudioGraph = useCallback(() => {
-    graphMediaRef.current = null;
-    if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.disconnect(); } catch (_) { }
-      sourceNodeRef.current = null;
-    }
+  const resetAudioGraph = useCallback((preserveSource = false) => {
     if (analyserRef.current) {
       try { analyserRef.current.disconnect(); } catch (_) { }
       analyserRef.current = null;
@@ -608,10 +658,19 @@ const StudioModule = () => {
       try { gainNodeRef.current.disconnect(); } catch (_) { }
       gainNodeRef.current = null;
     }
-    const ctx = audioCtxRef.current;
-    audioCtxRef.current = null;
-    if (ctx && ctx.state !== 'closed') {
-      ctx.close().catch(() => { });
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.disconnect(); } catch (_) { }
+      if (!preserveSource) {
+        sourceNodeRef.current = null;
+      }
+    }
+    if (!preserveSource) {
+      graphMediaRef.current = null;
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      if (ctx && ctx.state !== 'closed') {
+        ctx.close().catch(() => { });
+      }
     }
   }, []);
 
@@ -619,12 +678,18 @@ const StudioModule = () => {
   useEffect(() => {
     setProbeData(null);
     // Reset player when asset changes
-    if (mediaRef.current) {
-      mediaRef.current.pause();
-      mediaRef.current.currentTime = 0;
-      mediaRef.current.muted = false;
+    const nextMediaElement = mediaRef.current;
+    const canReuseSource = Boolean(
+      nextMediaElement &&
+      graphMediaRef.current &&
+      graphMediaRef.current === nextMediaElement
+    );
+    if (nextMediaElement) {
+      nextMediaElement.pause();
+      nextMediaElement.currentTime = 0;
+      nextMediaElement.muted = false;
     }
-    resetAudioGraph();
+    resetAudioGraph(canReuseSource);
     setPlayerState(prev => ({ ...prev, isPlaying: false, currentTime: 0, duration: 0, loadError: null }));
     setAudioLevel(0);
   }, [activeOutputId, resetAudioGraph]);
@@ -724,7 +789,7 @@ const StudioModule = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const analyser = analyserRef.current;
-    const bufferLength = analyser.frequencyBinCount;
+    const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
 
     const draw = () => {
@@ -782,33 +847,38 @@ const StudioModule = () => {
   const handlePlay = useCallback(async () => {
     const el = mediaRef.current;
     if (!el) return;
+    el.muted = false;
+    el.volume = playerState.volume;
 
-    if (!audioCtxRef.current || graphMediaRef.current !== el) {
-      resetAudioGraph();
-      try {
-        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContextCtor) {
-          throw new Error('AudioContext unavailable');
-        }
-        const ctx = new AudioContextCtor();
-        const analyser = ctx.createAnalyser();
-        const gain = ctx.createGain();
-        analyser.fftSize = 2048;
-        gain.gain.value = playerState.volume;
-        const src = ctx.createMediaElementSource(el);
-        src.connect(analyser);
-        analyser.connect(gain);
-        gain.connect(ctx.destination);
-        el.muted = true;
-        audioCtxRef.current = ctx;
-        analyserRef.current = analyser;
-        sourceNodeRef.current = src;
-        gainNodeRef.current = gain;
-        graphMediaRef.current = el;
-      } catch (e) {
-        console.error('AudioContext fail', e);
-        el.muted = false;
+    try {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextCtor) {
+        throw new Error('AudioContext unavailable');
       }
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContextCtor();
+      }
+      if (graphMediaRef.current && graphMediaRef.current !== el) {
+        resetAudioGraph(false);
+        audioCtxRef.current = new AudioContextCtor();
+      }
+      if (!sourceNodeRef.current || graphMediaRef.current !== el) {
+        sourceNodeRef.current = audioCtxRef.current.createMediaElementSource(el);
+        graphMediaRef.current = el;
+      }
+      resetAudioGraph(true);
+      const analyser = audioCtxRef.current.createAnalyser();
+      const gain = audioCtxRef.current.createGain();
+      analyser.fftSize = 2048;
+      gain.gain.value = playerState.volume;
+      sourceNodeRef.current.connect(analyser);
+      analyser.connect(gain);
+      gain.connect(audioCtxRef.current.destination);
+      analyserRef.current = analyser;
+      gainNodeRef.current = gain;
+    } catch (e) {
+      console.error('AudioContext fail', e);
+      el.muted = false;
     }
 
     if (audioCtxRef.current?.state === 'suspended') {
@@ -869,6 +939,10 @@ const StudioModule = () => {
   const assetOutputs = useMemo(() => workspace.outputs.filter((output) => output.recordKind === 'asset'), [workspace.outputs]);
   const sourceBackedAssets = useMemo(() => assetOutputs.filter((output) => output.sourceUrl), [assetOutputs]);
   const publishableAssets = useMemo(() => assetOutputs.filter((output) => output.type === 'render' || output.type === 'audio'), [assetOutputs]);
+  const videoTemplateOptions = useMemo(() => mediaRenderTemplates.map((template) => ({
+    id: String(template?.id || template?.templateId || '').trim(),
+    label: String(template?.label || template?.humanLabel || template?.templateId || '').trim(),
+  })).filter((template) => template.id), [mediaRenderTemplates]);
 
   useEffect(() => {
     if (!formState.assetId) return;
@@ -892,7 +966,7 @@ const StudioModule = () => {
       ...DEFAULT_FORM_STATE,
       meetingProvider: key === 'ingestMeetingArtifacts' ? 'zoom' : DEFAULT_FORM_STATE.meetingProvider,
       assetId: key === 'scribeMedia' || key === 'publishMedia' ? preferredAssetId : '',
-      sourceUrl: key === 'scribeMedia' ? (preferredAsset?.sourceUrl || '') : '',
+      sourceUrl: key === 'scribeMedia' || (key === 'generateVideo' && (preferredAsset?.mediaType === 'audio' || preferredAsset?.type === 'audio')) ? (preferredAsset?.sourceUrl || '') : '',
       mediaUrl: key === 'ingestMeetingArtifacts' ? (preferredAsset?.sourceUrl || '') : '',
     });
   }, [activeOutputId, assetOutputs]);
@@ -924,11 +998,49 @@ const StudioModule = () => {
     const outputType = String(activeOutput?.type || '').toLowerCase();
     return mediaType === 'image' || outputType === 'image';
   }, [activeOutput?.mediaType, activeOutput?.type]);
+  const selectedVideoTemplateId = useMemo(() => {
+    const currentTemplateId = String(formState.templateId || '').trim();
+    if (videoTemplateOptions.some((template) => template.id === currentTemplateId)) {
+      return currentTemplateId;
+    }
+    if (videoTemplateOptions.some((template) => template.id === 'bltv_169')) {
+      return 'bltv_169';
+    }
+    return videoTemplateOptions[0]?.id || 'bltv_169';
+  }, [formState.templateId, videoTemplateOptions]);
+  const selectedVideoTemplateOption = useMemo(
+    () => videoTemplateOptions.find((template) => template.id === selectedVideoTemplateId) || null,
+    [selectedVideoTemplateId, videoTemplateOptions]
+  );
   const activeOutputHasPlayableMedia = Boolean(activeOutput?.sourceUrl) && !activeOutputIsImage;
   const selectedSourceAsset = useMemo(() => {
     if (!formState.assetId) return null;
     return sourceBackedAssets.find((output) => output.assetId === formState.assetId) || null;
   }, [formState.assetId, sourceBackedAssets]);
+
+  useEffect(() => {
+    if (!isVideoTemplatePickerOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (videoTemplatePickerRef.current?.contains(event.target)) return;
+      setIsVideoTemplatePickerOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [isVideoTemplatePickerOpen]);
+
+  useEffect(() => {
+    if (!isVoicePickerOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (voicePickerRef.current?.contains(event.target)) return;
+      setIsVoicePickerOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [isVoicePickerOpen]);
 
   const setDroppedPayload = useCallback((value, nextMode) => {
     if (!value) return;
@@ -1134,7 +1246,42 @@ const StudioModule = () => {
       else if (selectedAction === 'generateRunOfShow') r = await createMediaRunOfShowJobApi({ provider: activeAction.provider, title: formState.title || 'Run of Show', topic: formState.topic });
       else if (selectedAction === 'generateVoice') r = await createMediaAudioRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Voice', text: formState.text, voice: formState.voice, style: formState.style });
       else if (selectedAction === 'generateThumbnail') r = await createMediaRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Thumbnail', mediaType: 'image', script: formState.prompt, metadata: { prompt: formState.prompt } });
-      else if (selectedAction === 'generateVideo') r = await createMediaRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Video', mediaType: 'video', script: formState.script, metadata: { prompt: formState.script } });
+      else if (selectedAction === 'generateVideo') {
+        // Determine audio source: TTS (includeAudio), Vault audio (audioAssetId), or none
+        let audioUrl = null;
+        let audioAssetId = null;
+        
+        if (formState.includeAudio && formState.audioAssetId && formState.audioAssetId !== '__vault__') {
+          // Vault audio selected with TTS - prioritize vault
+          audioAssetId = formState.audioAssetId;
+        } else if (formState.audioAssetId && formState.audioAssetId !== '__vault__') {
+          // Vault audio only (no TTS)
+          audioAssetId = formState.audioAssetId;
+        } else if (formState.includeAudio) {
+          // TTS only
+          audioUrl = null; // backend will generate
+        }
+        
+        r = await createMediaRenderJobApi({
+          provider: activeAction.provider,
+          title: formState.title || 'Video',
+          mediaType: 'video',
+          templateId: selectedVideoTemplateId,
+          description: formState.description,
+          scriptPrompt: formState.includeAudio ? formState.scriptPrompt : null,
+          script: formState.scriptPrompt,
+          audioUrl,
+          includeAudio: formState.includeAudio,
+          voiceId: formState.voiceId,
+          audioAssetId,
+          imageAssetIds: formState.imageAssetIds?.filter(Boolean) || null,
+          videoAssetIds: formState.videoAssetIds?.filter(Boolean) || null,
+          metadata: {
+            prompt: formState.scriptPrompt,
+            description: formState.description,
+          },
+        });
+      }
       else if (selectedAction === 'scribeMedia') {
         r = await createMediaTranscriptJobApi({
           provider: activeAction.provider,
@@ -1173,7 +1320,7 @@ const StudioModule = () => {
     } finally {
       setLaunchingAction('');
     }
-  }, [activeAction, formState, handleNexusIngest, nexusMode, resetActionForm, selectedAction, selectedSourceAsset, syncMediaMutation]);
+  }, [activeAction, activeOutput, formState, handleNexusIngest, nexusMode, resetActionForm, selectedAction, selectedSourceAsset, selectedVideoTemplateId, syncMediaMutation]);
 
   const handleDeleteOutput = useCallback(async (output, e) => {
     e?.stopPropagation();
@@ -1489,8 +1636,149 @@ const StudioModule = () => {
     if (selectedAction === 'generateVideo') {
       return (
         <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <label className="relative flex-1">
+              <span className={labelClass}>TEMPLATE</span>
+              <div ref={videoTemplatePickerRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => videoTemplateOptions.length && setIsVideoTemplatePickerOpen((current) => !current)}
+                  disabled={!videoTemplateOptions.length}
+                  className={`${inputClass} flex items-center justify-between gap-2 text-left ${!videoTemplateOptions.length ? 'opacity-60' : 'hover:border-cyan-500/70 hover:bg-black/55'}`}
+                >
+                  <span className="truncate text-[10px] text-slate-100">
+                    {selectedVideoTemplateOption
+                      ? (selectedVideoTemplateOption.label || selectedVideoTemplateOption.id.toUpperCase())
+                      : 'LOADING TEMPLATES...'}
+                  </span>
+                  <ChevronDown size={12} className={`shrink-0 text-cyan-400 transition-transform ${isVideoTemplatePickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isVideoTemplatePickerOpen && videoTemplateOptions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-md border border-[#2A2D35] bg-[#0A0C10] shadow-[0_12px_32px_rgba(0,0,0,0.65)]">
+                    {videoTemplateOptions.map((template) => {
+                      const isSelected = template.id === selectedVideoTemplateId;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => {
+                            updateField('templateId', template.id);
+                            setIsVideoTemplatePickerOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all last:border-b-0 ${
+                            isSelected
+                              ? 'bg-cyan-950/40 text-cyan-200'
+                              : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'
+                          }`}
+                        >
+                          <span className="truncate text-[10px] uppercase tracking-[0.12em]">
+                            {template.label || template.id}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </label>
+            <label className="relative flex-1">
+              <span className={labelClass}>VOICE</span>
+              <div ref={voicePickerRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsVoicePickerOpen((current) => !current)}
+                  className={`${inputClass} flex items-center justify-between gap-2 text-left hover:border-cyan-500/70 hover:bg-black/55`}
+                >
+                  <span className="truncate text-[10px] text-slate-100 uppercase tracking-[0.12em]">
+                    {({ "21m00Tcm4TlvDq8ikWAM": "Rachel", "pNInz6obpgDQGcFmaJgB": "Adam", "VRbBwbq2V1S4v8zECmKj": "Arnold", "CwhRBWXzGaCjF7wR6BqK": "Sam" })[formState.voiceId] || formState.voiceId}
+                  </span>
+                  <ChevronDown size={12} className={`shrink-0 text-cyan-400 transition-transform ${isVoicePickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isVoicePickerOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-md border border-[#2A2D35] bg-[#0A0C10] shadow-[0_12px_32px_rgba(0,0,0,0.65)]">
+                    {[
+                      { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel" },
+                      { id: "pNInz6obpgDQGcFmaJgB", label: "Adam" },
+                      { id: "VRbBwbq2V1S4v8zECmKj", label: "Arnold" },
+                      { id: "CwhRBWXzGaCjF7wR6BqK", label: "Sam" },
+                    ].map((voice) => (
+                      <button
+                        key={voice.id}
+                        type="button"
+                        onClick={() => {
+                          updateField('voiceId', voice.id);
+                          setIsVoicePickerOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all last:border-b-0 ${
+                          formState.voiceId === voice.id
+                            ? 'bg-cyan-950/40 text-cyan-200'
+                            : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'
+                        }`}
+                      >
+                        <span className="text-[10px] uppercase tracking-[0.12em]">{voice.label}</span>
+                      <span className="shrink-0 text-[8px] uppercase tracking-[0.18em] text-slate-500">VOICE</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              </div>
+            </label>
+            <label className="flex items-center gap-2 shrink-0 pt-4">
+              <input 
+                type="checkbox" 
+                checked={formState.includeAudio} 
+                onChange={(e) => updateField('includeAudio', e.target.checked)}
+                className="w-4 h-4 rounded border-[var(--color-border)] bg-[var(--color-bg-primary)] accent-cyan-500"
+              />
+              <span className="text-[10px] uppercase tracking-wider text-slate-400">Audio</span>
+            </label>
+          </div>
+          {/* Asset selection row */}
+          <div className="flex items-center gap-2">
+            <label className="flex-1">
+              <span className={labelClass}>AUDIO SOURCE</span>
+              <select 
+                value={formState.audioAssetId} 
+                onChange={(e) => updateField('audioAssetId', e.target.value)} 
+                className={inputClass}
+              >
+                <option value="">TTS</option>
+                <option value="__vault__">-- FROM VAULT --</option>
+                {vaultRailItems.filter(item => item.mediaType === 'audio').map(item => (
+                  <option key={item.assetId} value={item.assetId}>{item.title || item.filename}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex-1">
+              <span className={labelClass}>IMAGES</span>
+              <select 
+                value={formState.imageAssetIds?.[0] || ''} 
+                onChange={(e) => updateField('imageAssetIds', e.target.value ? [e.target.value] : [])} 
+                className={inputClass}
+              >
+                <option value="">NONE</option>
+                {vaultRailItems.filter(item => item.mediaType === 'image').map(item => (
+                  <option key={item.assetId} value={item.assetId}>{item.title || item.filename}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex-1">
+              <span className={labelClass}>B-ROLL</span>
+              <select 
+                value={formState.videoAssetIds?.[0] || ''} 
+                onChange={(e) => updateField('videoAssetIds', e.target.value ? [e.target.value] : [])} 
+                className={inputClass}
+              >
+                <option value="">NONE</option>
+                {vaultRailItems.filter(item => item.mediaType === 'video').map(item => (
+                  <option key={item.assetId} value={item.assetId}>{item.title || item.filename}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <label><span className={labelClass}>PROP // VIDEO TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder="MISSION CLIP" /></label>
-          <label><span className={labelClass}>SCRIPT / PROMPT</span><textarea value={formState.script} onChange={(e) => updateField('script', e.target.value)} rows={4} className={`${inputClass} resize-none`} placeholder="Describe the render intent..."></textarea></label>
+          <label><span className={labelClass}>DESCRIPTION</span><input value={formState.description} onChange={(e) => updateField('description', e.target.value)} className={inputClass} placeholder="Short output summary" /></label>
+          <label><span className={labelClass}>SCRIPT / PROMPT</span><textarea value={formState.scriptPrompt} onChange={(e) => updateField('scriptPrompt', e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder="Describe the render intent..."></textarea></label>
         </div>
       );
     }
@@ -2733,22 +3021,24 @@ const StudioModule = () => {
                     </button>
 
                     <button
-                      onClick={async () => {
-                        if (transcriptSaving) return;
-                        setTranscriptSaving(true);
-                        try {
-                          const payload = { ...transcriptState, status: 'Pushed', assetId: activeOutput?.assetId };
-                          const result = await saveTranscriptApi(payload);
-                          if (result) {
-                            transcriptSavedStateRef.current = { ...transcriptState, status: 'Pushed' };
-                            setTranscriptState(s => ({ ...s, status: 'Pushed' }));
-                            showNotice({ type: 'success', message: 'Pushed to Cortex.' });
-                          }
-                        } finally { setTranscriptSaving(false); }
+                      onClick={() => {
+                        const sourceAsset = activeAsset || activeOutput || null;
+                        const sourceContext = buildForgeSourceContextFromAsset(sourceAsset);
+                        const nextState = {
+                          ...transcriptState,
+                          status: 'Draft',
+                          sourceContext,
+                        };
+                        transcriptSavedStateRef.current = nextState;
+                        setTranscriptState(nextState);
+                        writeForgeWorkbenchState(nextState);
+                        setIsTranscriptModalOpen(false);
+                        window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'forge' } }));
+                        showNotice({ type: 'success', message: 'Transcript routed to Forge for structured commit.' });
                       }}
                       className="h-10 rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)] disabled:opacity-40 transition-all"
                     >
-                      {transcriptSaving ? 'PUSHING...' : 'CORTEX'}
+                      FORGE
                     </button>
                   </div>
 

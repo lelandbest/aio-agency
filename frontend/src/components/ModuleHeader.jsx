@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { useAIAssist } from '../contexts/AIAssistContext';
 import { normalizeDisplayText } from '../utils/text';
-import { BrainIcon, Crosshair } from './ui/icons';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from './ui/icons';
+import { openGlobalOverlay } from './GlobalOverlay';
 
 const StatusBadge = ({ statusBadge }) => {
   if (!statusBadge) return null;
@@ -107,6 +108,23 @@ const Actions = ({ actions, leadIndex = null }) => {
   );
 };
 
+/**
+ * ModuleHeader Toolbar Contract:
+ * 
+ * Core toolbar actions (always present):
+ * - Brain: Global Knowledge Base access
+ * - Crosshair: Module-specific AI assistance
+ * 
+ * System-level icons (allowed additions):
+ * - Command Surface: Global overlay / command entry point
+ * 
+ * The toolbar renders dynamically. Core icons are required.
+ * Additional system-level icons are allowed when they provide
+ * global functionality (overlay, commands, system-level entry points).
+ * 
+ * Layout and styling must remain consistent.
+ */
+
 const ModuleHeader = ({
   title,
   subtitle = '',
@@ -176,6 +194,15 @@ const ModuleHeader = ({
             title="Crosshair (Module AI)"
           >
             <Crosshair size={15} />
+          </button>
+
+          {/* Command Surface - Global Overlay Trigger */}
+          <button
+            onClick={() => openGlobalOverlay()}
+            className={toolbarIconButtonClass}
+            title="Command Surface"
+          >
+            <CommandSurfaceIcon size={15} />
           </button>
         </div>
       </div>

@@ -1556,7 +1556,7 @@ class RemotionLocalRenderProvider(BaseRenderProvider):
         from pathlib import Path
 
         title = clean_text(payload.get("title")) or clean_text(job.get("title")) or "Generated Video"
-        audioUrl = clean_text(payload.get("audioUrl") or payload.get("sourceUrl") or payload.get("audio_url") or payload.get("source_url"))
+        audioUrl = clean_text(payload.get("audioUrl"))
         transcript = clean_text(payload.get("transcript"))
         branding = payload.get("branding")
         
@@ -2619,9 +2619,94 @@ class MediaEngine:
         started = {**job, "status": "processing", "started_at": utcnow_iso()}
         self.store.upsert("render_jobs", started)
         try:
-            result = provider.renderMedia(started, payload)
+            render_payload = dict(payload)
+            
+            # Resolve Vault audio asset if provided
+            audio_asset_id = render_payload.get("audioAssetId")
+            if audio_asset_id:
+                asset = self.get_asset(audio_asset_id)
+                if not asset:
+                    raise ValueError(f"Audio asset '{audio_asset_id}' not found. Render aborted.")
+                audio_source_url = asset.get("source_url") if isinstance(asset, dict) else None
+                if not audio_source_url:
+                    raise ValueError(f"Audio asset '{audio_asset_id}' has no source_url. Render aborted.")
+                render_payload["audioUrl"] = audio_source_url
+                # If audioAssetId provided but not includeAudio, disable TTS
+                if not render_payload.get("includeAudio"):
+                    render_payload["scriptPrompt"] = None
+            
+            # Resolve Vault image assets if provided
+            image_asset_ids = render_payload.get("imageAssetIds") or []
+            if image_asset_ids:
+                resolved_images = []
+                for img_id in image_asset_ids:
+                    img_asset = self.get_asset(img_id)
+                    if not img_asset:
+                        raise ValueError(f"Image asset '{img_id}' not found. Render aborted.")
+                    img_url = img_asset.get("source_url") if isinstance(img_asset, dict) else None
+                    if img_url:
+                        resolved_images.append(img_url)
+                if resolved_images:
+                    render_payload["images"] = resolved_images
+            
+            # Resolve Vault video assets if provided
+            video_asset_ids = render_payload.get("videoAssetIds") or []
+            if video_asset_ids:
+                resolved_videos = []
+                for vid_id in video_asset_ids:
+                    vid_asset = self.get_asset(vid_id)
+                    if not vid_asset:
+                        raise ValueError(f"Video asset '{vid_id}' not found. Render aborted.")
+                    vid_url = vid_asset.get("source_url") if isinstance(vid_asset, dict) else None
+                    if vid_url:
+                        resolved_videos.append(vid_url)
+                if resolved_videos:
+                    render_payload["videoClips"] = resolved_videos
+            
+            # Handle TTS generation if includeAudio is true and no vault audio
+            if render_payload.get("includeAudio") and render_payload.get("scriptPrompt") and not audio_asset_id:
+                voice_id = render_payload.get("voiceId") or "21m00Tcm4TlvDq8ikWAM"
+                from vtt_service import synthesize_voice
+                audio_url = synthesize_voice(
+                    text=render_payload.get("scriptPrompt", "")[:600],
+                    voice=voice_id,
+                    tenant_id=tenant_id
+                )
+                if not audio_url:
+                    raise ValueError(f"TTS audio generation failed for voice '{voice_id}'. Render aborted: includeAudio=true requires valid audio.")
+                render_payload["audioUrl"] = audio_url
+            
+            # NORMALIZE ASSET URLs TO ABSOLUTE (AFTER all resolution)
+            # Remotion resolves relative URLs against frontend origin - must be absolute
+            def make_absolute_url(url):
+                if not url:
+                    raise ValueError("Invalid asset URL: empty or null")
+                
+                if url.startswith('http://') or url.startswith('https://'):
+                    return url
+                
+                if url.startswith('/'):
+                    return f"http://localhost:8001{url}"
+                
+                raise ValueError(f"Unrecognized asset URL format: {url}")
+            
+            # Convert audio URL (NOW AFTER TTS)
+            if render_payload.get("audioUrl"):
+                render_payload["audioUrl"] = make_absolute_url(render_payload["audioUrl"])
+            
+            # Convert image URLs
+            if render_payload.get("images"):
+                render_payload["images"] = [make_absolute_url(u) for u in render_payload["images"]]
+            
+            # Convert video URLs
+            if render_payload.get("videoClips"):
+                render_payload["videoClips"] = [make_absolute_url(u) for u in render_payload["videoClips"]]
+            
+            result = provider.renderMedia(started, render_payload)
             assets: list[dict[str, Any]] = []
+            linked_id = f"render-{job['id']}"
             for asset_payload in result.get("assets") or []:
+                asset_metadata = asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {}
                 asset = build_media_asset(
                     tenant_id=tenant_id,
                     provider=provider.provider_id,
@@ -2632,11 +2717,20 @@ class MediaEngine:
                     ingest_stage="processed",
                     original=False,
                     conversion_type=clean_text(asset_payload.get("asset_type")) or "render_output",
+                    stage="final",
+                    linked_id=linked_id,
                     source_url=clean_text(asset_payload.get("source_url")) or None,
-                    metadata=asset_payload.get("metadata") if isinstance(asset_payload.get("metadata"), dict) else {},
+                    metadata={
+                        **asset_metadata,
+                        "source": "render",
+                        "createdAt": utcnow_iso(),
+                        "templateId": clean_text(render_payload.get("templateId")),
+                        "audioLinked": bool(render_payload.get("audioUrl")),
+                    },
                     attachments=attachments,
                 )
-                assets.append(self.store.upsert("assets", asset))
+                asset["status"] = "ready"
+                assets.append(self.store.upsert_asset(asset, deduplicate=True))
             completed = {
                 **started,
                 "status": "complete",

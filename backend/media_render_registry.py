@@ -6,23 +6,30 @@ Canonical store for Remotion template definitions and selection logic.
 """
 
 REMOTION_TEMPLATES = {
-    "aio_base_vertical": {
-        "templateId": "aio_base_vertical",
-        "humanLabel": "AIO Base Vertical",
+    "aio_916": {
+        "templateId": "aio_916",
+        "humanLabel": "AIO 9:16",
         "compositionId": "VideoComposition",
         "description": "Universal AIO vertical template with animated background, title, subtitle, and dynamic captions.",
-        "supportedProps": ["title", "subtitle", "audioUrl", "transcript", "transcriptLines", "watermarkText", "themeVariant", "logoUrl"]
+        "supportedProps": ["title", "subtitle", "audioUrl", "transcript", "transcriptLines", "watermarkText", "themeVariant", "logoUrl", "images", "videoClips"]
     },
-    "aio_audiogram_vertical": {
-        "templateId": "aio_audiogram_vertical",
-        "humanLabel": "AIO Audiogram Vertical",
+    "aio_11": {
+        "templateId": "aio_11",
+        "humanLabel": "AIO 1:1",
         "compositionId": "AudiogramComposition",
-        "description": "Audio-first branded vertical social video with high-impact captions and animated waveform.",
-        "supportedProps": ["title", "subtitle", "audioUrl", "transcriptLines", "watermarkText", "themeVariant", "logoUrl"]
+        "description": "Audio-first branded square social video with high-impact captions and animated waveform.",
+        "supportedProps": ["title", "subtitle", "audioUrl", "transcriptLines", "watermarkText", "themeVariant", "logoUrl", "images", "videoClips"]
+    },
+    "bltv_169": {
+        "templateId": "bltv_169",
+        "humanLabel": "BLTV 16:9",
+        "compositionId": "BLTVLandscapeComposition",
+        "description": "Broadcast-style BLTV landscape template for YouTube-ready production output.",
+        "supportedProps": ["title", "subtitle", "audioUrl", "transcript", "transcriptLines", "watermarkText", "themeVariant", "logoUrl", "images", "videoClips"]
     }
 }
 
-DEFAULT_TEMPLATE_ID = "aio_base_vertical"
+DEFAULT_TEMPLATE_ID = "aio_916"
 
 def resolve_template(template_id: Optional[str]) -> dict[str, Any]:
     """
@@ -34,12 +41,6 @@ def resolve_template(template_id: Optional[str]) -> dict[str, Any]:
         return REMOTION_TEMPLATES[DEFAULT_TEMPLATE_ID]
     
     if template_id not in REMOTION_TEMPLATES:
-        # Check if it was passed as the raw compositionId for legacy support
-        # We search for it in the registry first
-        for key, entry in REMOTION_TEMPLATES.items():
-            if entry["compositionId"] == template_id:
-                return entry
-                
         raise ValueError(f"Invalid templateId '{template_id}'. No such template registered in AIO.")
     
     return REMOTION_TEMPLATES[template_id]

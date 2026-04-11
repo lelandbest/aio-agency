@@ -2,6 +2,7 @@ import React from 'react';
 import { Composition } from 'remotion';
 import { VideoComposition } from './Composition';
 import { AudiogramComposition } from './AudiogramComposition';
+import { BLTVLandscapeComposition } from './BLTVLandscapeComposition';
 import { REMOTION_TEMPLATES } from './registry';
 
 export const RemotionRoot: React.FC = () => {
@@ -20,6 +21,8 @@ export const RemotionRoot: React.FC = () => {
           Component = VideoComposition;
         } else if (tpl.compositionId === 'AudiogramComposition') {
           Component = AudiogramComposition;
+        } else if (tpl.compositionId === 'BLTVLandscapeComposition') {
+          Component = BLTVLandscapeComposition;
         }
 
         return (

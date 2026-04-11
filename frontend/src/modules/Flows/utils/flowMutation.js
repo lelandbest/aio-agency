@@ -11,7 +11,7 @@ import { createNode } from '../data/nodeLibrary';
  * Returns { nodes, edges, validation }
  * @param {boolean} [isSystemManaged=false] - if true, blocks all structural mutations
  */
-export const mutateFlowGraph = (currentNodes, currentEdges, action, isSystemManaged = false) => {
+export const mutateFlowGraph = (currentNodes, currentEdges, action, isSystemManaged = false, validationOptions = {}) => {
   const { type, payload } = action;
   let nextNodes = [...currentNodes];
   let nextEdges = [...currentEdges];
@@ -153,7 +153,7 @@ export const mutateFlowGraph = (currentNodes, currentEdges, action, isSystemMana
   const realEdges = nextEdges.filter((e) => realNodeIds.has(e.source) && realNodeIds.has(e.target));
 
   const spec = buildFlowSpec({ flow: {}, nodes: realNodes, edges: realEdges });
-  const validation = validateFlowSpec(spec);
+  const validation = validateFlowSpec(spec, validationOptions);
 
   return {
     nodes: nextNodes,

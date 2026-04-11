@@ -17,6 +17,8 @@ export const VideoComposition: React.FC<{
   watermarkText?: string;
   transcript?: string;
   transcriptLines?: { text: string; start: number; end: number }[];
+  images?: string[];
+  videoClips?: string[];
 }> = ({ 
   title = "AIO OPERATIONS", 
   subtitle = "THIN-AIR RENDER ACTIVE", 

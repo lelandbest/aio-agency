@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Globe, Link2, Search, Trash2, UploadCloud, ChevronRight, X, Zap, Activity, Rocket, 
   Bot, Workflow, FileText, Lock, Loader2, PenTool, 
@@ -9,6 +9,7 @@ import {
 import { BrainIcon } from '../../components/ui/icons';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ModuleHeader from '../../components/ModuleHeader';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 
 const CATEGORIES = [
   { id: 'b-doc', label: 'DOC', bin: 'DOC', dbCategory: 'document', icon: FileText, types: ['.pdf', '.docx', '.doc', '.txt', '.rtf', '.odt'] },
@@ -1009,6 +1010,7 @@ const AIInsights = ({ onRunReport, activeReportId, output, setOutput, onSave }) 
 
 const Cortex = () => {
   const [loading, setLoading] = useState(true);
+  const { openAIAssist } = useAIAssist() || {};
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [sources, setSources] = useState([]);
   const [items, setItems] = useState([]);
@@ -1026,6 +1028,12 @@ const Cortex = () => {
 
   const [selectedCategory, setSelectedCategory] = useState(null);
   const { brandConfig, resolveBrandConfig } = useBrand();
+
+  const handleModuleAiAssist = useCallback(async () => {
+    if (openAIAssist) {
+      openAIAssist({ context: { module: 'brain', profile, itemsCount: items.length } });
+    }
+  }, [openAIAssist]); // Stable - only recreate if openAIAssist changes
 
   const fetchProviders = async (profileData) => {
     try {
@@ -1125,6 +1133,7 @@ const Cortex = () => {
       <ModuleHeader 
         title="Cortex™" 
         subtitle="Structured Knowledge // Operational DNA // CRM Synthesis"
+        /* onModuleAi={handleModuleAiAssist} */
         actions={[
           { label: 'UPLINK REFRESH', icon: RefreshCcw, onClick: fetchOverview, variant: 'secondary' }
         ]}

@@ -1672,6 +1672,7 @@ class BrainSourceRequest(BaseModel):
     status: str = "draft"
     location: str = ""
     notes: str = ""
+    metadata: dict[str, Any] | None = None
     graphX: float | None = None
     graphY: float | None = None
 
@@ -1682,6 +1683,7 @@ class BrainSourceUpdateRequest(BaseModel):
     status: str | None = None
     location: str | None = None
     notes: str | None = None
+    metadata: dict[str, Any] | None = None
     graphX: float | None = None
     graphY: float | None = None
 
@@ -1693,6 +1695,7 @@ class BrainItemRequest(BaseModel):
     sourceId: str | None = None
     status: str = "draft"
     tags: list[str] = []
+    metadata: dict[str, Any] | None = None
     graphX: float | None = None
     graphY: float | None = None
 
@@ -1704,6 +1707,7 @@ class BrainItemUpdateRequest(BaseModel):
     sourceId: str | None = None
     status: str | None = None
     tags: list[str] | None = None
+    metadata: dict[str, Any] | None = None
     graphX: float | None = None
     graphY: float | None = None
 
@@ -1723,6 +1727,7 @@ class BrainIngestRequest(BaseModel):
     status: str | None = None
     location: str = ""
     notes: str = ""
+    metadata: dict[str, Any] | None = None
     ingestType: str = "text"
     title: str | None = None
     content: str | None = None
@@ -1786,6 +1791,7 @@ def _serialize_brain_source(record: dict[str, Any] | None) -> dict[str, Any]:
         "status": source.get("status") or "draft",
         "location": source.get("location") or "",
         "notes": source.get("notes") or "",
+        "metadata": clone_json(source.get("metadata") or {}),
         "graphX": _brain_value(source, "graphX", "graph_x"),
         "graphY": _brain_value(source, "graphY", "graph_y"),
         "createdAt": source.get("createdAt"),
@@ -1805,6 +1811,7 @@ def _serialize_brain_item(record: dict[str, Any] | None) -> dict[str, Any]:
         "sourceId": _brain_value(source, "sourceId", "source_id"),
         "status": source.get("status") or "draft",
         "tags": tags if isinstance(tags, list) else [],
+        "metadata": clone_json(source.get("metadata") or {}),
         "graphX": _brain_value(source, "graphX", "graph_x"),
         "graphY": _brain_value(source, "graphY", "graph_y"),
         "createdAt": source.get("createdAt"),
@@ -1914,6 +1921,7 @@ def _brain_source_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "status": source.get("status"),
         "location": source.get("location"),
         "notes": source.get("notes"),
+        "metadata": clone_json(source.get("metadata") or {}),
         "graph_x": source.get("graphX"),
         "graph_y": source.get("graphY"),
         "createdAt": source.get("createdAt"),
@@ -1930,6 +1938,7 @@ def _brain_item_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "source_id": source.get("sourceId"),
         "status": source.get("status"),
         "tags": source.get("tags"),
+        "metadata": clone_json(source.get("metadata") or {}),
         "graph_x": source.get("graphX"),
         "graph_y": source.get("graphY"),
         "createdAt": source.get("createdAt"),
@@ -1958,6 +1967,7 @@ def _brain_ingest_provider_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "status": source.get("status"),
         "location": source.get("location"),
         "notes": source.get("notes"),
+        "metadata": clone_json(source.get("metadata") or {}),
         "ingest_type": source.get("ingestType"),
         "title": source.get("title"),
         "content": source.get("content"),
@@ -2315,6 +2325,10 @@ class MediaRenderRequest(BaseModel):
     renderProfile: str | None = None
     attachments: list[dict[str, Any]] | None = None
     metadata: dict[str, Any] | None = None
+    # Asset-driven rendering
+    audioAssetId: str | None = None
+    imageAssetIds: list[str] | None = None
+    videoAssetIds: list[str] | None = None
 
 
 class MediaTranscriptRequest(BaseModel):
@@ -2678,11 +2692,29 @@ def is_client_allowed_api_request(method: str, path: str) -> bool:
 
 
 def is_public_api_request(path: str) -> bool:
-    if path in {"/api/", "/api/health", "/api/auth/status", "/api/auth/bootstrap", "/api/auth/login", "/api/auth/forgot-password", "/api/auth/google/authorize", "/api/oauth/callback"}:
+    public_paths = {
+        "/api/",
+        "/api/health",
+        "/api/auth/status",
+        "/api/auth/bootstrap",
+        "/api/auth/login",
+        "/api/auth/forgot-password",
+        "/api/auth/google/authorize",
+        "/api/oauth/callback",
+    }
+    if path in public_paths:
         return True
     if path.startswith("/api/forms/by-slug/"):
         return True
     if path.startswith("/api/forms/") and path.endswith("/submit"):
+        return True
+    if path.startswith("/api/media/audio/"):
+        return True
+    if path.startswith("/api/media/voice/"):
+        return True
+    if path.startswith("/api/media/video/"):
+        return True
+    if path.startswith("/api/media/image/"):
         return True
     return False
 
@@ -5880,8 +5912,7 @@ def _resolve_media_file_path(kind: str, filename: str) -> Path:
 
 
 @app.get("/api/media/audio/{filename}")
-async def serve_media_audio(filename: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access audio files.")
+async def serve_media_audio(filename: str):
     media_path = _resolve_media_file_path("audio", filename)
     guessed_type, _ = mimetypes.guess_type(media_path.name)
     if not guessed_type and media_path.suffix.lower() == ".wav":
@@ -5894,14 +5925,13 @@ async def serve_media_audio(filename: str, request: Request):
 
 
 @app.get("/api/media/video/{filename}")
-async def serve_media_video(filename: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access video files.")
+async def serve_media_video(filename: str):
     media_path = _resolve_media_file_path("video", filename)
     return FileResponse(str(media_path), media_type=mimetypes.guess_type(media_path.name)[0] or "video/mp4")
 
 
 @app.get("/api/media/image/{filename}")
-async def serve_media_image(filename: str, request: Request):
+async def serve_media_image(filename: str):
     try:
         require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access image files.")
     except HTTPException:
@@ -5913,8 +5943,7 @@ async def serve_media_image(filename: str, request: Request):
 
 
 @app.get("/api/media/voice/{filename}")
-async def serve_media_voice(filename: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access voice files.")
+async def serve_media_voice(filename: str):
     media_path = _resolve_media_file_path("voice", filename)
     guessed_type, _ = mimetypes.guess_type(media_path.name)
     if not guessed_type and media_path.suffix.lower() == ".wav":
@@ -7745,6 +7774,62 @@ class TranscriptSaveRequest(BaseModel):
     priority: str | None = None
     assetId: str | None = None
     filename: str | None = None
+    commitSurface: str | None = None
+    sourceContext: dict[str, Any] | None = None
+
+
+def _build_structured_transcript_content(normalized: dict[str, Any]) -> str:
+    content_parts: list[str] = []
+    if normalized.get("executiveSummary"):
+        content_parts.append(f"## Executive Summary\n{normalized['executiveSummary']}")
+    if normalized.get("keyDecisions"):
+        content_parts.append("## Key Decisions\n" + "\n".join(f"- {item}" for item in normalized["keyDecisions"]))
+    if normalized.get("actionItems"):
+        content_parts.append("## Action Items\n" + "\n".join(f"- {item}" for item in normalized["actionItems"]))
+    if normalized.get("discussionHighlights"):
+        content_parts.append("## Discussion Highlights\n" + "\n".join(f"- {item}" for item in normalized["discussionHighlights"]))
+    if normalized.get("transcript"):
+        content_parts.append(f"## Transcript\n{normalized['transcript']}")
+    if normalized.get("notesAndObservations"):
+        content_parts.append("## Notes & Observations\n" + "\n".join(f"- {item}" for item in normalized["notesAndObservations"]))
+    return "\n\n".join(content_parts) if content_parts else str(((normalized.get("raw") or {}).get("rawTranscript")) or "")
+
+
+def _resolve_forge_source_context(asset_id: str | None, source_context: dict[str, Any] | None) -> dict[str, Any]:
+    source_context = clone_json(source_context or {})
+    asset = get_media_engine().get_asset(clean_text(asset_id)) if clean_text(asset_id) else None
+    metadata = asset.get("metadata") if isinstance(asset, dict) and isinstance(asset.get("metadata"), dict) else {}
+    ingest_meta = asset.get("ingest_meta") if isinstance(asset, dict) and isinstance(asset.get("ingest_meta"), dict) else {}
+    source_ingest_meta = source_context.get("ingestMeta") if isinstance(source_context.get("ingestMeta"), dict) else {}
+    origin = clean_text(ingest_meta.get("source")) or clean_text(source_ingest_meta.get("source")) or clean_text(source_context.get("source"))
+    stage = clean_text(ingest_meta.get("stage")) or clean_text(source_ingest_meta.get("stage")) or clean_text(source_context.get("stage"))
+    record_kind = clean_text(source_context.get("recordKind")) or ("asset" if asset else "")
+    media_type = clean_text(asset.get("media_type") if isinstance(asset, dict) else None) or clean_text(source_context.get("mediaType"))
+    filename = (
+        clean_text(metadata.get("original_filename"))
+        or clean_text(source_context.get("filename"))
+        or clean_text(source_context.get("fileName"))
+    )
+    asset_title = (
+        clean_text(asset.get("title") if isinstance(asset, dict) else None)
+        or clean_text(source_context.get("title"))
+        or filename
+    )
+    source_url = (
+        clean_text(asset.get("source_url") if isinstance(asset, dict) else None)
+        or clean_text(source_context.get("sourceUrl"))
+    )
+    return {
+        "assetId": clean_text(asset.get("id") if isinstance(asset, dict) else None) or clean_text(asset_id) or clean_text(source_context.get("assetId")),
+        "assetTitle": asset_title or None,
+        "filename": filename or None,
+        "sourceUrl": source_url or None,
+        "recordKind": record_kind or None,
+        "mediaType": media_type or None,
+        "artifactType": clean_text(source_context.get("artifactType")) or None,
+        "origin": (origin or ("manual" if not asset_id else "vault")).lower(),
+        "stage": (stage or ("raw" if asset_id else "structured")).lower(),
+    }
 
 
 @app.post("/api/cortex/generate-report")
@@ -8010,52 +8095,73 @@ async def save_transcript(request: Request, payload: TranscriptSaveRequest):
     """Save a structured transcript to the Brain via cortex normalization."""
     require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to save transcripts.")
     try:
+        if clean_text(payload.commitSurface).lower() != "forge":
+            raise HTTPException(status_code=400, detail="Transcript commits must be finalized from Forge.")
         normalized = normalize_ingest_payload(payload.model_dump(exclude_none=True))
+        structured_content = _build_structured_transcript_content(normalized)
+        resolved_source_context = _resolve_forge_source_context(payload.assetId, payload.sourceContext)
+        source_origin = clean_text(resolved_source_context.get("origin")).lower() or "manual"
+        source_stage = clean_text(resolved_source_context.get("stage")).lower() or "structured"
+        source_tags = list(normalized["tags"])
+        for tag in ["FORGE", "STRUCTURED", source_origin.upper()]:
+            if tag and tag not in source_tags:
+                source_tags.append(tag)
 
-        # Create a brain source for this transcript
+        source_metadata = {
+            "pipeline": {
+                "origin": source_origin,
+                "stage": "structured",
+                "commitSurface": "forge",
+                "sourceStage": source_stage,
+            },
+            "provenance": clone_json(resolved_source_context),
+            "normalization": {
+                "intent": normalized["type"],
+                "createdAt": normalized["createdAt"],
+                "updatedAt": normalized["updatedAt"],
+            },
+        }
+
         source_label = normalized["title"] or "Meeting Transcript"
         source = provider.create_brain_source({
             "label": source_label,
             "sourceType": "document",
             "status": "draft",
-            "notes": f"Transcript ingest — intent: {normalized['type']}",
+            "location": resolved_source_context.get("sourceUrl") or "",
+            "notes": f"Forge commit from {source_origin}::{source_stage} — intent: {normalized['type']}",
+            "metadata": source_metadata,
         })
-
-        # Create a brain item with the structured content
-        content_parts = []
-        if normalized["executiveSummary"]:
-            content_parts.append(f"## Executive Summary\n{normalized['executiveSummary']}")
-        if normalized["keyDecisions"]:
-            content_parts.append("## Key Decisions\n" + "\n".join(f"- {d}" for d in normalized["keyDecisions"]))
-        if normalized["actionItems"]:
-            content_parts.append("## Action Items\n" + "\n".join(f"- {a}" for a in normalized["actionItems"]))
-        if normalized["discussionHighlights"]:
-            content_parts.append("## Discussion Highlights\n" + "\n".join(f"- {h}" for h in normalized["discussionHighlights"]))
-        if normalized["transcript"]:
-            content_parts.append(f"## Transcript\n{normalized['transcript']}")
-        if normalized["notesAndObservations"]:
-            content_parts.append("## Notes & Observations\n" + "\n".join(f"- {n}" for n in normalized["notesAndObservations"]))
 
         item = provider.create_brain_item({
             "title": source_label,
             "category": normalized["type"],
-            "content": "\n\n".join(content_parts) if content_parts else normalized.get("raw", {}).get("rawTranscript", ""),
+            "content": structured_content,
             "sourceId": source["id"],
             "status": "ready",
-            "tags": normalized["tags"],
+            "tags": source_tags,
+            "metadata": {
+                **source_metadata,
+                "structured": {
+                    "executiveSummary": bool(normalized.get("executiveSummary")),
+                    "keyDecisionCount": len(normalized.get("keyDecisions") or []),
+                    "actionItemCount": len(normalized.get("actionItems") or []),
+                    "discussionHighlightCount": len(normalized.get("discussionHighlights") or []),
+                    "notesCount": len(normalized.get("notesAndObservations") or []),
+                },
+            },
         })
 
-        # Ingest into brain for chunking/search
         provider.ingest_brain_source({
             "sourceId": source["id"],
             "label": source_label,
             "sourceType": "document",
             "status": "ready",
-            "location": "",
-            "notes": f"Normalized transcript — {normalized['type']}",
+            "location": resolved_source_context.get("sourceUrl") or "",
+            "notes": f"Forge-normalized transcript — {normalized['type']}",
+            "metadata": source_metadata,
             "ingestType": "text",
             "title": source_label,
-            "content": "\n\n".join(content_parts) if content_parts else normalized.get("raw", {}).get("rawTranscript", ""),
+            "content": structured_content,
         })
 
         return {
@@ -9221,6 +9327,3 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))
     host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port, log_level="info")
-
-
-

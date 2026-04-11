@@ -4,6 +4,7 @@
  */
 
 export const AIO_FLOW_SPEC_VERSION = 1;
+export const VIDEO_TEMPLATE_ID_PATTERN = /^(aio|bltv)_(916|169|11|43)(_(tt|yt|ig|fb|li|cust))?$/;
 
 const EXECUTABLE_NODE_TYPES = new Set(['action', 'logic', 'webhook', 'socket', 'input']);
 const SUPPORTED_LOGIC_OPERATORS = new Set([
@@ -20,6 +21,8 @@ const SUPPORTED_LOGIC_OPERATORS = new Set([
 ]);
 
 const normalizeNodeKey = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+const normalizeVideoTemplateId = (value) => String(value || '').trim();
+export const isCanonicalVideoTemplateId = (value) => VIDEO_TEMPLATE_ID_PATTERN.test(normalizeVideoTemplateId(value));
 
 const parseJsonObject = (value) => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -91,9 +94,14 @@ export const buildFlowSpec = ({ flow, nodes, edges }) => {
   };
 };
 
-export const validateFlowSpec = (spec) => {
+export const validateFlowSpec = (spec, options = {}) => {
   const blockers = [];
   const warnings = [];
+  const validVideoTemplateIds = new Set(
+    Array.isArray(options.validVideoTemplateIds)
+      ? options.validVideoTemplateIds.map((item) => String(item || '').trim()).filter(Boolean)
+      : []
+  );
 
   if (!spec) {
     blockers.push('Flow spec is missing.');
@@ -193,8 +201,13 @@ export const validateFlowSpec = (spec) => {
     }
 
     if (intent === 'generate_video') {
-      if (!String(config.templateId || '').trim()) {
+      const templateId = normalizeVideoTemplateId(config.templateId);
+      if (!templateId) {
         blockers.push(`${node?.data?.label || nodeId} is missing a media template id.`);
+      } else if (!isCanonicalVideoTemplateId(templateId)) {
+        blockers.push(`${node?.data?.label || nodeId} must use a canonical media template id.`);
+      } else if (validVideoTemplateIds.size > 0 && !validVideoTemplateIds.has(templateId)) {
+        blockers.push(`${node?.data?.label || nodeId} references an unsupported media template id.`);
       }
       if (!String(config.outputTarget || '').trim()) {
         blockers.push(`${node?.data?.label || nodeId} is missing an output target.`);

@@ -8,14 +8,33 @@ import React, { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { getFormsApi } from '../../../services/backendApi';
 
-const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
-  const [config, setConfig] = useState(node?.data?.config || {});
+const DEFAULT_VIDEO_TEMPLATE_ID = 'bltv_169';
+
+const applyDefaultVideoTemplate = (nextConfig, videoTemplateOptions = []) => {
+  const config = nextConfig && typeof nextConfig === 'object' ? nextConfig : {};
+  if (config.actionType !== 'generate_video') {
+    return config;
+  }
+  const selectedTemplateId = String(config.templateId || '').trim();
+  const hasSelectedTemplate = videoTemplateOptions.some((option) => option.templateId === selectedTemplateId);
+  if (hasSelectedTemplate) {
+    return config;
+  }
+  const hasDefaultTemplate = videoTemplateOptions.some((option) => option.templateId === DEFAULT_VIDEO_TEMPLATE_ID);
+  return {
+    ...config,
+    templateId: hasDefaultTemplate ? DEFAULT_VIDEO_TEMPLATE_ID : selectedTemplateId,
+  };
+};
+
+const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions = [] }) => {
+  const [config, setConfig] = useState(applyDefaultVideoTemplate(node?.data?.config || {}, videoTemplateOptions));
   const [forms, setForms] = useState([]);
   const [loadingForms, setLoadingForms] = useState(false);
 
   useEffect(() => {
-    setConfig(node?.data?.config || {});
-  }, [node]);
+    setConfig(applyDefaultVideoTemplate(node?.data?.config || {}, videoTemplateOptions));
+  }, [node, videoTemplateOptions]);
 
   useEffect(() => {
     if (isOpen && node?.data?.id === 'form-submitted-trigger') {
@@ -38,16 +57,22 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
   if (!node || !isOpen) return null;
 
   const handleSave = () => {
-    onSave?.(node.id, config);
+    onSave?.(node.id, applyDefaultVideoTemplate(config, videoTemplateOptions));
     onClose();
   };
 
   const handleInputChange = (field, value) => {
-    setConfig((prev) => ({
+    setConfig((prev) => applyDefaultVideoTemplate({
       ...prev,
       [field]: value,
-    }));
+    }, videoTemplateOptions));
   };
+
+  const selectedVideoTemplateId = videoTemplateOptions.some((option) => option.templateId === config.templateId)
+    ? config.templateId
+    : videoTemplateOptions.some((option) => option.templateId === DEFAULT_VIDEO_TEMPLATE_ID)
+      ? DEFAULT_VIDEO_TEMPLATE_ID
+    : '';
 
   // Render node-type-specific config UI
   const renderConfigForm = () => {
@@ -374,13 +399,17 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave }) => {
 
           {config.actionType === 'generate_video' && (
             <div className="grid grid-cols-1 gap-3">
-              <input
-                type="text"
-                value={config.templateId || ''}
+              <select
+                value={selectedVideoTemplateId}
                 onChange={(e) => handleInputChange('templateId', e.target.value)}
-                placeholder="Template ID"
                 className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              />
+              >
+                {videoTemplateOptions.map((template) => (
+                  <option key={template.templateId} value={template.templateId}>
+                    {template.label || template.humanLabel || template.templateId}
+                  </option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={config.outputTarget || ''}

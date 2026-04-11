@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useNotice } from '../../contexts/NoticeContext';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import {
   getVaultApi,
   getBrainItemsApi,
@@ -29,6 +30,7 @@ import {
 // --- SESSION CACHE KEYS ---
 const TRANSCRIPT_DRAFT_HTML_KEY = 'aio_transcript_editor_draft_html';
 const TRANSCRIPT_DRAFT_TITLE_KEY = 'aio_transcript_editor_draft_title';
+const FORGE_WORKBENCH_STATE_KEY = 'aio_forge_workbench_state';
 
 const EMPTY_STATE = {
   title: '',
@@ -43,6 +45,7 @@ const EMPTY_STATE = {
   priority: '',
   status: 'Draft',
   specialist: 'HAMMER',
+  sourceContext: null,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -109,10 +112,47 @@ const isHydratableArtifact = (item) => {
 
 const getSpecialistLabel = () => 'Hammer';
 
+const buildForgeSourceContextFromAsset = (item) => {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+  return {
+    assetId: item.assetId || item.id || null,
+    title: item.title || item.filename || 'Source Asset',
+    filename: item.filename || item.metadata?.original_filename || item.title || '',
+    sourceUrl: item.sourceUrl || '',
+    mediaType: item.mediaType || '',
+    recordKind: item.recordKind || '',
+    artifactType: item.artifactType || '',
+    source: item.source || '',
+    ingestMeta: item.ingestMeta || item.ingest_meta || item.metadata?.ingestMeta || item.metadata?.ingest_meta || null,
+  };
+};
+
+const readForgeWorkbenchState = () => {
+  const raw = sessionStorage.getItem(FORGE_WORKBENCH_STATE_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+const writeForgeWorkbenchState = (state) => {
+  sessionStorage.setItem(FORGE_WORKBENCH_STATE_KEY, JSON.stringify(state));
+  sessionStorage.setItem(TRANSCRIPT_DRAFT_TITLE_KEY, state?.title || '');
+  sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, state?.transcript || '');
+};
+
 // ── Main Component ──────────────────────────────────────────────────────────
 
 const Forge = () => {
   const { showNotice } = useNotice();
+  const { openAIAssist } = useAIAssist() || {};
   const [loading, setLoading] = useState(true);
   const [forgeState, setForgeState] = useState(EMPTY_STATE);
   const savedStateRef = useRef(null);
@@ -157,7 +197,19 @@ const Forge = () => {
 
   useEffect(() => {
     loadForgeContext();
-    // Hydrate from session cache
+    const cachedWorkbenchState = readForgeWorkbenchState();
+    if (cachedWorkbenchState) {
+      const restored = {
+        ...EMPTY_STATE,
+        ...cachedWorkbenchState,
+        status: cachedWorkbenchState.status || 'Draft',
+        specialist: cachedWorkbenchState.specialist || 'HAMMER',
+      };
+      setForgeState(restored);
+      savedStateRef.current = restored;
+      return;
+    }
+
     const cachedTitle = sessionStorage.getItem(TRANSCRIPT_DRAFT_TITLE_KEY);
     const cachedHtml = sessionStorage.getItem(TRANSCRIPT_DRAFT_HTML_KEY);
     if (cachedTitle || cachedHtml) {
@@ -181,11 +233,13 @@ const Forge = () => {
    */
   const handleMountAsset = useCallback((item) => {
     setActiveAsset(item);
+    const sourceContext = buildForgeSourceContextFromAsset(item);
 
     // Populate title if the editor is untitled
     setForgeState(s => ({
       ...s,
       title: s.title || item.title || '',
+      sourceContext,
     }));
 
     // Try to hydrate editor from artifact content if applicable
@@ -197,6 +251,7 @@ const Forge = () => {
           title: s.title || item.title || '',
           transcript: content,
           status: 'Draft',
+          sourceContext,
         }));
         showNotice({ type: 'success', message: `Transcript loaded from: ${item.title}` });
       } else {
@@ -238,22 +293,32 @@ const Forge = () => {
 
   // --- Save / Push Actions ---
   const handleSaveDraft = () => {
-    sessionStorage.setItem(TRANSCRIPT_DRAFT_TITLE_KEY, forgeState.title);
-    sessionStorage.setItem(TRANSCRIPT_DRAFT_HTML_KEY, forgeState.transcript);
+    writeForgeWorkbenchState(forgeState);
     savedStateRef.current = { ...forgeState };
     setForgeState(s => ({ ...s, status: 'Draft' }));
     showNotice({ type: 'success', message: 'Forge draft cached locally.' });
   };
 
-  const handlePushToCortex = async () => {
+  const handlePushToCortex = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     try {
-      const payload = { ...forgeState, status: 'Pushed' };
+      const sourceContext = forgeState.sourceContext || null;
+      const payload = {
+        ...forgeState,
+        status: 'Pushed',
+        commitSurface: 'forge',
+        assetId: sourceContext?.assetId || undefined,
+        filename: sourceContext?.filename || undefined,
+        sourceContext,
+      };
       const result = await saveTranscriptApi(payload);
       if (result) {
-        savedStateRef.current = { ...forgeState, status: 'Pushed' };
+        const nextState = { ...forgeState, status: 'Pushed' };
+        writeForgeWorkbenchState(nextState);
+        savedStateRef.current = nextState;
         setForgeState(s => ({ ...s, status: 'Pushed' }));
+        loadForgeContext();
         showNotice({ type: 'success', message: 'Cognitive load committed to Cortex.' });
       }
     } catch (_) {
@@ -261,9 +326,25 @@ const Forge = () => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [forgeState, loadForgeContext, saving, showNotice]);
+
+  const handleModuleAiAssist = useCallback(async () => {
+    if (openAIAssist) {
+      openAIAssist({ context: { module: 'forge' } });
+    }
+  }, [openAIAssist]); // Stable - only recreate if openAIAssist changes
 
   const isDirty = JSON.stringify(forgeState) !== JSON.stringify(savedStateRef.current);
+
+  useEffect(() => {
+    if (activeAsset || !forgeState.sourceContext?.assetId) {
+      return;
+    }
+    const matchedAsset = vaultRailItems.find((item) => (item.assetId || item.id) === forgeState.sourceContext.assetId);
+    if (matchedAsset) {
+      setActiveAsset(matchedAsset);
+    }
+  }, [activeAsset, forgeState.sourceContext, vaultRailItems]);
 
   // ─── SUB-COMPONENTS ───────────────────────────────────────────────────────
 
@@ -602,6 +683,7 @@ const Forge = () => {
         leftActions={[
           { label: 'UPLINK REFRESH', icon: RefreshCw, onClick: loadForgeContext, variant: 'secondary' },
         ]}
+        /* onModuleAi={handleModuleAiAssist} */
       />
 
       <div className="module-content-stage flex gap-1.5 px-1.5 pb-1.5">
@@ -1028,7 +1110,5 @@ const Forge = () => {
 };
 
 export default Forge;
-
-
 
 

@@ -13,10 +13,10 @@ except Exception as e:
     print(f"  None -> FAILED: {e}")
 
 try:
-    tpl = resolve_template("aio_base_vertical")
-    print(f"  aio_base_vertical -> {tpl['templateId']} (Composition: {tpl['compositionId']})")
+    tpl = resolve_template("aio_916")
+    print(f"  aio_916 -> {tpl['templateId']} (Composition: {tpl['compositionId']})")
 except Exception as e:
-    print(f"  aio_base_vertical -> FAILED: {e}")
+    print(f"  aio_916 -> FAILED: {e}")
 
 try:
     tpl = resolve_template("invalid")
@@ -26,9 +26,8 @@ except ValueError as e:
 except Exception as e:
     print(f"  invalid -> CAUGHT UNEXPECTED ERROR: {e}")
 
-# Check legacy compatibility (passing compositionId directly)
 try:
-    tpl = resolve_template("VideoComposition")
-    print(f"  VideoComposition (legacy) -> {tpl['templateId']}")
+    tpl = resolve_template("aio_11")
+    print(f"  aio_11 -> {tpl['templateId']} (Composition: {tpl['compositionId']})")
 except Exception as e:
-    print(f"  VideoComposition (legacy) -> FAILED: {e}")
+    print(f"  aio_11 -> FAILED: {e}")

@@ -2237,6 +2237,7 @@ class MockProvider(BaseProvider):
             "status": payload.get("status") or "draft",
             "location": payload.get("location") or "",
             "notes": payload.get("notes") or "",
+            "metadata": clone_json(payload.get("metadata") or {}),
             "graphX": payload.get("graphX"),
             "graphY": payload.get("graphY"),
             "createdAt": payload.get("createdAt") or now,
@@ -2252,6 +2253,8 @@ class MockProvider(BaseProvider):
         for key in ["label", "sourceType", "status", "location", "notes", "graphX", "graphY"]:
             if key in updates and updates[key] is not None:
                 source[key] = updates[key]
+        if "metadata" in updates and updates["metadata"] is not None:
+            source["metadata"] = clone_json(updates.get("metadata") or {})
         source["updatedAt"] = utcnow()
         return dict(source)
 
@@ -2286,6 +2289,7 @@ class MockProvider(BaseProvider):
             "sourceId": payload.get("sourceId"),
             "status": payload.get("status") or "draft",
             "tags": payload.get("tags") or [],
+            "metadata": clone_json(payload.get("metadata") or {}),
             "graphX": payload.get("graphX"),
             "graphY": payload.get("graphY"),
             "createdAt": payload.get("createdAt") or now,
@@ -2301,6 +2305,8 @@ class MockProvider(BaseProvider):
         for key in ["title", "category", "content", "sourceId", "status", "tags", "graphX", "graphY"]:
             if key in updates and updates[key] is not None:
                 item[key] = updates[key]
+        if "metadata" in updates and updates["metadata"] is not None:
+            item["metadata"] = clone_json(updates.get("metadata") or {})
         item["updatedAt"] = utcnow()
         return dict(item)
 
@@ -2377,6 +2383,8 @@ class MockProvider(BaseProvider):
             for key in ["label", "sourceType", "location", "notes"]:
                 if key in payload and payload.get(key) is not None:
                     source[key] = payload.get(key)
+            if "metadata" in payload and payload.get("metadata") is not None:
+                source["metadata"] = clone_json(payload.get("metadata") or {})
             source["status"] = payload.get("status") or "ready"
             source["updatedAt"] = now
         else:
@@ -2387,6 +2395,7 @@ class MockProvider(BaseProvider):
                     "status": payload.get("status") or "ready",
                     "location": payload.get("location") or "",
                     "notes": payload.get("notes") or "",
+                    "metadata": payload.get("metadata") or {},
                 }
             )
             sourceId = source["id"]
@@ -4212,6 +4221,7 @@ class SQLiteProvider(BaseProvider):
                     status TEXT,
                     location TEXT,
                     notes TEXT,
+                    metadataJson TEXT NOT NULL DEFAULT '{}',
                     graphX REAL,
                     graphY REAL,
                     createdAt TEXT,
@@ -4227,6 +4237,7 @@ class SQLiteProvider(BaseProvider):
                     sourceId TEXT,
                     status TEXT,
                     tagsJson TEXT,
+                    metadataJson TEXT NOT NULL DEFAULT '{}',
                     graphX REAL,
                     graphY REAL,
                     createdAt TEXT,
@@ -4857,6 +4868,8 @@ class SQLiteProvider(BaseProvider):
             self._ensure_column(conn, "brain_ingests", "tenantId", "TEXT")
             self._ensure_column(conn, "brain_chunks", "tenantId", "TEXT")
             self._ensure_column(conn, "brain_embeddings", "tenantId", "TEXT")
+            self._ensure_column(conn, "brain_sources", "metadataJson", "TEXT NOT NULL DEFAULT '{}'")
+            self._ensure_column(conn, "brain_items", "metadataJson", "TEXT NOT NULL DEFAULT '{}'")
             self._ensure_column(conn, "brain_sources", "graphX", "REAL")
             self._ensure_column(conn, "brain_sources", "graphY", "REAL")
             self._ensure_column(conn, "brain_items", "graphX", "REAL")
@@ -5078,8 +5091,8 @@ class SQLiteProvider(BaseProvider):
                 conn.executemany(
                     """
                     INSERT INTO brain_sources (
-                        id, tenantId, label, sourceType, status, location, notes, graphX, graphY, createdAt, updatedAt
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, tenantId, label, sourceType, status, location, notes, metadataJson, graphX, graphY, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -5090,6 +5103,7 @@ class SQLiteProvider(BaseProvider):
                             "ready",
                             "Internal workspace memory",
                             "Core business identity and positioning.",
+                            json.dumps({}),
                             28.0,
                             24.0,
                             seeded_now,
@@ -5103,6 +5117,7 @@ class SQLiteProvider(BaseProvider):
                             "draft",
                             "Upload or author internally",
                             "Planned SOP source for agents and flows.",
+                            json.dumps({}),
                             24.0,
                             58.0,
                             seeded_now,
@@ -5116,8 +5131,8 @@ class SQLiteProvider(BaseProvider):
                 conn.executemany(
                     """
                     INSERT INTO brain_items (
-                        id, tenantId, title, category, content, sourceId, status, tagsJson, graphX, graphY, createdAt, updatedAt
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, tenantId, title, category, content, sourceId, status, tagsJson, metadataJson, graphX, graphY, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -5129,6 +5144,7 @@ class SQLiteProvider(BaseProvider):
                             "brain-source-profile",
                             "active",
                             json.dumps(["POSITIONING", "AI", "LOCAL-FIRST"]),
+                            json.dumps({}),
                             72.0,
                             26.0,
                             seeded_now,
@@ -5143,6 +5159,7 @@ class SQLiteProvider(BaseProvider):
                             "brain-source-ops",
                             "draft",
                             json.dumps(["AGENTS", "MEMORY", "RULES"]),
+                            json.dumps({}),
                             76.0,
                             58.0,
                             seeded_now,
@@ -6331,6 +6348,7 @@ class SQLiteProvider(BaseProvider):
             "status": record.get("status"),
             "location": record.get("location"),
             "notes": record.get("notes"),
+            "metadata": json_loads(record.get("metadataJson"), {}),
             "graph_x": record.get("graphX"),
             "graph_y": record.get("graphY"),
             "createdAt": record.get("createdAt"),
@@ -6349,6 +6367,7 @@ class SQLiteProvider(BaseProvider):
             "source_id": record.get("sourceId"),
             "status": record.get("status"),
             "tags": json_loads(record.get("tagsJson"), []),
+            "metadata": json_loads(record.get("metadataJson"), {}),
             "graph_x": record.get("graphX"),
             "graph_y": record.get("graphY"),
             "createdAt": record.get("createdAt"),
@@ -6539,6 +6558,7 @@ class SQLiteProvider(BaseProvider):
             "status": payload.get("status") or "draft",
             "location": payload.get("location") or "",
             "notes": payload.get("notes") or "",
+            "metadata_json": json.dumps(clone_json(payload.get("metadata") or {})),
             "graph_x": payload.get("graph_x"),
             "graph_y": payload.get("graph_y"),
             "createdAt": payload.get("createdAt") or now,
@@ -6548,8 +6568,8 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO brain_sources (
-                    id, tenantId, label, sourceType, status, location, notes, graphX, graphY, createdAt, updatedAt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, tenantId, label, sourceType, status, location, notes, metadataJson, graphX, graphY, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record["id"],
@@ -6559,6 +6579,7 @@ class SQLiteProvider(BaseProvider):
                     record["status"],
                     record["location"],
                     record["notes"],
+                    record["metadata_json"],
                     record["graph_x"],
                     record["graph_y"],
                     record["createdAt"],
@@ -6566,13 +6587,18 @@ class SQLiteProvider(BaseProvider):
                 ),
             )
             conn.commit()
-        return record
+        return {
+            **record,
+            "metadata": json_loads(record["metadata_json"], {}),
+        }
 
     def update_brain_source(self, source_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {}
         for key in ["label", "source_type", "status", "location", "notes", "graph_x", "graph_y"]:
             if key in updates and updates[key] is not None:
                 payload[key] = updates[key]
+        if "metadata" in updates and updates["metadata"] is not None:
+            payload["metadata_json"] = json.dumps(clone_json(updates.get("metadata") or {}))
         if not payload:
             existing = next((item for item in self.list_brain_sources() if item["id"] == source_id), None)
             if not existing:
@@ -6584,6 +6610,7 @@ class SQLiteProvider(BaseProvider):
             "status": "status",
             "location": "location",
             "notes": "notes",
+            "metadata_json": "metadataJson",
             "graph_x": "graphX",
             "graph_y": "graphY",
             "updatedAt": "updatedAt",
@@ -6651,6 +6678,7 @@ class SQLiteProvider(BaseProvider):
             "source_id": payload.get("source_id"),
             "status": payload.get("status") or "draft",
             "tags_json": json.dumps([str(t).strip().upper() for t in (payload.get("tags") or [])]),
+            "metadata_json": json.dumps(clone_json(payload.get("metadata") or {})),
             "graph_x": payload.get("graph_x"),
             "graph_y": payload.get("graph_y"),
             "createdAt": payload.get("createdAt") or now,
@@ -6660,8 +6688,8 @@ class SQLiteProvider(BaseProvider):
             conn.execute(
                 """
                 INSERT INTO brain_items (
-                    id, tenantId, title, category, content, sourceId, status, tagsJson, graphX, graphY, createdAt, updatedAt
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, tenantId, title, category, content, sourceId, status, tagsJson, metadataJson, graphX, graphY, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record["id"],
@@ -6672,6 +6700,7 @@ class SQLiteProvider(BaseProvider):
                     record["source_id"],
                     record["status"],
                     record["tags_json"],
+                    record["metadata_json"],
                     record["graph_x"],
                     record["graph_y"],
                     record["createdAt"],
@@ -6679,7 +6708,11 @@ class SQLiteProvider(BaseProvider):
                 ),
             )
             conn.commit()
-        return {**record, "tags": json_loads(record.pop("tags_json"), [])}
+        return {
+            **record,
+            "tags": json_loads(record["tags_json"], []),
+            "metadata": json_loads(record["metadata_json"], {}),
+        }
 
     def update_brain_item(self, item_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {}
@@ -6688,6 +6721,8 @@ class SQLiteProvider(BaseProvider):
                 payload[key] = updates[key]
         if "tags" in updates:
             payload["tags_json"] = json.dumps(updates.get("tags") or [])
+        if "metadata" in updates and updates["metadata"] is not None:
+            payload["metadata_json"] = json.dumps(clone_json(updates.get("metadata") or {}))
         if not payload:
             existing = next((item for item in self.list_brain_items() if item["id"] == item_id), None)
             if not existing:
@@ -6702,6 +6737,7 @@ class SQLiteProvider(BaseProvider):
             "graph_x": "graphX",
             "graph_y": "graphY",
             "tags_json": "tagsJson",
+            "metadata_json": "metadataJson",
             "updatedAt": "updatedAt",
         }
         payload["updatedAt"] = utcnow()
@@ -6977,6 +7013,8 @@ class SQLiteProvider(BaseProvider):
                 for key in ["label", "source_type", "location", "notes"]:
                     if key in payload and payload.get(key) is not None:
                         updates[key] = payload.get(key)
+                if "metadata" in payload and payload.get("metadata") is not None:
+                    updates["metadata_json"] = json.dumps(clone_json(payload.get("metadata") or {}))
                 updates["status"] = payload.get("status") or "ready"
                 updates["updatedAt"] = now
                 assignments_map = {
@@ -6984,6 +7022,7 @@ class SQLiteProvider(BaseProvider):
                     "source_type": "sourceType",
                     "location": "location",
                     "notes": "notes",
+                    "metadata_json": "metadataJson",
                     "status": "status",
                     "updatedAt": "updatedAt",
                 }
@@ -7002,6 +7041,7 @@ class SQLiteProvider(BaseProvider):
                     "status": payload.get("status") or "ready",
                     "location": payload.get("location") or "",
                     "notes": payload.get("notes") or "",
+                    "metadata_json": json.dumps(clone_json(payload.get("metadata") or {})),
                     "graph_x": payload.get("graph_x"),
                     "graph_y": payload.get("graph_y"),
                     "createdAt": now,
@@ -7010,8 +7050,8 @@ class SQLiteProvider(BaseProvider):
                 conn.execute(
                     """
                     INSERT INTO brain_sources (
-                        id, tenantId, label, sourceType, status, location, notes, graphX, graphY, createdAt, updatedAt
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, tenantId, label, sourceType, status, location, notes, metadataJson, graphX, graphY, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         source_record["id"],
@@ -7021,6 +7061,7 @@ class SQLiteProvider(BaseProvider):
                         source_record["status"],
                         source_record["location"],
                         source_record["notes"],
+                        source_record["metadata_json"],
                         source_record["graph_x"],
                         source_record["graph_y"],
                         source_record["createdAt"],
@@ -7046,6 +7087,7 @@ class SQLiteProvider(BaseProvider):
                     "source_id": source_id,
                     "status": "ready",
                     "tags_json": json.dumps(payload.get("tags") or ["auto-ingest"]),
+                    "metadata_json": json.dumps(clone_json(payload.get("metadata") or {})),
                     "graph_x": payload.get("graph_x") + 100 if payload.get("graph_x") else None,
                     "graph_y": payload.get("graph_y") + 100 if payload.get("graph_y") else None,
                     "createdAt": now,
@@ -7054,8 +7096,8 @@ class SQLiteProvider(BaseProvider):
                 conn.execute(
                     """
                     INSERT INTO brain_items (
-                        id, tenantId, title, category, content, sourceId, status, tagsJson, graphX, graphY, createdAt, updatedAt
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, tenantId, title, category, content, sourceId, status, tagsJson, metadataJson, graphX, graphY, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         item_record["id"],
@@ -7066,6 +7108,7 @@ class SQLiteProvider(BaseProvider):
                         item_record["source_id"],
                         item_record["status"],
                         item_record["tags_json"],
+                        item_record["metadata_json"],
                         item_record["graph_x"],
                         item_record["graph_y"],
                         item_record["createdAt"],
@@ -10050,4 +10093,3 @@ def create_provider() -> BaseProvider:
         return MockProvider()
     db_path = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "data" / "aio_crm.db"))
     return SQLiteProvider(db_path)
-

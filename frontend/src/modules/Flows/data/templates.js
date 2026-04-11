@@ -143,7 +143,7 @@ export const templates = [
           templateId: 'generate-video',
           config: {
             actionType: 'generate_video',
-            templateId: 'media-teaser-v1',
+            templateId: 'aio_916',
             outputTarget: 'media.library',
             script: 'Create a short teaser video for the product update asset package.',
             provider: 'stub-render',

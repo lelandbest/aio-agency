@@ -492,9 +492,21 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
                 "bella":   "EXAVITQu4vr4xnSDxMaL",
                 "adam":    "pNInz6obpgDQGcFmaJgB",
                 "antoni":  "ErXwobaYiN019PkySvjV",
+                "arnold":  "VRbBwbq2V1S4v8zECmKj",  # Arnold - verify in ElevenLabs
+                "sam":     "CwhRBWXzGaCjF7wR6BqK",  # Sam - verify in ElevenLabs
             }
-            selected_voice = (voice or get_elevenlabs_voice_selection(tenant_id, purpose="charlie") or "Rachel").strip()
-            voice_id = VOICE_ID_MAP.get(selected_voice.lower(), selected_voice or "21m00Tcm4TlvDq8ikWAM")
+            selected_voice = (voice or get_elevenlabs_voice_selection(tenant_id, purpose="charlie") or "21m00Tcm4TlvDq8ikWAM").strip()
+            
+            # Accept either voice name (backward compat) or direct ElevenLabs voice ID
+            normalized_voice = selected_voice.lower()
+            if normalized_voice in VOICE_ID_MAP:
+                # Voice name → map to ID
+                voice_id = VOICE_ID_MAP[normalized_voice]
+            elif len(selected_voice) >= 20 and selected_voice.replace("-", "").replace("_", "").isalnum():
+                # Direct voice ID format (e.g., "21m00Tcm4TlvDq8ikWAM")
+                voice_id = selected_voice
+            else:
+                raise ValueError(f"Invalid voice '{voice}': must be a known voice name ({list(VOICE_ID_MAP.keys())}) or a valid ElevenLabs voice ID.")
 
             url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
             body = json.dumps({
@@ -522,15 +534,20 @@ def synthesize_voice(text: str, voice: str | None = None, tenant_id: str | None 
         audio_dir = Path(__file__).resolve().parent / "data" / "voice"
         audio_dir.mkdir(parents=True, exist_ok=True)
         import hashlib
-        from datetime import datetime
-        import hashlib
         token = hashlib.sha256(text.encode()).hexdigest()[:16]
         filename = f"vtt_{token}.mp3"
-        (audio_dir / filename).write_bytes(audio_bytes)
+        audio_path = audio_dir / filename
+        audio_path.write_bytes(audio_bytes)
+        
+        if audio_path.stat().st_size == 0:
+            raise ValueError("TTS returned empty audio file")
+        
         return f"/api/media/voice/{filename}"
 
-    except Exception:
-        return None
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"TTS synthesis failed: {str(e)}")
 
 
 

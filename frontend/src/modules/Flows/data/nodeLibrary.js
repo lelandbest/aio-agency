@@ -571,7 +571,7 @@ export const utilityNodes = [
     actionType: 'generate_video',
     config: {
       actionType: 'generate_video',
-      templateId: '',
+      templateId: 'aio_916',
       outputTarget: '',
       provider: 'stub-render',
     },

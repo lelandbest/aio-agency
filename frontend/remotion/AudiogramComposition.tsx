@@ -16,6 +16,8 @@ export const AudiogramComposition: React.FC<{
   audioUrl?: string;
   watermarkText?: string;
   transcriptLines?: { text: string; start: number; end: number }[];
+  images?: string[];
+  videoClips?: string[];
 }> = ({ 
   title = "AUDIO STORY", 
   subtitle = "AUDIOGRAM RENDER", 

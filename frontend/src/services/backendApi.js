@@ -740,6 +740,22 @@ export async function createMediaRenderJobApi(payload) {
   return toCamelCase(response.data || null);
 }
 
+export async function getMediaRenderTemplatesApi() {
+  const response = await request('/api/media/render-templates');
+  const data = toCamelCase(response.data || null);
+  const templates = Array.isArray(data?.templates)
+    ? data.templates.map((template) => ({
+        ...template,
+        id: template?.templateId || '',
+        label: template?.humanLabel || template?.templateId || '',
+      }))
+    : [];
+  return {
+    ...(data || {}),
+    templates,
+  };
+}
+
 export async function createMediaTranscriptJobApi(payload) {
   const response = await request('/api/media/transcript-jobs', {
     method: 'POST',

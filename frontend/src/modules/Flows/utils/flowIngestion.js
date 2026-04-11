@@ -42,6 +42,7 @@ export const ingestFlowSource = (input, options = {}) => {
   // Determine active source/mode
   const activeSource = input.source || options.source || options.mode || 'draft';
   const mappings = options.mappings || {};
+  const validationOptions = options.validationOptions || {};
 
   // Clone input to ensure no mutations
   const data = JSON.parse(JSON.stringify(input));
@@ -159,7 +160,7 @@ export const ingestFlowSource = (input, options = {}) => {
     edges: normalizedEdges 
   });
   
-  const validation = validateFlowSpec(resultSpec);
+  const validation = validateFlowSpec(resultSpec, validationOptions);
 
   return {
     nodes: normalizedNodes,

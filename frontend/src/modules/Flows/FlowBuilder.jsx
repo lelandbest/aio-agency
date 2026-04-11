@@ -43,6 +43,7 @@ import {
   getFlowApi,
   getFlowProviderStatusesApi,
   importWorkflowJsonApi,
+  getMediaRenderTemplatesApi,
 } from '../../services/backendApi';
 import { useNotice } from '../../contexts/NoticeContext';
 import FlowBuilderHeader from './components/FlowBuilderHeader';
@@ -83,6 +84,24 @@ const nodeTypes = {
 };
 
 const EDGE_DASH_PATTERN = '8 6';
+const DEFAULT_VIDEO_TEMPLATE_ID = 'bltv_169';
+
+const applyDefaultVideoTemplate = (config, availableTemplates = []) => {
+  const nextConfig = config && typeof config === 'object' ? config : {};
+  if (nextConfig.actionType !== 'generate_video') {
+    return nextConfig;
+  }
+  const selectedTemplateId = String(nextConfig.templateId || '').trim();
+  const hasSelectedTemplate = availableTemplates.some((template) => template.templateId === selectedTemplateId);
+  if (hasSelectedTemplate) {
+    return nextConfig;
+  }
+  const hasDefaultTemplate = availableTemplates.some((template) => template.templateId === DEFAULT_VIDEO_TEMPLATE_ID);
+  return {
+    ...nextConfig,
+    templateId: hasDefaultTemplate ? DEFAULT_VIDEO_TEMPLATE_ID : selectedTemplateId,
+  };
+};
 
 const createClientRunId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -407,6 +426,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [mappingTemplate, setMappingTemplate] = useState(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [customTemplates, setCustomTemplates] = useState([]);
+  const [mediaRenderTemplates, setMediaRenderTemplates] = useState([]);
 
   // Terminal state
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -431,6 +451,56 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   useEffect(() => {
     setCustomTemplates(getStoredCustomTemplates());
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadMediaRenderTemplates = async () => {
+      try {
+        const data = await getMediaRenderTemplatesApi();
+        if (!active) return;
+        setMediaRenderTemplates(Array.isArray(data?.templates) ? data.templates : []);
+      } catch (error) {
+        if (!active) return;
+        setMediaRenderTemplates([]);
+        showNotice({ type: 'error', message: error.message || 'Unable to load media templates.' });
+      }
+    };
+    loadMediaRenderTemplates();
+    return () => {
+      active = false;
+    };
+  }, [showNotice]);
+
+  const validVideoTemplateIds = mediaRenderTemplates
+    .map((template) => String(template?.templateId || '').trim())
+    .filter(Boolean);
+
+  const validateBuilderSpec = useCallback(
+    (spec) => validateFlowSpec(spec, { validVideoTemplateIds }),
+    [validVideoTemplateIds]
+  );
+
+  const ingestBuilderFlowSource = useCallback(
+    (input, options = {}) => ingestFlowSource(input, {
+      ...options,
+      validationOptions: {
+        ...(options.validationOptions || {}),
+        validVideoTemplateIds,
+      },
+    }),
+    [validVideoTemplateIds]
+  );
+
+  const mutateBuilderFlowGraph = useCallback(
+    (currentNodes, currentEdges, action, systemManaged = false) => mutateFlowGraph(
+      currentNodes,
+      currentEdges,
+      action,
+      systemManaged,
+      { validVideoTemplateIds }
+    ),
+    [validVideoTemplateIds]
+  );
 
   const [miniMapNodeColors] = useState(() => ({
     trigger: getCssVar('--node-trigger', '#10b981'),
@@ -467,7 +537,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           generate_voice: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
           text_to_speech: { text: '{{previous.artifact.script_text}}', voice: 'Rachel', style: 'conversational', provider: 'elevenlabs_tts' },
           generate_thumbnail: { title: '{{trigger.payload.title}}', subtitle: 'Campaign cut', image: 'Bold studio backdrop', prompt: 'Create a bold thumbnail for the launch episode.', provider: 'stub-render' },
-          generate_video: { templateId: 'promo-clip-v1', outputTarget: 'crm.contact', provider: 'stub-render', script: 'Create a short follow-up recap video for {{contact.name}}.' },
+          generate_video: { templateId: DEFAULT_VIDEO_TEMPLATE_ID, outputTarget: 'crm.contact', provider: 'stub-render', script: 'Create a short follow-up recap video for {{contact.name}}.' },
           transcribe_media: { sourceType: 'asset', sourceRef: '{{previous.assetId}}', provider: 'elevenlabs_scribe', diarization: true, timestamps: true },
           ingest_meeting_artifacts: { meetingProvider: 'zoom', meetingRef: '{{booking.meeting_id}}', attachTarget: 'crm.contact', transcriptText: 'Speaker 1: Meeting summary goes here.' },
           publish_asset: { publishTarget: 'internal.media', assetRef: '' },
@@ -715,8 +785,18 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     };
   }, [reactFlowInstance]);
 
-  // Initialize flow on mount
+  // Initialize flow on mount - run ONLY once per flowId
+  const flowInitializedRef = useRef({});
+  
   useEffect(() => {
+    // Reset initialization state when flowId changes
+    if (flowId && flowInitializedRef.current[flowId]) {
+      return; // Already initialized this flowId
+    }
+    if (flowId) {
+      flowInitializedRef.current[flowId] = true;
+    }
+    
     const initFlow = async () => {
       try {
         let flowData;
@@ -751,67 +831,24 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         }
 
         // 1. Initial Load Ingress (Saved)
-        const initialResult = ingestFlowSource({
-          nodes: flowData.nodes || [],
-          edges: flowData.edges || [],
+        const initialResult = ingestBuilderFlowSource({
+          nodes: flowData?.steps || [],
+          edges: flowData?.connections || [],
           source: 'saved'
         });
 
-        // 2. Draft Ingress (Priority)
-        const activeDraft = await flowDraftRepository.getActiveDraft();
-        if (activeDraft && (!flowId || !flowData?.metadata?.sourceDraftId)) {
-          const draftResult = ingestFlowSource({
-            nodes: activeDraft.draftSpec?.nodes || activeDraft.nodes || [],
-            edges: activeDraft.draftSpec?.edges || activeDraft.edges || [],
-            source: 'draft'
-          });
-
-          if (draftResult.validation.blockers.length === 0) {
-            // Rule: Ghost logic based ONLY on ingested result length
-            if (draftResult.nodes.length > 0) {
-              setNodes(layoutNodesLeftToRight(draftResult.nodes, draftResult.edges));
-              setEdges(normalizeEdges(draftResult.edges));
-            } else {
-              setNodes([createGhostStarterNode()]);
-              setEdges([]);
-            }
-            setFlow({
-              ...flowData,
-              name: activeDraft.intentSummary || flowData.name,
-              metadata: { ...flowData.metadata, sourceDraftId: activeDraft.id },
-            });
-            await flowDraftRepository.clearActiveDraft();
-          } else {
-            // Fallback to initialResult
-            if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
-              setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
-              setEdges(normalizeEdges(initialResult.edges));
-            } else {
-              setNodes([createGhostStarterNode()]);
-              setEdges([]);
-            }
-          }
-        } else {
-          // Normal hydration
-          if (initialResult.validation.blockers.length === 0 && initialResult.nodes.length > 0) {
+        if (initialResult.validation.blockers.length === 0) {
+          if (initialResult.nodes.length > 0) {
             setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
             setEdges(normalizeEdges(initialResult.edges));
           } else {
             setNodes([createGhostStarterNode()]);
             setEdges([]);
           }
+        } else {
+          console.error('Initial load blocked by validation:', initialResult.validation.blockers);
         }
         setIsDirty(false);
-
-        // Fetch provider connection statuses for flow nodes
-        if (flowData?.id) {
-          try {
-            const statuses = await getFlowProviderStatusesApi(flowData.id);
-            setProviderStatuses(statuses?.providers || {});
-          } catch (e) {
-            console.warn('Could not load provider statuses:', e);
-          }
-        }
       } catch (error) {
         console.error('Failed to initialize flow:', error);
       } finally {
@@ -820,7 +857,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     };
 
     initFlow();
-  }, [action, flowId, intent, onFlowContextChange, setNodes, setEdges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowId]); // ONLY flowId - no other dependencies to prevent refetch loop
 
   // Handle edge connection
   const onConnect = useCallback(
@@ -834,7 +872,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       if (sourceIsGhost || targetIsGhost || sourceIsFrame || targetIsFrame) return;
 
       // Rule: Use mutateFlowGraph for internal connectivity
-      const result = mutateFlowGraph(nodes, edges, {
+      const result = mutateBuilderFlowGraph(nodes, edges, {
         type: 'CONNECT_EDGE',
         payload: { connection: params }
       });
@@ -846,7 +884,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         console.error('Connection blocked by validation:', result.validation.blockers);
       }
     },
-    [setEdges, nodes, edges]
+    [setEdges, nodes, edges, mutateBuilderFlowGraph]
   );
 
 
@@ -860,7 +898,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     };
 
     // Rule: Use mutateFlowGraph for runtime additions
-    const result = mutateFlowGraph(nodes, edges, {
+    const result = mutateBuilderFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
       payload: { nodeTemplate, position }
     }, isSystemManaged);
@@ -871,7 +909,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setLastAddedPosition(position);
       setIsDirty(true);
     }
-  }, [lastAddedPosition, nodes, edges, setNodes, isSystemManaged]);
+  }, [lastAddedPosition, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
 
   const handleLibraryAddAtViewport = useCallback((nodeTemplate) => {
@@ -885,7 +923,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const position = reactFlowInstance?.screenToFlowPosition({ x: screenX, y: screenY }) || { x: 0, y: 0 };
 
     // Rule: Use mutateFlowGraph for runtime additions
-    const result = mutateFlowGraph(nodes, edges, {
+    const result = mutateBuilderFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
       payload: { nodeTemplate, position }
     }, isSystemManaged);
@@ -896,7 +934,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setLastAddedPosition(position);
       setIsDirty(true);
     }
-  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged]);
+  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
 
   const handleDeleteSelectedNode = useCallback(() => {
@@ -904,7 +942,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const nodeId = selectedNode.id;
 
     // Rule: Use mutateFlowGraph for internal deletions (Prevents orphans)
-    const result = mutateFlowGraph(nodes, edges, {
+    const result = mutateBuilderFlowGraph(nodes, edges, {
       type: 'DELETE_NODE',
       payload: { nodeId }
     }, isSystemManaged);
@@ -916,7 +954,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setSelectedNode(null);
       setIsDirty(true);
     }
-  }, [selectedNode, nodes, edges, setNodes, setEdges, isSystemManaged]);
+  }, [selectedNode, nodes, edges, setNodes, setEdges, isSystemManaged, mutateBuilderFlowGraph]);
 
   // Handle drag over canvas
   const onDragOver = useCallback((event) => {
@@ -948,7 +986,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         console.log('[onDrop] Position:', position);
 
         // Rule: Use mutateFlowGraph for runtime drop
-        const result = mutateFlowGraph(nodes, edges, {
+        const result = mutateBuilderFlowGraph(nodes, edges, {
           type: 'ADD_NODE',
           payload: { nodeTemplate, position }
         }, !canEditFlow);
@@ -968,7 +1006,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         console.error('Failed to drop node:', error);
       }
     },
-    [reactFlowInstance, nodes, edges, setNodes, canEditFlow]
+    [reactFlowInstance, nodes, edges, setNodes, canEditFlow, mutateBuilderFlowGraph]
   );
 
   // Handle node click (select for config)
@@ -999,9 +1037,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       return;
     }
     setSelectedNode(node);
-    setNodeConfigDraft(node?.data?.config || {});
+    setNodeConfigDraft(applyDefaultVideoTemplate(node?.data?.config || {}, mediaRenderTemplates));
     setRightPanelOpen(true);
-  }, [setSelectedNode, setRightPanelOpen, setShowNoteEditModal, setNoteEditDraft, setNoteEditingNode]);
+  }, [mediaRenderTemplates, setSelectedNode, setRightPanelOpen, setShowNoteEditModal, setNoteEditDraft, setNoteEditingNode]);
 
   const onNodeContextMenu = useCallback(
     (event, node) => {
@@ -1040,7 +1078,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const handleConfigSave = useCallback(
     (nodeId, config) => {
       // Rule: Use mutateFlowGraph for runtime config updates
-      const result = mutateFlowGraph(nodes, edges, {
+      const result = mutateBuilderFlowGraph(nodes, edges, {
         type: 'UPDATE_NODE_CONFIG',
         payload: { nodeId, config }
       }, isSystemManaged);
@@ -1055,14 +1093,14 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         console.error('Config save blocked by validation:', result.validation.blockers);
       }
     },
-    [nodes, edges, setNodes, isSystemManaged]
+    [nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]
   );
 
   const applyDraftToCanvas = useCallback((draft) => {
     if (!draft) return;
 
     // Rule: Strict gating for external draft sources
-    const result = ingestFlowSource({
+    const result = ingestBuilderFlowSource({
       nodes: draft.draftSpec?.nodes || [],
       edges: draft.draftSpec?.edges || [],
       source: 'draft'
@@ -1085,7 +1123,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     } else {
       console.error('Draft ingestion blocked by validation:', result.validation.blockers);
     }
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, ingestBuilderFlowSource]);
 
   const insertFormTrigger = useCallback((form) => {
     if (!form) return;
@@ -1095,7 +1133,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }) || { x: 200, y: 200 };
 
     // Rule: Use mutateFlowGraph for runtime additions
-    const result = mutateFlowGraph(nodes, edges, {
+    const result = mutateBuilderFlowGraph(nodes, edges, {
       type: 'ADD_NODE',
       payload: {
         nodeTemplate: {
@@ -1117,7 +1155,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     } else {
       console.error('Form trigger insertion blocked by validation:', result.validation.blockers);
     }
-  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged]);
+  }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
   const applyTemplate = useCallback((template) => {
     if (!template) return;
@@ -1140,7 +1178,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
   const injectTemplateToCanvas = useCallback((template, mappings = {}) => {
     // Rule: Strict gating for external template sources
-    const result = ingestFlowSource(template, { source: 'template', mappings });
+    const result = ingestBuilderFlowSource(template, { source: 'template', mappings });
 
     if (result.validation.blockers.length > 0) {
       console.error('Template injection blocked by validation:', result.validation.blockers);
@@ -1156,7 +1194,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
     setShowMappingModal(false);
     setMappingTemplate(null);
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, ingestBuilderFlowSource]);
 
 
   const getSanitizedGraph = useCallback(() => {
@@ -1171,8 +1209,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const collectValidation = useCallback(() => {
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
     const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
-    return validateFlowSpec(spec);
-  }, [flow, getSanitizedGraph]);
+    return validateBuilderSpec(spec);
+  }, [flow, getSanitizedGraph, validateBuilderSpec]);
 
   const pushValidationToTerminal = useCallback((prefix, result) => {
     if (!result) return;
@@ -1188,7 +1226,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
     const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
-    const result = validateFlowSpec(spec);
+    const result = validateBuilderSpec(spec);
     setValidationResult(result);
 
     const now = new Date().toISOString();
@@ -1226,7 +1264,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         metadata: nextMetadata,
       },
     };
-  }, [flow, getSanitizedGraph]);
+  }, [flow, getSanitizedGraph, validateBuilderSpec]);
 
   const blockTemplateDerivedSave = useCallback((actionLabel = 'Save') => {
     const templateName = flow?.metadata?.sourceTemplateName || 'the source template';
@@ -1237,9 +1275,35 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     showNotice({ type: 'warning', message });
   }, [flow?.metadata?.sourceTemplateName, logToTerminal, showNotice]);
 
+  // Track previous validation to prevent unnecessary updates
+  const prevValidationRef = useRef(null);
+  const mountedRef = useRef(false);
+  
   useEffect(() => {
-    if (!flow) return;
-    setValidationResult(collectValidation());
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  
+  useEffect(() => {
+    if (!flow || !mountedRef.current) return;
+    
+    // Preserve ghost starter node - ensure it's always in the nodes array
+    const hasGhost = nodes.some(n => n.data?.isGhost);
+    const hasRealNodes = nodes.some(n => !n.data?.isGhost);
+    
+    if (!hasGhost && !hasRealNodes) {
+      // Empty graph - insert ghost starter
+      setNodes([createGhostStarterNode()]);
+      return;
+    }
+    
+    const newValidation = collectValidation();
+    // Only update if validation actually changed (compare serialized)
+    const newSerialized = JSON.stringify(newValidation);
+    if (prevValidationRef.current !== newSerialized) {
+      prevValidationRef.current = newSerialized;
+      setValidationResult(newValidation);
+    }
   }, [flow, nodes, edges, collectValidation]);
 
   // Handle save flow
@@ -1437,16 +1501,37 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }, [flow?.id, loadFlowRunHistory]);
 
   // Fetch provider connection statuses when flow loads
+  const providerStatusFetchedRef = useRef(false);
+  
   useEffect(() => {
-    if (!flow?.id) return;
+    if (!flow?.id || providerStatusFetchedRef.current) return;
+    providerStatusFetchedRef.current = true;
+    
     getFlowProviderStatusesApi(flow.id)
-      .then((data) => setProviderStatuses(data?.providers || {}))
-      .catch(() => setProviderStatuses({}));
+      .then((data) => {
+        // Only update if we have actual data (not 401/unauthorized)
+        if (data && data.providers) {
+          setProviderStatuses(data.providers);
+        } else {
+          setProviderStatuses({});
+        }
+      })
+      .catch((err) => {
+        // Don't retry on 401 - set empty to stop the loop
+        console.warn('Provider statuses fetch failed:', err?.message || err);
+        setProviderStatuses({});
+      });
   }, [flow?.id]);
 
   // Inject provider connection status into provider-dependent nodes
+  // Only run once per providerStatuses change, not on every setNodes call
+  const providerStatusInjectedRef = useRef(false);
+  
   useEffect(() => {
     if (!Object.keys(providerStatuses).length) return;
+    if (providerStatusInjectedRef.current) return; // Prevent re-injection
+    providerStatusInjectedRef.current = true;
+    
     const PROVIDER_NODE_INTENTS = new Set(['publish_asset', 'generate_postbot_content', 'postbot_content']);
     setNodes((currentNodes) => currentNodes.map((node) => {
       const config = node.data?.config || {};
@@ -1468,7 +1553,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }
       return node;
     }));
-  }, [providerStatuses, setNodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerStatuses]); // Don't depend on setNodes to prevent cycles
 
   const resetExecutionVisuals = useCallback(() => {
     setNodes((currentNodes) => currentNodes.map((node) => ({
@@ -1754,13 +1840,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
     const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
-    const result = validateFlowSpec(spec);
+    const result = validateBuilderSpec(spec);
     setValidationResult(result);
     if (result.blockers.length > 0 || result.warnings.length > 0) {
       pushValidationToTerminal('Activation check', result);
     }
     setShowActivateModal(true);
-  }, [blockTemplateDerivedSave, flow, getSanitizedGraph, isTemplateDerivedFlow, pushValidationToTerminal]);
+  }, [blockTemplateDerivedSave, flow, getSanitizedGraph, isTemplateDerivedFlow, pushValidationToTerminal, validateBuilderSpec]);
 
   const confirmActivate = useCallback(() => {
     if (!flow) return;
@@ -2230,7 +2316,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <button
             type="button"
             onClick={() => {
-              const result = mutateFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
+              const result = mutateBuilderFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
               if (result.validation.blockers.length === 0) {
                 setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
               }
@@ -2341,7 +2427,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 {(() => {
                   const nodeType = selectedNode.type;
                   const updateField = (field, value) => {
-                    setNodeConfigDraft((prev) => ({ ...prev, [field]: value }));
+                    setNodeConfigDraft((prev) => applyDefaultVideoTemplate({ ...prev, [field]: value }, mediaRenderTemplates));
                   };
 
                   if (nodeType === 'trigger') {
@@ -2819,15 +2905,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                                  Template ID
+                                  Template
                                 </label>
-                                <input
-                                  type="text"
-                                  value={nodeConfigDraft.templateId || ''}
+                                <select
+                                  value={mediaRenderTemplates.some((template) => template.templateId === nodeConfigDraft.templateId) ? (nodeConfigDraft.templateId || '') : (mediaRenderTemplates.some((template) => template.templateId === DEFAULT_VIDEO_TEMPLATE_ID) ? DEFAULT_VIDEO_TEMPLATE_ID : '')}
                                   onChange={(e) => updateField('templateId', e.target.value)}
-                                  placeholder="promo-clip-v1"
                                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)]"
-                                />
+                                >
+                                  {mediaRenderTemplates.map((template) => (
+                                    <option key={template.templateId} value={template.templateId}>
+                                      {template.label || template.humanLabel || template.templateId}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
                               <div>
                                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
@@ -3377,10 +3467,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => {
+                  let nextConfigDraft = nodeConfigDraft;
                   if (nodeConfigRaw && nodeModalTab === 'advanced') {
                     try {
                       const parsed = JSON.parse(nodeConfigRaw);
-                      setNodeConfigDraft(parsed);
+                      nextConfigDraft = applyDefaultVideoTemplate(parsed, mediaRenderTemplates);
+                      setNodeConfigDraft(nextConfigDraft);
                     } catch (error) {
                       setNodeConfigRawError('Invalid JSON. Please fix before saving.');
                       return;
@@ -3388,12 +3480,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   }
                   if (selectedNode) {
                     // Rule: Use mutateFlowGraph for runtime config updates
-                    const result = mutateFlowGraph(nodes, edges, {
+                    const result = mutateBuilderFlowGraph(nodes, edges, {
                       type: 'UPDATE_NODE_CONFIG',
                       payload: {
                         nodeId: selectedNode.id,
-                        config: nodeConfigDraft,
-                        dataUpdates: { config: nodeConfigDraft }
+                        config: nextConfigDraft,
+                        dataUpdates: { config: nextConfigDraft }
                       }
                     }, isSystemManaged);
                     if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
@@ -3427,6 +3519,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         isOpen={showNodeConfig}
         onClose={() => setShowNodeConfig(false)}
         onSave={handleConfigSave}
+        videoTemplateOptions={mediaRenderTemplates}
       />
 
       {/* History panel successfully relocated entirely to Details dock Tab */}
@@ -3537,7 +3630,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               onClick={() => {
                 const node = nodeMenu.node;
                 // Rule: Use mutateFlowGraph for internal copy
-                const result = mutateFlowGraph(nodes, edges, {
+                const result = mutateBuilderFlowGraph(nodes, edges, {
                   type: 'COPY_NODE',
                   payload: { node }
                 }, isSystemManaged);
@@ -3557,13 +3650,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                 onClick={() => {
                   const node = nodeMenu.node;
                   // Rule: Use mutateFlowGraph for runtime config toggle
-                  const result = mutateFlowGraph(nodes, edges, {
+                  const result = mutateBuilderFlowGraph(nodes, edges, {
                     type: 'UPDATE_NODE_CONFIG',
                     payload: {
                       nodeId: node.id,
                       config: { ignoreErrors: !node.data?.config?.ignoreErrors }
                     }
-                  }, isSystemManaged);
+                    }, isSystemManaged);
                   if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
                   if (result.validation.blockers.length === 0) {
                     setNodes(result.nodes);
@@ -3581,7 +3674,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               onClick={() => {
                 const node = nodeMenu.node;
                 // Rule: Use mutateFlowGraph for internal delete
-                const result = mutateFlowGraph(nodes, edges, {
+                const result = mutateBuilderFlowGraph(nodes, edges, {
                   type: 'DELETE_NODE',
                   payload: { nodeId: node.id }
                 }, isSystemManaged);
@@ -3649,7 +3742,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
                   const position = getViewportPlacement({ x: 0, y: 80 });
 
                   // Rule: Use mutateFlowGraph for runtime additions
-                  const result = mutateFlowGraph(nodes, edges, {
+                  const result = mutateBuilderFlowGraph(nodes, edges, {
                     type: 'ADD_NODE',
                     payload: {
                       nodeTemplate: {
@@ -3732,7 +3825,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               <button
                 onClick={() => {
                   // Rule: Use mutateFlowGraph for runtime config updates
-                  const result = mutateFlowGraph(nodes, edges, {
+                  const result = mutateBuilderFlowGraph(nodes, edges, {
                     type: 'UPDATE_NODE_CONFIG',
                     payload: {
                       nodeId: noteEditingNode.id,
@@ -3834,7 +3927,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               <button
                 onClick={() => {
                   // Rule: Use mutateFlowGraph for runtime edge data updates
-                  const result = mutateFlowGraph(nodes, edges, {
+                  const result = mutateBuilderFlowGraph(nodes, edges, {
                     type: 'UPDATE_EDGE_DATA',
                     payload: {
                       edgeId: edgeFilterModal.id,
@@ -3972,7 +4065,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           };
 
           // Rule: Strict gating for AI-generated flows
-          const result = ingestFlowSource(aiTemplate, { source: 'ai' });
+          const result = ingestBuilderFlowSource(aiTemplate, { source: 'ai' });
           if (result.validation.blockers.length === 0) {
             setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
             setEdges(normalizeEdges(result.edges));
