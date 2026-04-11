@@ -9160,19 +9160,9 @@ class SQLiteProvider(BaseProvider):
             "mailboxes": self.list_mailboxes(),
             "calendarEvents": self.list_calendar_events(),
             "agents": [
-                {"name": "ALPHA"},
-                {"name": "BRAVO"},
-                {"name": "CHARLIE"},
-                {"name": "DELTA"},
-                {"name": "ECHO"},
-                {"name": "HAMMER"},
-                {"name": "GHOST"},
-                {"name": "ARCHER"},
-                {"name": "ATLAS"},
-                {"name": "RANGER"},
-                {"name": "SCOUT"},
-                {"name": "STRIKER"},
-                {"name": "VECTOR"},
+                {"name": definition.name, "agent_id": definition.agent_id}
+                for definition in AGENT_DEFINITIONS.values()
+                if definition.visibility != "hidden"
             ],
         }
 

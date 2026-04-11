@@ -453,8 +453,6 @@ class BaseAgent:
                 return name
         return None
 
-AGENT_ID_MAP = {d.agent_id: k for k, d in AGENT_DEFINITIONS.items()}
-
 class AgentRegistry:
     _agents: Dict[str, BaseAgent] = {}
 
@@ -466,12 +464,7 @@ class AgentRegistry:
     def get(cls, name_or_id: str) -> Optional[BaseAgent]:
         if not name_or_id:
             return None
-        # Check by name first
-        if name_or_id in cls._agents:
-            return cls._agents[name_or_id]
-        # Then check map
-        name = AGENT_ID_MAP.get(name_or_id, name_or_id)
-        return cls._agents.get(name)
+        return cls._agents.get(str(name_or_id).strip().upper())
 
 # --- Basic Core Agents for phase integration ---
 class AlphaAgent(BaseAgent):

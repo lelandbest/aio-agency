@@ -1,6 +1,5 @@
 export const SPECIALIST_REGISTRY = {
   ALPHA: {
-    agentId: 'AGT-CMD-001',
     label: 'Commander-in-Chief',
     rank: 'Commander',
     role: 'HQ',
@@ -17,7 +16,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   BRAVO: {
-    agentId: 'AGT-STR-002',
     label: 'Business Strategy',
     rank: 'AI Agent',
     role: 'Strategy',
@@ -34,7 +32,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   CHARLIE: {
-    agentId: 'AGT-SUP-003',
     label: 'Customer Support',
     rank: 'AI Agent',
     role: 'Support',
@@ -51,7 +48,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   DELTA: {
-    agentId: 'AGT-CRD-004',
     label: 'Visual/Project Coordination',
     rank: 'AI Agent',
     role: 'Coordination',
@@ -68,7 +64,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   ECHO: {
-    agentId: 'AGT-CMS-005',
     label: 'Email/Comms/Socials',
     rank: 'AI Agent',
     role: 'Comms',
@@ -90,7 +85,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   HAMMER: {
-    agentId: 'AGT-CPY-006',
     label: 'Hammer',
     rank: 'AI Agent',
     role: 'Copy',
@@ -107,7 +101,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   GHOST: {
-    agentId: 'AGT-ENG-007',
     label: 'Systems Engineering',
     rank: 'AI Agent',
     role: 'Engineering',
@@ -128,7 +121,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   ARCHER: {
-    agentId: 'AGT-ANL-008',
     label: 'Analytics/Financial',
     rank: 'AI Agent',
     role: 'Analytics',
@@ -145,7 +137,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   ATLAS: {
-    agentId: 'AGT-LOG-009',
     label: 'Logistics/Systems Mapping',
     rank: 'AI Agent',
     role: 'Logistics',
@@ -162,7 +153,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   RANGER: {
-    agentId: 'AGT-SEO-010',
     label: 'SEO/Content Optimization',
     rank: 'AI Agent',
     role: 'SEO',
@@ -180,7 +170,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   SCOUT: {
-    agentId: 'AGT-REC-011',
     label: 'Hiring/Recruitment',
     rank: 'AI Agent',
     role: 'Recruitment',
@@ -197,7 +186,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   STRIKER: {
-    agentId: 'AGT-SAL-012',
     label: 'Sales/Negotiation',
     rank: 'AI Agent',
     role: 'Sales',
@@ -219,7 +207,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   VECTOR: {
-    agentId: 'AGT-DSN-013',
     label: 'Graphics/Design',
     rank: 'AI Agent',
     role: 'Design',
@@ -239,7 +226,6 @@ export const SPECIALIST_REGISTRY = {
     ],
   },
   OMEGA: {
-    agentId: 'AGT-EMR-000',
     label: 'Emergency Governance',
     rank: 'Shadow Authority',
     role: 'Governance',

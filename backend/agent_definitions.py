@@ -245,7 +245,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     ),
     "CHARLIE": _definition(
         name="CHARLIE",
-        agent_id="AGT-CS-003",
+        agent_id="AGT-SUP-003",
         label="Customer Support",
         role="Support",
         specialization="Customer Support",
@@ -278,7 +278,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     ),
     "ECHO": _definition(
         name="ECHO",
-        agent_id="AGT-COMMS-002",
+        agent_id="AGT-COM-005",
         label="Email/Comms/Socials",
         role="Comms",
         specialization="Email/Comms/Socials",
@@ -311,7 +311,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     ),
     "GHOST": _definition(
         name="GHOST",
-        agent_id="AGT-DEV-007",
+        agent_id="AGT-ENG-007",
         label="Systems Engineering",
         role="Engineering",
         specialization="Systems Engineering",
@@ -328,7 +328,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     ),
     "ARCHER": _definition(
         name="ARCHER",
-        agent_id="AGT-FIN-008",
+        agent_id="AGT-ANL-008",
         label="Analytics/Financial",
         role="Analytics",
         specialization="Analytics/Financial",
@@ -378,7 +378,7 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
     ),
     "SCOUT": _definition(
         name="SCOUT",
-        agent_id="AGT-HR-011",
+        agent_id="AGT-REC-011",
         label="Hiring/Recruitment",
         role="Recruitment",
         specialization="Hiring/Recruitment",
@@ -449,8 +449,5 @@ AGENT_DEFINITIONS: Dict[str, AgentDefinition] = {
 def get_agent_definition(name_or_id: str) -> Optional[AgentDefinition]:
     if not name_or_id:
         return None
-    name_map = {definition.agent_id: key for key, definition in AGENT_DEFINITIONS.items()}
-    name = name_map.get(name_or_id, name_or_id.upper())
-    return AGENT_DEFINITIONS.get(name)
-
+    return AGENT_DEFINITIONS.get(str(name_or_id).strip().upper())
 

@@ -51,6 +51,7 @@ const CommsModule = lazy(() => import('./modules/Comms'));
 const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
 const CommsSmsModule = lazy(() => import('./modules/CommsSms'));
 const DialerPage = lazy(() => import('./modules/CommsSms'));
+const CommsReviewModule = lazy(() => import('./modules/CommsReview'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
@@ -116,7 +117,7 @@ const readNavigationStateFromUrl = () => {
 import {
   LayoutDashboard, Users, Bot, Workflow, Radio, Calendar as CalendarIcon,
   MessageSquare, PenTool, GitMerge, GitBranch, FileText, ShoppingCart, Globe,
-  Phone, Settings, Video, EyeOff, Activity, Zap, Rocket, GraduationCap
+  Phone, PhoneCall, Settings, Video, EyeOff, Activity, Zap, Rocket, GraduationCap
 } from 'lucide-react';
 
 // ============ MENU STRUCTURE ============
@@ -137,6 +138,7 @@ const ICON_MAP = {
   ShoppingCart,
   Globe,
   Phone,
+  PhoneCall,
   Settings,
   Video,
   Crosshair,
@@ -749,6 +751,8 @@ const App = () => {
         return <PlaceholderModule name="Marketplace" />;
       case 'sms_voip':
         return <CommsSmsModule />;
+      case 'comms_review':
+        return <CommsReviewModule />;
       case 'canned-responses':
         return <CannedResponsesModule onNavigate={setActiveModule} />;
       case 'settings':
@@ -773,7 +777,21 @@ const App = () => {
         <OrchestrationProvider>
           {/* VTTProvider wraps the full tree so Sidebar and VoiceCommandModule share one context instance */}
           <VTTProvider>
-          <AuthContext.Provider value={{ session, user: session?.user, token: session?.token, tenant: session?.tenant, tenants: session?.tenants || [], role: userRole, isOperator: () => operatorMode, isClient: () => clientMode, logout: handleLogout, switchTenant: handleSwitchTenant, refreshSession }}>
+          <AuthContext.Provider value={{
+            session,
+            user: session?.user,
+            token: session?.token,
+            tenant: session?.tenant,
+            tenants: session?.tenants || [],
+            role: userRole,
+            capabilities: session?.capabilities || [],
+            isOperator: () => operatorMode,
+            isClient: () => clientMode,
+            hasCapability: (cid) => (session?.capabilities || []).includes(cid),
+            logout: handleLogout,
+            switchTenant: handleSwitchTenant,
+            refreshSession
+          }}>
           <DbContext.Provider value={{ db, setDb }}>
             <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
               <div className="flex min-h-0 flex-1 overflow-hidden">

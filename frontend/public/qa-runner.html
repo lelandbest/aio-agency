@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QA Runner</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    #meta {
+      padding: 8px 12px;
+      font-size: 12px;
+      border-bottom: 1px solid #27272a;
+      white-space: pre-wrap;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #09090b;
+    }
+  </style>
+</head>
+<body>
+  <div id="meta">booting</div>
+  <iframe id="app" title="qa-app"></iframe>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const scenario = params.get('scenario') || 'noop';
+    const target = params.get('target') || '/?module=settings';
+    const iframe = document.getElementById('app');
+    const meta = document.getElementById('meta');
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const sameText = (node, text) =>
+      String(node?.textContent || '').trim().toLowerCase() === String(text || '').trim().toLowerCase();
+
+    const findButtonByText = (doc, text) =>
+      Array.from(doc.querySelectorAll('button')).find((button) => sameText(button, text));
+
+    const findHeading = (doc, text) =>
+      Array.from(doc.querySelectorAll('h1,h2,h3,h4,div,span,p')).find((node) => sameText(node, text));
+
+    const clickButtonByText = async (doc, text) => {
+      const button = findButtonByText(doc, text);
+      if (!button) {
+        throw new Error(`button not found: ${text}`);
+      }
+      button.click();
+      await sleep(300);
+      return true;
+    };
+
+    const collectSummary = (doc) => {
+      const buttons = Array.from(doc.querySelectorAll('button'));
+      const settingsButtonTexts = buttons.map((button) => String(button.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+      return {
+        title: doc.title,
+        buttons: settingsButtonTexts,
+        cardLabels: ['Appearance', 'Roles', 'System', 'Workspace'].filter((label) => !!findButtonByText(doc, label)),
+        headings: Array.from(doc.querySelectorAll('h1,h2,h3')).map((node) => String(node.textContent || '').trim()).filter(Boolean),
+      };
+    };
+
+    const getGridMetrics = (doc) => {
+      const grid = Array.from(doc.querySelectorAll('div')).find((node) => {
+        const style = window.getComputedStyle(node);
+        return style.display === 'grid' && style.gridTemplateColumns && style.gridTemplateColumns.split(' ').length === 2;
+      });
+      if (!grid) {
+        return null;
+      }
+      const children = Array.from(grid.children).filter((child) => child.getBoundingClientRect().width > 0 && child.getBoundingClientRect().height > 0);
+      return {
+        childCount: children.length,
+        gridTemplateColumns: window.getComputedStyle(grid).gridTemplateColumns,
+      };
+    };
+
+    const run = async () => {
+      iframe.src = target;
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('iframe load timeout')), 30000);
+        iframe.onload = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
+      await sleep(2500);
+      const doc = iframe.contentDocument;
+      if (!doc) {
+        throw new Error('iframe document unavailable');
+      }
+
+      if (scenario === 'settings-initial') {
+        const summary = collectSummary(doc);
+        summary.grid = getGridMetrics(doc);
+        summary.splashVisible = Boolean(findHeading(doc, 'Settings'));
+        meta.textContent = JSON.stringify(summary, null, 2);
+        return;
+      }
+
+      if (scenario === 'integrations-initial') {
+        const summary = collectSummary(doc);
+        summary.grid = getGridMetrics(doc);
+        summary.splashVisible = Boolean(findHeading(doc, 'Integrations'));
+        meta.textContent = JSON.stringify(summary, null, 2);
+        return;
+      }
+
+      if (scenario === 'settings-branding') {
+        await clickButtonByText(doc, 'Appearance');
+        await clickButtonByText(doc, 'Branding');
+        await sleep(800);
+        const summary = collectSummary(doc);
+        summary.grid = getGridMetrics(doc);
+        summary.brandingVisible = Boolean(findHeading(doc, 'Branding'));
+        meta.textContent = JSON.stringify(summary, null, 2);
+        return;
+      }
+
+      if (scenario === 'settings-selector-toggle') {
+        await clickButtonByText(doc, 'Appearance');
+        const afterAppearance = collectSummary(doc);
+        await clickButtonByText(doc, 'Roles');
+        const afterRoles = collectSummary(doc);
+        meta.textContent = JSON.stringify({
+          afterAppearance,
+          afterRoles,
+        }, null, 2);
+        return;
+      }
+
+      meta.textContent = JSON.stringify({ scenario, status: 'noop' }, null, 2);
+    };
+
+    run().catch((error) => {
+      meta.textContent = JSON.stringify({ scenario, error: error.message }, null, 2);
+    });
+  </script>
+</body>
+</html>

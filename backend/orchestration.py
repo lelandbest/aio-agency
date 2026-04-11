@@ -11,6 +11,7 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 from uuid import uuid4
 try:
+    from backend.agent_definitions import AGENT_DEFINITIONS
     from backend.agent_runtime import AgentRegistry
     from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
     from backend.data_provider import reset_request_tenant, set_request_tenant_id
@@ -25,6 +26,7 @@ try:
         resolve_transcription_provider_id_from_lock,
     )
 except ModuleNotFoundError:
+    from agent_definitions import AGENT_DEFINITIONS
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
     from data_provider import reset_request_tenant, set_request_tenant_id
@@ -48,6 +50,12 @@ except ModuleNotFoundError:
     from auth_store import get_auth_store
 
 logger = logging.getLogger(__name__)
+
+
+def canonical_agent_id_for(agent_name: Any) -> str:
+    normalized = str(agent_name or "").strip().upper()
+    definition = AGENT_DEFINITIONS.get(normalized) or AGENT_DEFINITIONS["ALPHA"]
+    return definition.agent_id
 
 DIRECT_EXECUTION_INTENTS = {
     "query_vault",
@@ -472,6 +480,9 @@ def normalize_parsed_steps(raw_steps: list[dict[str, Any]]) -> list[dict[str, An
         target_type = intent.split("_")[-1] if "_" in intent else "unknown"
         is_external = intent in ("draft_email", "schedule_calendar")
         
+        assigned_agent = str(raw.get("assignedAgent") or "ALPHA").strip().upper() or "ALPHA"
+        if assigned_agent not in AGENT_DEFINITIONS:
+            assigned_agent = "ALPHA"
         normalized.append({
             "id": step_id,
             "intent": intent,
@@ -490,8 +501,8 @@ def normalize_parsed_steps(raw_steps: list[dict[str, Any]]) -> list[dict[str, An
             "error": None,
             "data": None,
             
-            "assignedAgent": raw.get("assignedAgent") or "ALPHA",
-            "agentId": raw.get("agentId") or "AGT-CMD-001"
+            "assignedAgent": assigned_agent,
+            "agentId": canonical_agent_id_for(assigned_agent),
         })
     return normalized
 
@@ -2341,7 +2352,7 @@ class StepExecutor:
                 })
         
         # Step 1: Agent Runtime Execution
-        assigned_agent = step.get("assignedAgent") or step.get("agentId")
+        assigned_agent = step.get("assignedAgent") or "ALPHA"
         agent = AgentRegistry.get(assigned_agent)
         
         if agent:
@@ -5019,8 +5030,7 @@ class ExecutionEngine:
                     context=context
                 )
                 step["assignedAgent"] = step.get("assignedAgent") or specialist or "ALPHA"
-                if not step.get("agentId"):
-                    step["agentId"] = f"AGT-{step['assignedAgent'][:3].upper()}-001"
+                step["agentId"] = canonical_agent_id_for(step["assignedAgent"])
                 
                 # Phase 16: Adaptive Routing
                 requested_agent_locked = bool(context.get("_requested_agent_locked") or flow_id)
@@ -5037,7 +5047,7 @@ class ExecutionEngine:
                         }
                     })
                     step["assignedAgent"] = best_route["selectedAgent"]
-                    step["agentId"] = best_route["agentId"]
+                    step["agentId"] = canonical_agent_id_for(step["assignedAgent"])
                     step["_routing_rationale"] = best_route["reason"]
 
                 gate = check_step_gate(step, actor, tenant, context)

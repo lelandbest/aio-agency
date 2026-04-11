@@ -141,7 +141,7 @@ def create_execution_plan(goal: str, context: Dict[str, object]) -> List[Dict[st
                 "intent": "add_crm_note",
                 "parameters": {"note": f"Action taken on: {goal}"},
                 "assignedAgent": "CHARLIE",
-                "agentId": "AGT-CS-003",
+                "agentId": "AGT-SUP-003",
                 "requiresApproval": False,
             }
         )

@@ -46,6 +46,13 @@ except ModuleNotFoundError:
     )
     from tenant_deployment import DeploymentFailureError, build_deployment_plan, list_blueprint_registry
 
+try:
+    from backend.agent_definitions import AGENT_DEFINITIONS
+    from backend.roles_model import ALL_CAPABILITY_IDS, clone_capability_catalog, clone_system_role_templates
+except ModuleNotFoundError:
+    from agent_definitions import AGENT_DEFINITIONS
+    from roles_model import ALL_CAPABILITY_IDS, clone_capability_catalog, clone_system_role_templates
+
 
 def utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -74,6 +81,7 @@ def slugify(value: str) -> str:
 
 USER_ROLES = {"operator", "client"}
 WORKSPACE_MEMBERSHIP_ROLES = {"owner", "admin", "staff", "viewer", "member"}
+ROLE_ASSIGNABLE_ENTITY_TYPES = {"user", "bot"}
 DEFAULT_OLLAMA_PROVIDER_BASE_URL = "http://192.168.4.28:11434"
 DEFAULT_OLLAMA_PROVIDER_MODEL = "minimax-m2.5:cloud"
 
@@ -155,6 +163,31 @@ class AuthStore:
                     createdAt TEXT NOT NULL,
                     updatedAt TEXT NOT NULL,
                     UNIQUE(userId, tenantId)
+                );
+
+                CREATE TABLE IF NOT EXISTS role_definitions (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    systemKey TEXT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    isSystemRole INTEGER NOT NULL DEFAULT 0,
+                    isLocked INTEGER NOT NULL DEFAULT 0,
+                    capabilitiesJson TEXT NOT NULL DEFAULT '[]',
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, systemKey)
+                );
+
+                CREATE TABLE IF NOT EXISTS role_assignments (
+                    id TEXT PRIMARY KEY,
+                    tenantId TEXT NOT NULL,
+                    entityType TEXT NOT NULL,
+                    entityId TEXT NOT NULL,
+                    roleId TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    UNIQUE(tenantId, entityType, entityId, roleId)
                 );
 
                 CREATE TABLE IF NOT EXISTS aiEngineRuns (
@@ -956,6 +989,220 @@ class AuthStore:
             "updatedAt": record["updatedAt"],
         }
 
+    def _normalize_role_capabilities(self, capabilities: Any) -> list[str]:
+        if not isinstance(capabilities, (list, tuple, set)):
+            return []
+        allowed = set(ALL_CAPABILITY_IDS)
+        return sorted({str(capability).strip() for capability in capabilities if str(capability).strip() in allowed})
+
+    def _role_record(
+        self,
+        record: sqlite3.Row | dict[str, Any],
+        assignments_by_role: dict[str, list[dict[str, Any]]] | None = None,
+    ) -> dict[str, Any]:
+        raw_capabilities = record["capabilitiesJson"] if "capabilitiesJson" in record.keys() else record.get("capabilitiesJson")
+        try:
+            capabilities = self._normalize_role_capabilities(json.loads(raw_capabilities or "[]"))
+        except json.JSONDecodeError:
+            capabilities = []
+        role_id = record["id"]
+        assigned_entities = list((assignments_by_role or {}).get(role_id, []))
+        return {
+            "id": role_id,
+            "tenantId": record["tenantId"],
+            "systemKey": record["systemKey"] if "systemKey" in record.keys() else record.get("systemKey"),
+            "name": record["name"],
+            "description": record["description"] or "",
+            "isSystemRole": bool(record["isSystemRole"]),
+            "isLocked": bool(record["isLocked"]),
+            "capabilities": capabilities,
+            "assignedEntities": assigned_entities,
+            "assignedCount": len(assigned_entities),
+            "createdAt": record["createdAt"],
+            "updatedAt": record["updatedAt"],
+        }
+
+    def _entity_directory(self, conn: sqlite3.Connection, tenant_id: str) -> dict[str, list[dict[str, Any]]]:
+        users = conn.execute(
+            """
+            SELECT m.userId, m.role, u.email, u.displayName
+            FROM memberships m
+            JOIN app_users u ON u.id = m.userId
+            WHERE m.tenantId = ?
+            ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END, u.displayName ASC, u.email ASC
+            """,
+            (tenant_id,),
+        ).fetchall()
+        user_directory = [
+            {
+                "entityType": "user",
+                "entityId": row["userId"],
+                "label": row["displayName"] or row["email"],
+                "secondaryLabel": row["email"],
+                "membershipRole": row["role"],
+            }
+            for row in users
+        ]
+        bot_directory = [
+            {
+                "entityType": "bot",
+                "entityId": key,
+                "label": definition.get("name") or key.title(),
+                "secondaryLabel": definition.get("agentId") or definition.get("id") or "",
+                "membershipRole": None,
+            }
+            for key, definition in sorted(AGENT_DEFINITIONS.items(), key=lambda entry: str(entry[1].get("name") or entry[0]))
+            if not bool(definition.get("is_hidden"))
+        ]
+        return {"users": user_directory, "bots": bot_directory}
+
+    def _ensure_workspace_role_seed(self, conn: sqlite3.Connection, tenant_id: str) -> dict[str, sqlite3.Row]:
+        now = utcnow_iso()
+        templates = clone_system_role_templates()
+        seeded: dict[str, sqlite3.Row] = {}
+        for system_key, template in templates.items():
+            role_id = f"role-{tenant_id}-{system_key}"
+            capabilities_json = json.dumps(self._normalize_role_capabilities(template.get("capabilities", [])))
+            existing = conn.execute(
+                "SELECT * FROM role_definitions WHERE tenantId = ? AND systemKey = ? LIMIT 1",
+                (tenant_id, system_key),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE role_definitions
+                    SET name = ?, description = ?, isSystemRole = 1, isLocked = 1, capabilitiesJson = ?, updatedAt = ?
+                    WHERE id = ?
+                    """,
+                    (template["name"], template["description"], capabilities_json, now, existing["id"]),
+                )
+                resolved_id = existing["id"]
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO role_definitions (id, tenantId, systemKey, name, description, isSystemRole, isLocked, capabilitiesJson, createdAt, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
+                    """,
+                    (role_id, tenant_id, system_key, template["name"], template["description"], capabilities_json, now, now),
+                )
+                resolved_id = role_id
+            row = conn.execute("SELECT * FROM role_definitions WHERE id = ? LIMIT 1", (resolved_id,)).fetchone()
+            if row:
+                seeded[system_key] = row
+        return seeded
+
+    def _sync_workspace_membership_role_assignments(self, conn: sqlite3.Connection, tenant_id: str) -> None:
+        seeded = self._ensure_workspace_role_seed(conn, tenant_id)
+        system_role_ids = [row["id"] for row in seeded.values()]
+        memberships = conn.execute(
+            "SELECT userId, role FROM memberships WHERE tenantId = ?",
+            (tenant_id,),
+        ).fetchall()
+        membership_user_ids = {row["userId"] for row in memberships}
+        if system_role_ids:
+            placeholders = ",".join("?" for _ in system_role_ids)
+            stale_rows = conn.execute(
+                f"""
+                SELECT DISTINCT entityId
+                FROM role_assignments
+                WHERE tenantId = ?
+                  AND entityType = 'user'
+                  AND roleId IN ({placeholders})
+                """,
+                (tenant_id, *system_role_ids),
+            ).fetchall()
+            for stale in stale_rows:
+                if stale["entityId"] not in membership_user_ids:
+                    conn.execute(
+                        f"""
+                        DELETE FROM role_assignments
+                        WHERE tenantId = ?
+                          AND entityType = 'user'
+                          AND entityId = ?
+                          AND roleId IN ({placeholders})
+                        """,
+                        (tenant_id, stale["entityId"], *system_role_ids),
+                    )
+        for membership in memberships:
+            system_key = str(membership["role"]).strip().lower()
+            system_role = seeded.get(system_key)
+            if not system_role:
+                continue
+            if system_role_ids:
+                placeholders = ",".join("?" for _ in system_role_ids)
+                conn.execute(
+                    f"""
+                    DELETE FROM role_assignments
+                    WHERE tenantId = ?
+                      AND entityType = 'user'
+                      AND entityId = ?
+                      AND roleId IN ({placeholders})
+                      AND roleId <> ?
+                    """,
+                    (tenant_id, membership["userId"], *system_role_ids, system_role["id"]),
+                )
+            exists = conn.execute(
+                """
+                SELECT id
+                FROM role_assignments
+                WHERE tenantId = ? AND entityType = 'user' AND entityId = ? AND roleId = ?
+                LIMIT 1
+                """,
+                (tenant_id, membership["userId"], system_role["id"]),
+            ).fetchone()
+            if not exists:
+                now = utcnow_iso()
+                conn.execute(
+                    """
+                    INSERT INTO role_assignments (id, tenantId, entityType, entityId, roleId, createdAt, updatedAt)
+                    VALUES (?, ?, 'user', ?, ?, ?, ?)
+                    """,
+                    (f"role-assignment-{secrets.token_hex(8)}", tenant_id, membership["userId"], system_role["id"], now, now),
+                )
+
+    def _list_role_assignments_by_role(
+        self,
+        conn: sqlite3.Connection,
+        tenant_id: str,
+        role_rows: list[sqlite3.Row],
+    ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+        directory = self._entity_directory(conn, tenant_id)
+        entity_lookup: dict[tuple[str, str], dict[str, Any]] = {}
+        for entity in directory["users"] + directory["bots"]:
+            entity_lookup[(entity["entityType"], entity["entityId"])] = entity
+        role_ids = [row["id"] for row in role_rows]
+        if not role_ids:
+            return {}, {}
+        placeholders = ",".join("?" for _ in role_ids)
+        rows = conn.execute(
+            f"""
+            SELECT *
+            FROM role_assignments
+            WHERE tenantId = ?
+              AND roleId IN ({placeholders})
+            ORDER BY entityType ASC, entityId ASC, createdAt ASC
+            """,
+            (tenant_id, *role_ids),
+        ).fetchall()
+        assignments_by_role: dict[str, list[dict[str, Any]]] = {}
+        assignments_by_entity: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            entity_meta = entity_lookup.get((row["entityType"], row["entityId"]), {})
+            payload = {
+                "id": row["id"],
+                "tenantId": row["tenantId"],
+                "entityType": row["entityType"],
+                "entityId": row["entityId"],
+                "roleId": row["roleId"],
+                "entityLabel": entity_meta.get("label") or row["entityId"],
+                "entitySecondaryLabel": entity_meta.get("secondaryLabel") or "",
+                "createdAt": row["createdAt"],
+                "updatedAt": row["updatedAt"],
+            }
+            assignments_by_role.setdefault(row["roleId"], []).append(payload)
+            assignments_by_entity.setdefault(f"{row['entityType']}:{row['entityId']}", []).append(payload)
+        return assignments_by_role, assignments_by_entity
+
     def _ai_provider_record(self, record: sqlite3.Row | dict[str, Any], include_secret: bool = False) -> dict[str, Any]:
         config = json.loads(record["configJson"]) if record["configJson"] else {}
         payload = {
@@ -1036,7 +1283,13 @@ class AuthStore:
         return membership
 
     def _build_session(self, conn: sqlite3.Connection, record: sqlite3.Row) -> dict[str, Any]:
+        """Convert database record to a session dictionary with capabilities."""
         current_tenant, tenants = self._tenant_memberships(conn, record["userId"], record["currentTenantId"])
+        user_id = record["userId"]
+        tenant_id = current_tenant.get("id") if current_tenant else None
+        capabilities = []
+        if tenant_id:
+            capabilities = self.get_effective_capabilities(tenant_id, "user", user_id)
         return {
             "id": record["id"],
             "token": record["token"],
@@ -1046,6 +1299,7 @@ class AuthStore:
             "user": self._public_user(record),
             "tenant": current_tenant,
             "tenants": tenants,
+            "capabilities": capabilities,
         }
 
     @staticmethod
@@ -1057,7 +1311,7 @@ class AuthStore:
         persisted["comms"]["emailSignature"] = ""
         return persisted
 
-    def _upsert_global_variables_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, user_id: str | None, variables: dict[str, Any]) -> None:
+    def _upsert_global_variables_from_canonical(self, conn: sqlite3.Connection, tenant_id: str, userId: str | None, variables: dict[str, Any]) -> None:
         for key, details in variables.items():
             if not isinstance(details, dict):
                 continue
@@ -2478,6 +2732,7 @@ class AuthStore:
                     """,
                     (f"membership-{secrets.token_hex(8)}", user["id"], tenant_id, role, now, now),
                 )
+            self._sync_workspace_membership_role_assignments(conn, tenant_id)
             conn.commit()
         return {"memberships": self.list_workspace_memberships(token, tenant_id)}
 
@@ -2573,6 +2828,7 @@ class AuthStore:
                 """,
                 (f"membership-{secrets.token_hex(8)}", user_id, target_tenant_id, target_role, now, now),
             )
+            self._sync_workspace_membership_role_assignments(conn, target_tenant_id)
             conn.commit()
 
         return {
@@ -2612,6 +2868,7 @@ class AuthStore:
                 "UPDATE memberships SET role = ?, updatedAt = ? WHERE id = ?",
                 (role, utcnow_iso(), membership_id),
             )
+            self._sync_workspace_membership_role_assignments(conn, tenant_id)
             conn.commit()
         return {"memberships": self.list_workspace_memberships(token, tenant_id)}
 
@@ -2654,8 +2911,238 @@ class AuthStore:
                 "UPDATE app_sessions SET currentTenantId = ? WHERE userId = ? AND currentTenantId = ?",
                 ((next_membership["tenantId"] if next_membership else None), membership["userId"], tenant_id),
             )
+            conn.execute(
+                "DELETE FROM role_assignments WHERE tenantId = ? AND entityType = 'user' AND entityId = ?",
+                (tenant_id, membership["userId"]),
+            )
             conn.commit()
         return {"memberships": self.list_workspace_memberships(token, tenant_id)}
+
+    def list_workspace_roles(self, token: str | None, tenant_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            self._ensure_workspace_role_seed(conn, tenant_id)
+            self._sync_workspace_membership_role_assignments(conn, tenant_id)
+            role_rows = conn.execute(
+                """
+                SELECT *
+                FROM role_definitions
+                WHERE tenantId = ?
+                ORDER BY isSystemRole DESC, name ASC
+                """,
+                (tenant_id,),
+            ).fetchall()
+            assignments_by_role, assignments_by_entity = self._list_role_assignments_by_role(conn, tenant_id, role_rows)
+            directory = self._entity_directory(conn, tenant_id)
+            roles = [self._role_record(row, assignments_by_role) for row in role_rows]
+            entity_summaries = []
+            role_lookup = {role["id"]: role for role in roles}
+            for entity in directory["users"] + directory["bots"]:
+                entity_key = f"{entity['entityType']}:{entity['entityId']}"
+                entity_assignments = assignments_by_entity.get(entity_key, [])
+                role_ids = [assignment["roleId"] for assignment in entity_assignments]
+                effective_capabilities = sorted({
+                    capability
+                    for role_id in role_ids
+                    for capability in role_lookup.get(role_id, {}).get("capabilities", [])
+                })
+                entity_summaries.append({
+                    **entity,
+                    "roleIds": role_ids,
+                    "roleNames": [role_lookup[role_id]["name"] for role_id in role_ids if role_id in role_lookup],
+                    "effectiveCapabilities": effective_capabilities,
+                })
+            conn.commit()
+        return {
+            "capabilityCatalog": clone_capability_catalog(),
+            "roles": roles,
+            "directory": directory,
+            "entitySummaries": entity_summaries,
+        }
+
+    def get_effective_capabilities(self, tenant_id: str, entity_type: str, entity_id: str) -> set[str]:
+        with self._connect() as conn:
+            self._ensure_workspace_role_seed(conn, tenant_id)
+            self._sync_workspace_membership_role_assignments(conn, tenant_id)
+            rows = conn.execute(
+                """
+                SELECT rd.capabilitiesJson
+                FROM role_assignments ra
+                JOIN role_definitions rd ON ra.roleId = rd.id
+                WHERE ra.tenantId = ? AND ra.entityType = ? AND ra.entityId = ?
+                """,
+                (tenant_id, entity_type, entity_id),
+            ).fetchall()
+            capabilities = set()
+            for row in rows:
+                try:
+                    role_caps = json.loads(row["capabilitiesJson"])
+                    if isinstance(role_caps, list):
+                        capabilities.update(role_caps)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            return capabilities
+
+    def create_workspace_role(self, token: str | None, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        name = str((payload or {}).get("name") or "").strip()
+        description = str((payload or {}).get("description") or "").strip()
+        capabilities = self._normalize_role_capabilities((payload or {}).get("capabilities") or [])
+        if not name:
+            raise ValueError("Role name is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            existing = conn.execute(
+                "SELECT id FROM role_definitions WHERE tenantId = ? AND lower(name) = lower(?) LIMIT 1",
+                (tenant_id, name),
+            ).fetchone()
+            if existing:
+                raise ValueError("A role with that name already exists.")
+            now = utcnow_iso()
+            conn.execute(
+                """
+                INSERT INTO role_definitions (id, tenantId, systemKey, name, description, isSystemRole, isLocked, capabilitiesJson, createdAt, updatedAt)
+                VALUES (?, ?, NULL, ?, ?, 0, 0, ?, ?, ?)
+                """,
+                (f"role-{secrets.token_hex(8)}", tenant_id, name, description, json.dumps(capabilities), now, now),
+            )
+            conn.commit()
+        return self.list_workspace_roles(token, tenant_id)
+
+    def update_workspace_role(self, token: str | None, tenant_id: str, role_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            role = conn.execute(
+                "SELECT * FROM role_definitions WHERE id = ? AND tenantId = ? LIMIT 1",
+                (role_id, tenant_id),
+            ).fetchone()
+            if not role:
+                raise ValueError("Role not found.")
+            if bool(role["isLocked"]):
+                raise ValueError("Locked system roles cannot be edited.")
+            name = str((payload or {}).get("name") or role["name"]).strip()
+            description = str((payload or {}).get("description") if "description" in (payload or {}) else role["description"] or "").strip()
+            existing_capabilities = []
+            try:
+                existing_capabilities = json.loads(role["capabilitiesJson"] or "[]")
+            except json.JSONDecodeError:
+                existing_capabilities = []
+            capabilities = self._normalize_role_capabilities((payload or {}).get("capabilities") if "capabilities" in (payload or {}) else existing_capabilities)
+            if not name:
+                raise ValueError("Role name is required.")
+            existing = conn.execute(
+                "SELECT id FROM role_definitions WHERE tenantId = ? AND lower(name) = lower(?) AND id <> ? LIMIT 1",
+                (tenant_id, name, role_id),
+            ).fetchone()
+            if existing:
+                raise ValueError("A role with that name already exists.")
+            conn.execute(
+                """
+                UPDATE role_definitions
+                SET name = ?, description = ?, capabilitiesJson = ?, updatedAt = ?
+                WHERE id = ?
+                """,
+                (name, description, json.dumps(capabilities), utcnow_iso(), role_id),
+            )
+            conn.commit()
+        return self.list_workspace_roles(token, tenant_id)
+
+    def attach_workspace_role(self, token: str | None, tenant_id: str, role_id: str, entity_type: str, entity_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        resolved_entity_type = str(entity_type or "").strip().lower()
+        resolved_entity_id = str(entity_id or "").strip()
+        if resolved_entity_type not in ROLE_ASSIGNABLE_ENTITY_TYPES:
+            raise ValueError("Unsupported role assignment entity type.")
+        if not resolved_entity_id:
+            raise ValueError("Entity id is required.")
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            self._ensure_workspace_role_seed(conn, tenant_id)
+            self._sync_workspace_membership_role_assignments(conn, tenant_id)
+            role = conn.execute(
+                "SELECT * FROM role_definitions WHERE id = ? AND tenantId = ? LIMIT 1",
+                (role_id, tenant_id),
+            ).fetchone()
+            if not role:
+                raise ValueError("Role not found.")
+            if resolved_entity_type == "user":
+                member = conn.execute(
+                    "SELECT id FROM memberships WHERE tenantId = ? AND userId = ? LIMIT 1",
+                    (tenant_id, resolved_entity_id),
+                ).fetchone()
+                if not member:
+                    raise ValueError("User is not a member of this workspace.")
+            exists = conn.execute(
+                """
+                SELECT id
+                FROM role_assignments
+                WHERE tenantId = ? AND entityType = ? AND entityId = ? AND roleId = ?
+                LIMIT 1
+                """,
+                (tenant_id, resolved_entity_type, resolved_entity_id, role_id),
+            ).fetchone()
+            if not exists:
+                now = utcnow_iso()
+                conn.execute(
+                    """
+                    INSERT INTO role_assignments (id, tenantId, entityType, entityId, roleId, createdAt, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (f"role-assignment-{secrets.token_hex(8)}", tenant_id, resolved_entity_type, resolved_entity_id, role_id, now, now),
+                )
+            conn.commit()
+        return self.list_workspace_roles(token, tenant_id)
+
+    def detach_workspace_role(self, token: str | None, tenant_id: str, role_id: str, entity_type: str, entity_id: str) -> dict[str, Any]:
+        if not token:
+            raise ValueError("Session token is required.")
+        resolved_entity_type = str(entity_type or "").strip().lower()
+        resolved_entity_id = str(entity_id or "").strip()
+        with self._connect() as conn:
+            session = conn.execute("SELECT * FROM app_sessions WHERE token = ? LIMIT 1", (token,)).fetchone()
+            if not session:
+                raise ValueError("Session not found or expired.")
+            self._require_workspace_role(conn, session["userId"], tenant_id, {"owner", "admin"})
+            role = conn.execute(
+                "SELECT * FROM role_definitions WHERE id = ? AND tenantId = ? LIMIT 1",
+                (role_id, tenant_id),
+            ).fetchone()
+            if not role:
+                raise ValueError("Role not found.")
+            if bool(role["isSystemRole"]) and role["systemKey"] in {"owner", "admin", "staff", "viewer"} and resolved_entity_type == "user":
+                membership = conn.execute(
+                    "SELECT id FROM memberships WHERE tenantId = ? AND userId = ? AND role = ? LIMIT 1",
+                    (tenant_id, resolved_entity_id, role["systemKey"]),
+                ).fetchone()
+                if membership:
+                    raise ValueError("Detach the workspace membership role through Workspace Members, not the role assignment layer.")
+            conn.execute(
+                """
+                DELETE FROM role_assignments
+                WHERE tenantId = ? AND entityType = ? AND entityId = ? AND roleId = ?
+                """,
+                (tenant_id, resolved_entity_type, resolved_entity_id, role_id),
+            )
+            conn.commit()
+        return self.list_workspace_roles(token, tenant_id)
 
     def get_user_access_by_email(self, token: str | None, email: str) -> dict[str, Any] | None:
         if not token:

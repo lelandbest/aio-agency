@@ -16,12 +16,10 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend
     ports:
       - "5175:80"
     depends_on:
       - backend
-    environment:
-      - VITE_API_URL=http://localhost:8001
     restart: unless-stopped

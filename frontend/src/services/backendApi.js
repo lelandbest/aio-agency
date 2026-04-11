@@ -902,6 +902,43 @@ export async function removeWorkspaceMemberApi(workspaceId, membershipId) {
   });
 }
 
+export async function getWorkspaceRolesApi(workspaceId) {
+  const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/roles`);
+  return response.data || null;
+}
+
+export async function createWorkspaceRoleApi(workspaceId, payload) {
+  const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/roles`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function updateWorkspaceRoleApi(workspaceId, roleId, payload) {
+  const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/roles/${encodeURIComponent(roleId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function attachWorkspaceRoleApi(workspaceId, roleId, payload) {
+  const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/roles/${encodeURIComponent(roleId)}/assignments`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return response.data || null;
+}
+
+export async function detachWorkspaceRoleApi(workspaceId, roleId, entityType, entityId) {
+  const params = new URLSearchParams({ entityType, entityId });
+  const response = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/roles/${encodeURIComponent(roleId)}/assignments?${params.toString()}`, {
+    method: 'DELETE'
+  });
+  return response.data || null;
+}
+
 export async function getGlobalVariablesApi() {
   const response = await request('/api/settings/variables');
   return response.data || [];

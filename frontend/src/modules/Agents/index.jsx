@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
-import { getAiAgentsApi, getAiRunApi, getAiRunsApi, runAiCommandApi } from '../../services/backendApi';
+import { attachWorkspaceRoleApi, detachWorkspaceRoleApi, getAiAgentsApi, getAiRunApi, getAiRunsApi, getWorkspaceRolesApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
 
 
@@ -163,13 +164,6 @@ const resolveAgentSkillset = (key) => {
   if (entry?.label) return entry.label;
   return resolveAgentName(normalized);
 };
-
-const resolveAgentId = (key) => {
-  if (!key || key === 'SYSTEM' || key === 'OPERATOR') return null;
-  const entry = SPECIALIST_REGISTRY[key];
-  return entry?.agentId || null;
-};
-
 
 const normalizeDelegateChain = (value) => {
   if (Array.isArray(value)) {
@@ -469,6 +463,7 @@ const buildAssistantMessageFromRun = (run, overrides = {}) => ({
 
 // 8. AIO AGENTS MODULE
 const AIOAgentsModule = () => {
+  const { tenant, user } = useAuth();
   const { openAIAssist } = useAIAssist();
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
@@ -516,21 +511,39 @@ const AIOAgentsModule = () => {
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [selectionMode, setSelectionMode] = useState('talk');
   const [collabAgents, setCollabAgents] = useState([]);
+  const [roleBundle, setRoleBundle] = useState(null);
+  const [rolesError, setRolesError] = useState('');
+  const [rolesBusy, setRolesBusy] = useState(false);
+  const [attachRoleId, setAttachRoleId] = useState('');
+  const currentWorkspaceId = tenant?.id || '';
+  const { hasCapability } = useAuth();
+  const canManageRoles = hasCapability('system.admin');
 
   const normalizeAgentRecord = (agent = {}) => ({
     ...agent,
     registryKey: agent.registryKey || agent.name || '',
     name: agent.name || agent.registryKey || '',
+    agentId: agent.agentId || agent.agent_id || null,
   });
 
   useEffect(() => {
-    getAiAgentsApi()
+    getAiAgentsApi(true)
       .then((data) => setAgents(Array.isArray(data) ? data.map(normalizeAgentRecord) : []))
       .catch(() => setAgents([]));
     getAiRunsApi(12)
       .then((data) => setAiRuns(Array.isArray(data) ? data : []))
       .catch((error) => setAiRunsError(error.message || 'Unable to load AI activity.'));
   }, []);
+
+  useEffect(() => {
+    if (!currentWorkspaceId || !canManageRoles) {
+      setRoleBundle(null);
+      return;
+    }
+    getWorkspaceRolesApi(currentWorkspaceId)
+      .then((data) => setRoleBundle(data))
+      .catch((error) => setRolesError(error.message || 'Unable to load role authority.'));
+  }, [currentWorkspaceId, canManageRoles]);
 
   useEffect(() => {
     return () => {
@@ -897,10 +910,39 @@ const AIOAgentsModule = () => {
   const hasActiveRun = Boolean(activeRun);
   const isRunPending = messages.some((message) => message.role === 'assistant' && message.pending);
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && resolveMessageContent(message));
+  const agentIdByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        agents
+          .map((agent) => [agent.registryKey || agent.name || '', agent.agentId || null])
+          .filter(([key, agentId]) => key && agentId)
+      ),
+    [agents]
+  );
+  const resolveRuntimeAgentId = useCallback(
+    (key) => {
+      if (!key || key === 'SYSTEM' || key === 'OPERATOR') return null;
+      return agentIdByKey[String(key).trim().toUpperCase()] || null;
+    },
+    [agentIdByKey]
+  );
   const mainAgentName = resolveAgentName(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
-  const mainAgentId = resolveAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
+  const mainAgentId = resolveRuntimeAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
   const activeAgentDisplayName = resolveAgentName(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || 'CHARLIE');
   const activeAgentSkillset = resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE');
+  const activeBotKey = activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || '';
+  const botEntitySummary = useMemo(
+    () => (roleBundle?.entitySummaries || []).find((entity) => entity.entityType === 'bot' && entity.entityId === activeBotKey) || null,
+    [roleBundle, activeBotKey]
+  );
+  const botAssignedRoles = useMemo(
+    () => (roleBundle?.roles || []).filter((role) => (botEntitySummary?.roleIds || []).includes(role.id)),
+    [roleBundle, botEntitySummary]
+  );
+  const attachableBotRoles = useMemo(
+    () => (roleBundle?.roles || []).filter((role) => !(botEntitySummary?.roleIds || []).includes(role.id)),
+    [roleBundle, botEntitySummary]
+  );
 
   const getAgentColor = (key) => {
     if (key === 'ALPHA') return HQ_AGENT_STYLE;
@@ -934,7 +976,7 @@ const AIOAgentsModule = () => {
     return commandPostOrder.length ? commandPostOrder : (SPECIALIST_REGISTRY.ALPHA?.subordinates || []);
   })();
   const contextAgentName = resolveAgentName(activeRunAgent || selectedAgent || '');
-  const contextAgentId = resolveAgentId(activeRunAgent || selectedAgent || '');
+  const contextAgentId = resolveRuntimeAgentId(activeRunAgent || selectedAgent || '');
   const commandModeLabel = activeFlowLabel && contextAgentName ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentName ? 'Agent' : 'System';
   const sessionDirective = hasActiveRun
     ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${resolveAgentName(activeRunAgent)}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
@@ -945,6 +987,41 @@ const AIOAgentsModule = () => {
         : collabAgents.length
           ? `SYSTEM READY. COLLAB GROUP ${collabAgents.map(k => resolveAgentName(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
           : 'SYSTEM IDLE. SUBMIT A COMMAND TO START A CANONICAL RUN.';
+
+  useEffect(() => {
+    setAttachRoleId(attachableBotRoles[0]?.id || '');
+  }, [activeBotKey, attachableBotRoles]);
+
+  const handleAttachBotRole = async () => {
+    if (!currentWorkspaceId || !activeBotKey || !attachRoleId || !canManageRoles) return;
+    setRolesBusy(true);
+    setRolesError('');
+    try {
+      const nextBundle = await attachWorkspaceRoleApi(currentWorkspaceId, attachRoleId, {
+        entityType: 'bot',
+        entityId: activeBotKey,
+      });
+      setRoleBundle(nextBundle);
+    } catch (attachError) {
+      setRolesError(attachError.message || 'Unable to attach role.');
+    } finally {
+      setRolesBusy(false);
+    }
+  };
+
+  const handleDetachBotRole = async (roleId) => {
+    if (!currentWorkspaceId || !activeBotKey || !roleId || !canManageRoles) return;
+    setRolesBusy(true);
+    setRolesError('');
+    try {
+      const nextBundle = await detachWorkspaceRoleApi(currentWorkspaceId, roleId, 'bot', activeBotKey);
+      setRoleBundle(nextBundle);
+    } catch (detachError) {
+      setRolesError(detachError.message || 'Unable to detach role.');
+    } finally {
+      setRolesBusy(false);
+    }
+  };
 
   return (
      <div className="module-root-standard relative selection:bg-purple-900/50">
@@ -1116,7 +1193,7 @@ const AIOAgentsModule = () => {
                             HQ Layer
                           </span>
                         </div>
-                        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold">{resolveAgentId('ALPHA') || 'AGT-CMD-001'}</p>
+                        <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold">{resolveRuntimeAgentId('ALPHA') || ''}</p>
                       </div>
 
                       <div className="flex items-center justify-end gap-3 shrink-0">
@@ -1184,7 +1261,7 @@ const AIOAgentsModule = () => {
                         </div>
                         <div className={`px-2 py-1 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
                           <span className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wider font-mono font-bold opacity-70">
-                            {resolveAgentId(agentKey) || agent.id}
+                            {resolveRuntimeAgentId(agentKey) || ''}
                           </span>
                           <div className="text-[var(--color-text-primary)] text-[10px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                             Run <ArrowRight size={8} />
@@ -1220,7 +1297,7 @@ const AIOAgentsModule = () => {
                           CLASSIFIED
                         </span>
                       </div>
-                      <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold mt-0.5">{resolveAgentId('OMEGA') || 'AGT-OPS-999'} - REDACTED</p>
+                      <p className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-[0.22em] font-bold mt-0.5">{resolveRuntimeAgentId('OMEGA') || ''}{resolveRuntimeAgentId('OMEGA') ? ' - REDACTED' : 'REDACTED'}</p>
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
@@ -1861,6 +1938,52 @@ const AIOAgentsModule = () => {
                     </div>
                   </div>
 
+                  {canManageRoles && activeBotKey ? (
+                    <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 space-y-3">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Role Authority</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Attach named authority bundles to this bot. Effective permissions are the union of attached roles.</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {botAssignedRoles.length ? botAssignedRoles.map((role) => (
+                          <div key={role.id} className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${role.isSystemRole ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]'}`}>
+                            <span>{role.name}</span>
+                            <button type="button" onClick={() => handleDetachBotRole(role.id)} disabled={rolesBusy} className="opacity-80 hover:opacity-100 disabled:opacity-50">
+                              Remove
+                            </button>
+                          </div>
+                        )) : (
+                          <div className="text-xs text-[var(--color-text-secondary)]">No roles attached.</div>
+                        )}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-secondary)]">
+                        Effective capabilities: {(botEntitySummary?.effectiveCapabilities || []).length}
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <select
+                          value={attachRoleId}
+                          onChange={(event) => setAttachRoleId(event.target.value)}
+                          disabled={!attachableBotRoles.length || rolesBusy}
+                          className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                        >
+                          <option value="">{attachableBotRoles.length ? 'Attach role…' : 'All roles attached'}</option>
+                          {attachableBotRoles.map((role) => (
+                            <option key={role.id} value={role.id}>{role.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={handleAttachBotRole}
+                          disabled={!attachRoleId || rolesBusy}
+                          className="btn-secondary !text-[10px] !px-4 !py-2 disabled:opacity-60"
+                        >
+                          Attach
+                        </button>
+                      </div>
+                      {rolesError ? <div className="text-xs text-red-300">{rolesError}</div> : null}
+                    </div>
+                  ) : null}
+
                   <div className="opacity-60">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Timeline (Coming soon)</h4>
@@ -1893,5 +2016,3 @@ const AIOAgentsModule = () => {
 };
 
 export default AIOAgentsModule;
-
-

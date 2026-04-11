@@ -144,170 +144,6 @@ auth_store = AuthStore(default_auth_db_path())
 GOOGLE_APP_AUTH_SCOPE = "openid email profile"
 OAUTH_STATE_TTL_SECONDS = 900
 
-AGENT_RUNTIME_REGISTRY: dict[str, dict[str, Any]] = {
-    "ALPHA": {
-        "registry_key": "ALPHA",
-        "label": "Commander-in-Chief",
-        "rank": "Commander",
-        "role": "HQ",
-        "specialization": "Commander-in-Chief",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": ["BRAVO", "CHARLIE", "DELTA", "ECHO", "HAMMER", "GHOST", "ARCHER", "ATLAS", "RANGER", "SCOUT", "STRIKER", "VECTOR"],
-        "tools": [
-            "Mission Brief Generator",
-            "Resource Allocation Optimizer",
-            "Squad Performance Dashboard",
-            "Integration Protocol Generator",
-            "Strategic Directive Builder",
-            "query_vault",
-        ],
-    },
-    "BRAVO": {
-        "registry_key": "BRAVO",
-        "label": "Business Strategy",
-        "rank": "AI Agent",
-        "role": "Strategy",
-        "specialization": "Business Strategy",
-        "visibility": "visible",
-        "capability_tier": "tier-2",
-        "subordinates": [],
-        "tools": ["Strategic Plan Generator", "SWOT Analysis Builder", "Growth Strategy Framework", "query_vault"],
-    },
-    "CHARLIE": {
-        "registry_key": "CHARLIE",
-        "label": "Customer Support",
-        "rank": "AI Agent",
-        "role": "Support",
-        "specialization": "Customer Support",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": [],
-        "tools": ["Support Script Generator", "FAQ Builder", "Customer Response Templates", "Support Ticket Optimizer", "query_vault"],
-    },
-    "DELTA": {
-        "registry_key": "DELTA",
-        "label": "Visual/Project Coordination",
-        "rank": "AI Agent",
-        "role": "Coordination",
-        "specialization": "Visual/Project Coordination",
-        "visibility": "visible",
-        "capability_tier": "tier-2",
-        "subordinates": [],
-        "tools": ["Project Timeline Generator", "Resource Allocation Matrix", "Task Priority Framework", "query_vault"],
-    },
-    "ECHO": {
-        "registry_key": "ECHO",
-        "label": "Email/Comms/Socials",
-        "rank": "AI Agent",
-        "role": "Comms",
-        "specialization": "Email/Comms/Socials",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": [],
-        "tools": ["Email Template Generator", "Newsletter Builder", "Communication Plan Creator", "Social Campaign Builder", "query_vault"],
-    },
-    "HAMMER": {
-        "registry_key": "HAMMER",
-        "label": "Content/Copywriting",
-        "rank": "AI Agent",
-        "role": "Copy",
-        "specialization": "Content/Copywriting",
-        "visibility": "visible",
-        "capability_tier": "tier-2",
-        "subordinates": [],
-        "tools": ["Article Generator", "Landing Page Copy Generator", "Brand Story Creator", "query_vault"],
-    },
-    "GHOST": {
-        "registry_key": "GHOST",
-        "label": "Systems Engineering",
-        "rank": "AI Agent",
-        "role": "Engineering",
-        "specialization": "Systems Engineering",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": [],
-        "tools": ["System Architecture Planner", "Automation Playbook Builder", "API Integration Design", "Security Hardening Checklist", "query_vault"],
-    },
-    "ARCHER": {
-        "registry_key": "ARCHER",
-        "label": "Analytics/Financial",
-        "rank": "AI Agent",
-        "role": "Analytics",
-        "specialization": "Analytics/Financial",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": [],
-        "tools": ["KPI Dashboard Generator", "Financial Report Builder", "ROI Calculator", "query_vault"],
-    },
-    "ATLAS": {
-        "registry_key": "ATLAS",
-        "label": "Logistics/Systems Mapping",
-        "rank": "AI Agent",
-        "role": "Logistics",
-        "specialization": "Logistics/Systems Mapping",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": [],
-        "tools": ["Deployment Coordination Plan", "Systems Map Builder", "Resource Movement Tracker", "Runbook Routing Matrix", "query_vault"],
-    },
-    "RANGER": {
-        "registry_key": "RANGER",
-        "label": "SEO/Content Optimization",
-        "rank": "AI Agent",
-        "role": "SEO",
-        "specialization": "SEO/Content Optimization",
-        "visibility": "visible",
-        "capability_tier": "tier-2",
-        "subordinates": [],
-        "tools": ["SEO Blog Writer", "SEO Auditor", "Keyword Research Generator", "query_vault"],
-    },
-    "SCOUT": {
-        "registry_key": "SCOUT",
-        "label": "Hiring/Recruitment",
-        "rank": "AI Agent",
-        "role": "Recruitment",
-        "specialization": "Hiring/Recruitment",
-        "visibility": "visible",
-        "capability_tier": "tier-2",
-        "subordinates": [],
-        "tools": ["Job Description Generator", "Interview Question Builder", "Candidate Assessment Template", "query_vault"],
-    },
-    "STRIKER": {
-        "registry_key": "STRIKER",
-        "label": "Sales/Negotiation",
-        "rank": "AI Agent",
-        "role": "Sales",
-        "specialization": "Sales/Negotiation",
-        "visibility": "visible",
-        "capability_tier": "tier-1",
-        "subordinates": [],
-        "tools": ["Cold Email Generator", "Discovery Call Script Writer", "Proposal Builder", "Negotiation Advisor", "query_vault"],
-    },
-    "VECTOR": {
-        "registry_key": "VECTOR",
-        "label": "Graphics/Design",
-        "rank": "AI Agent",
-        "role": "Design",
-        "specialization": "Graphics/Design",
-        "visibility": "visible",
-        "capability_tier": "tier-2",
-        "subordinates": [],
-        "tools": ["Image Generation", "Design Brief Builder", "Brand Style Guide Generator", "query_vault"],
-    },
-    "OMEGA": {
-        "registry_key": "OMEGA",
-        "label": "Emergency Governance",
-        "rank": "Shadow Authority",
-        "role": "Governance",
-        "specialization": "Emergency Local Purge Control",
-        "visibility": "hidden",
-        "capability_tier": "restricted",
-        "subordinates": [],
-        "tools": ["Emergency Purge Arming", "Purge Countdown Control", "Emergency Cancel Validation", "Audit Seal Recorder"],
-    },
-}
-
 VISIBLE_AGENT_KEYS = [key for key, value in AGENT_DEFINITIONS.items() if value.visibility != "hidden"]
 
 
@@ -1575,6 +1411,23 @@ class WorkspaceMemberUpdateRequest(BaseModel):
     role: str
 
 
+class WorkspaceRoleCreateRequest(BaseModel):
+    name: str
+    description: str = ""
+    capabilities: list[str] = []
+
+
+class WorkspaceRoleUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    capabilities: list[str] | None = None
+
+
+class WorkspaceRoleAssignmentRequest(BaseModel):
+    entityType: str
+    entityId: str
+
+
 class WorkspaceUserCreateRequest(BaseModel):
     username: str
     email: str
@@ -2563,53 +2416,38 @@ def get_current_user_id(request: Request) -> str:
     return user_id
 
 
-WORKSPACE_VIEWER_ROLES = {"owner", "admin", "staff", "viewer"}
-WORKSPACE_EDITOR_ROLES = {"owner", "admin", "staff"}
-WORKSPACE_ADMIN_ROLES = {"owner", "admin"}
-
-
-def resolve_session_user_role(session: dict[str, Any] | None) -> str:
-    user = (session or {}).get("user") or {}
-    return "client" if str(user.get("role") or "").strip().lower() == "client" else "operator"
-
-
-def is_operator(session: dict[str, Any] | None) -> bool:
-    return resolve_session_user_role(session) == "operator"
-
-
-def is_client(session: dict[str, Any] | None) -> bool:
-    return resolve_session_user_role(session) == "client"
-
-
-def require_operator(request: Request, detail: str = "Only operators can perform this action.") -> dict[str, Any]:
-    session = require_session(request)
-    if not is_operator(session):
-        raise HTTPException(status_code=403, detail=detail)
-    return session
-
-
-def require_workspace_role(request: Request, allowed_roles: set[str], detail: str = "You do not have permission to perform this action.") -> dict[str, Any]:
+def require_capability(request: Request, capability_id: str, detail: str = "You do not have permission to perform this action.") -> dict[str, Any]:
     session = require_session(request)
     tenant = session.get("tenant") or {}
-    role = (tenant.get("role") or "").strip().lower()
-    if not role or role not in allowed_roles:
+    tenant_id = tenant.get("id")
+    user = session.get("user") or {}
+    user_id = user.get("id")
+
+    if not tenant_id or not user_id:
+        raise HTTPException(status_code=403, detail="Active workspace and authenticated user are required.")
+
+    # We use the request state if already resolved by middleware, otherwise hit the store
+    capabilities = getattr(request.state, "capabilities", None)
+    if capabilities is None:
+        capabilities = auth_store.get_effective_capabilities(tenant_id, "user", user_id)
+        request.state.capabilities = capabilities
+
+    if capability_id not in capabilities:
         raise HTTPException(status_code=403, detail=detail)
+
     return session
 
 
-def require_client_safe_surface(
-    request: Request,
-    operator_allowed_roles: set[str],
-    detail: str,
-) -> dict[str, Any]:
-    session = require_session(request)
-    if is_client(session):
-        tenant = session.get("tenant") or {}
-        role = (tenant.get("role") or "").strip().lower()
-        if role not in WORKSPACE_VIEWER_ROLES:
-            raise HTTPException(status_code=403, detail="Client account does not belong to the active workspace.")
-        return session
-    return require_workspace_role(request, operator_allowed_roles, detail)
+def has_capability(request: Request, capability_id: str) -> bool:
+    try:
+        require_capability(request, capability_id)
+        return True
+    except HTTPException:
+        return False
+
+
+def is_client_context(request: Request) -> bool:
+    return has_capability(request, "client.access")
 
 
 def normalize_email_verifier_mode(value: str | None, *, default: str = "quick", bulk: bool = False) -> str:
@@ -2737,6 +2575,14 @@ async def inject_tenant_context(request: Request, call_next):
     request.state.session = session
     request.state.tenant_id = tenant_id
 
+    # Resolve capability union early for use in middleware and downstream routes
+    capabilities = set()
+    if session and tenant_id:
+        user_id = (session.get("user") or {}).get("id")
+        if user_id:
+            capabilities = auth_store.get_effective_capabilities(tenant_id, "user", user_id)
+    request.state.capabilities = capabilities
+
     if request.method == "OPTIONS":
         context_token = set_request_tenant_id(tenant_id)
         try:
@@ -2754,7 +2600,7 @@ async def inject_tenant_context(request: Request, call_next):
         and not allows_no_active_workspace(request.url.path)
     ):
         return JSONResponse(status_code=403, content={"detail": "No active workspace selected."})
-    if request.url.path.startswith("/api") and session and is_client(session) and not is_client_allowed_api_request(request.method, request.url.path):
+    if request.url.path.startswith("/api") and session and "client.access" in capabilities and not is_client_allowed_api_request(request.method, request.url.path):
         return JSONResponse(status_code=403, content={"detail": "Client mode blocks this endpoint."})
 
     context_token = set_request_tenant_id(tenant_id)
@@ -2919,7 +2765,7 @@ async def auth_status():
 
 @app.get("/api/brain/overview")
 async def get_brain_overview(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain.")
+    require_capability(request, "cortex.view", "Only workspace members can view AIO Brain.")
     profile = provider.get_brain_profile()
     sources = provider.list_brain_sources()
     items = provider.list_brain_items(limit=100)
@@ -2951,33 +2797,33 @@ async def get_brain_overview(request: Request):
 
 @app.get("/api/brain/profile")
 async def get_brain_profile(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain.")
+    require_capability(request, "cortex.view", "Only workspace members can view AIO Brain.")
     return {"data": _serialize_brain_profile(provider.get_brain_profile())}
 
 
 @app.patch("/api/brain/profile")
 async def update_brain_profile(request: Request, payload: BrainProfileUpdateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain.")
+    require_capability(request, "cortex.edit", "Only workspace staff or higher can edit AIO Brain.")
     updated = provider.update_brain_profile(_brain_profile_provider_payload(payload.model_dump()))
     return {"data": _serialize_brain_profile(updated)}
 
 
 @app.get("/api/brain/sources")
 async def list_brain_sources(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain sources.")
+    require_capability(request, "cortex.view", "Only workspace members can view AIO Brain sources.")
     return {"data": [_serialize_brain_source(item) for item in provider.list_brain_sources()]}
 
 
 @app.post("/api/brain/sources")
 async def create_brain_source(request: Request, payload: BrainSourceRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create AIO Brain sources.")
+    require_capability(request, "cortex.edit", "Only workspace staff or higher can create AIO Brain sources.")
     created = provider.create_brain_source(_brain_source_provider_payload(payload.model_dump()))
     return {"data": _serialize_brain_source(created)}
 
 
 @app.patch("/api/brain/sources/{source_id}")
 async def update_brain_source(source_id: str, request: Request, payload: BrainSourceUpdateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain sources.")
+    require_capability(request, "cortex.edit", "Only workspace staff or higher can edit AIO Brain sources.")
     try:
         updated = provider.update_brain_source(source_id, _brain_source_provider_payload(payload.model_dump()))
         return {"data": _serialize_brain_source(updated)}
@@ -2987,7 +2833,7 @@ async def update_brain_source(source_id: str, request: Request, payload: BrainSo
 
 @app.delete("/api/brain/sources/{source_id}")
 async def delete_brain_source(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete AIO Brain sources.")
+    require_capability(request, "cortex.edit", "Only workspace staff or higher can delete AIO Brain sources.")
     try:
         provider.delete_brain_source(source_id)
         return {"success": True}
@@ -2997,7 +2843,7 @@ async def delete_brain_source(source_id: str, request: Request):
 
 @app.post("/api/brain/mcp/{source_id}/probe")
 async def probe_brain_mcp(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can connect Brain MCP servers.")
+    require_capability(request, "cortex.edit", "Only workspace staff or higher can connect Brain MCP servers.")
     try:
         source = resolve_brain_mcp_source(source_id)
         return {"data": probe_brain_mcp_source(source)}
@@ -3007,7 +2853,7 @@ async def probe_brain_mcp(source_id: str, request: Request):
 
 @app.post("/api/brain/mcp/{source_id}/query")
 async def query_brain_mcp(source_id: str, request: Request, payload: BrainMCPQueryRequest):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can query Brain MCP servers.")
+    require_capability(request, "cortex.execute", "Only workspace members can query Brain MCP servers.")
     try:
         source = resolve_brain_mcp_source(source_id)
         return {"data": query_brain_mcp_source(source, payload.query, limit=max(1, payload.limit))}
@@ -3017,13 +2863,13 @@ async def query_brain_mcp(source_id: str, request: Request, payload: BrainMCPQue
 
 @app.get("/api/vault", response_model=MediaLibraryResponse)
 async def list_vault_items(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view vault.")
+    require_capability(request, "system.view", "Only workspace members can view vault.")
     return {"data": list_media_library_items()}
 
 
 @app.patch("/api/vault/assets/{asset_id}/tags", response_model=MediaLibraryItemResponse)
 async def update_vault_asset_tags(request: Request, asset_id: str, payload: MediaAssetTagsUpdatePayload):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors or higher can update asset tags.")
+    require_capability(request, "system.manage", "Only workspace editors or higher can update asset tags.")
     
     updated_item = update_media_library_item_tags(asset_id, payload.tags)
     if not updated_item:
@@ -3034,20 +2880,20 @@ async def update_vault_asset_tags(request: Request, asset_id: str, payload: Medi
 
 @app.get("/api/brain/items")
 async def list_brain_items(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain knowledge.")
+    require_capability(request, "system.view", "Only workspace members can view AIO Brain knowledge.")
     return {"data": [_serialize_brain_item(item) for item in provider.list_brain_items()]}
 
 
 @app.post("/api/brain/items")
 async def create_brain_item(request: Request, payload: BrainItemRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create AIO Brain knowledge.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can create AIO Brain knowledge.")
     created = provider.create_brain_item(_brain_item_provider_payload(payload.model_dump()))
     return {"data": _serialize_brain_item(created)}
 
 
 @app.patch("/api/brain/items/{item_id}")
 async def update_brain_item(item_id: str, request: Request, payload: BrainItemUpdateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain knowledge.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can edit AIO Brain knowledge.")
     try:
         updated = provider.update_brain_item(item_id, _brain_item_provider_payload(payload.model_dump()))
         return {"data": _serialize_brain_item(updated)}
@@ -3057,7 +2903,7 @@ async def update_brain_item(item_id: str, request: Request, payload: BrainItemUp
 
 @app.delete("/api/brain/items/{item_id}")
 async def delete_brain_item(item_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete AIO Brain knowledge.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can delete AIO Brain knowledge.")
     try:
         provider.delete_brain_item(item_id)
         return {"success": True}
@@ -3067,13 +2913,13 @@ async def delete_brain_item(item_id: str, request: Request):
 
 @app.get("/api/brain/links")
 async def list_brain_links(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain graph links.")
+    require_capability(request, "system.view", "Only workspace members can view AIO Brain graph links.")
     return {"data": [_serialize_brain_link(item) for item in provider.list_brain_links()]}
 
 
 @app.post("/api/brain/links")
 async def create_brain_link(request: Request, payload: BrainLinkRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain graph links.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can edit AIO Brain graph links.")
     try:
         created = provider.create_brain_link(_brain_link_provider_payload(payload.model_dump()))
         return {"data": _serialize_brain_link(created)}
@@ -3083,7 +2929,7 @@ async def create_brain_link(request: Request, payload: BrainLinkRequest):
 
 @app.delete("/api/brain/links/{link_id}")
 async def delete_brain_link(link_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can edit AIO Brain graph links.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can edit AIO Brain graph links.")
     try:
         provider.delete_brain_link(link_id)
         return {"success": True}
@@ -3093,14 +2939,14 @@ async def delete_brain_link(link_id: str, request: Request):
 
 @app.get("/api/brain/ingests")
 async def list_brain_ingests(request: Request, sourceId: str | None = None, limit: int = 25):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AIO Brain ingest history.")
+    require_capability(request, "system.view", "Only workspace members can view AIO Brain ingest history.")
     ingests = provider.list_brain_ingests(source_id=sourceId, limit=limit)
     return {"data": [_serialize_brain_ingest(item) for item in ingests]}
 
 
 @app.post("/api/brain/ingests")
 async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest Brain sources.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can ingest Brain sources.")
     try:
         resolved_ingest_type = (payload.ingestType or "text").strip().lower()
         extracted_text = ""
@@ -3152,7 +2998,7 @@ async def create_brain_ingest(request: Request, payload: BrainIngestRequest):
 
 @app.get("/api/ai/agents/definitions")
 async def get_agent_definitions(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI Agent definitions.")
+    require_capability(request, "system.view", "Only workspace members can view AI Agent definitions.")
     defs = {key: value.to_dict() for key, value in AGENT_DEFINITIONS.items()}
     return {"data": defs}
 
@@ -3234,7 +3080,7 @@ async def create_help_ticket(request: Request, payload: HelpTicketCreateRequest)
 
 @app.patch("/api/help/tickets/{ticket_id}")
 async def update_help_ticket(request: Request, ticket_id: str, payload: HelpTicketUpdateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can update tickets.")
+    require_capability(request, "system.admin", "Only admins can update tickets.")
     ticket = provider.update_help_ticket(ticket_id, payload.dict(exclude_unset=True))
     return {"data": ticket}
 
@@ -3246,7 +3092,7 @@ async def list_help_broadcasts(request: Request):
 
 @app.post("/api/help/broadcasts")
 async def create_help_broadcast(request: Request, payload: BroadcastMessageCreateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can create broadcasts.")
+    require_capability(request, "system.admin", "Only admins can create broadcasts.")
     broadcast = provider.create_broadcast_message(payload.dict())
     return {"data": broadcast}
 
@@ -3414,7 +3260,7 @@ async def logout_other_auth_sessions(request: Request):
 @app.post("/api/ai/assist")
 async def ai_assist(request: Request, payload: OperatorAssistRequest):
     # Route to the same implementation as legacy /api/assist
-    session = require_client_safe_surface(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can use Operator Assist.")
+    session = require_capability(request, "system.view", "Only workspace members can use Operator Assist.")
     token = extract_session_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -3456,7 +3302,7 @@ async def ai_assist(request: Request, payload: OperatorAssistRequest):
 @app.get("/api/system/health")
 async def get_system_health(request: Request):
     session = require_operator(request, "Only operators can view system health.")
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view system health.")
+    require_capability(request, "system.view", "Only workspace members can view system health.")
     token = extract_session_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -3635,7 +3481,7 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
 
 @app.get("/api/ai/runs")
 async def list_ai_runs(request: Request, limit: int = 50, flow_id: str | None = None):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view AI activity.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can view AI activity.")
     try:
         runs = [project_engine_run_for_ui(run) for run in provider.list_ai_runs(limit=limit)]
         normalized_flow_id = str(flow_id or "").strip()
@@ -3648,7 +3494,7 @@ async def list_ai_runs(request: Request, limit: int = 50, flow_id: str | None = 
 
 @app.get("/api/ai/run/{run_id}")
 async def get_ai_run(request: Request, run_id: str):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view AI activity.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can view AI activity.")
     provider = create_provider()
     try:
         raw_run = provider.get_ai_run(run_id) if hasattr(provider, "get_ai_run") else None
@@ -3667,7 +3513,7 @@ async def get_ai_run(request: Request, run_id: str):
 
 @app.get("/api/ai/agents")
 async def list_ai_agents(request: Request, include_hidden: bool = False):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI agents.")
+    session = require_capability(request, "system.view", "Only workspace members can view AI agents.")
     tenant_role = ((session.get("tenant") or {}).get("role") or "").strip().lower()
     resolved_include_hidden = include_hidden and tenant_role == "owner"
     return {"data": list_runtime_agents(include_hidden=resolved_include_hidden)}
@@ -3675,7 +3521,7 @@ async def list_ai_agents(request: Request, include_hidden: bool = False):
 
 @app.get("/api/omega/status")
 async def omega_status(request: Request, limit: int = 12):
-    session = require_workspace_role(request, {"owner"}, "Only workspace owners can access Omega controls.")
+    session = require_capability(request, "system.omega", "Only workspace owners can access Omega controls.")
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     try:
@@ -3688,7 +3534,7 @@ async def omega_status(request: Request, limit: int = 12):
 
 @app.post("/api/omega/arm")
 async def omega_arm(request: Request, payload: OmegaArmRequest):
-    session = require_workspace_role(request, {"owner"}, "Only workspace owners can arm Omega.")
+    session = require_capability(request, "system.omega", "Only workspace owners can arm Omega.")
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     try:
@@ -3707,7 +3553,7 @@ async def omega_arm(request: Request, payload: OmegaArmRequest):
 
 @app.post("/api/omega/cancel")
 async def omega_cancel(request: Request, payload: OmegaCancelRequest):
-    session = require_workspace_role(request, {"owner"}, "Only workspace owners can cancel Omega.")
+    session = require_capability(request, "system.omega", "Only workspace owners can cancel Omega.")
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     try:
@@ -3720,7 +3566,7 @@ async def omega_cancel(request: Request, payload: OmegaCancelRequest):
 
 @app.post("/api/omega/execute")
 async def omega_execute(request: Request, payload: OmegaExecuteRequest):
-    session = require_workspace_role(request, {"owner"}, "Only workspace owners can execute Omega.")
+    session = require_capability(request, "system.omega", "Only workspace owners can execute Omega.")
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     try:
@@ -3745,7 +3591,7 @@ async def omega_execute(request: Request, payload: OmegaExecuteRequest):
 
 @app.post("/api/ai/command")
 async def ai_command(request: Request, payload: AICommandRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can run AI commands.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can run AI commands.")
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
     ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
@@ -3872,7 +3718,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
                     "intent": step.get("intent"),
                     "parameters": step.get("parameters") or {},
                     "assignedAgent": step.get("assignedAgent") or "DELTA",
-                    "agentId": step.get("agentId") or "AGT-CRD-004",
+                    "agentId": (AGENT_DEFINITIONS.get(step.get("assignedAgent") or "DELTA") or AGENT_DEFINITIONS["DELTA"]).agent_id,
                 }
                 for step in booking_command_steps
             ]
@@ -4063,7 +3909,7 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
     Exact-match commands -> execute.
     Conversational -> forward to /api/ai/command (Charlie).
     """
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can use voice commands.")
+    require_capability(request, "system.view", "Only workspace members can use voice commands.")
     session = request.state.session or {}
     tenant = session.get("tenant") or {}
     raw = (payload.transcript if payload else "").strip()
@@ -4179,7 +4025,7 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
 @app.get("/api/vtt/providers")
 async def list_vtt_commands(request: Request):
     """Return the active command registry."""
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view voice commands.")
+    require_capability(request, "system.view", "Only workspace members can view voice commands.")
     from backend.vtt_service import DEFAULT_REGISTRY, _load_registry
     active = _load_registry()
     return {
@@ -4192,13 +4038,13 @@ async def list_vtt_commands(request: Request):
 
 @app.get("/api/ai/providers/catalog")
 async def list_ai_provider_catalog(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI provider options.")
+    require_capability(request, "system.view", "Only workspace members can view AI provider options.")
     return {"data": get_ai_provider_catalog()}
 
 
 @app.get("/api/ai/routing")
 async def get_ai_routing_config(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI routing config.")
+    session = require_capability(request, "system.view", "Only workspace members can view AI routing config.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4212,7 +4058,7 @@ async def get_ai_routing_config(request: Request):
 
 @app.put("/api/ai/routing")
 async def upsert_ai_routing_config(request: Request, payload: AIRoutingConfigRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage AI routing.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage AI routing.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4226,8 +4072,8 @@ async def upsert_ai_routing_config(request: Request, payload: AIRoutingConfigReq
 
 @app.post("/api/ai/providers/ollama/models")
 async def list_ollama_provider_models_post(request: Request, payload: OllamaModelsRequest):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view AI provider options.")
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    require_capability(request, "system.view", "Only workspace members can view AI provider options.")
+    session = require_capability(request, "system.view")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     
@@ -4257,7 +4103,7 @@ async def list_ollama_provider_models_post(request: Request, payload: OllamaMode
 
 @app.get("/api/ai/providers")
 async def list_ai_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view LLMs.")
+    session = require_capability(request, "system.view", "Only workspace members can view LLMs.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4268,7 +4114,7 @@ async def list_ai_provider_configs(request: Request):
 
 @app.put("/api/ai/providers/{provider_key}")
 async def upsert_ai_provider_config(provider_key: str, request: Request, payload: AIProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage LLMs.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage LLMs.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4280,7 +4126,7 @@ async def upsert_ai_provider_config(provider_key: str, request: Request, payload
 
 @app.delete("/api/ai/providers/{config_id}")
 async def delete_ai_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete LLMs.")
+    session = require_capability(request, "system.admin", "Only workspace admins can delete LLMs.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4291,7 +4137,7 @@ async def delete_ai_provider_config(config_id: str, request: Request):
 
 @app.post("/api/ai/providers/{config_id}/test")
 async def test_ai_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test LLMs.")
+    session = require_capability(request, "system.admin", "Only workspace admins can test LLMs.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_ai_provider_config_for_tenant(tenant_id, config_id)
     if not config:
@@ -4318,7 +4164,7 @@ async def test_ai_provider_config(config_id: str, request: Request):
 
 @app.get("/api/automation/providers")
 async def list_automation_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view automation providers.")
+    session = require_capability(request, "system.view", "Only workspace members can view automation providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4329,7 +4175,7 @@ async def list_automation_provider_configs(request: Request):
 
 @app.put("/api/automation/providers/{provider_key}")
 async def upsert_automation_provider_config(provider_key: str, request: Request, payload: AutomationProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage automation providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage automation providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4346,7 +4192,7 @@ async def upsert_automation_provider_config(provider_key: str, request: Request,
 
 @app.delete("/api/automation/providers/{config_id}")
 async def delete_automation_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete automation providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can delete automation providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4357,7 +4203,7 @@ async def delete_automation_provider_config(config_id: str, request: Request):
 
 @app.post("/api/automation/providers/{config_id}/test")
 async def test_automation_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test automation providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can test automation providers.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_automation_provider_config_for_tenant(tenant_id, config_id)
     if not config:
@@ -4391,13 +4237,13 @@ async def test_automation_provider_config(config_id: str, request: Request):
 
 @app.get("/api/media/render-templates")
 async def get_media_render_templates(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace viewers can list media templates.")
+    require_capability(request, "system.view", "Only workspace viewers can list media templates.")
     return {"data": {"templates": list_templates()}}
 
 
 @app.get("/api/media/providers")
 async def list_media_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media providers.")
+    session = require_capability(request, "system.view", "Only workspace members can view media providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4408,7 +4254,7 @@ async def list_media_provider_configs(request: Request):
 
 @app.put("/api/media/providers/{providerKey}")
 async def upsert_media_provider_config(providerKey: str, request: Request, payload: MediaProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage media providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage media providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4420,7 +4266,7 @@ async def upsert_media_provider_config(providerKey: str, request: Request, paylo
 
 @app.delete("/api/media/providers/{configId}")
 async def delete_media_provider_config(configId: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete media providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can delete media providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4431,7 +4277,7 @@ async def delete_media_provider_config(configId: str, request: Request):
 
 @app.post("/api/media/providers/{configId}/test")
 async def test_media_provider_config(configId: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test media providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can test media providers.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_media_provider_config_for_tenant(tenant_id, configId)
     if not config:
@@ -4531,7 +4377,7 @@ async def preview_elevenlabs_voice(request: Request, payload: dict):
 
 @app.get("/api/data-stores/providers")
 async def list_data_store_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view data store providers.")
+    session = require_capability(request, "system.view", "Only workspace members can view data store providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4542,7 +4388,7 @@ async def list_data_store_provider_configs(request: Request):
 
 @app.put("/api/data-stores/providers/{providerKey}")
 async def upsert_data_store_provider_config(providerKey: str, request: Request, payload: DataStoreProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage data store providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage data store providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4554,7 +4400,7 @@ async def upsert_data_store_provider_config(providerKey: str, request: Request, 
 
 @app.delete("/api/data-stores/providers/{providerKey}")
 async def delete_data_store_provider_config(providerKey: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete data store providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can delete data store providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4566,7 +4412,7 @@ async def delete_data_store_provider_config(providerKey: str, request: Request):
 
 @app.post("/api/data-stores/providers/{providerKey}/test")
 async def test_data_store_provider_config(providerKey: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test data store providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can test data store providers.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
     if not config:
@@ -4599,7 +4445,7 @@ async def test_data_store_provider_config(providerKey: str, request: Request):
 
 @app.post("/api/data-stores/providers/{providerKey}/read-records")
 async def read_records_from_data_store(providerKey: str, request: Request, payload: DataStoreReadRecordsRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can read data store records.")
+    session = require_capability(request, "system.manage", "Only workspace editors can read data store records.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
     if not config:
@@ -4612,7 +4458,7 @@ async def read_records_from_data_store(providerKey: str, request: Request, paylo
 
 @app.post("/api/data-stores/providers/{providerKey}/create-record")
 async def create_record_in_data_store(providerKey: str, request: Request, payload: DataStoreCreateRecordRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can create data store records.")
+    session = require_capability(request, "system.manage", "Only workspace editors can create data store records.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
     if not config:
@@ -4625,7 +4471,7 @@ async def create_record_in_data_store(providerKey: str, request: Request, payloa
 
 @app.post("/api/data-stores/providers/{providerKey}/update-record")
 async def update_record_in_data_store(providerKey: str, request: Request, payload: DataStoreUpdateRecordRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can update data store records.")
+    session = require_capability(request, "system.manage", "Only workspace editors can update data store records.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
     if not config:
@@ -4638,7 +4484,7 @@ async def update_record_in_data_store(providerKey: str, request: Request, payloa
 
 @app.post("/api/data-stores/providers/{providerKey}/upsert-record")
 async def upsert_record_in_data_store(providerKey: str, request: Request, payload: DataStoreUpsertRecordRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can upsert data store records.")
+    session = require_capability(request, "system.manage", "Only workspace editors can upsert data store records.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_data_store_provider_config_by_provider_key(tenant_id, providerKey)
     if not config:
@@ -4657,7 +4503,7 @@ async def list_workspaces(request: Request):
 
 @app.get("/api/blueprints")
 async def list_blueprints(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view blueprints.")
+    require_capability(request, "system.view", "Only workspace members can view blueprints.")
     try:
         return {"data": auth_store.list_blueprints()}
     except DeploymentFailureError as error:
@@ -4668,7 +4514,7 @@ async def list_blueprints(request: Request):
 
 @app.post("/api/workspaces")
 async def create_workspace(request: Request, payload: WorkspaceCreateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can create a new workspace.")
+    require_capability(request, "system.admin", "Only workspace admins can create a new workspace.")
     token = extract_session_token(request)
     try:
         return auth_store.create_workspace(token, payload.name)
@@ -4678,7 +4524,7 @@ async def create_workspace(request: Request, payload: WorkspaceCreateRequest):
 
 @app.post("/api/tenants/deploy")
 async def deploy_tenant(request: Request, payload: TenantDeployRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can deploy tenants.")
+    require_capability(request, "system.admin", "Only workspace admins can deploy tenants.")
     token = extract_session_token(request)
     try:
         deployment = auth_store.deploy_tenant(
@@ -4717,7 +4563,7 @@ async def get_tenant_deployment(tenant_id: str, request: Request):
 
 @app.patch("/api/workspaces/{workspace_id}")
 async def rename_workspace(workspace_id: str, request: Request, payload: WorkspaceUpdateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can rename a workspace.")
+    require_capability(request, "system.admin", "Only workspace admins can rename a workspace.")
     token = extract_session_token(request)
     try:
         # Boundary: row identity updates (`name`, route-critical workspace fields) stay on
@@ -4774,7 +4620,7 @@ async def get_user_access(request: Request, email: str):
 
 @app.post("/api/workspaces/{workspace_id}/memberships")
 async def add_workspace_member(workspace_id: str, request: Request, payload: WorkspaceMemberRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage members.")
+    require_capability(request, "system.admin", "Only workspace admins can manage members.")
     token = extract_session_token(request)
     try:
         return auth_store.add_workspace_member(token, workspace_id, payload.email, payload.role)
@@ -4789,7 +4635,7 @@ async def add_workspace_member(workspace_id: str, request: Request, payload: Wor
 
 @app.post("/api/workspaces/{workspace_id}/users")
 async def create_workspace_user(workspace_id: str, request: Request, payload: WorkspaceUserCreateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can create users.")
+    require_capability(request, "system.admin", "Only workspace admins can create users.")
     token = extract_session_token(request)
     try:
         return auth_store.create_workspace_user(
@@ -4815,7 +4661,7 @@ async def create_workspace_user(workspace_id: str, request: Request, payload: Wo
 
 @app.patch("/api/workspaces/{workspace_id}/memberships/{membership_id}")
 async def update_workspace_member(workspace_id: str, membership_id: str, request: Request, payload: WorkspaceMemberUpdateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage members.")
+    require_capability(request, "system.admin", "Only workspace admins can manage members.")
     token = extract_session_token(request)
     try:
         return auth_store.update_workspace_member(token, workspace_id, membership_id, payload.role)
@@ -4830,7 +4676,7 @@ async def update_workspace_member(workspace_id: str, membership_id: str, request
 
 @app.delete("/api/workspaces/{workspace_id}/memberships/{membership_id}")
 async def remove_workspace_member(workspace_id: str, membership_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage members.")
+    require_capability(request, "system.admin", "Only workspace admins can manage members.")
     token = extract_session_token(request)
     try:
         return auth_store.remove_workspace_member(token, workspace_id, membership_id)
@@ -4843,9 +4689,84 @@ async def remove_workspace_member(workspace_id: str, membership_id: str, request
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
+@app.get("/api/workspaces/{workspace_id}/roles")
+async def list_workspace_roles(workspace_id: str, request: Request):
+    require_capability(request, "system.admin", "Only workspace admins can manage roles.")
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.list_workspace_roles(token, workspace_id)}
+    except ValueError as error:
+        detail = str(error)
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.post("/api/workspaces/{workspace_id}/roles")
+async def create_workspace_role(workspace_id: str, request: Request, payload: WorkspaceRoleCreateRequest):
+    require_capability(request, "system.admin", "Only workspace admins can manage roles.")
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.create_workspace_role(token, workspace_id, payload.model_dump())}
+    except ValueError as error:
+        detail = str(error)
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.patch("/api/workspaces/{workspace_id}/roles/{role_id}")
+async def update_workspace_role(workspace_id: str, role_id: str, request: Request, payload: WorkspaceRoleUpdateRequest):
+    require_capability(request, "system.admin", "Only workspace admins can manage roles.")
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.update_workspace_role(token, workspace_id, role_id, payload.model_dump(exclude_none=True))}
+    except ValueError as error:
+        detail = str(error)
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.post("/api/workspaces/{workspace_id}/roles/{role_id}/assignments")
+async def attach_workspace_role(workspace_id: str, role_id: str, request: Request, payload: WorkspaceRoleAssignmentRequest):
+    require_capability(request, "system.admin", "Only workspace admins can manage roles.")
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.attach_workspace_role(token, workspace_id, role_id, payload.entityType, payload.entityId)}
+    except ValueError as error:
+        detail = str(error)
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@app.delete("/api/workspaces/{workspace_id}/roles/{role_id}/assignments")
+async def detach_workspace_role(workspace_id: str, role_id: str, request: Request, entityType: str, entityId: str):
+    require_capability(request, "system.admin", "Only workspace admins can manage roles.")
+    token = extract_session_token(request)
+    try:
+        return {"data": auth_store.detach_workspace_role(token, workspace_id, role_id, entityType, entityId)}
+    except ValueError as error:
+        detail = str(error)
+        lowered = detail.lower()
+        status_code = 403 if "permission" in lowered else 400
+        if "not found" in lowered:
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
 @app.get("/api/settings/variables")
 async def list_setting_variables(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view variables.")
+    session = require_capability(request, "system.view", "Only workspace members can view variables.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4856,7 +4777,7 @@ async def list_setting_variables(request: Request):
 
 @app.post("/api/settings/variables")
 async def upsert_setting_variable(request: Request, payload: GlobalVariableUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage variables.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can manage variables.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4867,7 +4788,7 @@ async def upsert_setting_variable(request: Request, payload: GlobalVariableUpser
 
 @app.delete("/api/settings/variables/{variable_id}")
 async def delete_setting_variable(variable_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage variables.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can manage variables.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4878,7 +4799,7 @@ async def delete_setting_variable(variable_id: str, request: Request):
 
 @app.get("/api/settings/system-emails")
 async def list_setting_system_emails(request: Request, search: str | None = None):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view system emails.")
+    session = require_capability(request, "system.view", "Only workspace members can view system emails.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4889,7 +4810,7 @@ async def list_setting_system_emails(request: Request, search: str | None = None
 
 @app.patch("/api/settings/system-emails/{template_id}")
 async def update_setting_system_email(template_id: str, request: Request, payload: SystemEmailTemplateUpdateRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage system emails.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can manage system emails.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4900,7 +4821,7 @@ async def update_setting_system_email(template_id: str, request: Request, payloa
 
 @app.get("/api/settings/canonical")
 async def get_canonical_settings(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view settings.")
+    session = require_capability(request, "system.view", "Only workspace members can view settings.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     user_id = (session.get("user") or {}).get("id")
@@ -4912,7 +4833,7 @@ async def get_canonical_settings(request: Request):
 
 @app.patch("/api/settings/canonical/tenant")
 async def update_canonical_tenant_settings(request: Request, payload: CanonicalSettingsUpdateRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage tenant settings.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage tenant settings.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -4931,7 +4852,7 @@ async def update_canonical_tenant_settings(request: Request, payload: CanonicalS
 
 @app.patch("/api/settings/canonical/user")
 async def update_canonical_user_settings(request: Request, payload: CanonicalSettingsUpdateRequest):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only signed-in users can update user settings.")
+    require_capability(request, "system.view", "Only signed-in users can update user settings.")
     token = extract_session_token(request)
     try:
         return {"data": auth_store.update_user_settings(token, payload.settings)}
@@ -4946,7 +4867,7 @@ async def update_canonical_user_settings(request: Request, payload: CanonicalSet
 
 @app.get("/api/settings/blueprint/export")
 async def export_tenant_blueprint_api(request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can export tenant blueprints.")
+    session = require_capability(request, "system.admin", "Only workspace admins can export tenant blueprints.")
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
         return {"data": auth_store.export_tenant_blueprint(tenant_id)}
@@ -4956,7 +4877,7 @@ async def export_tenant_blueprint_api(request: Request):
 
 @app.post("/api/settings/blueprint/import")
 async def import_tenant_blueprint_api(request: Request, payload: TenantBlueprintImportRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can import tenant blueprints.")
+    session = require_capability(request, "system.admin", "Only workspace admins can import tenant blueprints.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -5145,7 +5066,7 @@ async def list_contacts():
 
 @app.post("/api/contacts")
 async def create_contact(request: Request, background_tasks: BackgroundTasks, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create contacts.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can create contacts.")
     try:
         created = provider.create_contact(payload)
         schedule_contact_email_auto_verify(background_tasks, request, created)
@@ -5156,7 +5077,7 @@ async def create_contact(request: Request, background_tasks: BackgroundTasks, pa
 
 @app.patch("/api/contacts/{contact_id}")
 async def update_contact(contact_id: str, request: Request, background_tasks: BackgroundTasks, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update contacts.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can update contacts.")
     try:
         updated = provider.update_contact(contact_id, payload)
         if "email" in payload:
@@ -5168,7 +5089,7 @@ async def update_contact(contact_id: str, request: Request, background_tasks: Ba
 
 @app.delete("/api/contacts/{contact_id}")
 async def delete_contact(contact_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete contacts.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can delete contacts.")
     try:
         provider.delete_contact(contact_id)
         print(f"[DELETE] Contact deleted: {contact_id}")
@@ -5179,7 +5100,7 @@ async def delete_contact(contact_id: str, request: Request):
 
 @app.post("/api/contacts/{contact_id}/restore")
 async def restore_contact(contact_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can restore contacts.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can restore contacts.")
     try:
         provider.restore_contact(contact_id)
         print(f"[RESTORE] Contact restored: {contact_id}")
@@ -5190,13 +5111,13 @@ async def restore_contact(contact_id: str, request: Request):
 
 @app.get("/api/contacts/deleted")
 async def list_deleted_contacts(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view deleted contacts.")
+    require_capability(request, "system.view", "Only workspace members can view deleted contacts.")
     return {"data": provider.list_deleted_contacts()}
 
 
 @app.delete("/api/contacts")
 async def bulk_delete_contacts(request: Request, payload: dict[str, Any] = Body(...)):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete contacts.")
+    require_capability(request, "system.manage", "Only workspace admins can bulk delete contacts.")
     ids = payload.get("ids", [])
     confirm = payload.get("confirm", "")
     
@@ -5227,7 +5148,7 @@ async def list_contact_activities(contact_id: str):
 
 @app.post("/api/contacts/{contact_id}/activities")
 async def create_contact_activity(contact_id: str, request: Request, payload: ContactActivityCreateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can add CRM activities.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can add CRM activities.")
     try:
         return {"data": provider.create_contact_activity(contact_id, payload.model_dump())}
     except ValueError as error:
@@ -5237,14 +5158,14 @@ async def create_contact_activity(contact_id: str, request: Request, payload: Co
 @app.get("/api/email-verifier/config")
 async def get_email_verifier_config(request: Request):
     require_operator(request, "Only operators can manage email verification.")
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view email verification settings.")
+    require_capability(request, "system.view", "Only workspace members can view email verification settings.")
     return {"data": provider.get_email_verifier_config(include_secret=False)}
 
 
 @app.patch("/api/email-verifier/config")
 async def update_email_verifier_config(request: Request, payload: EmailVerifierConfigUpdateRequest):
     require_operator(request, "Only operators can manage email verification.")
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can update email verification settings.")
+    require_capability(request, "system.admin", "Only workspace admins can update email verification settings.")
     data = payload.model_dump(exclude_unset=True)
     data["defaultMode"] = normalize_email_verifier_mode(data.get("defaultMode"), default="quick")
     if "enabled" in data and data.get("enabled") and not str(data.get("apiKey") or provider.get_email_verifier_config(include_secret=True).get("apiKey") or "").strip():
@@ -5255,7 +5176,7 @@ async def update_email_verifier_config(request: Request, payload: EmailVerifierC
 @app.post("/api/email-verifier/config/test")
 async def test_email_verifier_config(request: Request):
     require_operator(request, "Only operators can manage email verification.")
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test email verification settings.")
+    require_capability(request, "system.admin", "Only workspace admins can test email verification settings.")
     config = provider.get_email_verifier_config(include_secret=True)
     if not str(config.get("apiKey") or "").strip():
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
@@ -5282,14 +5203,14 @@ async def test_email_verifier_config(request: Request):
 @app.delete("/api/email-verifier/config")
 async def delete_email_verifier_config(request: Request):
     require_operator(request, "Only operators can manage email verification.")
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can update email verification settings.")
+    require_capability(request, "system.admin", "Only workspace admins can update email verification settings.")
     return {"data": provider.delete_email_verifier_config()}
 
 
 @app.post("/api/email-verifier/verify")
 async def verify_email_address(request: Request, payload: EmailVerifierSingleRequest):
     require_operator(request, "Only operators can verify emails.")
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can verify emails.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can verify emails.")
     config = _email_verifier_internal_config(provider.get_email_verifier_config(include_secret=True))
     if not config.get("enabled") or not config.get("api_key"):
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
@@ -5319,7 +5240,7 @@ async def verify_email_address(request: Request, payload: EmailVerifierSingleReq
 @app.post("/api/email-verifier/bulk")
 async def create_email_verifier_bulk(request: Request, payload: EmailVerifierBulkRequest):
     require_operator(request, "Only operators can verify emails.")
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can verify emails.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can verify emails.")
     config = _email_verifier_internal_config(provider.get_email_verifier_config(include_secret=True))
     if not config.get("enabled") or not config.get("api_key"):
         raise HTTPException(status_code=400, detail="Email verification is not configured for this tenant.")
@@ -5354,7 +5275,7 @@ async def create_email_verifier_bulk(request: Request, payload: EmailVerifierBul
 @app.get("/api/email-verifier/bulk/{task_id}")
 async def get_email_verifier_bulk_task(task_id: str, request: Request):
     require_operator(request, "Only operators can verify emails.")
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view email verification tasks.")
+    require_capability(request, "system.view", "Only workspace members can view email verification tasks.")
     task = provider.get_email_verification_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Email verification task not found.")
@@ -5397,13 +5318,13 @@ async def list_contact_form_submissions(contact_id: str):
 
 @app.get("/api/companies")
 async def list_companies(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view companies.")
+    require_capability(request, "system.view", "Only workspace members can view companies.")
     return {"data": provider.list_companies()}
 
 
 @app.get("/api/companies/{company_id}")
 async def get_company(company_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view companies.")
+    require_capability(request, "system.view", "Only workspace members can view companies.")
     company = provider.get_company(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found.")
@@ -5412,20 +5333,20 @@ async def get_company(company_id: str, request: Request):
 
 @app.patch("/api/companies/{company_id}")
 async def update_company(company_id: str, request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update companies.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can update companies.")
     updated = provider.update_company(company_id, payload)
     return {"data": updated}
 
 
 @app.get("/api/flows")
 async def list_flows(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view flows.")
+    require_capability(request, "flows.view", "Only workspace members can view flows.")
     return {"data": provider.list_flows()}
 
 
 @app.get("/api/flows/{flow_id}")
 async def get_flow(flow_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view flows.")
+    require_capability(request, "system.view", "Only workspace members can view flows.")
     flow = provider.get_flow(flow_id)
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found.")
@@ -5435,7 +5356,7 @@ async def get_flow(flow_id: str, request: Request):
 @app.get("/api/flows/{flow_id}/provider-statuses")
 async def get_flow_provider_statuses(flow_id: str, request: Request):
     """Return the connection status of all social providers referenced in a flow."""
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view flows.")
+    require_capability(request, "system.view", "Only workspace members can view flows.")
     flow = provider.get_flow(flow_id)
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found.")
@@ -5471,7 +5392,7 @@ async def get_flow_provider_statuses(flow_id: str, request: Request):
 
 @app.put("/api/flows/{flow_id}")
 async def save_flow(flow_id: str, request: Request, payload: FlowSaveRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save flows.")
+    require_capability(request, "flows.edit", "Only workspace staff or higher can save flows.")
     flow_payload = {**payload.model_dump(), "id": flow_id}
     raw_steps, _ = build_flow_execution_steps(
         flow_payload,
@@ -5681,7 +5602,7 @@ def ingest_workflow_json_pipeline(
 @app.post("/api/flows/import-template")
 async def import_flow_template(request: Request, payload: FlowImportRequest):
     """Convert n8n/Make workflow JSON into preview-ready AIO flow draft. No DB writes, no execution."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can import flow templates.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can import flow templates.")
     try:
         from backend.flow_importer import parse_external_template, normalize_to_aio_flow
     except ModuleNotFoundError:
@@ -5693,7 +5614,7 @@ async def import_flow_template(request: Request, payload: FlowImportRequest):
 
 @app.post("/api/flows/ingest-workflow-json")
 async def ingest_workflow_json(request: Request, payload: WorkflowJsonIngestRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest workflow JSON.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can ingest workflow JSON.")
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
     try:
@@ -5715,7 +5636,7 @@ async def ingest_workflow_json(request: Request, payload: WorkflowJsonIngestRequ
 
 @app.post("/api/flows/{flow_id}/trigger/manual")
 async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowManualTriggerRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manually trigger flows.")
+    session = require_capability(request, "flows.execute", "Only workspace staff or higher can manually trigger flows.")
     flow = provider.get_flow(flow_id)
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found.")
@@ -5784,13 +5705,13 @@ async def trigger_flow_manually(flow_id: str, request: Request, payload: FlowMan
 
 @app.post("/api/flow-drafts")
 async def save_flow_draft(request: Request, payload: FlowDraftRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save flow drafts.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can save flow drafts.")
     return {"data": provider.save_flow_draft(payload.model_dump())}
 
 
 @app.get("/api/flow-drafts/{draft_id}")
 async def get_flow_draft(draft_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view flow drafts.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can view flow drafts.")
     draft = provider.get_flow_draft(draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Flow draft not found.")
@@ -5799,14 +5720,14 @@ async def get_flow_draft(draft_id: str, request: Request):
 
 @app.delete("/api/flow-drafts/{draft_id}")
 async def delete_flow_draft(draft_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage flow drafts.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can manage flow drafts.")
     provider.delete_flow_draft(draft_id)
     return {"success": True}
 
 
 @app.delete("/api/flows/{flow_id}")
 async def delete_flow(flow_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete flows.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can delete flows.")
     try:
         provider.delete_flow(flow_id)
         print(f"[DELETE] Flow deleted: {flow_id}")
@@ -5817,7 +5738,7 @@ async def delete_flow(flow_id: str, request: Request):
 
 @app.delete("/api/flows")
 async def bulk_delete_flows(request: Request, payload: dict[str, Any] = Body(...)):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete flows.")
+    require_capability(request, "system.manage", "Only workspace admins can bulk delete flows.")
     ids = payload.get("ids", [])
     confirm = payload.get("confirm", "")
     
@@ -5852,7 +5773,7 @@ class FlowFolderRenameRequest(BaseModel):
 @app.post("/api/flow-folders")
 async def create_flow_folder(request: Request, payload: FlowFolderCreateRequest):
     """Create a new flow folder."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to create folders.")
+    require_capability(request, "system.manage", "Need editor role to create folders.")
     try:
         folder = provider.create_flow_folder(payload.name)
         return {"data": folder}
@@ -5863,7 +5784,7 @@ async def create_flow_folder(request: Request, payload: FlowFolderCreateRequest)
 @app.get("/api/flow-folders")
 async def list_flow_folders(request: Request):
     """List all flow folders."""
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Need viewer role to view folders.")
+    require_capability(request, "system.view", "Need viewer role to view folders.")
     try:
         return {"data": provider.list_flow_folders()}
     except Exception as e:
@@ -5873,7 +5794,7 @@ async def list_flow_folders(request: Request):
 @app.put("/api/flow-folders/{folderId}")
 async def rename_flow_folder(request: Request, folderId: str, payload: FlowFolderRenameRequest):
     """Rename a flow folder."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to rename folders.")
+    require_capability(request, "system.manage", "Need editor role to rename folders.")
     try:
         folder = provider.rename_flow_folder(folderId, payload.name)
         if not folder:
@@ -5888,7 +5809,7 @@ async def rename_flow_folder(request: Request, folderId: str, payload: FlowFolde
 @app.delete("/api/flow-folders/{folderId}")
 async def delete_flow_folder(request: Request, folderId: str):
     """Delete a flow folder."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to delete folders.")
+    require_capability(request, "system.manage", "Need editor role to delete folders.")
     try:
         provider.delete_flow_folder(folderId)
         return {"success": True, "deletedId": folderId}
@@ -5898,7 +5819,7 @@ async def delete_flow_folder(request: Request, folderId: str):
 
 @app.get("/api/media/assets")
 async def list_media_assets(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media assets.")
+    require_capability(request, "studio.view", "Only workspace members can view media assets.")
     return {"data": get_media_engine().list_assets()}
 
 
@@ -5933,7 +5854,7 @@ async def serve_media_video(filename: str):
 @app.get("/api/media/image/{filename}")
 async def serve_media_image(filename: str):
     try:
-        require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can access image files.")
+        require_capability(request, "system.view", "Only workspace members can access image files.")
     except HTTPException:
         pass
     media_path = _resolve_media_file_path("image", filename)
@@ -5972,7 +5893,7 @@ def _extract_uploaded_file_from_multipart(content_type: str, body: bytes, field_
 
 @app.post("/api/media/upload", response_model=MediaLibraryMutationResponse)
 async def upload_media_file(request: Request):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can upload media.")
+    session = require_capability(request, "studio.create", "Only workspace staff or higher can upload media.")
     tenant = session.get("tenant") or {}
     try:
         content_type = request.headers.get("content-type") or ""
@@ -6017,67 +5938,67 @@ async def upload_media_file(request: Request):
 
 @app.get("/api/media/render-jobs")
 async def list_render_jobs(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view render jobs.")
+    require_capability(request, "system.view", "Only workspace members can view render jobs.")
     return {"data": get_media_engine().list_render_jobs()}
 
 
 @app.get("/api/media/transcript-jobs")
 async def list_transcript_jobs(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view transcript jobs.")
+    require_capability(request, "system.view", "Only workspace members can view transcript jobs.")
     return {"data": get_media_engine().list_transcript_jobs()}
 
 
 @app.get("/api/media/transcript-artifacts")
 async def list_transcript_artifacts(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view transcript artifacts.")
+    require_capability(request, "system.view", "Only workspace members can view transcript artifacts.")
     return {"data": get_media_engine().list_transcript_artifacts()}
 
 
 @app.get("/api/media/script-jobs")
 async def list_script_jobs(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view script jobs.")
+    require_capability(request, "system.view", "Only workspace members can view script jobs.")
     return {"data": get_media_engine().list_script_jobs()}
 
 
 @app.get("/api/media/script-artifacts")
 async def list_script_artifacts(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view script artifacts.")
+    require_capability(request, "system.view", "Only workspace members can view script artifacts.")
     return {"data": get_media_engine().list_script_artifacts()}
 
 
 @app.get("/api/media/run-of-show-jobs")
 async def list_run_of_show_jobs(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view run-of-show jobs.")
+    require_capability(request, "system.view", "Only workspace members can view run-of-show jobs.")
     return {"data": get_media_engine().list_run_of_show_jobs()}
 
 
 @app.get("/api/media/run-of-show-artifacts")
 async def list_run_of_show_artifacts(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view run-of-show artifacts.")
+    require_capability(request, "system.view", "Only workspace members can view run-of-show artifacts.")
     return {"data": get_media_engine().list_run_of_show_artifacts()}
 
 
 @app.get("/api/media/audio-render-jobs")
 async def list_audio_render_jobs(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view audio render jobs.")
+    require_capability(request, "system.view", "Only workspace members can view audio render jobs.")
     return {"data": get_media_engine().list_audio_render_jobs()}
 
 
 @app.get("/api/media/publish-jobs")
 async def list_publish_jobs(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view publish jobs.")
+    require_capability(request, "system.view", "Only workspace members can view publish jobs.")
     return {"data": get_media_engine().list_publish_jobs()}
 
 
 @app.get("/api/media/publish-artifacts")
 async def list_publish_artifacts(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view publish artifacts.")
+    require_capability(request, "system.view", "Only workspace members can view publish artifacts.")
     return {"data": get_media_engine().list_publish_artifacts()}
 
 
 @app.delete("/api/media/assets/{assetId}")
 async def delete_media_asset(request: Request, assetId: str):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can delete media assets.")
+    require_capability(request, "system.manage", "Only workspace editors can delete media assets.")
     deleted = get_media_engine().delete_asset(assetId)
     if not deleted:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -6086,7 +6007,7 @@ async def delete_media_asset(request: Request, assetId: str):
 
 @app.delete("/api/media/jobs/{jobType}/{jobId}")
 async def delete_media_job(request: Request, jobType: str, jobId: str):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can delete media jobs.")
+    require_capability(request, "system.manage", "Only workspace editors can delete media jobs.")
     deleted = get_media_engine().delete_job(jobType, jobId)
     if not deleted:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -6095,7 +6016,7 @@ async def delete_media_job(request: Request, jobType: str, jobId: str):
 
 @app.delete("/api/media/artifacts/{artifactType}/{artifactId}")
 async def delete_media_artifact(request: Request, artifactType: str, artifactId: str):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors can delete media artifacts.")
+    require_capability(request, "system.manage", "Only workspace editors can delete media artifacts.")
     deleted = get_media_engine().delete_artifact(artifactType, artifactId)
     if not deleted:
         raise HTTPException(status_code=404, detail="Artifact not found")
@@ -6104,7 +6025,7 @@ async def delete_media_artifact(request: Request, artifactType: str, artifactId:
 
 @app.get("/api/media/jobs/{jobType}/{jobId}")
 async def get_media_job_status(request: Request, jobType: str, jobId: str):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view media job status.")
+    require_capability(request, "system.view", "Only workspace members can view media job status.")
     job = get_media_engine().get_job(jobType, jobId)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -6113,7 +6034,7 @@ async def get_media_job_status(request: Request, jobType: str, jobId: str):
 
 @app.post("/api/media/script-jobs")
 async def create_script_job(request: Request, payload: MediaScriptRequest, background_tasks: BackgroundTasks):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create script jobs.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create script jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     try:
@@ -6136,7 +6057,7 @@ async def create_script_job(request: Request, payload: MediaScriptRequest, backg
 
 @app.post("/api/media/run-of-show-jobs")
 async def create_run_of_show_job(request: Request, payload: MediaRunOfShowRequest, background_tasks: BackgroundTasks):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create run-of-show jobs.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create run-of-show jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     try:
@@ -6159,7 +6080,7 @@ async def create_run_of_show_job(request: Request, payload: MediaRunOfShowReques
 
 @app.post("/api/media/audio-render-jobs")
 async def create_audio_render_job(request: Request, payload: MediaAudioRenderRequest, background_tasks: BackgroundTasks):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create audio render jobs.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create audio render jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     provider_key = clean_text(payload.provider) or "elevenlabs"
@@ -6186,7 +6107,7 @@ async def create_audio_render_job(request: Request, payload: MediaAudioRenderReq
 
 @app.post("/api/media/render-jobs")
 async def create_render_job(request: Request, payload: MediaRenderRequest, background_tasks: BackgroundTasks):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create media jobs.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create media jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     try:
@@ -6209,7 +6130,7 @@ async def create_render_job(request: Request, payload: MediaRenderRequest, backg
 
 @app.post("/api/media/transcript-jobs")
 async def create_transcript_job(request: Request, payload: MediaTranscriptRequest, background_tasks: BackgroundTasks):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create transcript jobs.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create transcript jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     try:
@@ -6288,7 +6209,7 @@ async def create_transcript_job(request: Request, payload: MediaTranscriptReques
 
 @app.post("/api/media/meeting-ingestion")
 async def ingest_meeting_media(request: Request, payload: MediaIngestRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can ingest meeting media.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can ingest meeting media.")
     tenant = session.get("tenant") or {}
     try:
         result = get_media_engine().ingest_meeting_artifacts(
@@ -6303,7 +6224,7 @@ async def ingest_meeting_media(request: Request, payload: MediaIngestRequest):
 
 @app.post("/api/media/publish-jobs")
 async def create_publish_job(request: Request, payload: MediaPublishRequest):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create publish jobs.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create publish jobs.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id")
     publish_target = payload.publishTarget or payload.publish_target or ""
@@ -6352,7 +6273,7 @@ async def create_publish_job(request: Request, payload: MediaPublishRequest):
 @app.post("/api/media/probe")
 async def probe_media_asset(request: Request, payload: dict[str, Any] = Body(...)):
     """Probe a media asset and return real metadata using env-resolved ffprobe."""
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can probe media assets.")
+    require_capability(request, "system.view", "Only workspace members can probe media assets.")
     source_url = clean_text(payload.get("sourceUrl") or payload.get("source_url") or "")
     asset_id = clean_text(payload.get("assetId") or payload.get("asset_id") or "")
 
@@ -6458,7 +6379,7 @@ async def list_calendar_events():
 
 @app.post("/api/calendar/events")
 async def create_calendar_event(request: Request, payload: dict[str, Any]):
-    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create calendar events.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create calendar events.")
     try:
         tenant = session.get("tenant") or {}
         user = session.get("user") or {}
@@ -6480,7 +6401,7 @@ async def create_calendar_event(request: Request, payload: dict[str, Any]):
 
 @app.patch("/api/calendar/events/{event_id}")
 async def update_calendar_event(event_id: str, request: Request, payload: CalendarEventUpdateRequest):
-    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can update calendar events.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can update calendar events.")
     try:
         updated = provider.update_calendar_event(event_id, payload.model_dump(exclude_unset=True))
         tenant = session.get("tenant") or {}
@@ -6500,7 +6421,7 @@ async def update_calendar_event(event_id: str, request: Request, payload: Calend
 
 @app.delete("/api/calendar/events/{event_id}")
 async def delete_calendar_event(event_id: str, request: Request):
-    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete calendar events.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can delete calendar events.")
     try:
         existing_event = next((item for item in provider.list_calendar_events() if item.get("id") == event_id), None)
         provider.delete_calendar_event(event_id)
@@ -6522,7 +6443,7 @@ async def delete_calendar_event(event_id: str, request: Request):
 
 @app.post("/api/calendar/events/{event_id}/push")
 async def push_calendar_event(event_id: str, request: Request, payload: CalendarPushRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can push calendar events.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can push calendar events.")
     try:
         return provider.push_calendar_event(event_id, payload.source_id)
     except ValueError as error:
@@ -6531,7 +6452,7 @@ async def push_calendar_event(event_id: str, request: Request, payload: Calendar
 
 @app.post("/api/calendar/events/{event_id}/reconcile")
 async def reconcile_calendar_event(event_id: str, request: Request, payload: CalendarEventReconcileRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can reconcile calendar events.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can reconcile calendar events.")
     try:
         return provider.reconcile_calendar_event(event_id, payload.strategy)
     except ValueError as error:
@@ -6550,7 +6471,7 @@ async def list_calendar_providers():
 
 @app.get("/api/calendar/sources/{source_id}/authorize")
 async def authorize_calendar_source(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can connect calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can connect calendar sources.")
     source = next((item for item in provider.list_calendar_sources() if item["id"] == source_id), None)
     if not source:
         raise HTTPException(status_code=404, detail="Calendar source not found")
@@ -6587,7 +6508,7 @@ async def authorize_calendar_source(source_id: str, request: Request):
 
 @app.post("/api/calendar/sources")
 async def create_calendar_source(request: Request, payload: CalendarSourceCreateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return provider.create_calendar_source(
             name=payload.name,
@@ -6601,7 +6522,7 @@ async def create_calendar_source(request: Request, payload: CalendarSourceCreate
 
 @app.patch("/api/calendar/sources/{source_id}")
 async def update_calendar_source(source_id: str, request: Request, payload: CalendarSourceUpdateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return provider.update_calendar_source(source_id, payload.model_dump(exclude_unset=True))
     except ValueError as error:
@@ -6610,7 +6531,7 @@ async def update_calendar_source(source_id: str, request: Request, payload: Cale
 
 @app.get("/api/calendar/sources/{source_id}/available-calendars")
 async def list_calendar_source_calendars(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return {"data": provider.list_calendar_source_calendars(source_id)}
     except ValueError as error:
@@ -6621,7 +6542,7 @@ async def list_calendar_source_calendars(source_id: str, request: Request):
 
 @app.delete("/api/calendar/sources/{source_id}")
 async def delete_calendar_source(source_id: str, request: Request, fallback_source_id: str | None = None):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return provider.delete_calendar_source(source_id, fallback_source_id=fallback_source_id)
     except ValueError as error:
@@ -6632,7 +6553,7 @@ async def delete_calendar_source(source_id: str, request: Request, fallback_sour
 
 @app.post("/api/calendar/sources/{source_id}/disconnect")
 async def disconnect_calendar_source(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return {"source": provider.disconnect_calendar_source(source_id)}
     except ValueError as error:
@@ -6641,7 +6562,7 @@ async def disconnect_calendar_source(source_id: str, request: Request):
 
 @app.post("/api/calendar/sources/{source_id}/test-connection")
 async def test_calendar_source(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return provider.test_calendar_source(source_id)
     except ValueError as error:
@@ -6650,7 +6571,7 @@ async def test_calendar_source(source_id: str, request: Request):
 
 @app.post("/api/calendar/sources/{source_id}/sync")
 async def sync_calendar_source(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return provider.sync_calendar_source(source_id)
     except ValueError as error:
@@ -6659,7 +6580,7 @@ async def sync_calendar_source(source_id: str, request: Request):
 
 @app.post("/api/calendar/sources/{source_id}/import")
 async def import_calendar_source(source_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage calendar sources.")
+    require_capability(request, "system.admin", "Only workspace admins can manage calendar sources.")
     try:
         return provider.import_calendar_source(source_id)
     except ValueError as error:
@@ -6678,7 +6599,7 @@ async def list_mailbox_providers():
 
 @app.get("/api/mailboxes/{mailbox_id}/authorize")
 async def authorize_mailbox(mailbox_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can connect mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can connect mailboxes.")
     mailbox = next((item for item in provider.list_mailboxes() if item["id"] == mailbox_id), None)
     if not mailbox:
         raise HTTPException(status_code=404, detail="Mailbox not found")
@@ -6715,7 +6636,7 @@ async def authorize_mailbox(mailbox_id: str, request: Request):
 
 @app.post("/api/mailboxes")
 async def create_mailbox(request: Request, payload: MailboxCreateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         mailbox = provider.create_mailbox(
             name=payload.name,
@@ -6732,7 +6653,7 @@ async def create_mailbox(request: Request, payload: MailboxCreateRequest):
 
 @app.patch("/api/mailboxes/{mailbox_id}")
 async def update_mailbox(mailbox_id: str, request: Request, payload: MailboxUpdateRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         return provider.update_mailbox(mailbox_id, payload.model_dump(exclude_unset=True))
     except ValueError as error:
@@ -6741,7 +6662,7 @@ async def update_mailbox(mailbox_id: str, request: Request, payload: MailboxUpda
 
 @app.delete("/api/mailboxes/{mailbox_id}")
 async def delete_mailbox(mailbox_id: str, request: Request, fallback_mailbox_id: str | None = None):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         return provider.delete_mailbox(mailbox_id, fallback_mailbox_id=fallback_mailbox_id)
     except ValueError as error:
@@ -6752,7 +6673,7 @@ async def delete_mailbox(mailbox_id: str, request: Request, fallback_mailbox_id:
 
 @app.post("/api/mailboxes/{mailbox_id}/disconnect")
 async def disconnect_mailbox(mailbox_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         return {"mailbox": provider.disconnect_mailbox(mailbox_id)}
     except ValueError as error:
@@ -6766,7 +6687,7 @@ async def list_mailbox_events(mailbox_id: str):
 
 @app.post("/api/mailboxes/{mailbox_id}/test-connection")
 async def test_mailbox_connection(mailbox_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         return provider.test_mailbox_connection(mailbox_id)
     except ValueError as error:
@@ -6775,7 +6696,7 @@ async def test_mailbox_connection(mailbox_id: str, request: Request):
 
 @app.post("/api/mailboxes/{mailbox_id}/sync")
 async def sync_mailbox(mailbox_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         return provider.sync_mailbox(mailbox_id)
     except ValueError as error:
@@ -6784,7 +6705,7 @@ async def sync_mailbox(mailbox_id: str, request: Request):
 
 @app.post("/api/mailboxes/{mailbox_id}/ingest")
 async def ingest_mail_message(mailbox_id: str, request: Request, payload: MailIngestRequest):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage mailboxes.")
+    require_capability(request, "system.admin", "Only workspace admins can manage mailboxes.")
     try:
         return provider.ingest_mail_message(
             mailbox_id=mailbox_id,
@@ -6823,7 +6744,7 @@ async def list_agents():
 @app.get("/api/agents/internal")
 async def list_agents_internal(request: Request):
     """Internal agent listing — includes OMEGA. Requires editor role."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Internal endpoint requires editor role.")
+    require_capability(request, "system.manage", "Internal endpoint requires editor role.")
     import sqlite3, json
     from pathlib import Path
     db_path = str(Path(__file__).resolve().parent / "data" / "aio_crm.db")
@@ -6845,7 +6766,7 @@ async def list_tags(prefix: str | None = None):
 
 @app.post("/api/tags")
 async def create_tag(request: Request, payload: TagCreateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors or higher can manage tags.")
+    require_capability(request, "system.manage", "Only workspace editors or higher can manage tags.")
     try:
         return {"data": provider.create_tag(payload.dict())}
     except ValueError as error:
@@ -6854,7 +6775,7 @@ async def create_tag(request: Request, payload: TagCreateRequest):
 
 @app.patch("/api/tags/{tag_id}")
 async def update_tag(tag_id: str, request: Request, payload: TagUpdateRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace editors or higher can manage tags.")
+    require_capability(request, "system.manage", "Only workspace editors or higher can manage tags.")
     try:
         return {"data": provider.update_tag(tag_id, payload.dict(exclude_unset=True))}
     except ValueError as error:
@@ -6863,7 +6784,7 @@ async def update_tag(tag_id: str, request: Request, payload: TagUpdateRequest):
 
 @app.delete("/api/tags/{tag_id}")
 async def delete_tag(tag_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete tags.")
+    require_capability(request, "system.admin", "Only workspace admins can delete tags.")
     try:
         provider.delete_tag(tag_id)
         return {"success": True}
@@ -6878,7 +6799,7 @@ async def list_form_folders():
 
 @app.post("/api/form-folders")
 async def create_form_folder(request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage forms.")
     try:
         return {"data": provider.create_form_folder(payload)}
     except ValueError as error:
@@ -6887,7 +6808,7 @@ async def create_form_folder(request: Request, payload: dict[str, Any]):
 
 @app.patch("/api/form-folders/{folder_id}")
 async def update_form_folder(folder_id: str, request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage forms.")
     try:
         return {"data": provider.update_form_folder(folder_id, payload)}
     except ValueError as error:
@@ -6896,7 +6817,7 @@ async def update_form_folder(folder_id: str, request: Request, payload: dict[str
 
 @app.delete("/api/form-folders/{folder_id}")
 async def delete_form_folder(folder_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage forms.")
     try:
         return {"data": provider.delete_form_folder(folder_id)}
     except ValueError as error:
@@ -6912,7 +6833,7 @@ async def list_forms(summary: bool = False):
 
 @app.post("/api/forms")
 async def create_form(request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage forms.")
     try:
         return {"data": provider.create_form(payload)}
     except ValueError as error:
@@ -6921,7 +6842,7 @@ async def create_form(request: Request, payload: dict[str, Any]):
 
 @app.patch("/api/forms/{form_id}")
 async def update_form(form_id: str, request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage forms.")
     try:
         return {"data": provider.update_form(form_id, payload)}
     except ValueError as error:
@@ -6930,7 +6851,7 @@ async def update_form(form_id: str, request: Request, payload: dict[str, Any]):
 
 @app.delete("/api/forms/{form_id}")
 async def delete_form(form_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage forms.")
+    require_capability(request, "crm.edit", "Only workspace staff or higher can manage forms.")
     try:
         provider.delete_form(form_id)
         return {"success": True}
@@ -6940,7 +6861,7 @@ async def delete_form(form_id: str, request: Request):
 
 @app.delete("/api/forms")
 async def bulk_delete_forms(request: Request, payload: dict[str, Any] = Body(...)):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace admins can bulk delete forms.")
+    require_capability(request, "system.manage", "Only workspace admins can bulk delete forms.")
     ids = payload.get("ids", [])
     confirm = payload.get("confirm", "")
     
@@ -6966,13 +6887,13 @@ async def bulk_delete_forms(request: Request, payload: dict[str, Any] = Body(...
 
 @app.get("/api/cms/tables")
 async def list_cms_tables(request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view CMS tables.")
+    require_capability(request, "crm.view", "Only workspace members can view CMS tables.")
     return {"data": provider.list_cms_tables()}
 
 
 @app.get("/api/cms/tables/{slug}")
 async def list_cms_table_data(slug: str, request: Request):
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view CMS table data.")
+    require_capability(request, "system.view", "Only workspace members can view CMS table data.")
     return {"data": provider.list_cms_table_data(slug)}
 
 
@@ -7007,7 +6928,7 @@ async def list_booking_types():
 
 @app.post("/api/booking-types")
 async def create_booking_type(request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage booking types.")
+    require_capability(request, "comms.operate", "Only workspace staff or higher can manage booking types.")
     try:
         return {"data": provider.create_booking_type(payload)}
     except ValueError as error:
@@ -7016,7 +6937,7 @@ async def create_booking_type(request: Request, payload: dict[str, Any]):
 
 @app.patch("/api/booking-types/{booking_type_id}")
 async def update_booking_type(booking_type_id: str, request: Request, payload: dict[str, Any]):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage booking types.")
+    require_capability(request, "comms.operate", "Only workspace staff or higher can manage booking types.")
     try:
         return {"data": provider.update_booking_type(booking_type_id, payload)}
     except ValueError as error:
@@ -7025,7 +6946,7 @@ async def update_booking_type(booking_type_id: str, request: Request, payload: d
 
 @app.delete("/api/booking-types/{booking_type_id}")
 async def delete_booking_type(booking_type_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can manage booking types.")
+    require_capability(request, "comms.operate", "Only workspace staff or higher can manage booking types.")
     try:
         provider.delete_booking_type(booking_type_id)
         return {"success": True}
@@ -7034,13 +6955,14 @@ async def delete_booking_type(booking_type_id: str, request: Request):
 
 
 @app.get("/api/comms/snapshot")
-async def comms_snapshot():
+async def comms_snapshot(request: Request):
+    require_capability(request, "comms.view", "Only authorized users can view the comms snapshot.")
     return provider.get_comms_snapshot()
 
 
 @app.post("/api/comms/threads")
 async def create_thread(request: Request, payload: ThreadCreateRequest):
-    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     return provider.create_thread(
         subject=payload.subject,
         channel_type=payload.channel_type,
@@ -7055,7 +6977,7 @@ async def create_thread(request: Request, payload: ThreadCreateRequest):
 
 @app.post("/api/comms/threads/open")
 async def open_thread(request: Request, payload: ThreadOpenRequest):
-    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     try:
         return provider.open_thread_for_contact(
             contact_id=payload.contact_id,
@@ -7071,7 +6993,7 @@ async def open_thread(request: Request, payload: ThreadOpenRequest):
 
 @app.post("/api/comms/threads/{thread_id}/messages")
 async def send_thread_message(thread_id: str, request: Request, payload: ThreadMessageRequest):
-    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     return provider.send_thread_message(
         thread_id=thread_id,
         body=payload.body,
@@ -7085,7 +7007,7 @@ async def send_thread_message(thread_id: str, request: Request, payload: ThreadM
 
 @app.post("/api/comms/threads/{thread_id}/send-email")
 async def send_thread_email(thread_id: str, request: Request, payload: MailSendRequest):
-    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "comms.operate", "Only workspace staff or higher can operate Comms.")
     from backend.comms_service import send_email_message
     
     result = send_email_message(
@@ -7106,13 +7028,13 @@ async def send_thread_email(thread_id: str, request: Request, payload: MailSendR
 
 @app.patch("/api/comms/threads/{thread_id}/status")
 async def update_thread_status(thread_id: str, request: Request, payload: ThreadStatusRequest):
-    require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "comms.operate", "Only workspace staff or higher can operate Comms.")
     return provider.update_thread_status(thread_id=thread_id, status=payload.status)
 
 
 @app.patch("/api/comms/threads/{thread_id}/assign")
 async def assign_thread(thread_id: str, request: Request, payload: ThreadAssignRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "comms.operate", "Only workspace staff or higher can operate Comms.")
     assignee_name = payload.assignee_name or payload.assignee
     if not assignee_name:
         raise HTTPException(status_code=422, detail="assignee_name is required")
@@ -7121,25 +7043,25 @@ async def assign_thread(thread_id: str, request: Request, payload: ThreadAssignR
 
 @app.patch("/api/comms/threads/{thread_id}/mailbox")
 async def update_thread_mailbox(thread_id: str, request: Request, payload: ThreadMailboxRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     return provider.update_thread_mailbox(thread_id=thread_id, mailbox_id=payload.mailbox_id)
 
 
 @app.post("/api/comms/threads/{thread_id}/summarize")
 async def summarize_thread(thread_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     return provider.summarize_thread(thread_id=thread_id)
 
 
 @app.post("/api/comms/threads/{thread_id}/draft")
 async def create_thread_draft(thread_id: str, request: Request, payload: ThreadDraftRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     return provider.create_thread_draft(thread_id=thread_id, mode=payload.mode)
 
 
 @app.post("/api/comms/threads/{thread_id}/create-deal")
 async def create_deal_from_thread(thread_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     try:
         return provider.create_deal_from_thread(thread_id=thread_id)
     except ValueError as error:
@@ -7148,7 +7070,7 @@ async def create_deal_from_thread(thread_id: str, request: Request):
 
 @app.post("/api/comms/threads/{thread_id}/advance-stage")
 async def advance_thread_stage(thread_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     try:
         return provider.advance_thread_stage(thread_id=thread_id)
     except ValueError as error:
@@ -7157,7 +7079,7 @@ async def advance_thread_stage(thread_id: str, request: Request):
 
 @app.post("/api/comms/threads/{thread_id}/schedule-meeting")
 async def schedule_thread_meeting(thread_id: str, request: Request, payload: ThreadMeetingRequest | None = None):
-    session = require_client_safe_surface(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     try:
         existing_events = provider.list_calendar_events(thread_id=thread_id)
         response = provider.schedule_thread_meeting(thread_id=thread_id, scheduled_at=payload.scheduled_at if payload else None)
@@ -7181,7 +7103,7 @@ async def schedule_thread_meeting(thread_id: str, request: Request, payload: Thr
 
 @app.post("/api/comms/threads/{thread_id}/reports")
 async def create_thread_report(thread_id: str, request: Request, payload: ThreadReportRequest):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     try:
         return provider.create_thread_report(thread_id=thread_id, kind=payload.kind)
     except ValueError as error:
@@ -7190,7 +7112,7 @@ async def create_thread_report(thread_id: str, request: Request, payload: Thread
 
 @app.delete("/api/comms/threads/{thread_id}")
 async def delete_thread(thread_id: str, request: Request):
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can operate Comms.")
+    require_capability(request, "system.manage", "Only workspace staff or higher can operate Comms.")
     try:
         return provider.delete_thread(thread_id=thread_id)
     except ValueError as error:
@@ -7202,7 +7124,7 @@ async def delete_thread(thread_id: str, request: Request):
 @app.get("/api/comms/overview")
 async def get_comms_overview(request: Request):
     """Get SMS/VoIP system overview stats."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view comms.")
+    session = require_capability(request, "comms.view", "Only workspace members can view comms.")
     from backend.comms_service import get_comms_overview
     return {"data": get_comms_overview()}
 
@@ -7210,7 +7132,7 @@ async def get_comms_overview(request: Request):
 @app.get("/api/comms/phone-numbers")
 async def list_phone_numbers(request: Request):
     """List all phone numbers."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view phone numbers.")
+    session = require_capability(request, "comms.view", "Only workspace members can view phone numbers.")
     from backend.comms_service import list_phone_numbers
     return {"data": list_phone_numbers()}
 
@@ -7218,7 +7140,7 @@ async def list_phone_numbers(request: Request):
 @app.post("/api/comms/phone-numbers")
 async def create_phone_number(request: Request, payload: dict):
     """Create a new phone number."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can manage phone numbers.")
+    session = require_capability(request, "comms.operate", "Only editors can manage phone numbers.")
     from backend.comms_service import create_phone_number
     return {"data": create_phone_number(
         number=payload.get("number"),
@@ -7230,7 +7152,7 @@ async def create_phone_number(request: Request, payload: dict):
 @app.patch("/api/comms/phone-numbers/{number_id}")
 async def update_phone_number(number_id: str, request: Request, payload: dict):
     """Update a phone number."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can update phone numbers.")
+    session = require_capability(request, "system.manage", "Only editors can update phone numbers.")
     from backend.comms_service import update_phone_number
     return {"data": update_phone_number(number_id, **payload)}
 
@@ -7238,7 +7160,7 @@ async def update_phone_number(number_id: str, request: Request, payload: dict):
 @app.delete("/api/comms/phone-numbers/{number_id}")
 async def delete_phone_number(number_id: str, request: Request):
     """Delete a phone number."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can delete phone numbers.")
+    session = require_capability(request, "system.manage", "Only editors can delete phone numbers.")
     from backend.comms_service import delete_phone_number
     delete_phone_number(number_id)
     return {"data": {"success": True}}
@@ -7247,7 +7169,7 @@ async def delete_phone_number(number_id: str, request: Request):
 @app.get("/api/comms/sms-threads")
 async def list_sms_threads(request: Request, limit: int = 50):
     """List SMS threads."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS threads.")
+    session = require_capability(request, "system.view", "Only workspace members can view SMS threads.")
     from backend.comms_service import list_sms_threads
     return {"data": list_sms_threads(limit)}
 
@@ -7255,7 +7177,7 @@ async def list_sms_threads(request: Request, limit: int = 50):
 @app.post("/api/comms/sms-threads")
 async def create_sms_thread(request: Request, payload: dict):
     """Create a new SMS thread."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create SMS threads.")
+    session = require_capability(request, "system.manage", "Only editors can create SMS threads.")
     from backend.comms_service import create_sms_thread
     return {"data": create_sms_thread(
         contact_id=payload.get("contactId"),
@@ -7267,7 +7189,7 @@ async def create_sms_thread(request: Request, payload: dict):
 @app.post("/api/comms/sms-threads/{thread_id}/messages")
 async def add_sms_message(thread_id: str, request: Request, payload: dict):
     """Add a message to an SMS thread."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can send SMS messages.")
+    session = require_capability(request, "system.manage", "Only editors can send SMS messages.")
     from backend.comms_service import add_sms_message
     return {"data": add_sms_message(
         thread_id=thread_id,
@@ -7281,7 +7203,7 @@ async def add_sms_message(thread_id: str, request: Request, payload: dict):
 @app.get("/api/comms/sms-threads/{thread_id}")
 async def get_sms_thread(thread_id: str, request: Request):
     """Get a single SMS thread."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS threads.")
+    session = require_capability(request, "system.view", "Only workspace members can view SMS threads.")
     from backend.comms_service import get_sms_thread
     return {"data": get_sms_thread(thread_id)}
 
@@ -7289,7 +7211,7 @@ async def get_sms_thread(thread_id: str, request: Request):
 @app.get("/api/comms/sms-threads/{thread_id}/messages")
 async def get_sms_messages(thread_id: str, request: Request):
     """Get all messages for an SMS thread."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS messages.")
+    session = require_capability(request, "system.view", "Only workspace members can view SMS messages.")
     from backend.comms_service import get_sms_messages
     return {"data": get_sms_messages(thread_id)}
 
@@ -7297,7 +7219,7 @@ async def get_sms_messages(thread_id: str, request: Request):
 @app.post("/api/comms/sms/send")
 async def send_sms(request: Request, payload: dict):
     """Send an SMS message (creates thread if needed)."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can send SMS messages.")
+    session = require_capability(request, "system.manage", "Only editors can send SMS messages.")
     from backend.comms_service import send_sms_message
     return {"data": send_sms_message(
         thread_id=payload.get("threadId"),
@@ -7311,7 +7233,7 @@ async def send_sms(request: Request, payload: dict):
 @app.get("/api/comms/sms/opt-out-check")
 async def check_opt_out(request: Request, phone_number: str):
     """Check if a phone number has opted out."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can check opt-out status.")
+    session = require_capability(request, "system.view", "Only workspace members can check opt-out status.")
     from backend.comms_service import check_opt_out
     return {"data": check_opt_out(phone_number)}
 
@@ -7319,7 +7241,7 @@ async def check_opt_out(request: Request, phone_number: str):
 @app.get("/api/comms/contacts-with-phone")
 async def get_contacts_with_phone(request: Request):
     """Get contacts that have phone numbers for SMS linking."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view contacts.")
+    session = require_capability(request, "system.view", "Only workspace members can view contacts.")
     from backend.comms_service import get_contacts_with_phone
     return {"data": get_contacts_with_phone()}
 
@@ -7327,7 +7249,7 @@ async def get_contacts_with_phone(request: Request):
 @app.get("/api/comms/sms-plans")
 async def list_sms_plans(request: Request):
     """List SMS plans/registrations."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view SMS plans.")
+    session = require_capability(request, "system.view", "Only workspace members can view SMS plans.")
     from backend.comms_service import list_sms_plans
     return {"data": list_sms_plans()}
 
@@ -7335,7 +7257,7 @@ async def list_sms_plans(request: Request):
 @app.post("/api/comms/sms-plans")
 async def create_sms_plan(request: Request, payload: dict):
     """Create a new SMS plan."""
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can create SMS plans.")
+    session = require_capability(request, "comms.admin", "Only admins can create SMS plans.")
     from backend.comms_service import create_sms_plan
     return {"data": create_sms_plan(
         name=payload.get("name"),
@@ -7347,7 +7269,7 @@ async def create_sms_plan(request: Request, payload: dict):
 @app.patch("/api/comms/sms-plans/{plan_id}")
 async def update_sms_plan(plan_id: str, request: Request, payload: dict):
     """Update an SMS plan."""
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only admins can update SMS plans.")
+    session = require_capability(request, "system.admin", "Only admins can update SMS plans.")
     from backend.comms_service import update_sms_plan
     return {"data": update_sms_plan(plan_id, **payload)}
 
@@ -7355,7 +7277,7 @@ async def update_sms_plan(plan_id: str, request: Request, payload: dict):
 @app.get("/api/comms/extensions")
 async def list_extensions(request: Request):
     """List extensions."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view extensions.")
+    session = require_capability(request, "system.view", "Only workspace members can view extensions.")
     from backend.comms_service import list_extensions
     return {"data": list_extensions()}
 
@@ -7363,7 +7285,7 @@ async def list_extensions(request: Request):
 @app.post("/api/comms/extensions")
 async def create_extension(request: Request, payload: dict):
     """Create a new extension."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create extensions.")
+    session = require_capability(request, "system.manage", "Only editors can create extensions.")
     from backend.comms_service import create_extension
     return {"data": create_extension(
         extension_number=payload.get("extensionNumber"),
@@ -7375,7 +7297,7 @@ async def create_extension(request: Request, payload: dict):
 @app.get("/api/comms/ring-groups")
 async def list_ring_groups(request: Request):
     """List ring groups."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view ring groups.")
+    session = require_capability(request, "system.view", "Only workspace members can view ring groups.")
     from backend.comms_service import list_ring_groups
     return {"data": list_ring_groups()}
 
@@ -7383,7 +7305,7 @@ async def list_ring_groups(request: Request):
 @app.post("/api/comms/ring-groups")
 async def create_ring_group(request: Request, payload: dict):
     """Create a new ring group."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create ring groups.")
+    session = require_capability(request, "system.manage", "Only editors can create ring groups.")
     from backend.comms_service import create_ring_group
     return {"data": create_ring_group(
         name=payload.get("name"),
@@ -7395,7 +7317,7 @@ async def create_ring_group(request: Request, payload: dict):
 @app.get("/api/comms/call-sessions")
 async def list_call_sessions(request: Request, limit: int = 50):
     """List call sessions."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view call history.")
+    session = require_capability(request, "system.view", "Only workspace members can view call history.")
     from backend.comms_service import list_call_sessions
     return {"data": list_call_sessions(limit)}
 
@@ -7403,7 +7325,7 @@ async def list_call_sessions(request: Request, limit: int = 50):
 @app.post("/api/comms/call-sessions")
 async def create_call_session(request: Request, payload: dict):
     """Create a new call session (for simulated calls)."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can create call sessions.")
+    session = require_capability(request, "system.manage", "Only editors can create call sessions.")
     from backend.comms_service import create_call_session
     return {"data": create_call_session(
         direction=payload.get("direction", "outbound"),
@@ -7415,7 +7337,7 @@ async def create_call_session(request: Request, payload: dict):
 @app.patch("/api/comms/call-sessions/{session_id}")
 async def update_call_session(session_id: str, request: Request, payload: dict):
     """Update a call session."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can update call sessions.")
+    session = require_capability(request, "system.manage", "Only editors can update call sessions.")
     from backend.comms_service import update_call_session
     return {"data": update_call_session(session_id, **payload)}
 
@@ -7423,7 +7345,7 @@ async def update_call_session(session_id: str, request: Request, payload: dict):
 @app.post("/api/comms/calls/start")
 async def start_outbound_call(request: Request, payload: dict):
     """Start an outbound call (simulated)."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can initiate calls.")
+    session = require_capability(request, "system.manage", "Only editors can initiate calls.")
     from backend.comms_service import start_outbound_call
     return {"data": start_outbound_call(
         phone_number=payload.get("phoneNumber"),
@@ -7436,7 +7358,7 @@ async def start_outbound_call(request: Request, payload: dict):
 @app.post("/api/comms/calls/{call_id}/end")
 async def end_call_session(call_id: str, request: Request, payload: dict):
     """End an active call session."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only editors can end calls.")
+    session = require_capability(request, "system.manage", "Only editors can end calls.")
     from backend.comms_service import end_call_session
     return {"data": end_call_session(
         call_id=call_id,
@@ -7448,7 +7370,7 @@ async def end_call_session(call_id: str, request: Request, payload: dict):
 @app.get("/api/comms/calls/{call_id}")
 async def get_call_session(call_id: str, request: Request):
     """Get a specific call session detail."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view call details.")
+    session = require_capability(request, "system.view", "Only workspace members can view call details.")
     from backend.comms_service import get_call_session
     return {"data": get_call_session(call_id)}
 
@@ -7456,7 +7378,7 @@ async def get_call_session(call_id: str, request: Request):
 @app.get("/api/comms/routes")
 async def get_routes(request: Request):
     """Get extensions, ring groups, and phone numbers for routing UI."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view routes.")
+    session = require_capability(request, "system.view", "Only workspace members can view routes.")
     from backend.comms_service import get_routes_for_ui
     return {"data": get_routes_for_ui()}
 
@@ -7464,7 +7386,7 @@ async def get_routes(request: Request):
 @app.get("/api/comms/contact-summary/{contact_id}")
 async def get_comms_contact_summary(request: Request, contact_id: str):
     """Get communication summary (SMS threads, calls) for a CRM contact."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view comms data.")
+    session = require_capability(request, "system.view", "Only workspace members can view comms data.")
     try:
         from comms_integration import get_communication_summary_for_contact
         return {"data": get_communication_summary_for_contact(contact_id)}
@@ -7475,7 +7397,7 @@ async def get_comms_contact_summary(request: Request, contact_id: str):
 @app.post("/api/comms/contact-activity")
 async def create_comms_activity(request: Request, payload: dict[str, Any]):
     """Create CRM activity from comms event (SMS sent/received, call)."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can create CRM activities.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can create CRM activities.")
     try:
         from comms_integration import create_crm_activity_from_sms, create_crm_activity_from_call
     except ImportError:
@@ -7517,7 +7439,7 @@ async def create_comms_activity(request: Request, payload: dict[str, Any]):
 @app.get("/api/comms/integration-info")
 async def get_comms_integration_info(request: Request):
     """Get comms integration readiness information."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view integration info.")
+    session = require_capability(request, "system.view", "Only workspace members can view integration info.")
     try:
         from comms_integration import COMMS_EVENT_TYPES, COMMS_ACTIVITY_TYPES, ARTIFACT_CLASSIFICATIONS
         from comms_service import get_provider_info
@@ -7559,7 +7481,7 @@ async def get_comms_integration_info(request: Request):
 @app.get("/api/comms/provider-configs")
 async def list_comms_provider_configs(request: Request):
     """List all provider configurations."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view provider configs.")
+    session = require_capability(request, "integrations.view", "Only workspace members can view provider configs.")
     try:
         from comms_service import list_provider_configs
         return {"data": list_provider_configs()}
@@ -7570,7 +7492,7 @@ async def list_comms_provider_configs(request: Request):
 @app.post("/api/comms/provider-configs")
 async def save_comms_provider_config(request: Request, payload: dict[str, Any]):
     """Save provider configuration."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can save provider config.")
+    session = require_capability(request, "integrations.manage", "Only workspace staff or higher can save provider config.")
     try:
         from comms_service import save_provider_config
         
@@ -7590,7 +7512,7 @@ async def save_comms_provider_config(request: Request, payload: dict[str, Any]):
 @app.delete("/api/comms/provider-configs/{provider_type}")
 async def delete_comms_provider_config(request: Request, provider_type: str):
     """Delete provider configuration."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can delete provider config.")
+    session = require_capability(request, "integrations.manage", "Only workspace staff or higher can delete provider config.")
     try:
         from comms_service import delete_provider_config
         delete_provider_config(provider_type)
@@ -7667,7 +7589,7 @@ async def comms_webhook_ingest(request: Request, provider: str, payload: dict[st
 @app.get("/api/analytics/summary")
 async def get_analytics_summary(request: Request):
     """Get aggregate stats across all modules for report cards."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to access analytics.")
+    session = require_capability(request, "system.manage", "Need editor role to access analytics.")
     tenant = session.get("tenant") or {}
     tenant_id = tenant.get("id") or "default"
     token = extract_session_token(request)
@@ -7835,7 +7757,7 @@ def _resolve_forge_source_context(asset_id: str | None, source_context: dict[str
 @app.post("/api/cortex/generate-report")
 async def generate_cortex_report(request: Request, payload: CortexReportRequest):
     """Generate AI-powered report using configured provider."""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to generate reports.")
+    session = require_capability(request, "system.manage", "Need editor role to generate reports.")
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
 
@@ -7888,7 +7810,7 @@ SYSTEM DATA:
 
 Generate a comprehensive, actionable report following the output structure specified above. Use the provided data to inform your analysis."""
 
-        print(f"[CortexReportAPI] CALL_AI provider={active_config.get('provider_key')}")
+        print("[CortexReportAPI] CALL_AI provider lookup triggered")
 
         result = ai_assist_service.generate_report(
             prompt=full_prompt,
@@ -7923,7 +7845,7 @@ class ExternalDataRequest(BaseModel):
 @app.post("/api/analytics/external-data")
 async def ingest_external_data(request: Request, payload: ExternalDataRequest):
     """Import external data for analysis (CSV uploads, API feeds, etc.)"""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to import data.")
+    session = require_capability(request, "system.manage", "Need editor role to import data.")
     tenant = session.get("tenant") or {}
     
     try:
@@ -7942,7 +7864,7 @@ async def ingest_external_data(request: Request, payload: ExternalDataRequest):
 @app.get("/api/analytics/external-data")
 async def list_external_data(request: Request):
     """List all imported external datasets"""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    session = require_capability(request, "system.manage", "Need editor role.")
     tenant = session.get("tenant") or {}
     
     try:
@@ -7955,7 +7877,7 @@ async def list_external_data(request: Request):
 @app.get("/api/analytics/external-data/{data_id}")
 async def get_external_data(request: Request, data_id: str):
     """Get a specific external dataset"""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    session = require_capability(request, "system.manage", "Need editor role.")
     
     try:
         dataset = auth_store.get_external_dataset(data_id)
@@ -7971,7 +7893,7 @@ async def get_external_data(request: Request, data_id: str):
 @app.delete("/api/analytics/external-data/{data_id}")
 async def delete_external_data(request: Request, data_id: str):
     """Delete an external dataset"""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    session = require_capability(request, "system.manage", "Need editor role.")
     
     try:
         auth_store.delete_external_dataset(data_id)
@@ -7985,7 +7907,7 @@ async def delete_external_data(request: Request, data_id: str):
 @app.post("/api/analytics/content-metrics")
 async def ingest_content_metrics(request: Request, payload: dict[str, Any]):
     """Import content performance metrics for analysis"""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    session = require_capability(request, "system.manage", "Need editor role.")
     tenant = session.get("tenant") or {}
     
     try:
@@ -8004,7 +7926,7 @@ async def ingest_content_metrics(request: Request, payload: dict[str, Any]):
 @app.get("/api/analytics/content-metrics")
 async def list_content_metrics(request: Request, platform: str | None = None, limit: int = 50):
     """Get content metrics for analysis"""
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role.")
+    session = require_capability(request, "system.manage", "Need editor role.")
     tenant = session.get("tenant") or {}
     
     try:
@@ -8023,7 +7945,7 @@ async def list_content_metrics(request: Request, platform: str | None = None, li
 @app.get("/api/orders")
 async def list_orders(request: Request):
     """List all orders for the workspace."""
-    require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Need viewer role to view orders.")
+    require_capability(request, "crm.view", "Need viewer role to view orders.")
     try:
         return {"data": provider.list_orders()}
     except Exception as e:
@@ -8056,7 +7978,7 @@ class OrderUpdateRequest(BaseModel):
 @app.post("/api/orders")
 async def create_order(request: Request, payload: OrderCreateRequest):
     """Create a new order."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to create orders.")
+    require_capability(request, "crm.edit", "Need editor role to create orders.")
     try:
         order = provider.create_order(payload.model_dump(exclude_none=True))
         return {"data": order}
@@ -8067,7 +7989,7 @@ async def create_order(request: Request, payload: OrderCreateRequest):
 @app.put("/api/orders/{orderId}")
 async def update_order(request: Request, orderId: str, payload: OrderUpdateRequest):
     """Update an existing order."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to update orders.")
+    require_capability(request, "crm.edit", "Need editor role to update orders.")
     try:
         order = provider.update_order(orderId, payload.model_dump(exclude_none=True))
         if not order:
@@ -8082,7 +8004,7 @@ async def update_order(request: Request, orderId: str, payload: OrderUpdateReque
 @app.delete("/api/orders/{orderId}")
 async def delete_order(request: Request, orderId: str):
     """Delete an order."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to delete orders.")
+    require_capability(request, "crm.edit", "Need editor role to delete orders.")
     try:
         provider.delete_order(orderId)
         return {"success": True, "deletedId": orderId}
@@ -8093,7 +8015,7 @@ async def delete_order(request: Request, orderId: str):
 @app.post("/api/transcripts/save")
 async def save_transcript(request: Request, payload: TranscriptSaveRequest):
     """Save a structured transcript to the Brain via cortex normalization."""
-    require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Need editor role to save transcripts.")
+    require_capability(request, "system.manage", "Need editor role to save transcripts.")
     try:
         if clean_text(payload.commitSurface).lower() != "forge":
             raise HTTPException(status_code=400, detail="Transcript commits must be finalized from Forge.")
@@ -8189,7 +8111,7 @@ class PaymentProviderUpsertRequest(BaseModel):
 
 @app.get("/api/payments/providers")
 async def list_payment_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view payment providers.")
+    session = require_capability(request, "integrations.view", "Only workspace members can view payment providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -8199,7 +8121,7 @@ async def list_payment_provider_configs(request: Request):
 
 @app.put("/api/payments/providers/{provider_key}")
 async def upsert_payment_provider_config(provider_key: str, request: Request, payload: PaymentProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage payment providers.")
+    session = require_capability(request, "system.manage", "Only workspace admins can manage payment providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -8210,7 +8132,7 @@ async def upsert_payment_provider_config(provider_key: str, request: Request, pa
 
 @app.delete("/api/payments/providers/{config_id}")
 async def delete_payment_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete payment providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can delete payment providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -8220,7 +8142,7 @@ async def delete_payment_provider_config(config_id: str, request: Request):
 
 @app.post("/api/payments/providers/{config_id}/test")
 async def test_payment_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can test payment providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can test payment providers.")
     tenant_id = (session.get("tenant") or {}).get("id")
     config = auth_store.get_payment_provider_config_for_tenant(tenant_id, config_id)
     if not config:
@@ -8238,7 +8160,7 @@ class SocialProviderUpsertRequest(BaseModel):
 
 @app.get("/api/social-networks/providers")
 async def list_social_provider_configs(request: Request):
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES, "Only workspace members can view social network providers.")
+    session = require_capability(request, "system.view", "Only workspace members can view social network providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -8249,7 +8171,7 @@ async def list_social_provider_configs(request: Request):
 
 @app.put("/api/social-networks/providers/{provider_key}")
 async def upsert_social_provider_config(provider_key: str, request: Request, payload: SocialProviderUpsertRequest):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can manage social network providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can manage social network providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -8261,7 +8183,7 @@ async def upsert_social_provider_config(provider_key: str, request: Request, pay
 
 @app.delete("/api/social-networks/providers/{config_id}")
 async def delete_social_provider_config(config_id: str, request: Request):
-    session = require_workspace_role(request, WORKSPACE_ADMIN_ROLES, "Only workspace admins can delete social network providers.")
+    session = require_capability(request, "system.admin", "Only workspace admins can delete social network providers.")
     token = extract_session_token(request)
     tenant_id = (session.get("tenant") or {}).get("id")
     try:
@@ -8285,7 +8207,7 @@ class NotificationUpdateRequest(BaseModel):
 @app.get("/api/notifications")
 async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False):
     """Get notifications for the current tenant."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    session = require_capability(request, "system.view")
     token = extract_session_token(request)
     tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
@@ -8300,7 +8222,7 @@ async def list_notifications(request: Request, limit: int = 50, unread_only: boo
 @app.post("/api/notifications")
 async def create_notification(request: Request, payload: NotificationCreateRequest):
     """Create a notification for the current tenant."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    session = require_capability(request, "system.view")
     token = extract_session_token(request)
     tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
@@ -8315,7 +8237,7 @@ async def create_notification(request: Request, payload: NotificationCreateReque
 @app.patch("/api/notifications/{notification_id}")
 async def update_notification(notification_id: str, request: Request, payload: NotificationUpdateRequest):
     """Update a notification (mark as read)."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    session = require_capability(request, "system.view")
     token = extract_session_token(request)
     tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
@@ -8331,7 +8253,7 @@ async def update_notification(notification_id: str, request: Request, payload: N
 @app.post("/api/notifications/read-all")
 async def mark_all_notifications_read(request: Request):
     """Mark all notifications as read for the current tenant."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    session = require_capability(request, "system.view")
     token = extract_session_token(request)
     tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
@@ -8345,7 +8267,7 @@ async def mark_all_notifications_read(request: Request):
 @app.delete("/api/notifications/{notification_id}")
 async def delete_notification(notification_id: str, request: Request):
     """Delete a notification."""
-    session = require_workspace_role(request, WORKSPACE_VIEWER_ROLES)
+    session = require_capability(request, "system.view")
     token = extract_session_token(request)
     tenant_id = session.get("tenant_id") or session.get("tenant", {}).get("id")
     if not tenant_id:
@@ -9174,7 +9096,7 @@ def _build_actionable_signals(token: str, session: dict[str, Any]) -> list[dict[
 
 @app.get("/api/signals")
 async def list_actionable_signals(request: Request):
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can view signals.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can view signals.")
     token = extract_session_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -9194,7 +9116,7 @@ async def execute_signal(request: Request, payload: SignalExecuteRequest):
     - flow → flow trigger execution
     - command → /api/ai/command
     """
-    session = require_workspace_role(request, WORKSPACE_EDITOR_ROLES, "Only workspace staff or higher can execute signals.")
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can execute signals.")
     token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}

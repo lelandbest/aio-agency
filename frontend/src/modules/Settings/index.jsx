@@ -1,24 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers, Search, Monitor, LogOut, Sparkles } from 'lucide-react';
+import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenTool, CreditCard, Box, Lock, Trash2, Eye, EyeOff, ChevronDown, ChevronRight, Edit2, Plus, Palette, Cog, Package, Inbox, FileCode, Layers, Search, Monitor, LogOut, Sparkles, Bot } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBrand } from '../../contexts/BrandContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import { clearStoredSessionToken } from '../../services/authStorage';
+import ModuleHeader from '../../components/ModuleHeader';
 import {
   addWorkspaceMemberApi,
   armOmegaApi,
+  attachWorkspaceRoleApi,
   cancelOmegaApi,
   changePasswordApi,
+  createWorkspaceRoleApi,
   createWorkspaceApi,
   deleteWorkspaceApi,
   deleteGlobalVariableApi,
+  detachWorkspaceRoleApi,
   executeOmegaApi,
   getAuthSessionsApi,
   getCanonicalSettingsApi,
   getOmegaStatusApi,
   getProfileApi,
   getWorkspaceMembershipsApi,
+  getWorkspaceRolesApi,
   logoutOtherSessionsApi,
   removeWorkspaceMemberApi,
   revokeAuthSessionApi,
@@ -27,6 +32,7 @@ import {
   updateSystemEmailTemplateApi,
   updateWorkspaceApi,
   updateWorkspaceMemberApi,
+  updateWorkspaceRoleApi,
   upsertGlobalVariableApi,
   uploadAvatarApi,
   deleteAvatarApi
@@ -101,6 +107,524 @@ const formatOmegaCountdown = (executeAt, nowTick) => {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, '0')} remaining`;
+};
+
+const summarizeCapabilityDomains = (capabilities = []) => {
+  const domains = Array.from(new Set((capabilities || []).map((capability) => String(capability).split('.')[0]).filter(Boolean)));
+  return domains.join(', ');
+};
+
+const buildEntityRoleIndex = (roleBundle) => {
+  const index = {};
+  const roles = Array.isArray(roleBundle?.roles) ? roleBundle.roles : [];
+  const entitySummaries = Array.isArray(roleBundle?.entitySummaries) ? roleBundle.entitySummaries : [];
+  entitySummaries.forEach((entity) => {
+    index[`${entity.entityType}:${entity.entityId}`] = {
+      roleIds: entity.roleIds || [],
+      roleNames: entity.roleNames || [],
+      effectiveCapabilities: entity.effectiveCapabilities || [],
+    };
+  });
+  return { index, roles };
+};
+
+const useWorkspaceRoleAuthority = (workspaceId, enabled = true) => {
+  const [roleBundle, setRoleBundle] = useState(null);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [rolesError, setRolesError] = useState('');
+
+  const reloadRoles = async () => {
+    if (!workspaceId || !enabled) {
+      setRoleBundle(null);
+      return null;
+    }
+    setLoadingRoles(true);
+    setRolesError('');
+    try {
+      const nextBundle = await getWorkspaceRolesApi(workspaceId);
+      setRoleBundle(nextBundle);
+      return nextBundle;
+    } catch (loadError) {
+      setRoleBundle(null);
+      setRolesError(loadError.message || 'Unable to load roles.');
+      return null;
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
+  useEffect(() => {
+    reloadRoles();
+  }, [workspaceId, enabled]);
+
+  return {
+    roleBundle,
+    setRoleBundle,
+    loadingRoles,
+    rolesError,
+    setRolesError,
+    reloadRoles,
+  };
+};
+
+const EntityRolePills = ({ roles = [], onDetach = null, disabled = false, emptyLabel = 'No roles attached.' }) => (
+  <div className="flex flex-wrap gap-2">
+    {roles.length ? roles.map((role) => (
+      <div
+        key={role.id}
+        className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+          role.isSystemRole
+            ? 'border-cyan-500/30 bg-cyan-500/12 text-cyan-200'
+            : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]'
+        }`}
+      >
+        <span>{role.name}</span>
+        {role.isLocked && <span className="text-[8px] opacity-70">LOCKED</span>}
+        {onDetach && !disabled && (
+          <button
+            type="button"
+            onClick={() => onDetach(role)}
+            className="text-[9px] opacity-80 transition hover:opacity-100"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    )) : (
+      <span className="text-xs text-[var(--color-text-secondary)]">{emptyLabel}</span>
+    )}
+  </div>
+);
+
+const RoleAssignmentEditor = ({
+  workspaceId,
+  entityType,
+  entityId,
+  availableRoles = [],
+  assignedRoles = [],
+  onRoleBundleUpdate,
+  canManage = true,
+  compact = false,
+}) => {
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const nextRole = availableRoles.find((role) => !assignedRoles.some((assignedRole) => assignedRole.id === role.id));
+    setSelectedRoleId(nextRole?.id || '');
+  }, [availableRoles, assignedRoles, entityType, entityId]);
+
+  const handleAttach = async () => {
+    if (!workspaceId || !selectedRoleId || !canManage) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const nextBundle = await attachWorkspaceRoleApi(workspaceId, selectedRoleId, { entityType, entityId });
+      onRoleBundleUpdate?.(nextBundle);
+    } catch (attachError) {
+      setError(attachError.message || 'Unable to attach role.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDetach = async (role) => {
+    if (!workspaceId || !role?.id || !canManage) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const nextBundle = await detachWorkspaceRoleApi(workspaceId, role.id, entityType, entityId);
+      onRoleBundleUpdate?.(nextBundle);
+    } catch (detachError) {
+      setError(detachError.message || 'Unable to detach role.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const attachableRoles = availableRoles.filter((role) => !assignedRoles.some((assignedRole) => assignedRole.id === role.id));
+
+  return (
+    <div className={`space-y-2 ${compact ? '' : 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4'}`}>
+      <EntityRolePills roles={assignedRoles} onDetach={handleDetach} disabled={!canManage || submitting} />
+      <div className={`grid gap-2 ${compact ? 'md:grid-cols-[1fr_auto]' : 'md:grid-cols-[1fr_auto]'}`}>
+        <select
+          value={selectedRoleId}
+          onChange={(event) => setSelectedRoleId(event.target.value)}
+          disabled={!canManage || !attachableRoles.length || submitting}
+          className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+        >
+          <option value="">{attachableRoles.length ? 'Attach role…' : 'All roles attached'}</option>
+          {attachableRoles.map((role) => (
+            <option key={role.id} value={role.id}>{role.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleAttach}
+          disabled={!canManage || !selectedRoleId || submitting}
+          className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] disabled:opacity-60"
+        >
+          Attach
+        </button>
+      </div>
+      {error && <div className="text-xs text-red-300">{error}</div>}
+    </div>
+  );
+};
+
+const RolesAuthoritySurface = ({ focus = 'roles' }) => {
+  const { tenant, user } = useAuth();
+  const workspaceId = tenant?.id || '';
+  const { hasCapability } = useAuth();
+  const canManage = hasCapability('system.admin');
+  const { roleBundle, setRoleBundle, loadingRoles, rolesError, setRolesError } = useWorkspaceRoleAuthority(workspaceId, Boolean(workspaceId));
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [draftName, setDraftName] = useState('');
+  const [draftDescription, setDraftDescription] = useState('');
+  const [draftCapabilities, setDraftCapabilities] = useState([]);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newRoleDescription, setNewRoleDescription] = useState('');
+  const [assignmentEntityType, setAssignmentEntityType] = useState('user');
+  const [assignmentEntityId, setAssignmentEntityId] = useState('');
+  const [savingRole, setSavingRole] = useState(false);
+  const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+  const roles = roleBundle?.roles || [];
+  const capabilityCatalog = roleBundle?.capabilityCatalog || [];
+  const directoryUsers = roleBundle?.directory?.users || [];
+  const directoryBots = roleBundle?.directory?.bots || [];
+  const selectedRole = roles.find((role) => role.id === selectedRoleId) || roles[0] || null;
+
+  useEffect(() => {
+    if (!selectedRoleId && roles[0]?.id) {
+      setSelectedRoleId(roles[0].id);
+    } else if (selectedRoleId && !roles.some((role) => role.id === selectedRoleId)) {
+      setSelectedRoleId(roles[0]?.id || '');
+    }
+  }, [roles, selectedRoleId]);
+
+  useEffect(() => {
+    if (!selectedRole) return;
+    setDraftName(selectedRole.name || '');
+    setDraftDescription(selectedRole.description || '');
+    setDraftCapabilities(selectedRole.capabilities || []);
+  }, [selectedRole?.id]);
+
+  useEffect(() => {
+    const pool = assignmentEntityType === 'bot' ? directoryBots : directoryUsers;
+    const nextEntity = pool.find((entity) => !selectedRole?.assignedEntities?.some((assignment) => assignment.entityType === entity.entityType && assignment.entityId === entity.entityId));
+    setAssignmentEntityId(nextEntity?.entityId || '');
+  }, [assignmentEntityType, directoryUsers, directoryBots, selectedRole?.id, selectedRole?.assignedEntities]);
+
+  const handleCreateRole = async () => {
+    if (!workspaceId || !newRoleName.trim() || !canManage) return;
+    setSavingRole(true);
+    setRolesError('');
+    try {
+      const nextBundle = await createWorkspaceRoleApi(workspaceId, {
+        name: newRoleName.trim(),
+        description: newRoleDescription.trim(),
+        capabilities: [],
+      });
+      setRoleBundle(nextBundle);
+      const createdRole = (nextBundle?.roles || []).find((role) => role.name === newRoleName.trim());
+      setSelectedRoleId(createdRole?.id || '');
+      setNewRoleName('');
+      setNewRoleDescription('');
+      triggerSavedAction('create-role');
+    } catch (createError) {
+      setRolesError(createError.message || 'Unable to create role.');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const handleSaveRole = async () => {
+    if (!workspaceId || !selectedRole || !canManage || selectedRole.isLocked) return;
+    setSavingRole(true);
+    setRolesError('');
+    try {
+      const nextBundle = await updateWorkspaceRoleApi(workspaceId, selectedRole.id, {
+        name: draftName.trim(),
+        description: draftDescription.trim(),
+        capabilities: draftCapabilities,
+      });
+      setRoleBundle(nextBundle);
+      triggerSavedAction('save-role');
+    } catch (saveError) {
+      setRolesError(saveError.message || 'Unable to save role.');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const handleToggleCapability = (capabilityId) => {
+    if (selectedRole?.isLocked) return;
+    setDraftCapabilities((current) =>
+      current.includes(capabilityId)
+        ? current.filter((value) => value !== capabilityId)
+        : [...current, capabilityId]
+    );
+  };
+
+  const handleAttachSelectedRole = async () => {
+    if (!workspaceId || !selectedRole?.id || !assignmentEntityId || !canManage) return;
+    setSavingRole(true);
+    setRolesError('');
+    try {
+      const nextBundle = await attachWorkspaceRoleApi(workspaceId, selectedRole.id, {
+        entityType: assignmentEntityType,
+        entityId: assignmentEntityId,
+      });
+      setRoleBundle(nextBundle);
+    } catch (attachError) {
+      setRolesError(attachError.message || 'Unable to attach role.');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  return (
+    <div className="h-full min-h-0 overflow-hidden">
+      <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="min-h-0 overflow-hidden rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+          <div className="border-b border-[var(--color-border)] px-4 py-4">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Roles</div>
+            <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Named authority bundles with explicit capability scopes.</div>
+          </div>
+          <div className="flex max-h-full flex-col gap-3 overflow-y-auto p-4 no-scrollbar">
+            <div className="space-y-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3">
+              <input
+                value={newRoleName}
+                onChange={(event) => setNewRoleName(event.target.value)}
+                placeholder="Create role name"
+                disabled={!canManage || savingRole}
+                className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+              />
+              <input
+                value={newRoleDescription}
+                onChange={(event) => setNewRoleDescription(event.target.value)}
+                placeholder="Description"
+                disabled={!canManage || savingRole}
+                className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={handleCreateRole}
+                disabled={!canManage || !newRoleName.trim() || savingRole}
+                className={saveButtonClassName('w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] disabled:opacity-60', savedAction === 'create-role')}
+              >
+                {savedAction === 'create-role' ? 'Created' : 'Create Role'}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {roles.map((role) => {
+                const isActive = selectedRole?.id === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => setSelectedRoleId(role.id)}
+                    className={`w-full rounded-[var(--radius-card)] border px-3 py-3 text-left transition ${
+                      isActive
+                        ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
+                        : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--color-text-primary)]">{role.name}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{role.description || 'No description set.'}</div>
+                      </div>
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">{role.assignedCount}</div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {role.isSystemRole && <span className="rounded-full border border-cyan-500/30 bg-cyan-500/12 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-200">System</span>}
+                      {role.isLocked && <span className="rounded-full border border-amber-500/30 bg-amber-500/12 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-200">Locked</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 no-scrollbar">
+          {loadingRoles && <div className="text-sm text-[var(--color-text-secondary)]">Loading roles…</div>}
+          {!loadingRoles && selectedRole && (
+            <div className="space-y-5">
+              <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Role Identity</div>
+                  <input
+                    value={draftName}
+                    onChange={(event) => setDraftName(event.target.value)}
+                    disabled={!canManage || selectedRole.isLocked}
+                    className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                  />
+                  <textarea
+                    value={draftDescription}
+                    onChange={(event) => setDraftDescription(event.target.value)}
+                    disabled={!canManage || selectedRole.isLocked}
+                    rows={3}
+                    className="w-full resize-none rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRole.isSystemRole && <span className="rounded-full border border-cyan-500/30 bg-cyan-500/12 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-200">System Role</span>}
+                    {selectedRole.isLocked && <span className="rounded-full border border-amber-500/30 bg-amber-500/12 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Locked</span>}
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">Role ID: <span className="font-mono text-[var(--color-text-primary)]">{selectedRole.id}</span></div>
+                </div>
+
+                <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Authority Summary</div>
+                  <div className="text-2xl font-bold text-[var(--color-text-primary)]">{draftCapabilities.length}</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">Capabilities enabled</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">{summarizeCapabilityDomains(draftCapabilities) || 'No domains enabled.'}</div>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveRole}
+                      disabled={!canManage || selectedRole.isLocked || savingRole}
+                      className={saveButtonClassName('w-full rounded-[var(--radius-card)] bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-60', savedAction === 'save-role')}
+                    >
+                      {savedAction === 'save-role' ? 'Saved' : 'Save Role'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {focus !== 'accessRules' && (
+                <div className="space-y-4 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Capabilities</div>
+                      <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Grouped capability bundles define the role’s effective authority.</div>
+                    </div>
+                    {selectedRole.isLocked && <div className="text-xs text-amber-200">Locked system role capabilities are not editable.</div>}
+                  </div>
+                  <div className="space-y-3">
+                    {capabilityCatalog.map((domain) => (
+                      <div key={domain.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-3">
+                        <div className="mb-3">
+                          <div className="text-sm font-semibold text-[var(--color-text-primary)]">{domain.label}</div>
+                        </div>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          {(domain.capabilities || []).map((capability) => {
+                            const enabled = draftCapabilities.includes(capability.id);
+                            return (
+                              <button
+                                key={capability.id}
+                                type="button"
+                                onClick={() => handleToggleCapability(capability.id)}
+                                disabled={!canManage || selectedRole.isLocked}
+                                className={`rounded-[var(--radius-card)] border px-3 py-3 text-left transition disabled:opacity-60 ${
+                                  enabled
+                                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12'
+                                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">{capability.label}</div>
+                                  <div className={`h-5 w-10 rounded-full border transition ${enabled ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/20' : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)]'}`}>
+                                    <div className={`mt-[1px] h-4 w-4 rounded-full bg-[var(--color-text-primary)] transition ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                  </div>
+                                </div>
+                                <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{capability.description}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {focus !== 'permissions' && (
+                <div className="space-y-4 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Assignments</div>
+                    <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Attach this role to one or more users or bots. Effective authority is the union of all attached role capabilities.</div>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-[140px_1fr_auto]">
+                    <select
+                      value={assignmentEntityType}
+                      onChange={(event) => setAssignmentEntityType(event.target.value)}
+                      disabled={!canManage || savingRole}
+                      className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                    >
+                      <option value="user">User</option>
+                      <option value="bot">Bot</option>
+                    </select>
+                    <select
+                      value={assignmentEntityId}
+                      onChange={(event) => setAssignmentEntityId(event.target.value)}
+                      disabled={!canManage || savingRole}
+                      className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                    >
+                      <option value="">Select {assignmentEntityType}</option>
+                      {(assignmentEntityType === 'bot' ? directoryBots : directoryUsers)
+                        .filter((entity) => !selectedRole.assignedEntities.some((assignment) => assignment.entityType === entity.entityType && assignment.entityId === entity.entityId))
+                        .map((entity) => (
+                          <option key={`${entity.entityType}:${entity.entityId}`} value={entity.entityId}>
+                            {entity.label}{entity.secondaryLabel ? ` • ${entity.secondaryLabel}` : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleAttachSelectedRole}
+                      disabled={!canManage || !assignmentEntityId || savingRole}
+                      className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] disabled:opacity-60"
+                    >
+                      Attach
+                    </button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {selectedRole.assignedEntities.length ? selectedRole.assignedEntities.map((assignment) => (
+                      <div key={assignment.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
+                        <div className="text-sm font-semibold text-[var(--color-text-primary)]">{assignment.entityLabel}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{assignment.entityType} • {assignment.entitySecondaryLabel || assignment.entityId}</div>
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!canManage) return;
+                              setSavingRole(true);
+                              setRolesError('');
+                              try {
+                                const nextBundle = await detachWorkspaceRoleApi(workspaceId, selectedRole.id, assignment.entityType, assignment.entityId);
+                                setRoleBundle(nextBundle);
+                              } catch (detachError) {
+                                setRolesError(detachError.message || 'Unable to detach role.');
+                              } finally {
+                                setSavingRole(false);
+                              }
+                            }}
+                            disabled={!canManage || savingRole}
+                            className="rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-red-300 transition hover:bg-red-500/20 disabled:opacity-60"
+                          >
+                            Detach
+                          </button>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="text-sm text-[var(--color-text-secondary)]">No entities currently attached.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {rolesError && <div className="rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{rolesError}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ============ GLOBAL VARIABLES MANAGER ============
@@ -205,50 +729,69 @@ const GlobalVarsManager = () => {
   );
 };
 
-// ============ WHITE LABEL SETTINGS ============
-const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
-  const [activeTab, setActiveTab] = useState('branding');
-  const [expandedCategory, setExpandedCategory] = useState('Main');
-  const [menuItems, setMenuItems] = useState([]);
-  const [menuDraftDirty, setMenuDraftDirty] = useState(false);
+const WHITE_LABEL_AVAILABLE_ICONS = [
+  'LayoutDashboard', 'Users', 'Bot', 'Workflow', 'Radio', 'CalendarIcon',
+  'MessageSquare', 'PenTool', 'GitMerge', 'FileText', 'ShoppingCart', 'Globe',
+  'Phone', 'Settings', 'Video', 'CreditCard', 'Zap', 'Shield', 'Tag', 'Layout',
+  'EyeOff', 'Activity', 'Crosshair', 'Box', 'CheckSquare', 'Key', 'Lock',
+  'Briefcase', 'FileInput', 'Webhook', 'Link', 'Power', 'Download', 'Package', 'Clock',
+  'Server', 'Chrome', 'PhoneCall', 'Paperclip', 'CheckCircle', 'AlertCircle', 'Play',
+  'User', 'Bell', 'Smartphone', 'MapPin', 'Receipt', 'Cpu', 'Target', 'ShieldCheck',
+  'AlertOctagon', 'Bookmark', 'Flag', 'TrendingUp', 'DollarSign', 'Type', 'ListChecks'
+];
+
+const cloneMenuStructure = (value) => JSON.parse(JSON.stringify(Array.isArray(value) ? value : []));
+
+const buildDefaultBrandingData = () => ({
+  menuBackgroundColor: 'var(--color-bg-primary)',
+  menuTextColor: 'var(--color-text-primary)',
+  layout: 'sidebar-left',
+  theme: 'auto',
+  companyLogo: '',
+  companyName: 'AIO CRM',
+  brandName: 'AIO CRM',
+  logoUrl: '/aio-button-192px.png',
+  primaryColor: '#3b82f6',
+  secondaryColor: '#1e40af',
+  accentColor: '#8b5cf6',
+  footerText: 'Generated by Cortex',
+  disclaimer: 'Confidential - Internal Use Only',
+  contactInfo: '',
+  reportHeaderLabel: 'Cortex Intelligence Report'
+});
+
+const useWhiteLabelControlPlane = ({ menuStructure, onMenuUpdate, handlersRef }) => {
   const { tenant, refreshSession } = useAuth();
   const { setBrandConfig } = useBrand();
   const tenantSettings = tenant?.tenantSettings || tenant?.settings || {};
   const persistedMenuStructure = Array.isArray(tenantSettings?.navigation?.menuStructure)
     ? tenantSettings.navigation.menuStructure
     : Array.isArray(tenantSettings?.menuStructure)
-    ? tenantSettings.menuStructure
-    : null;
+      ? tenantSettings.menuStructure
+      : null;
   const draftMenuStructure = Array.isArray(persistedMenuStructure)
     ? persistedMenuStructure
     : Array.isArray(menuStructure)
-    ? menuStructure
-    : [];
-  const cloneMenuStructure = (value) => JSON.parse(JSON.stringify(Array.isArray(value) ? value : []));
+      ? menuStructure
+      : [];
 
-  const buildDefaultBrandingData = () => ({
-    menuBackgroundColor: 'var(--color-bg-primary)',
-    menuTextColor: 'var(--color-text-primary)',
-    layout: 'sidebar-left',
-    theme: 'auto',
-    companyLogo: '',
-    companyName: 'AIO CRM',
-    brandName: 'AIO CRM',
-    logoUrl: '/aio-button-192px.png',
-    primaryColor: '#3b82f6',
-    secondaryColor: '#1e40af',
-    accentColor: '#8b5cf6',
-    footerText: 'Generated by Cortex',
-    disclaimer: 'Confidential - Internal Use Only',
-    contactInfo: '',
-    reportHeaderLabel: 'Cortex Intelligence Report'
-  });
-
-  // Branding State
+  const [menuItems, setMenuItems] = useState([]);
+  const [menuDraftDirty, setMenuDraftDirty] = useState(false);
   const [brandingData, setBrandingData] = useState(() => ({
     ...buildDefaultBrandingData(),
     ...(tenantSettings?.branding || {})
   }));
+  const [showMenuModal, setShowMenuModal] = useState({ open: false, editIdx: null, catIdx: null });
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [iconSearch, setIconSearch] = useState('');
+  const [modalFormData, setModalFormData] = useState({
+    title: '',
+    link: '',
+    icon: 'Box',
+    iconColor: 'var(--color-text-tertiary)',
+    backgroundColor: 'var(--color-bg-secondary)',
+    enableIframe: false
+  });
 
   useEffect(() => {
     setMenuItems(cloneMenuStructure(draftMenuStructure));
@@ -281,7 +824,6 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
     } catch (error) {
       console.warn('Failed to refresh session after white-label save; using canonical save response.', error);
     }
-    // Canonical save response is applied immediately so shell state does not silently diverge on refresh failures.
     const resolvedTenantSettings = refreshedTenantSettings || updatedTenantSettings || {};
     const refreshedBranding = resolvedTenantSettings?.branding || nextBranding;
     const refreshedMenu = resolvedTenantSettings?.navigation?.menuStructure;
@@ -311,54 +853,6 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
     }
   });
 
-  // Custom Menu Items State
-  const [customMenuItems, setCustomMenuItems] = useState([
-    { id: 1, title: 'Terms of Service', url: 'https://policy.omcoxed.co/terms-of-service', icon: '📋' },
-    { id: 2, title: 'Privacy Policy', url: 'https://policy.omcoxed.co/privacy-policy', icon: '🔐' },
-    { id: 3, title: 'Acceptable Use Policy', url: 'https://policy.omcoxed.co/acceptable-use-policy', icon: '📍' }
-  ]);
-
-  const [newCustomItem, setNewCustomItem] = useState({ title: '', url: '' });
-
-  // Advanced Settings State
-  const [advancedData, setAdvancedData] = useState({
-    javascriptHtml: '',
-    conditionalJavascript: '',
-    language: 'English',
-    country: 'United States',
-    currency: 'USD',
-    planCancelUrl: ''
-  });
-
-  // Modal State for Menu Item Editing
-  const [showMenuModal, setShowMenuModal] = useState({ open: false, editIdx: null, catIdx: null });
-  const [showIconPicker, setShowIconPicker] = useState(false);
-  const [iconSearch, setIconSearch] = useState('');
-  const [modalFormData, setModalFormData] = useState({
-    title: '',
-    link: '',
-    icon: 'Box',
-    iconColor: 'var(--color-text-tertiary)',
-    backgroundColor: 'var(--color-bg-secondary)',
-    enableIframe: false
-  });
-
-  // Available Lucide Icons for menu items
-  const availableIcons = [
-    'LayoutDashboard', 'Users', 'Bot', 'Workflow', 'Radio', 'CalendarIcon',
-    'MessageSquare', 'PenTool', 'GitMerge', 'FileText', 'ShoppingCart', 'Globe',
-    'Phone', 'Settings', 'Video', 'CreditCard', 'Zap', 'Shield', 'Tag', 'Layout',
-    'EyeOff', 'Activity', 'Crosshair', 'Box', 'CheckSquare', 'Key', 'Lock',
-    'Briefcase', 'FileInput', 'Webhook', 'Link', 'Power', 'Download', 'Package', 'Clock',
-    'Server', 'Chrome', 'PhoneCall', 'Paperclip', 'CheckCircle', 'AlertCircle', 'Play',
-    'User', 'Bell', 'Smartphone', 'MapPin', 'Receipt', 'Cpu', 'Target', 'ShieldCheck',
-    'AlertOctagon', 'Bookmark', 'Flag', 'TrendingUp', 'DollarSign', 'Type', 'ListChecks'
-  ];
-
-  const filteredIcons = availableIcons.filter(icon =>
-    icon.toLowerCase().includes(iconSearch.toLowerCase())
-  );
-
   const toggleItemVisibility = (categoryIdx, itemIdx) => {
     const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items[itemIdx].visible = !updated[categoryIdx].items[itemIdx].visible;
@@ -366,71 +860,28 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
     setMenuDraftDirty(true);
   };
 
-  const updateItemLabel = (categoryIdx, itemIdx, newLabel) => {
-    const updated = cloneMenuStructure(menuItems);
-    updated[categoryIdx].items[itemIdx].label = newLabel;
-    setMenuItems(updated);
-    setMenuDraftDirty(true);
-  };
-
-  const updateItemUrl = (categoryIdx, itemIdx, newUrl) => {
-    const updated = cloneMenuStructure(menuItems);
-    updated[categoryIdx].items[itemIdx].url = newUrl;
-    setMenuItems(updated);
-    setMenuDraftDirty(true);
-  };
-
-  const updateItemIcon = (categoryIdx, itemIdx, showIcon) => {
-    const updated = cloneMenuStructure(menuItems);
-    updated[categoryIdx].items[itemIdx].showIcon = showIcon;
-    setMenuItems(updated);
-    setMenuDraftDirty(true);
-  };
-
-  const deleteMenuItem = (categoryIdx, itemIdx) => {
-    const updated = cloneMenuStructure(menuItems);
-    updated[categoryIdx].items.splice(itemIdx, 1);
-    setMenuItems(updated);
-    setMenuDraftDirty(true);
-  };
-
-  const addCustomMenuItem = () => {
-    if (newCustomItem.title && newCustomItem.url) {
-      setCustomMenuItems([
-        ...customMenuItems,
-        { id: Date.now(), title: newCustomItem.title, url: newCustomItem.url, icon: '🔗' }
-      ]);
-      setNewCustomItem({ title: '', url: '' });
-    }
-  };
-
-  const deleteCustomMenuItem = (id) => {
-    setCustomMenuItems(customMenuItems.filter(item => item.id !== id));
-  };
-
   const updateBrandingColor = (colorType, value) => {
-    setBrandingData({ ...brandingData, [colorType]: value });
+    setBrandingData((current) => ({ ...current, [colorType]: value }));
   };
 
   const updateBrandingTheme = (newTheme) => {
-    setBrandingData({ ...brandingData, theme: newTheme });
+    setBrandingData((current) => ({ ...current, theme: newTheme }));
   };
 
   const updateBrandingLayout = (layout) => {
-    setBrandingData({ ...brandingData, layout });
+    setBrandingData((current) => ({ ...current, layout }));
   };
 
-  // Modal handlers
   const openMenuModal = (catIdx = null, itemIdx = null) => {
     if (itemIdx !== null && catIdx !== null) {
-      const item = menuItems[catIdx].items[itemIdx];
+      const item = menuItems[catIdx]?.items?.[itemIdx];
       setModalFormData({
-        title: item.label,
-        link: item.url || '',
-        icon: item.icon || 'Box',
-        iconColor: item.iconColor || 'var(--color-text-tertiary)',
-        backgroundColor: item.backgroundColor || 'var(--color-bg-secondary)',
-        enableIframe: item.type === 'iframe'
+        title: item?.label || '',
+        link: item?.url || '',
+        icon: item?.icon || 'Box',
+        iconColor: item?.iconColor || 'var(--color-text-tertiary)',
+        backgroundColor: item?.backgroundColor || 'var(--color-bg-secondary)',
+        enableIframe: item?.type === 'iframe'
       });
     } else {
       setModalFormData({
@@ -463,32 +914,29 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
 
   const saveMenuItemChanges = () => {
     const updated = cloneMenuStructure(menuItems);
+    const nextItem = {
+      label: modalFormData.title,
+      url: modalFormData.link,
+      icon: modalFormData.icon,
+      iconColor: modalFormData.iconColor,
+      backgroundColor: modalFormData.backgroundColor,
+      visible: true,
+      type: modalFormData.enableIframe ? 'iframe' : 'internal'
+    };
 
     if (showMenuModal.editIdx !== null && showMenuModal.catIdx !== null) {
-      // Update existing item
+      const existingItem = updated[showMenuModal.catIdx]?.items?.[showMenuModal.editIdx] || {};
       updated[showMenuModal.catIdx].items[showMenuModal.editIdx] = {
-        ...updated[showMenuModal.catIdx].items[showMenuModal.editIdx],
-        label: modalFormData.title,
-        url: modalFormData.link,
-        icon: modalFormData.icon,
-        iconColor: modalFormData.iconColor,
-        backgroundColor: modalFormData.backgroundColor,
-        type: modalFormData.enableIframe ? 'iframe' : 'internal'
+        ...existingItem,
+        ...nextItem
       };
     } else {
-      // Add new item to first category (Main)
-      const newItem = {
-        id: `custom-${Date.now()}`,
-        label: modalFormData.title,
-        url: modalFormData.link,
-        icon: modalFormData.icon,
-        iconColor: modalFormData.iconColor,
-        backgroundColor: modalFormData.backgroundColor,
-        type: modalFormData.enableIframe ? 'iframe' : 'internal',
-        visible: true
-      };
-      if (updated.length > 0) {
-        updated[0].items.push(newItem);
+      const firstCategoryIndex = updated.findIndex((category) => Array.isArray(category?.items));
+      if (firstCategoryIndex >= 0) {
+        updated[firstCategoryIndex].items.push({
+          id: `custom-${Date.now()}`,
+          ...nextItem
+        });
       }
     }
 
@@ -497,14 +945,265 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
     closeMenuModal();
   };
 
+  const filteredIcons = WHITE_LABEL_AVAILABLE_ICONS.filter((icon) =>
+    icon.toLowerCase().includes(iconSearch.toLowerCase())
+  );
+
   const isIframeBlocked = (url) => {
     const blockedDomains = ['facebook.com', 'twitter.com', 'instagram.com', 'youtube.com', 'linkedin.com'];
     try {
       const urlObj = new URL(url);
-      return blockedDomains.some(domain => urlObj.hostname.includes(domain));
+      return blockedDomains.some((domain) => urlObj.hostname.includes(domain));
     } catch {
       return false;
     }
+  };
+
+  return {
+    brandingData,
+    setBrandingData,
+    menuItems,
+    setMenuItems,
+    menuDraftDirty,
+    updateBrandingColor,
+    updateBrandingTheme,
+    updateBrandingLayout,
+    handleResetWhiteLabel,
+    handleSaveWhiteLabel,
+    toggleItemVisibility,
+    openMenuModal,
+    closeMenuModal,
+    saveMenuItemChanges,
+    showMenuModal,
+    showIconPicker,
+    setShowIconPicker,
+    iconSearch,
+    setIconSearch,
+    modalFormData,
+    setModalFormData,
+    filteredIcons,
+    isIframeBlocked,
+  };
+};
+
+const WhiteLabelMenuItemModal = ({
+  showMenuModal,
+  closeMenuModal,
+  modalFormData,
+  setModalFormData,
+  showIconPicker,
+  setShowIconPicker,
+  iconSearch,
+  setIconSearch,
+  filteredIcons,
+  isIframeBlocked,
+  saveMenuItemChanges,
+}) => {
+  if (!showMenuModal.open) {
+    return null;
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 z-40"
+        onClick={closeMenuModal}
+      />
+
+      <div className="fixed right-0 top-0 bottom-0 w-96 bg-[var(--color-bg-primary)] border-l border-[var(--color-border)] shadow-xl z-50 flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Add Navigation Icon</h2>
+          <p className="text-xs text-[var(--color-text-secondary)] mt-1">Customize menu item appearance and behavior</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex flex-col items-center gap-2 relative">
+              <div className="text-xs text-[var(--color-text-secondary)] font-medium uppercase">Icon</div>
+              <button
+                onClick={() => setShowIconPicker(!showIconPicker)}
+                className="w-16 h-16 rounded-full cursor-pointer border-2 border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex items-center justify-center text-2xl hover:border-blue-500 transition"
+              >
+                {modalFormData.icon === 'Bot' ? '🤖' : modalFormData.icon === 'LayoutDashboard' ? '📊' : modalFormData.icon === 'Settings' ? '⚙️' : '📦'}
+              </button>
+
+              {showIconPicker && (
+                <div className="absolute top-20 left-0 right-0 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-3 z-50 w-80 max-h-64 flex flex-col">
+                  <input
+                    type="text"
+                    placeholder="Search icons..."
+                    value={iconSearch}
+                    onChange={(e) => setIconSearch(e.target.value)}
+                    className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded px-2 py-1 text-sm text-[var(--color-text-primary)] mb-2 focus:border-blue-500 focus:outline-none"
+                  />
+                  <div className="overflow-y-auto grid grid-cols-4 gap-2">
+                    {filteredIcons.map((icon) => (
+                      <button
+                        key={icon}
+                        onClick={() => {
+                          setModalFormData({ ...modalFormData, icon });
+                          setShowIconPicker(false);
+                        }}
+                        className={`p-2 rounded text-center text-xs font-medium transition ${modalFormData.icon === icon
+                          ? 'bg-blue-600/30 border border-blue-500 text-blue-400'
+                          : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-gray-500'
+                          }`}
+                        title={icon}
+                      >
+                        {icon.substring(0, 3)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-xs text-[var(--color-text-secondary)] font-medium uppercase">Icon Color</div>
+              <input
+                type="color"
+                value={modalFormData.iconColor}
+                onChange={(e) => setModalFormData({ ...modalFormData, iconColor: e.target.value })}
+                className="w-16 h-16 rounded-full cursor-pointer border-2 border-[var(--color-border)]"
+              />
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-xs text-[var(--color-text-secondary)] font-medium uppercase">Background Color</div>
+              <input
+                type="color"
+                value={modalFormData.backgroundColor}
+                onChange={(e) => setModalFormData({ ...modalFormData, backgroundColor: e.target.value })}
+                className="w-16 h-16 rounded-full cursor-pointer border-2 border-[var(--color-border)]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Title</label>
+            <input
+              type="text"
+              placeholder="AIO H.I.D.E."
+              value={modalFormData.title}
+              onChange={(e) => setModalFormData({ ...modalFormData, title: e.target.value })}
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Link</label>
+            <input
+              type="url"
+              placeholder="https://data.maverickcrm.net"
+              value={modalFormData.link}
+              onChange={(e) => setModalFormData({ ...modalFormData, link: e.target.value })}
+              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="enableIframe"
+                checked={modalFormData.enableIframe}
+                onChange={(e) => setModalFormData({ ...modalFormData, enableIframe: e.target.checked })}
+                className="w-4 h-4 rounded cursor-pointer accent-blue-600"
+              />
+              <label htmlFor="enableIframe" className="text-sm text-[var(--color-text-primary)] cursor-pointer">
+                When clicked open link embedded in the application
+              </label>
+            </div>
+
+            {modalFormData.enableIframe && modalFormData.link && isIframeBlocked(modalFormData.link) && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded p-3 flex gap-2">
+                <div className="text-red-500 text-lg">⚠️</div>
+                <div>
+                  <p className="text-xs font-medium text-red-500">Embedding Blocked</p>
+                  <p className="text-xs text-red-400 mt-1">This website has restrictions that prevent embedding into menu items. Please use a direct link instead.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] p-6 flex gap-3 justify-end">
+          <button
+            onClick={closeMenuModal}
+            className="px-4 py-2 rounded text-sm font-medium bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={saveMenuItemChanges}
+            disabled={!modalFormData.title || !modalFormData.link}
+            className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-[var(--color-text-primary)] hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ============ WHITE LABEL SETTINGS ============
+const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
+  const [activeTab, setActiveTab] = useState('branding');
+  const [expandedCategory, setExpandedCategory] = useState('Main');
+  const {
+    brandingData,
+    setBrandingData,
+    menuItems,
+    updateBrandingColor,
+    updateBrandingTheme,
+    updateBrandingLayout,
+    toggleItemVisibility,
+    openMenuModal,
+    closeMenuModal,
+    saveMenuItemChanges,
+    showMenuModal,
+    showIconPicker,
+    setShowIconPicker,
+    iconSearch,
+    setIconSearch,
+    modalFormData,
+    setModalFormData,
+    filteredIcons,
+    isIframeBlocked,
+  } = useWhiteLabelControlPlane({ menuStructure, onMenuUpdate, handlersRef });
+
+  // Custom Menu Items State
+  const [customMenuItems, setCustomMenuItems] = useState([
+    { id: 1, title: 'Terms of Service', url: 'https://policy.omcoxed.co/terms-of-service', icon: '📋' },
+    { id: 2, title: 'Privacy Policy', url: 'https://policy.omcoxed.co/privacy-policy', icon: '🔐' },
+    { id: 3, title: 'Acceptable Use Policy', url: 'https://policy.omcoxed.co/acceptable-use-policy', icon: '📍' }
+  ]);
+
+  const [newCustomItem, setNewCustomItem] = useState({ title: '', url: '' });
+
+  // Advanced Settings State
+  const [advancedData, setAdvancedData] = useState({
+    javascriptHtml: '',
+    conditionalJavascript: '',
+    language: 'English',
+    country: 'United States',
+    currency: 'USD',
+    planCancelUrl: ''
+  });
+
+  const addCustomMenuItem = () => {
+    if (newCustomItem.title && newCustomItem.url) {
+      setCustomMenuItems([
+        ...customMenuItems,
+        { id: Date.now(), title: newCustomItem.title, url: newCustomItem.url, icon: '🔗' }
+      ]);
+      setNewCustomItem({ title: '', url: '' });
+    }
+  };
+
+  const deleteCustomMenuItem = (id) => {
+    setCustomMenuItems(customMenuItems.filter(item => item.id !== id));
   };
 
   return (
@@ -1346,7 +2045,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
         <div className="p-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)] flex flex-wrap items-center justify-between gap-3">
           <div className="relative w-full max-w-sm">
             <Search size={16} className="absolute left-3 top-2.5 text-[var(--color-text-secondary)]" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search templates" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
+            <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search templates" className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
           </div>
           <div className="text-xs text-[var(--color-text-secondary)]">Tenant-scoped system notices and workflow emails.</div>
         </div>
@@ -1916,7 +2615,7 @@ const BillingSettings = () => {
 const OmegaSettings = () => {
   const { tenant, user } = useAuth();
   const currentRole = (tenant?.role || user?.role || 'viewer').toLowerCase();
-  const isOwner = currentRole === 'owner';
+  const isOwner = hasCapability('system.omega');
   const [protocol, setProtocol] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2155,7 +2854,7 @@ const OmegaSettings = () => {
   );
 };
 
-const WorkspaceSettings = () => {
+const WorkspaceSettings = ({ view = 'all' }) => {
   const { tenant, tenants = [], switchTenant, refreshSession, user } = useAuth();
   const tenantSettings = tenant?.tenantSettings || tenant?.settings || {};
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(tenant?.id || '');
@@ -2171,6 +2870,10 @@ const WorkspaceSettings = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
   const [savedAction, triggerSavedAction] = useTransientSaveFeedback();
+  const { roleBundle, setRoleBundle, loadingRoles, rolesError, reloadRoles } = useWorkspaceRoleAuthority(
+    selectedWorkspaceId,
+    Boolean(selectedWorkspaceId && ['owner', 'admin'].includes(String(tenant?.role || user?.role || 'viewer').toLowerCase()))
+  );
 
   useEffect(() => {
     setSelectedWorkspaceId(tenant?.id || '');
@@ -2203,18 +2906,22 @@ const WorkspaceSettings = () => {
   const selectedWorkspace = tenants.find(item => item.id === selectedWorkspaceId) || tenant;
   const currentMembership = memberships.find(item => item.user_email === user?.email);
   const currentRole = (currentMembership?.role || selectedWorkspace?.role || tenant?.role || 'viewer').toLowerCase();
-  const canManageWorkspace = ['owner', 'admin'].includes(currentRole);
-  const canCreateWorkspace = ['owner', 'admin'].includes(currentRole);
-  const canArchiveWorkspace = currentRole === 'owner';
+  const canManageWorkspace = hasCapability('system.admin');
+  const canCreateWorkspace = hasCapability('system.admin');
+  const canArchiveWorkspace = hasCapability('system.omega');
   const alternateWorkspace = (tenants || []).find((workspace) => workspace.id !== selectedWorkspaceId) || null;
+  const showPreferences = view !== 'members';
+  const showMembers = view !== 'preferences';
   const archiveBlockedReason = !canArchiveWorkspace
     ? 'Only workspace owners can archive a workspace.'
     : !alternateWorkspace
     ? 'You cannot archive your only remaining accessible workspace.'
     : '';
-  const availableRoleOptions = currentRole === 'owner'
+  const availableRoleOptions = hasCapability('system.omega')
     ? ['owner', 'admin', 'staff', 'viewer']
     : ['admin', 'staff', 'viewer'];
+  const roleIndex = buildEntityRoleIndex(roleBundle).index;
+  const authorityRoles = roleBundle?.roles || [];
 
   const handleWorkspaceSelect = async (workspaceId) => {
     setSelectedWorkspaceId(workspaceId);
@@ -2311,6 +3018,7 @@ const WorkspaceSettings = () => {
         role: newMemberRole
       });
       setMemberships(response.memberships || []);
+      await reloadRoles();
       setNewMemberEmail('');
       setNewMemberRole('staff');
       setStatusMessage('Workspace member saved.');
@@ -2326,6 +3034,7 @@ const WorkspaceSettings = () => {
     try {
       const response = await updateWorkspaceMemberApi(selectedWorkspaceId, membershipId, { role });
       setMemberships(response.memberships || []);
+      await reloadRoles();
       setStatusMessage('Member role updated.');
     } catch (memberError) {
       setError(memberError.message || 'Unable to update member role.');
@@ -2338,6 +3047,7 @@ const WorkspaceSettings = () => {
     try {
       const response = await removeWorkspaceMemberApi(selectedWorkspaceId, membershipId);
       setMemberships(response.memberships || []);
+      await reloadRoles();
       setStatusMessage('Member removed.');
       await refreshSession?.();
     } catch (memberError) {
@@ -2347,6 +3057,7 @@ const WorkspaceSettings = () => {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto p-6 space-y-6">
+      {showPreferences && (
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
@@ -2477,14 +3188,19 @@ const WorkspaceSettings = () => {
           )}
         </div>
       </div>
+      )}
 
+      {showMembers && (
       <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Members</h3>
-            <p className="text-sm text-[var(--color-text-secondary)]">Add existing app users by email and keep roles explicit while RBAC is being hardened.</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Add existing app users, keep the legacy workspace role bridge explicit, and attach real role bundles to each member.</p>
           </div>
-          {loadingMembers && <div className="text-xs text-[var(--color-text-secondary)]">Loading...</div>}
+          <div className="flex items-center gap-3">
+            {loadingMembers && <div className="text-xs text-[var(--color-text-secondary)]">Members loading…</div>}
+            {loadingRoles && <div className="text-xs text-[var(--color-text-secondary)]">Roles loading…</div>}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-3">
@@ -2515,35 +3231,62 @@ const WorkspaceSettings = () => {
 
         <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
           {memberships.map(member => (
-            <div key={member.id} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_180px_auto] gap-3 items-center px-4 py-4 bg-[var(--color-bg-secondary)]">
-              <div>
-                <div className="text-sm font-semibold text-[var(--color-text-primary)]">{member.user_name}</div>
-                <div className="text-xs text-[var(--color-text-secondary)]">{member.user_email}</div>
+            <div key={member.id} className="space-y-3 px-4 py-4 bg-[var(--color-bg-secondary)]">
+              <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_180px_auto] gap-3 items-center">
+                <div>
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">{member.user_name}</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">{member.user_email}</div>
+                </div>
+                <div className="text-xs text-[var(--color-text-secondary)]">{member.provider}</div>
+                <select
+                  value={member.role}
+                  disabled={!canManageWorkspace}
+                  onChange={(event) => handleRoleChange(member.id, event.target.value)}
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                >
+                  {availableRoleOptions.map(role => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => handleRemoveMember(member.id)}
+                  disabled={!canManageWorkspace || member.user_email === user?.email}
+                  className="px-3 py-2 rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Remove
+                </button>
               </div>
-              <div className="text-xs text-[var(--color-text-secondary)]">{member.provider}</div>
-              <select
-                value={member.role}
-                disabled={!canManageWorkspace}
-                onChange={(event) => handleRoleChange(member.id, event.target.value)}
-                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
-              >
-                {availableRoleOptions.map(role => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => handleRemoveMember(member.id)}
-                disabled={!canManageWorkspace || member.user_email === user?.email}
-                className="px-3 py-2 rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Remove
-              </button>
+
+              <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Attached Roles</div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">
+                    Effective capabilities: {(roleIndex[`user:${member.userId}`]?.effectiveCapabilities || []).length}
+                  </div>
+                </div>
+                <RoleAssignmentEditor
+                  workspaceId={selectedWorkspaceId}
+                  entityType="user"
+                  entityId={member.userId}
+                  availableRoles={authorityRoles}
+                  assignedRoles={authorityRoles.filter((role) => (roleIndex[`user:${member.userId}`]?.roleIds || []).includes(role.id))}
+                  onRoleBundleUpdate={setRoleBundle}
+                  canManage={canManageWorkspace}
+                  compact
+                />
+              </div>
             </div>
           ))}
           {memberships.length === 0 && !loadingMembers && (
             <div className="px-4 py-6 text-sm text-[var(--color-text-secondary)]">No members found for this workspace yet.</div>
           )}
         </div>
+
+        {rolesError && (
+          <div className="rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {rolesError}
+          </div>
+        )}
 
         {canArchiveWorkspace && (
           <div className="rounded-[var(--radius-panel)] border border-red-500/25 bg-red-500/8 p-6 space-y-3">
@@ -2588,6 +3331,7 @@ const WorkspaceSettings = () => {
         )}
 
       </div>
+      )}
     </div>
   );
 };
@@ -2608,7 +3352,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
     } catch {}
     return 'account';
   });
-  const isOwner = ((tenant?.role || user?.role || 'viewer').toLowerCase() === 'owner');
+  const isOwner = hasCapability('system.omega');
   const wlHandlers = useRef({ reset: null, save: null });
 
   useEffect(() => {
@@ -2729,6 +3473,647 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   );
 };
 
-export { GlobalVarsManager, WhiteLabelSettings, ProfileSettings, BillingSettings, WorkspaceSettings, OmegaSettings };
-export default SettingsModule;
+// ============ INTERNAL SECTIONS (Extracted for decomposition) ============
+// These receive props from WhiteLabelSettings - centralized state/handlers
+
+const BrandingSection = ({ brandingData, setBrandingData, updateBrandingColor, updateBrandingTheme, updateBrandingLayout }) => (
+  <div className="h-full min-h-0 overflow-y-auto p-6 space-y-6">
+    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
+      <div>
+        <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Appearance</div>
+        <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Branding</h3>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Theme, layout, and report-facing identity controls.</p>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {['light', 'dark'].map((theme) => (
+          <button
+            key={theme}
+            onClick={() => updateBrandingTheme(theme)}
+            className={`px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium border transition ${brandingData.theme === theme
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
+              : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            {theme === 'light' ? 'Light' : 'Dark'}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Menu Background</label>
+          <div className="flex items-center gap-3">
+            <input type="color" value={brandingData.menuBackgroundColor} onChange={(e) => updateBrandingColor('menuBackgroundColor', e.target.value)} className="h-11 w-12 rounded border border-[var(--color-border)] bg-transparent" />
+            <input value={brandingData.menuBackgroundColor} onChange={(e) => updateBrandingColor('menuBackgroundColor', e.target.value)} className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] font-mono" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Menu Text</label>
+          <div className="flex items-center gap-3">
+            <input type="color" value={brandingData.menuTextColor} onChange={(e) => updateBrandingColor('menuTextColor', e.target.value)} className="h-11 w-12 rounded border border-[var(--color-border)] bg-transparent" />
+            <input value={brandingData.menuTextColor} onChange={(e) => updateBrandingColor('menuTextColor', e.target.value)} className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] font-mono" />
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {[
+          { id: 'sidebar-left', label: 'Sidebar Left', note: 'Classic workspace navigation.' },
+          { id: 'sidebar-right', label: 'Sidebar Right', note: 'Mirrored workspace navigation.' },
+        ].map((layout) => (
+          <button
+            key={layout.id}
+            onClick={() => updateBrandingLayout?.(layout.id)}
+            className={`rounded-[var(--radius-card)] border px-4 py-3 text-left transition ${brandingData.layout === layout.id
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
+              : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            <div className="text-sm font-semibold">{layout.label}</div>
+            <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{layout.note}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
+      <h4 className="text-sm font-semibold text-[var(--color-text-primary)]">Report Identity</h4>
+      <div className="grid gap-4 md:grid-cols-2">
+        {[
+          ['brandName', 'Brand Name', 'AIO CRM'],
+          ['logoUrl', 'Logo URL', '/aio-button-192px.png'],
+          ['reportHeaderLabel', 'Report Header Label', 'Cortex Intelligence Report'],
+          ['footerText', 'Footer Text', 'Generated by Cortex'],
+          ['contactInfo', 'Contact Info', 'contact@yourcompany.com'],
+          ['primaryColor', 'Primary Color', '#3b82f6'],
+        ].map(([key, label, placeholder]) => (
+          <div key={key} className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">{label}</label>
+            <input
+              value={brandingData[key] || ''}
+              onChange={(event) => setBrandingData?.((current) => ({ ...current, [key]: event.target.value }))}
+              placeholder={placeholder}
+              className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const NavigationSection = ({ menuItems, openMenuModal, toggleItemVisibility }) => (
+  <div className="space-y-4">
+    <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
+      <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-4">Navigation Menu</h3>
+      {menuItems?.map((cat, catIdx) => (
+        <div key={cat.category || cat.id} className="border border-[var(--color-border)] rounded-md overflow-hidden mb-2">
+          <div className="px-3 py-2 text-xs font-medium bg-[var(--color-bg-tertiary)]">{cat.category}</div>
+          {cat.items?.map((item, itemIdx) => (
+            <div key={itemIdx} className="flex items-center gap-2 px-3 py-2 border-t border-[var(--color-border)]">
+              <span className="text-sm text-[var(--color-text-primary)] flex-1">{item.label}</span>
+              <button onClick={() => toggleItemVisibility(catIdx, itemIdx)} className="p-1 text-xs">{item.visible ? '👁️' : '🚫'}</button>
+              <button onClick={() => openMenuModal(catIdx, itemIdx)} className="p-1 text-xs">✏️</button>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const AgentsSection = () => (
+  <div className="h-full min-h-0 overflow-y-auto p-6 space-y-5">
+    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
+      <div>
+        <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Packaging Scope</div>
+        <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Agents</h3>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Display-only customization surface. No execution or routing changes are introduced in Step 2.</p>
+      </div>
+      {[
+        { id: 'salesAgent', label: 'Sales Agent' },
+        { id: 'supportAgent', label: 'Support Agent' }
+      ].map((agent) => (
+        <div key={agent.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-primary)]">
+              <Bot size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)]">{agent.label}</div>
+              <div className="text-xs text-[var(--color-text-secondary)]">Canonical ID: {agent.id}</div>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+            <input readOnly value={agent.label} className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)]" />
+            <button disabled className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-secondary)] opacity-70">Avatar / Icon</button>
+          </div>
+        </div>
+      ))}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
+        Avatar and icon picker normalization is deferred for follow-up work.
+      </div>
+    </div>
+  </div>
+);
+
+const SystemEmailsSection = ({ search = '', onSearchChange = () => {} }) => (
+  <div className="h-full min-h-0 overflow-y-auto p-6">
+    <SystemEmailsSettings search={search} onSearchChange={onSearchChange} />
+  </div>
+);
+
+const BlueprintsSection = () => (
+  <div className="h-full min-h-0 overflow-y-auto p-6">
+    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 space-y-4">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-primary)]">
+          <FileCode size={20} />
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Reserved Surface</div>
+          <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Blueprints</h3>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Blueprint configuration remains intentionally present in the new shell.</p>
+        </div>
+      </div>
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
+        No live blueprint controls exist in Settings yet. The placeholder remains visible without adding another navigation layer.
+      </div>
+    </div>
+  </div>
+);
+
+const SETTINGS_SELECTION_KEY = 'aio-settings-selection-v2';
+
+const buildSettingsSelectionFromLegacy = (activeSettingsTab) => {
+  switch (activeSettingsTab) {
+    case 'whitelabel':
+      return { categoryId: 'appearance', itemId: 'branding' };
+    case 'variables':
+      return { categoryId: 'system', itemId: 'variables' };
+    case 'omega':
+      return { categoryId: 'system', itemId: 'omega' };
+    case 'workspace':
+      return { categoryId: 'workspace', itemId: 'members' };
+    default:
+      return { categoryId: null, itemId: null };
+  }
+};
+
+const SettingsPlaceholderSurface = ({ icon: Icon, title, description, detail }) => (
+  <div className="h-full min-h-0 overflow-y-auto p-6">
+    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-6 space-y-4">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-primary)]">
+          <Icon size={20} />
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Reserved Surface</div>
+          <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">{title}</h3>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{description}</p>
+        </div>
+      </div>
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
+        {detail}
+      </div>
+    </div>
+  </div>
+);
+
+const SettingsAgentsSurface = () => (
+  <div className="h-full min-h-0 overflow-y-auto p-6 space-y-5">
+    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
+      <div>
+        <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Packaging Scope</div>
+        <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Agents</h3>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Display-only customization surface. No execution or routing changes are introduced here.</p>
+      </div>
+      {[
+        { id: 'salesAgent', label: 'Sales Agent' },
+        { id: 'supportAgent', label: 'Support Agent' }
+      ].map((agent) => (
+        <div key={agent.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-primary)]">
+              <Bot size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[var(--color-text-primary)]">{agent.label}</div>
+              <div className="text-xs text-[var(--color-text-secondary)]">Canonical ID: {agent.id}</div>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+            <input readOnly value={agent.label} className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)]" />
+            <button disabled className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-secondary)] opacity-70">Avatar / Icon</button>
+          </div>
+        </div>
+      ))}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 py-4 text-sm text-[var(--color-text-secondary)]">
+        Avatar and icon picker normalization is deferred for follow-up work.
+      </div>
+    </div>
+  </div>
+);
+
+const SettingsBlueprintsSurface = () => (
+  <SettingsPlaceholderSurface
+    icon={FileCode}
+    title="Blueprints"
+    description="Blueprint configuration remains intentionally present in the new shell."
+    detail="No live blueprint controls exist in Settings yet. The placeholder remains visible without adding another navigation layer."
+  />
+);
+
+const buildSettingsCategories = (isAdmin) => {
+  const adminCategories = [
+    {
+      id: 'appearance',
+      label: 'Appearance',
+      icon: Palette,
+      description: 'Branding, navigation, agents, system emails, and blueprints.',
+      items: [
+        { id: 'branding', label: 'Branding', description: 'Theme, layout, and report identity.' },
+        { id: 'navigation', label: 'Navigation', description: 'Sidebar menu visibility and links.' },
+        { id: 'agents', label: 'Agents', description: 'Packaging-scope presentation controls.' },
+        { id: 'systemEmails', label: 'System Emails', description: 'Tenant-scoped system notice templates.' },
+        { id: 'blueprints', label: 'Blueprints', description: 'Reserved blueprint configuration surface.' },
+      ],
+    },
+    {
+      id: 'roles',
+      label: 'Roles',
+      icon: Shield,
+      description: 'Roles, permissions, and access rules.',
+      items: [
+        { id: 'roles', label: 'Roles', description: 'Role model status and ownership scaffolding.' },
+        { id: 'permissions', label: 'Permissions', description: 'Permission matrix placeholder.' },
+        { id: 'accessRules', label: 'Access Rules', description: 'Access policy placeholder.' },
+      ],
+    },
+    {
+      id: 'system',
+      label: 'System',
+      icon: Cog,
+      description: 'Omega, variables, and admin-level system controls.',
+      items: [
+        { id: 'omega', label: 'Omega', description: 'Owner-only emergency protocol surface.' },
+        { id: 'variables', label: 'Variables', description: 'Global variables and tokens.' },
+      ],
+    },
+  ];
+
+  return [
+    ...(isAdmin ? adminCategories : []),
+    {
+      id: 'workspace',
+      label: 'Workspace',
+      icon: Layers,
+      description: 'Workspace members and workspace preferences.',
+      items: [
+        { id: 'members', label: 'Members', description: 'Manage workspace memberships.' },
+        { id: 'preferences', label: 'Preferences', description: 'Workspace-level configuration and locks.' },
+      ],
+    }
+  ];
+};
+
+const getSettingsCategoryTone = (categoryId) => {
+  switch (categoryId) {
+    case 'appearance':
+      return { colorVar: 'var(--node-action)', icon: Palette };
+    case 'roles':
+      return { colorVar: 'var(--node-logic)', icon: Shield };
+    case 'system':
+      return { colorVar: 'var(--node-webhook)', icon: Cog };
+    case 'workspace':
+      return { colorVar: 'var(--node-trigger)', icon: Layers };
+    default:
+      return { colorVar: 'var(--node-action)', icon: Settings };
+  }
+};
+
+const SettingsSelectorPanel = ({
+  categories,
+  openCategory,
+  activeCategoryId,
+  activeItemId,
+  onToggleCategory,
+  onSelectItem,
+}) => (
+  <div className="flex flex-col">
+    <h3 className="m-0 mb-3 text-[11px] font-semibold text-[var(--color-text-primary)] uppercase tracking-[0.18em]">Select Settings Type</h3>
+    <div className="flex flex-col gap-1.5">
+      {categories.map((category) => {
+        const isOpen = openCategory === category.id;
+        return (
+          <div key={category.id} className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+            <button
+              className={`flex w-full items-center justify-between px-3 py-2 transition-all cursor-pointer font-medium text-[12px] ${
+                isOpen
+                  ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]/70'
+              }`}
+              onClick={() => onToggleCategory(category.id)}
+            >
+              <span className="flex-1 text-left">{category.label}</span>
+              <div className="flex items-center gap-2">
+                <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                  activeCategoryId === category.id
+                    ? 'bg-[var(--color-primary)]/20 text-[var(--color-text-primary)]'
+                    : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'
+                }`}>{category.items.length}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </div>
+            </button>
+            <div
+              className="overflow-hidden transition-all duration-200 ease-out"
+              style={{
+                maxHeight: isOpen ? `${Math.max(category.items.length * 96, 120)}px` : '0',
+                opacity: isOpen ? 1 : 0,
+              }}
+            >
+              <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 px-2 py-2">
+                <div className="flex flex-col gap-1.5">
+                  {category.items.map((item) => (
+                    <button
+                      key={item.id}
+                      className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition-all text-left ${
+                        activeCategoryId === category.id && activeItemId === item.id
+                          ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
+                          : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-tertiary)]'
+                      }`}
+                      onClick={() => onSelectItem(category.id, item.id)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="m-0 mb-0.5 text-[12px] font-semibold leading-tight text-[var(--color-text-primary)]">{item.label}</p>
+                        <p className="m-0 text-[11px] text-[var(--color-text-secondary)] whitespace-nowrap overflow-hidden text-ellipsis">{item.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
+  const { tenant, user } = useAuth();
+  const { openAIAssist } = useAIAssist();
+  const role = String(tenant?.role || user?.role || 'viewer').toLowerCase();
+  const { hasCapability } = useAuth();
+  const isAdmin = hasCapability('system.admin');
+  const isOwner = hasCapability('system.omega');
+  const categories = buildSettingsCategories(isAdmin);
+  const wlHandlers = useRef({ reset: null, save: null });
+  const whiteLabel = useWhiteLabelControlPlane({ menuStructure, onMenuUpdate, handlersRef: wlHandlers.current });
+  const [emailSearch, setEmailSearch] = useState('');
+  const [selection, setSelection] = useState(() => buildSettingsSelectionFromLegacy(activeSettingsTab));
+  const [openCategory, setOpenCategory] = useState(selection.categoryId || null);
+
+  useEffect(() => {
+    if (activeSettingsTab) {
+      setSelection(buildSettingsSelectionFromLegacy(activeSettingsTab));
+      return;
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_SELECTION_KEY) || 'null');
+      if (saved && typeof saved === 'object') {
+        setSelection({
+          categoryId: saved.categoryId || null,
+          itemId: saved.itemId || null,
+        });
+      }
+    } catch {}
+  }, [activeSettingsTab]);
+
+  useEffect(() => {
+    if (!selection.categoryId) {
+      return;
+    }
+    setOpenCategory(selection.categoryId);
+  }, [selection.categoryId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_SELECTION_KEY, JSON.stringify(selection));
+    } catch {}
+  }, [selection]);
+
+  const activeCategory = categories.find((category) => category.id === selection.categoryId) || null;
+  const activeItem = activeCategory?.items?.find((item) => item.id === selection.itemId) || null;
+  const showLanding = !selection.itemId;
+  const showWhiteLabelActions = selection.categoryId === 'appearance' && ['branding', 'navigation'].includes(selection.itemId);
+  useEffect(() => {
+    if (selection.categoryId && !activeCategory) {
+      setSelection({ categoryId: null, itemId: null });
+      return;
+    }
+    if (selection.itemId && activeCategory && !activeItem) {
+      setSelection({ categoryId: activeCategory.id, itemId: null });
+    }
+  }, [selection.categoryId, selection.itemId, activeCategory, activeItem]);
+
+  const renderControlPlane = () => {
+    switch (`${selection.categoryId}:${selection.itemId}`) {
+      case 'appearance:branding':
+        return (
+          <BrandingSection
+            brandingData={whiteLabel.brandingData}
+            setBrandingData={whiteLabel.setBrandingData}
+            updateBrandingColor={whiteLabel.updateBrandingColor}
+            updateBrandingTheme={whiteLabel.updateBrandingTheme}
+            updateBrandingLayout={whiteLabel.updateBrandingLayout}
+          />
+        );
+      case 'appearance:navigation':
+        return (
+          <>
+            <NavigationSection
+              menuItems={whiteLabel.menuItems}
+              openMenuModal={whiteLabel.openMenuModal}
+              toggleItemVisibility={whiteLabel.toggleItemVisibility}
+            />
+            <WhiteLabelMenuItemModal
+              showMenuModal={whiteLabel.showMenuModal}
+              closeMenuModal={whiteLabel.closeMenuModal}
+              modalFormData={whiteLabel.modalFormData}
+              setModalFormData={whiteLabel.setModalFormData}
+              showIconPicker={whiteLabel.showIconPicker}
+              setShowIconPicker={whiteLabel.setShowIconPicker}
+              iconSearch={whiteLabel.iconSearch}
+              setIconSearch={whiteLabel.setIconSearch}
+              filteredIcons={whiteLabel.filteredIcons}
+              isIframeBlocked={whiteLabel.isIframeBlocked}
+              saveMenuItemChanges={whiteLabel.saveMenuItemChanges}
+            />
+          </>
+        );
+      case 'appearance:agents':
+        return <AgentsSection />;
+      case 'appearance:systemEmails':
+        return <SystemEmailsSection search={emailSearch} onSearchChange={setEmailSearch} />;
+      case 'appearance:blueprints':
+        return <BlueprintsSection />;
+      case 'roles:roles':
+        return <RolesAuthoritySurface focus="roles" />;
+      case 'roles:permissions':
+        return <RolesAuthoritySurface focus="permissions" />;
+      case 'roles:accessRules':
+        return <RolesAuthoritySurface focus="accessRules" />;
+      case 'system:variables':
+        return <GlobalVarsManager />;
+      case 'system:omega':
+        return isOwner
+          ? <OmegaSettings />
+          : <SettingsPlaceholderSurface icon={Lock} title="Omega" description="Omega remains owner-only." detail="The system category is admin-only, and Omega itself remains restricted to owners." />;
+      case 'workspace:members':
+        return <WorkspaceSettings view="members" />;
+      case 'workspace:preferences':
+        return <WorkspaceSettings view="preferences" />;
+      default:
+        return (
+          <div className="flex h-full items-center justify-center rounded-[var(--radius-panel)] border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-sm text-[var(--color-text-secondary)]">
+            Select a settings surface from the left panel to load its control plane.
+          </div>
+        );
+    }
+  };
+
+  const toggleCategory = (categoryId) => {
+    const isClosing = openCategory === categoryId;
+    setOpenCategory(isClosing ? null : categoryId);
+    setSelection(isClosing ? { categoryId: null, itemId: null } : { categoryId, itemId: null });
+  };
+
+  const selectItem = (categoryId, itemId) => {
+    setSelection({ categoryId, itemId });
+    setOpenCategory(categoryId);
+  };
+
+  const selectCategoryFromSplash = (categoryId) => {
+    setSelection({ categoryId, itemId: null });
+    setOpenCategory(categoryId);
+  };
+
+  return (
+    <div className="module-root-standard relative bg-[var(--color-bg-primary)]">
+      <ModuleHeader
+        title="Settings"
+        showTitle={false}
+        leftActions={showWhiteLabelActions ? [
+          { label: 'Reset', onClick: () => wlHandlers.current.reset?.(), variant: 'secondary' },
+          { label: 'Save', onClick: () => wlHandlers.current.save?.(), variant: 'primary' },
+        ] : []}
+        toolbarCenterSlot={(
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+            <span className="text-[var(--color-text-primary)]">{categories.length}</span>
+            <span>Categories</span>
+            {activeItem && (
+              <>
+                <span className="opacity-35">|</span>
+                <span className="text-[var(--color-text-primary)]">{activeItem.label}</span>
+              </>
+            )}
+          </div>
+        )}
+        onModuleAi={() => openAIAssist?.({ context: { module: 'settings', category: selection.categoryId, item: selection.itemId } })}
+      />
+
+      <div className="module-content-stage module-surface-shell p-1.5">
+        <div className="h-full flex-1 overflow-y-auto p-3">
+          <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
+            <div className="min-h-0 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="border-b border-[var(--color-border)] px-3 py-3">
+                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Settings</div>
+                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Select a category, then choose a settings surface to load its control plane.</div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 no-scrollbar">
+                  <SettingsSelectorPanel
+                    categories={categories}
+                    openCategory={openCategory}
+                    activeCategoryId={selection.categoryId}
+                    activeItemId={selection.itemId}
+                    onToggleCategory={toggleCategory}
+                    onSelectItem={selectItem}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="min-h-0 overflow-hidden relative">
+              {renderControlPlane()}
+              {showLanding && (
+              <div className="absolute inset-0 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md rounded-[var(--radius-outer)] border border-[var(--color-border)] flex items-center justify-center overflow-y-auto">
+                <div className="max-w-5xl w-full text-center space-y-8 px-8 py-10">
+                  <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-white/10">
+                    <Settings size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Settings</h2>
+                    <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+                      Configure workspace presentation, access scaffolding, system controls, and workspace administration from one unified control plane.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-left p-1">
+                    {categories.map((category) => {
+                      const tone = getSettingsCategoryTone(category.id);
+                      const IconComp = tone.icon;
+                      return (
+                        <button
+                          key={category.id}
+                          onClick={() => selectCategoryFromSplash(category.id)}
+                          className="text-left w-full h-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-strong)] transition-all p-2.5 space-y-1.5 cursor-pointer shadow-sm shadow-black/5 group min-w-0 flex flex-col min-h-[90px]"
+                        >
+                          <div className="flex items-start gap-2" style={{ color: tone.colorVar }}>
+                            <IconComp size={15} className="mt-0.5 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_currentColor] transition-all flex-shrink-0" />
+                            <span className="text-[13px] font-extrabold text-[var(--color-text-primary)] leading-tight">{category.label}</span>
+                          </div>
+                          <p className="m-0 text-[10px] text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)] leading-[1.2] flex-1 overflow-hidden">{category.description}</p>
+                          <div className="flex items-center justify-between pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-[8px] uppercase tracking-wider font-bold text-[var(--color-text-tertiary)]">Configure</span>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="text-[var(--color-text-tertiary)]"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-2">
+                    <p className="text-xs text-[var(--color-text-tertiary)]">
+                      Select a settings category from the left panel, then choose a surface from its dropdown to configure.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Legacy tabs with reduced content (DEPRECATED - but kept for backward compatibility)
+const AdvancedSection = () => (
+  <div className="p-6 text-center text-sm text-slate-400">Advanced settings placeholder</div>
+);
+const MobileSection = () => (
+  <div className="p-6 text-center text-sm text-slate-400">Mobile app settings placeholder</div>
+);
+const UISection = () => (
+  <div className="p-6 text-center text-sm text-slate-400">UI settings placeholder</div>
+);
+const StylesSection = () => (
+  <div className="p-6 text-center text-sm text-slate-400">Styles settings placeholder</div>
+);
+const PackageSection = () => (
+  <div className="p-6 text-center text-sm text-slate-400">Package settings placeholder</div>
+);
+
+export { GlobalVarsManager, WhiteLabelSettings, ProfileSettings, BillingSettings, WorkspaceSettings, OmegaSettings, BrandingSection, NavigationSection, AgentsSection, SystemEmailsSection, BlueprintsSection };
+export default SettingsShellModule;
 
