@@ -104,8 +104,7 @@ function formatModuleLabel(moduleId) {
     media: 'Media',
     integrations: 'Integrations',
     crm: 'CRM',
-    chat: 'Dispatch',
-    comms: 'Dispatch',
+    comms: 'Comms',
     'system-health': 'System Health',
   }[String(moduleId || '').toLowerCase()] || 'Workspace';
 }
@@ -274,7 +273,7 @@ function SignalCard({ signal, busyActionType, onAction }) {
                 {formatSeverityLabel(signal.severity)}
               </span>
             </div>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{signal.description}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)] break-words line-clamp-3">{signal.description}</p>
           </div>
         </div>
         <span className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
@@ -309,6 +308,14 @@ function SignalCard({ signal, busyActionType, onAction }) {
             {isBusy ? 'Working' : primaryAction.label}
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => onAction({ actionType: 'dismiss' }, signal)}
+          disabled={Boolean(busyActionType)}
+          className="inline-flex items-center gap-2 rounded-[var(--radius-inner)] border border-white/10 bg-black/20 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)] transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-60"
+        >
+          Dismiss
+        </button>
         {secondaryActions.map((action) => (
           <button
             key={`${signal.id}-${action.actionType}-${action.label}`}
@@ -413,7 +420,7 @@ export default function SignalsModule() {
     if (action.actionType === 'open_comms') {
       window.dispatchEvent(new CustomEvent('aio:navigate', {
         detail: {
-          module: 'chat',
+          module: 'comms',
           threadId: action.payload?.threadId || signal.context?.entityId || null,
         },
       }));
@@ -527,7 +534,7 @@ export default function SignalsModule() {
             </div>
           </div>
         ) : (
-          <div className="grid h-full min-h-0 gap-3 p-3 xl:grid-cols-[1fr_1fr_1fr_320px]">
+          <div className="grid h-full min-h-0 gap-3 p-2 xl:grid-cols-[1fr_1fr_1fr_320px]">
             {/* CRITICAL COLUMN */}
             <div className="min-h-0 overflow-y-auto pr-1">
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 mb-3 px-2">Critical ({counts.critical})</div>

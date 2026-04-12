@@ -1,122 +1,35 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
-import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X } from 'lucide-react';
+import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X, AlertCircle } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi, getPhoneNumbersApi, getContactsWithPhoneApi, startOutboundCallApi, endCallSessionApi, getCommsRoutesApi } from '../services/backendApi';
 
-const playTone = (type, style = 'military') => {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const now = ctx.currentTime;
-  
-  const styles = {
-    military: () => {
-      const clickOsc = ctx.createOscillator();
-      const clickGain = ctx.createGain();
-      clickOsc.connect(clickGain);
-      clickGain.connect(ctx.destination);
-      clickOsc.frequency.setValueAtTime(1200, now);
-      clickOsc.frequency.exponentialRampToValueAtTime(800, now + 0.015);
-      clickGain.gain.setValueAtTime(0.25, now);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
-      clickOsc.start(now);
-      clickOsc.stop(now + 0.02);
-      
-      const bodyOsc = ctx.createOscillator();
-      const bodyGain = ctx.createGain();
-      bodyOsc.connect(bodyGain);
-      bodyGain.connect(ctx.destination);
-      bodyOsc.type = 'square';
-      bodyOsc.frequency.setValueAtTime(320, now);
-      bodyGain.gain.setValueAtTime(0.08, now);
-      bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
-      bodyOsc.start(now);
-      bodyOsc.stop(now + 0.035);
-      
-      const noise = ctx.createBufferSource();
-      const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate);
-      const noiseData = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < noiseData.length; i++) {
-        noiseData[i] = (Math.random() * 2 - 1) * 0.3;
-      }
-      noise.buffer = noiseBuffer;
-      const noiseGain = ctx.createGain();
-      const noiseFilter = ctx.createBiquadFilter();
-      noiseFilter.type = 'highpass';
-      noiseFilter.frequency.value = 2000;
-      noise.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
-      noiseGain.gain.setValueAtTime(0.15, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
-      noise.start(now);
-    },
-    morse: () => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(600, now);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-      osc.start(now);
-      osc.stop(now + 0.08);
-    },
-    click: () => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(1800, now);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
-      osc.start(now);
-      osc.stop(now + 0.015);
-    },
-    retro: () => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.setValueAtTime(880, now + 0.03);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-      osc.start(now);
-      osc.stop(now + 0.06);
-    },
-    soft: () => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(600, now);
-      gain.gain.setValueAtTime(0.05, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-      osc.start(now);
-      osc.stop(now + 0.1);
-    },
-  };
-  
-  if (styles[style]) {
-    styles[style]();
-    return;
+import { playDigitTone, playDialTone, playBusySignal, playRinger, stopAudio } from '../services/audioService';
+
+const playTone = (type, digitOrStyle = '1', style = 'military') => {
+  if (type === 'button') {
+    playDigitTone(digitOrStyle, style);
+  } else if (type === 'dial') {
+    playDialTone();
+  } else if (type === 'ring') {
+    playRinger();
+  } else if (type === 'busy') {
+    playBusySignal();
+  } else if (type === 'stop') {
+    stopAudio();
   }
-  
-  styles.military();
 };
 
-const DialerModal = ({ onClose }) => {
+const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromNumber, onFromNumberChange, extensionId, onExtensionIdChange }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [callState, setCallState] = useState('idle');
-  const [activeCall, setActiveCall] = useState(null);
-  const [fromNumber, setFromNumber] = useState('');
+  const [outgoingRoutes, setOutgoingRoutes] = useState({ phoneNumbers: [], extensions: [] });
   const [contacts, setContacts] = useState([]);
-  const [toneStyle, setToneStyle] = useState('military');
+  const [activeCall, setActiveCall] = useState(null);
   
   const toneStyles = [
     { value: 'military', label: 'Military' },
@@ -132,28 +45,31 @@ const DialerModal = ({ onClose }) => {
   
   const loadData = async () => {
     try {
-      const [numbersData, contactsData] = await Promise.all([
+      const [numbersData, contactsData, routesData] = await Promise.all([
         getPhoneNumbersApi(),
-        getContactsWithPhoneApi()
+        getContactsWithPhoneApi(),
+        getCommsRoutesApi()
       ]);
       setContacts(contactsData);
+      setOutgoingRoutes(routesData || { phoneNumbers: [], extensions: [] });
+      
       const enabled = (numbersData || []).filter(n => n.callsEnabled);
-      if (enabled.length) setFromNumber(enabled[0].number);
+      if (enabled.length && !fromNumber) onFromNumberChange(enabled[0].number);
     } catch (e) { console.error('Load error:', e); }
   };
   
   const handleDigit = (d) => {
-    playTone('button', toneStyle);
+    playTone('button', d, toneStyle);
     setPhoneNumber(phoneNumber + d);
   };
   
   const handleBackspace = () => {
-    playTone('button', toneStyle);
+    playTone('button', '1', toneStyle);
     setPhoneNumber(phoneNumber.slice(0, -1));
   };
   
   const handleClear = () => {
-    playTone('button', toneStyle);
+    playTone('button', '1', toneStyle);
     setPhoneNumber('');
   };
   
@@ -162,7 +78,7 @@ const DialerModal = ({ onClose }) => {
     playTone('dial');
     setCallState('simulated_ringing');
     try {
-      const result = await startOutboundCallApi({ phoneNumber, fromNumber });
+      const result = await startOutboundCallApi({ phoneNumber, fromNumber, extensionId });
       setActiveCall(result);
       setTimeout(() => { playTone('ring'); setCallState('simulated_connected'); }, 2000);
     } catch (e) {
@@ -177,7 +93,8 @@ const DialerModal = ({ onClose }) => {
         await endCallSessionApi(activeCall.id, { disposition: callState === 'simulated_connected' ? 'completed' : 'no_answer', durationSeconds: 30 });
       } catch (e) {}
     }
-    playTone('button');
+    playTone('stop');
+    playTone('button', '1', 'retro');
     setCallState('ended');
     setTimeout(() => { setCallState('idle'); setActiveCall(null); }, 1000);
   };
@@ -229,13 +146,42 @@ const DialerModal = ({ onClose }) => {
         
         <select 
           value={toneStyle} 
-          onChange={(e) => setToneStyle(e.target.value)}
-          className="px-1 py-1 text-[10px] rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]"
+          onChange={(e) => onToneStyleChange(e.target.value)}
+          className="px-1 py-1 text-[10px] rounded border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] outline-none"
         >
           {toneStyles.map(s => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 pt-1">
+        <div className="space-y-1">
+          <label className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-bold ml-1">From Line</label>
+          <select 
+            value={fromNumber} 
+            onChange={(e) => onFromNumberChange(e.target.value)}
+            className="w-full px-1 py-1 text-[10px] rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] outline-none"
+          >
+            <option value="">No Line</option>
+            {(outgoingRoutes.phoneNumbers || []).map(n => (
+              <option key={n.id} value={n.number}>{n.number}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[8px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-bold ml-1">Extension</label>
+          <select 
+            value={extensionId} 
+            onChange={(e) => onExtensionIdChange(e.target.value)}
+            className="w-full px-1 py-1 text-[10px] rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] outline-none"
+          >
+            <option value="">Direct</option>
+            {(outgoingRoutes.extensions || []).map(ext => (
+              <option key={ext.id} value={ext.id}>{ext.extensionNumber}</option>
+            ))}
+          </select>
+        </div>
       </div>
       
       {callState !== 'idle' && (
@@ -263,9 +209,24 @@ const HEALTH_META = {
         icon: AlertOctagon,
         buttonClass: 'border-rose-500/25 bg-rose-500/10 text-[var(--color-text-primary)] hover:bg-rose-500/14 shadow-[var(--shadow-base)]',
     },
+    unknown: {
+        label: 'Unknown',
+        icon: AlertCircle,
+        buttonClass: 'border-slate-500/25 bg-slate-500/10 text-[var(--color-text-tertiary)] hover:bg-slate-500/14 shadow-[var(--shadow-base)]',
+    },
 };
 
-const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu, onToggleDialer }) => {
+// Helper: get fixed portal position aligned to a button ref (right-aligned, below)
+const getPortalPos = (ref) => {
+    if (!ref?.current) return { top: 60, right: 16 };
+    const rect = ref.current.getBoundingClientRect();
+    return {
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+    };
+};
+
+const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu, onToggleDialer, buttonToneStyle, onButtonToneStyleChange, fromNumber, onFromNumberChange, extensionId, onExtensionIdChange }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showTenantDropdown, setShowTenantDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -279,6 +240,12 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
     const { brandConfig } = useBrand();
     const fallbackBrandName = brandConfig?.brandName || DEFAULT_BRAND_CONFIG.brandName;
     const clientMode = isClient?.() ?? false;
+
+    // Refs for portal anchor positioning
+    const dialerBtnRef = useRef(null);
+    const notifBtnRef = useRef(null);
+    const tenantBtnRef = useRef(null);
+    const profileBtnRef = useRef(null);
 
     const fetchNotifications = useCallback(async () => {
         try {
@@ -364,8 +331,8 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
         role: user?.role || 'Owner'
     }), [user]);
 
-    const healthStatus = String(health?.status || 'healthy').toLowerCase();
-    const healthMeta = HEALTH_META[healthStatus] || HEALTH_META.healthy;
+    const healthStatus = health?.status ? String(health.status).toLowerCase() : 'unknown';
+    const healthMeta = HEALTH_META[healthStatus] || HEALTH_META.unknown;
     const HealthIcon = healthMeta.icon;
     const healthAlertCount = Array.isArray(health?.alerts)
         ? health.alerts.filter((alert) => ['warning', 'critical'].includes(String(alert?.severity || '').toLowerCase())).length
@@ -376,7 +343,8 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
         : tenant
             ? [{ ...tenant, selected: true }]
             : [];
-    const floatingPanelClass = 'floating-surface absolute right-0 top-12 z-50 overflow-hidden rounded-[var(--radius-panel)]';
+    // Portal panel class - used with createPortal at document.body level to escape backdrop-filter stacking context
+    const panelCls = 'overflow-hidden rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.05)]';
 
     const handleThemeToggle = async () => {
         if (!tenant?.id || themeSaving) {
@@ -401,7 +369,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
     };
 
     return (
-        <div className="chrome-surface">
+        <div className="chrome-surface" style={{ position: "relative", zIndex: 40 }}>
             <div className="flex items-center gap-3 min-w-0">
                 <button
                     onClick={onToggleMobileMenu}
@@ -476,50 +444,60 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                     </button>
                 ) : null}
 
-                <button
-                    className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-green-500 hover:text-green-600"
-                    title="VoIP Phone"
-                    aria-label="Open VoIP phone"
-                    onClick={() => { setShowDialer(!showDialer); if (onToggleDialer) onToggleDialer(!showDialer); }}
-                >
-                    <Phone size={18} />
-                </button>
-
-                {showDialer && (
-                    <div 
-                      className="absolute right-2 top-12 z-50 w-64"
-                      style={{ cursor: 'move' }}
-                      onMouseDown={(e) => {
-                        const startX = e.clientX;
-                        const startY = e.clientY;
-                        const modal = e.currentTarget;
-                        const rect = modal.getBoundingClientRect();
-                        const offsetX = startX - rect.left;
-                        const offsetY = startY - rect.top;
-                        
-                        const onMouseMove = (moveEvent) => {
-                          modal.style.left = `${moveEvent.clientX - offsetX}px`;
-                          modal.style.top = `${moveEvent.clientY - offsetY}px`;
-                          modal.style.right = 'auto';
-                        };
-                        
-                        const onMouseUp = () => {
-                          document.removeEventListener('mousemove', onMouseMove);
-                          document.removeEventListener('mouseup', onMouseUp);
-                        };
-                        
-                        document.addEventListener('mousemove', onMouseMove);
-                        document.addEventListener('mouseup', onMouseUp);
-                      }}
+                <div className="relative">
+                    <button
+                        ref={dialerBtnRef}
+                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-green-500 hover:text-green-600"
+                        title="VoIP Phone"
+                        aria-label="Open VoIP phone"
+                        onClick={() => { setShowDialer(!showDialer); if (onToggleDialer) onToggleDialer(!showDialer); }}
                     >
-                        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-lg">
-                            <DialerModal onClose={() => { setShowDialer(false); if (onToggleDialer) onToggleDialer(false); }} />
-                        </div>
-                    </div>
-                )}
+                        <Phone size={18} />
+                    </button>
+
+                    {showDialer && createPortal(
+                        <>
+                            <div className="fixed inset-0 z-[100000]" onClick={() => { setShowDialer(false); if (onToggleDialer) onToggleDialer(false); }} />
+                            <div
+                                className="fixed w-72 z-[100001]"
+                                style={{ top: getPortalPos(dialerBtnRef).top, right: getPortalPos(dialerBtnRef).right, pointerEvents: 'auto' }}
+                                onMouseDown={(e) => {
+                                    const modal = e.currentTarget;
+                                    const rect = modal.getBoundingClientRect();
+                                    const offsetX = e.clientX - rect.left;
+                                    const offsetY = e.clientY - rect.top;
+                                    const onMouseMove = (moveEvent) => {
+                                        modal.style.left = `${moveEvent.clientX - offsetX}px`;
+                                        modal.style.top = `${moveEvent.clientY - offsetY}px`;
+                                        modal.style.right = 'auto';
+                                    };
+                                    const onMouseUp = () => {
+                                        document.removeEventListener('mousemove', onMouseMove);
+                                        document.removeEventListener('mouseup', onMouseUp);
+                                    };
+                                    document.addEventListener('mousemove', onMouseMove);
+                                    document.addEventListener('mouseup', onMouseUp);
+                                }}
+                            >
+                                <div className={panelCls}>
+                                    <DialerModal 
+                                      onClose={() => { setShowDialer(false); if (onToggleDialer) onToggleDialer(false); }} 
+                                      toneStyle={buttonToneStyle} 
+                                      onToneStyleChange={onButtonToneStyleChange} 
+                                      fromNumber={fromNumber}
+                                      onFromNumberChange={onFromNumberChange}
+                                      extensionId={extensionId}
+                                      onExtensionIdChange={onExtensionIdChange}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    , document.body)}
+                </div>
 
                 <div className="relative">
                     <button
+                        ref={notifBtnRef}
                         onClick={() => setShowNotifications(!showNotifications)}
                         className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600 relative"
                         title="Notifications"
@@ -535,10 +513,10 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                         )}
                     </button>
 
-                    {showNotifications && (
+                    {showNotifications && createPortal(
                         <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                            <div className={`${floatingPanelClass} w-80`}>
+                            <div className="fixed inset-0 z-[100000]" onClick={() => setShowNotifications(false)} />
+                            <div className={`${panelCls} fixed w-80 z-[100001]`} style={{ top: getPortalPos(notifBtnRef).top, right: getPortalPos(notifBtnRef).right, pointerEvents: 'auto' }}>
                                 <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Notifications</h3>
                                     {unreadCount > 0 && (
@@ -574,11 +552,12 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                 </div>
                             </div>
                         </>
-                    )}
+                    , document.body)}
                 </div>
 
                 <div className="relative">
                         <button
+                            ref={tenantBtnRef}
                             onClick={() => setShowTenantDropdown(!showTenantDropdown)}
                             className="surface-tertiary flex items-center gap-3 px-3 py-2 rounded-[var(--radius-card)] text-blue-500 hover:text-blue-400 min-w-0 transition"
                         title="Switch Workspace"
@@ -600,10 +579,10 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                         <ChevronDown size={14} className="hidden lg:block text-[var(--color-text-secondary)] flex-shrink-0" />
                     </button>
 
-                    {showTenantDropdown && (
+                    {showTenantDropdown && createPortal(
                         <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowTenantDropdown(false)} />
-                            <div className={`${floatingPanelClass} w-72`}>
+                            <div className="fixed inset-0 z-[100000]" onClick={() => setShowTenantDropdown(false)} />
+                            <div className={`${panelCls} fixed w-72 z-[100001]`} style={{ top: getPortalPos(tenantBtnRef).top, right: getPortalPos(tenantBtnRef).right, pointerEvents: 'auto' }}>
                                 <div className="p-4 border-b border-[var(--color-border)]">
                                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Switch Workspace</h3>
                                     <p className="text-xs text-[var(--color-text-secondary)] mt-1">{tenant ? `Current: ${tenant.name}` : 'Select an available workspace'}</p>
@@ -635,11 +614,12 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                 </div>
                             </div>
                         </>
-                    )}
+                    , document.body)}
                 </div>
 
                 <div className="relative">
                         <button
+                            ref={profileBtnRef}
                             onClick={() => setShowProfileDropdown(!showProfileDropdown)}
                             className="surface-tertiary p-2 rounded-[var(--radius-card)] transition"
                         title="User Menu"
@@ -656,12 +636,12 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                         )}
                     </button>
 
-                    {showProfileDropdown && (
+                    {showProfileDropdown && createPortal(
                         <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
-                            <div className={`${floatingPanelClass} w-72 glass-panel`}>
+                            <div className="fixed inset-0 z-[100000]" onClick={() => setShowProfileDropdown(false)} />
+                            <div className={`${panelCls} fixed w-72 z-[100001]`} style={{ top: getPortalPos(profileBtnRef).top, right: getPortalPos(profileBtnRef).right, pointerEvents: 'auto' }}>
                                 <div className="p-4 border-b border-[var(--color-border)]">
-                                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{currentUser.email}</p>
+                                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{currentUser?.email || 'System Admin'}</p>
                                 </div>
 
                                 <div className="divide-y divide-[var(--color-border)]">
@@ -715,7 +695,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                                 </div>
                             </div>
                         </>
-                    )}
+                    , document.body)}
                 </div>
             </div>
         </div>

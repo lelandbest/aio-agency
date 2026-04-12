@@ -9,7 +9,7 @@ import TopBar from './components/TopBar';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import { clearStoredSessionToken, getStoredSessionToken } from './services/authStorage';
-import { getCurrentSessionApi, logoutApi, switchTenantSessionApi } from './services/backendApi';
+import { getCurrentSessionApi, logoutApi, switchTenantSessionApi, updateCanonicalTenantSettingsApi } from './services/backendApi';
 import { OrchestrationProvider } from './orchestration';
 import { BrandProvider } from './contexts/BrandContext';
 import TicketModal from './components/TicketModal';
@@ -49,9 +49,8 @@ const SettingsModule = lazy(() => import('./modules/Settings'));
 const FlowsModule = lazy(() => import('./modules/Flows'));
 const CommsModule = lazy(() => import('./modules/Comms'));
 const CannedResponsesModule = lazy(() => import('./modules/CannedResponses'));
-const CommsSmsModule = lazy(() => import('./modules/CommsSms'));
-const DialerPage = lazy(() => import('./modules/CommsSms'));
-const CommsReviewModule = lazy(() => import('./modules/CommsReview'));
+const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
+const DialerPage = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
@@ -67,11 +66,44 @@ import { INITIAL_MENU_STRUCTURE, ICON_LIBRARY } from './data/initialDb';
 import { Crosshair } from './components/ui/icons';
 
 const DEFAULT_ACTIVE_MODULE = 'aio-brain';
-const DEFAULT_CLIENT_MODULE = 'chat';
+const DEFAULT_CLIENT_MODULE = 'comms';
 const DEFAULT_INTEGRATION_CATEGORY = null;
-const CLIENT_ALLOWED_MODULES = new Set(['chat', 'calendar']);
+const CLIENT_ALLOWED_MODULES = new Set(['comms', 'calendar']);
 const LEGACY_MODULE_REDIRECTS = {
+  chat: 'comms',
   pipeline: 'flows',
+};
+
+const upgradeMenuStructureModuleIds = (structure) => {
+  if (!Array.isArray(structure)) {
+    return { upgraded: false, next: structure };
+  }
+
+  let upgraded = false;
+  const next = structure.map((category) => {
+    const nextItems = Array.isArray(category?.items)
+      ? category.items.map((item) => {
+        const nextItem = { ...item };
+        if (nextItem.id === 'chat' || nextItem.id === 'dispatch') {
+          nextItem.id = 'comms';
+          upgraded = true;
+        }
+        if (nextItem.id === 'sms_voip') {
+          // IDs are already upgraded, labels handled by moduleLabels
+        }
+        if (Array.isArray(nextItem.children) && nextItem.children.length > 0) {
+          const childUpgrade = upgradeMenuStructureModuleIds([{ items: nextItem.children }]);
+          nextItem.children = childUpgrade.next?.[0]?.items || nextItem.children;
+          upgraded = upgraded || childUpgrade.upgraded;
+        }
+        return nextItem;
+      })
+      : category?.items;
+
+    return { ...category, items: nextItems };
+  });
+
+  return { upgraded, next };
 };
 
 const normalizeModuleId = (value) => {
@@ -123,30 +155,9 @@ import {
 // ============ MENU STRUCTURE ============
 // ============ ICON MAP ============
 const ICON_MAP = {
+  ...Lucide,
   ...ICON_LIBRARY,
-  LayoutDashboard,
-  Users,
-  Bot,
-  Workflow,
-  Radio,
   CalendarIcon,
-  MessageSquare,
-  PenTool,
-  GitMerge,
-  GitBranch,
-  FileText,
-  ShoppingCart,
-  Globe,
-  Phone,
-  PhoneCall,
-  Settings,
-  Video,
-  Crosshair,
-  EyeOff,
-  Activity,
-  Zap,
-  Rocket,
-  GraduationCap,
 };
 
 const MODULE_SUBTITLE_MAP = {
@@ -157,7 +168,7 @@ const MODULE_SUBTITLE_MAP = {
   crm: 'Search, segment, and operate on contact records from one workspace.',
   flows: 'Manage and launch your automation flows.',
   forms: 'Create, organize, and deploy workspace forms.',
-  chat: 'Thread-first Comms for triage, actions, and audit logs.',
+  comms: 'Thread-first Comms for triage, actions, and audit logs.',
   integrations: 'Admin control plane for mailbox accounts, calendar sources, and all external systems connected to AIO.',
   studio: 'Create scripts, voice, renders, transcripts, and ingest workflows from one workspace.',
   orders: 'Review order records, payment state, and fulfillment posture from one workspace.',
@@ -255,9 +266,9 @@ const filterMenuForClient = (structure = []) => {
   return filtered.length > 0
     ? filtered
     : INITIAL_MENU_STRUCTURE.map((category) => ({
-        ...category,
-        items: (Array.isArray(category?.items) ? category.items : []).filter((item) => CLIENT_ALLOWED_MODULES.has(item.id)),
-      })).filter((category) => category.items.length > 0);
+      ...category,
+      items: (Array.isArray(category?.items) ? category.items : []).filter((item) => CLIENT_ALLOWED_MODULES.has(item.id)),
+    })).filter((category) => category.items.length > 0);
 };
 
 // ============ MAIN APP COMPONENT ============
@@ -279,20 +290,23 @@ const App = () => {
   const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [dialerToneStyle, setDialerToneStyle] = useState('military');
+  const [dialerFromNumber, setDialerFromNumber] = useState('');
+  const [dialerExtensionId, setDialerExtensionId] = useState('');
 
-    const moduleLabels = {
-      'aio-brain': 'Brain',
-      'crm': 'AIO',
-      'orders': 'Orders',
+  const moduleLabels = {
+    'aio-brain': 'Brain',
+    'crm': 'AIO',
+    'orders': 'Orders',
     'media': 'Studio',
     'studio': 'Studio',
-    'comms': 'Dispatch',
+    'comms': 'Comms',
+    'sms_voip': 'SMS-VoIP',
     'calendar': 'Calendar',
     'forms': 'Forms',
     'flows': 'Flows',
     'signals': 'Signals',
     'settings': 'Settings',
-    'chat': 'Chat',
     'agents': 'Agents',
     'forge': 'Forge',
   };
@@ -300,8 +314,10 @@ const App = () => {
   const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
   const activeTenantSettings = session?.tenant?.tenant_settings || session?.tenant?.settings || {};
   const preferredTenantTheme = activeTenantSettings?.branding?.theme || null;
+  const adminEmails = ['support@aiocrm.org', 'admin@aio.com', 'admin@aio.local'];
+  const isSystemOwner = adminEmails.includes(session?.user?.email?.toLowerCase());
   const userRole = normalizeUserRole(session?.user?.role);
-  const clientMode = isClientRole(userRole);
+  const clientMode = !isSystemOwner && isClientRole(userRole);
   const operatorMode = isOperatorRole(userRole);
   const renderedMenuStructure = clientMode ? filterMenuForClient(menuStructure) : menuStructure;
   const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(activeModule) ? DEFAULT_CLIENT_MODULE : activeModule;
@@ -322,6 +338,8 @@ const App = () => {
   const canonicalMenu = activeTenantSettings?.navigation?.menuStructure;
   const legacyMenu = activeTenantSettings?.menu_structure;
 
+  const hasPersistedMenuUpgradedRef = useRef(new Set());
+
   const fullscreenModules = [];
   const isFullscreen = fullscreenModules.includes(effectiveActiveModule);
 
@@ -334,10 +352,35 @@ const App = () => {
       nextMenu = legacyMenu;
     }
 
+    const { upgraded, next } = upgradeMenuStructureModuleIds(nextMenu);
+
     // Canonical tenant navigation is authoritative only when it contains a usable persisted menu.
     // Empty canonical/legacy arrays mean "not configured yet" and must not blank the sidebar.
-    setMenuStructure(ensureStudioMenuItem(nextMenu));
-  }, [session?.tenant?.id, canonicalMenu, legacyMenu]);
+    setMenuStructure(ensureStudioMenuItem(next));
+
+    // One-time upgrade: rewrite persisted "chat" ids to "comms" and persist back to canonical settings.
+    const tenantId = session?.tenant?.id || null;
+    if (!tenantId || !upgraded) {
+      return;
+    }
+    if (hasPersistedMenuUpgradedRef.current.has(tenantId)) {
+      return;
+    }
+    hasPersistedMenuUpgradedRef.current.add(tenantId);
+
+    (async () => {
+      try {
+        await updateCanonicalTenantSettingsApi({
+          navigation: {
+            ...(activeTenantSettings?.navigation || {}),
+            menuStructure: next,
+          },
+        });
+      } catch (error) {
+        console.warn('Failed to persist upgraded menuStructure (chat->comms):', error);
+      }
+    })();
+  }, [session?.tenant?.id, canonicalMenu, legacyMenu, activeTenantSettings]);
 
   useEffect(() => {
     if (!clientMode || CLIENT_ALLOWED_MODULES.has(activeModule)) {
@@ -424,7 +467,7 @@ const App = () => {
       params.delete('intent');
     }
 
-    if (effectiveActiveModule === 'chat') {
+    if (effectiveActiveModule === 'comms') {
       setParam('threadId', commsThreadId);
     } else {
       params.delete('threadId');
@@ -571,7 +614,7 @@ const App = () => {
   const handleLogout = async () => {
     try {
       await logoutApi();
-    } catch {}
+    } catch { }
     clearStoredSessionToken();
     setSession(null);
     setActiveModule('aio-brain');
@@ -745,14 +788,21 @@ const App = () => {
         return <IntegrationsManager initialCategory={integrationCategory} />;
       case 'flows':
         return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onFlowContextChange={handleFlowContextChange} onExit={() => setActiveModule(lastActiveModule)} />;
-      case 'chat':
+      case 'comms':
         return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} clientMode={clientMode} />;
       case 'marketplace':
         return <PlaceholderModule name="Marketplace" />;
       case 'sms_voip':
-        return <CommsSmsModule />;
-      case 'comms_review':
-        return <CommsReviewModule />;
+        return (
+          <SmsVoipModule
+            buttonToneStyle={dialerToneStyle}
+            onButtonToneStyleChange={setDialerToneStyle}
+            fromNumber={dialerFromNumber}
+            onFromNumberChange={setDialerFromNumber}
+            extensionId={dialerExtensionId}
+            onExtensionIdChange={setDialerExtensionId}
+          />
+        );
       case 'canned-responses':
         return <CannedResponsesModule onNavigate={setActiveModule} />;
       case 'settings':
@@ -770,93 +820,98 @@ const App = () => {
 
   return (
     <NoticeProvider>
-    <ThemeProvider preferredTheme={preferredTenantTheme}>
-      <SignalProvider>
-      <BrandProvider initialConfig={activeTenantSettings?.branding || {}}>
-        <AIAssistProvider>
-        <OrchestrationProvider>
-          {/* VTTProvider wraps the full tree so Sidebar and VoiceCommandModule share one context instance */}
-          <VTTProvider>
-          <AuthContext.Provider value={{
-            session,
-            user: session?.user,
-            token: session?.token,
-            tenant: session?.tenant,
-            tenants: session?.tenants || [],
-            role: userRole,
-            capabilities: session?.capabilities || [],
-            isOperator: () => operatorMode,
-            isClient: () => clientMode,
-            hasCapability: (cid) => (session?.capabilities || []).includes(cid),
-            logout: handleLogout,
-            switchTenant: handleSwitchTenant,
-            refreshSession
-          }}>
-          <DbContext.Provider value={{ db, setDb }}>
-            <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
-              <div className="flex min-h-0 flex-1 overflow-hidden">
-                {/* Sidebar */}
-                {!isFullscreen && (
-                  <Sidebar
-                    activeModule={effectiveActiveModule}
-                    onSelectModule={navigateToModule}
-                    onLogout={handleLogout}
-                    isMobileOpen={isMobileOpen}
-                    setIsMobileOpen={setIsMobileOpen}
-                    menuStructure={renderedMenuStructure}
-                    iconMap={ICON_MAP}
-                    showHelp={!clientMode}
-                  />
-                )}
+      <ThemeProvider preferredTheme={preferredTenantTheme}>
+        <SignalProvider>
+          <BrandProvider initialConfig={activeTenantSettings?.branding || {}}>
+            <AIAssistProvider>
+              <OrchestrationProvider>
+                {/* VTTProvider wraps the full tree so Sidebar and VoiceCommandModule share one context instance */}
+                <VTTProvider>
+                  <AuthContext.Provider value={{
+                    session,
+                    user: session?.user,
+                    token: session?.token,
+                    tenant: session?.tenant,
+                    tenants: session?.tenants || [],
+                    role: userRole,
+                    capabilities: session?.capabilities || [],
+                    isOperator: () => operatorMode,
+                    isClient: () => clientMode,
+                    hasCapability: (cid) => (session?.capabilities || []).includes(cid),
+                    logout: handleLogout,
+                    switchTenant: handleSwitchTenant,
+                    refreshSession
+                  }}>
+                    <DbContext.Provider value={{ db, setDb }}>
+                      <div className="flex h-screen flex-col overflow-hidden bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
+                        <div className="flex min-h-0 flex-1 overflow-hidden">
+                          {/* Sidebar */}
+                          {!isFullscreen && (
+                            <Sidebar
+                              activeModule={effectiveActiveModule}
+                              onSelectModule={navigateToModule}
+                              onLogout={handleLogout}
+                              isMobileOpen={isMobileOpen}
+                              setIsMobileOpen={setIsMobileOpen}
+                              menuStructure={renderedMenuStructure}
+                              iconMap={ICON_MAP}
+                              showHelp={!clientMode}
+                            />
+                          )}
 
-                {/* Main Content */}
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  {!isFullscreen && (
-                    <TopBar
-                      onLogout={handleLogout}
-                      onNavigate={setCurrentPage}
-                      onOpenSystemHealth={() => setActiveModule('system-health')}
-                      title={currentModuleMeta.label}
-                      subtitle={currentModuleMeta.subtitle}
-                      titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
-                      searchPlaceholder={currentModuleMeta.searchPlaceholder}
-                      showSearch={!clientMode && currentModuleMeta.type !== 'iframe' && effectiveActiveModule !== 'system-health'}
-                      onToggleMobileMenu={() => setIsMobileOpen(true)}
-                    />
-                  )}
+                          {/* Main Content */}
+                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                            {!isFullscreen && (
+                              <TopBar
+                                onLogout={handleLogout}
+                                onNavigate={setCurrentPage}
+                                onOpenSystemHealth={() => setActiveModule('system-health')}
+                                title={currentModuleMeta.label}
+                                subtitle={currentModuleMeta.subtitle}
+                                titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
+                                searchPlaceholder={currentModuleMeta.searchPlaceholder}
+                                showSearch={!clientMode && currentModuleMeta.type !== 'iframe' && effectiveActiveModule !== 'system-health'}
+                                onToggleMobileMenu={() => setIsMobileOpen(true)}
+                                buttonToneStyle={dialerToneStyle}
+                                onButtonToneStyleChange={setDialerToneStyle}
+                                fromNumber={dialerFromNumber}
+                                onFromNumberChange={setDialerFromNumber}
+                                extensionId={dialerExtensionId}
+                                onExtensionIdChange={setDialerExtensionId}
+                              />
+                            )}
 
-                  {/* Module Content */}
-                  <div className="flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] p-1.5">
-                    <Suspense key={effectiveActiveModule} fallback={
-                      <div className="h-full flex items-center justify-center">
-                        <LoadingSpinner size="lg" message="Loading module..." />
+                            <div className="flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] p-2">
+                              <Suspense key={effectiveActiveModule} fallback={
+                                <div className="h-full flex items-center justify-center">
+                                  <LoadingSpinner size="lg" message="Loading module..." />
+                                </div>
+                              }>
+                                {renderModule()}
+                              </Suspense>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    }>
-                      {renderModule()}
-                    </Suspense>
-                  </div>
-                </div>
-              </div>
-            </div>
-        </DbContext.Provider>
-        <OperatorAssistDock 
-          activeModule={activeModule} 
-          activeModuleLabel={activeModuleLabel} 
-        />
-        <GlobalOverlay activeModule={activeModule} />
-        </AuthContext.Provider>
-        {/* VTTOpener wires the sidebar aio:open-charlie event to openVTT */}
-        <VTTOpener />
-        <VoiceCommandModule />
-        </VTTProvider>
-        </OrchestrationProvider>
-        </AIAssistProvider>
-        <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
-        <GlobalNoticeViewport />
-      </BrandProvider>
-      <StatusBar />
-      </SignalProvider>
-    </ThemeProvider>
+                    </DbContext.Provider>
+                    <OperatorAssistDock
+                      activeModule={activeModule}
+                      activeModuleLabel={activeModuleLabel}
+                    />
+                    <GlobalOverlay activeModule={activeModule} />
+                  </AuthContext.Provider>
+                  {/* VTTOpener wires the sidebar aio:open-charlie event to openVTT */}
+                  <VTTOpener />
+                  <VoiceCommandModule />
+                </VTTProvider>
+              </OrchestrationProvider>
+            </AIAssistProvider>
+            <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
+            <GlobalNoticeViewport />
+          </BrandProvider>
+          <StatusBar />
+        </SignalProvider>
+      </ThemeProvider>
     </NoticeProvider>
   );
 };
@@ -868,10 +923,3 @@ export default function AppWithErrorBoundary() {
     </ErrorBoundary>
   );
 }
-
-
-
-
-
-
-

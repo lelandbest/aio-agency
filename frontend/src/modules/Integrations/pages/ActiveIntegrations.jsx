@@ -4242,8 +4242,8 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         showActions
         onModuleAi={() => openAIAssist({ context: { module: 'integrations', activeCategory, providerCount: integrations.length } })}
       />
-      <div className="module-content-stage module-surface-shell p-1.5">
-        <div className="h-full flex-1 overflow-y-auto p-3">
+      <div className="module-content-stage module-surface-shell p-2">
+        <div className="h-full flex-1 overflow-y-auto p-2">
           {!isHydrated && loading ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)]" />

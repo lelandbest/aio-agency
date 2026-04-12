@@ -1180,7 +1180,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
       });
       window.dispatchEvent(new CustomEvent('aio:navigate', {
         detail: {
-          module: channelType === 'sms' ? 'sms_voip' : 'chat',
+          module: channelType === 'sms' ? 'sms_voip' : 'comms',
           threadId: thread.id,
         },
       }));
@@ -1213,7 +1213,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const renderedPhoneRows = editMode && !showDeleted ? [...editPhoneValues, ''].slice(0, Math.max(editPhoneValues.length + 1, 5)) : selectedMethods.phones;
 
   return (
-    <div className="module-root-standard relative !bg-[#050505]">
+    <div className="flex h-full min-h-0 flex-col bg-[#050505] p-2">
       <div className="module-toolbar relative z-[30] overflow-visible !border-b-0 !bg-transparent backdrop-blur-md">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           <button type="button" onClick={() => setShowCreateModal(true)} className="btn-primary-skeuo !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 !text-[10px] !tracking-[0.14em]"><Plus size={12} />Create</button>
@@ -1277,14 +1277,14 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
             </div>
           ) : !selectedContact ? (
             <div className="flex min-h-0 flex-1 gap-2 overflow-hidden select-none animate-pulse">
-               <div className={`${shellPanelClass} flex min-h-0 flex-1 flex-col overflow-hidden`}>
-                  <div className="h-10 border-b border-slate-900 bg-[#090909]/70" />
-                  <div className="flex flex-1 p-2 gap-2">
-                    <div className="w-[340px] rounded-[22px] border border-slate-900/80 bg-[#050505]" />
-                    <div className="flex-1 rounded-[28px] border border-slate-900/80 bg-transparent" />
-                  </div>
-               </div>
-               <div className={`${shellPanelClass} w-[300px] h-full bg-[#090909]/70`} />
+              <div className={`${shellPanelClass} flex min-h-0 flex-1 flex-col overflow-hidden`}>
+                <div className="h-10 border-b border-slate-900 bg-[#090909]/70" />
+                <div className="flex flex-1 p-2 gap-2">
+                  <div className="w-[340px] rounded-[22px] border border-slate-900/80 bg-[#050505]" />
+                  <div className="flex-1 rounded-[28px] border border-slate-900/80 bg-transparent" />
+                </div>
+              </div>
+              <div className={`${shellPanelClass} w-[300px] h-full bg-[#090909]/70`} />
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 gap-2 overflow-hidden select-none">
@@ -1845,7 +1845,6 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
 }
 
 export default CRMModule;
-
 
 
 

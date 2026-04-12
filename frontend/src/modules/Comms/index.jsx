@@ -509,6 +509,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const [mailboxTestResult, setMailboxTestResult] = useState(null);
   const [isMailboxComposerOpen, setIsMailboxComposerOpen] = useState(false);
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
+  const [selectedAgent, setSelectedAgent] = useState('ALPHA');
   const { showNotice } = useNotice();
   const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1600 : window.innerWidth));
@@ -812,6 +813,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     await runAction(mode, async () => {
       const field = mode === 'summarize' ? 'summary' : mode;
       const latestMessage = selectedThread.messages?.[selectedThread.messages.length - 1] || null;
+      const shouldOverrideAgent = ['reply', 'rewrite', 'draft-reply', 'rewrite-draft'].includes(String(field || '').toLowerCase());
       const response = await draftAiApi({
         module: 'comms',
         surface: 'thread',
@@ -832,6 +834,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
           contactName: selectedThread.contact ? `${selectedThread.contact.firstName} ${selectedThread.contact.lastName}`.trim() : '',
           companyName: selectedThread.company?.name || '',
           assignee: selectedThread.assignee,
+          ...(shouldOverrideAgent ? { selected_agent: selectedAgent } : {}),
           latestMessage: latestMessage?.plain_text || latestMessage?.body || '',
           latestDirection: latestMessage?.direction || '',
         }
@@ -997,6 +1000,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const draftProvider = mailboxProviders.find((provider) => provider.id === mailboxDraft.provider) || { id: '', label: mailboxDraft.provider || 'Unknown provider', fields: [] };
   const selectedMailboxHealth = mailboxHealthTone[selectedMailbox?.health?.state || 'healthy'] || mailboxHealthTone.healthy;
   const selectedMailboxProvider = mailboxProviders.find((provider) => provider.id === selectedMailbox?.provider) || { id: '', label: selectedMailbox?.provider || 'Unknown provider', fields: [] };
+  useEffect(() => {
+    // Match Studio: the rail selects the active AI specialist for the current surface.
+    // Default to the thread's assignee when switching threads, but do not persist any routing changes.
+    setSelectedAgent(selectedThread?.assignee || 'ALPHA');
+  }, [selectedThread?.id]);
   const selectedMailboxEventSummary = useMemo(() => ({
     failures: mailboxEvents.filter((event) => event.eventType.includes('failed')).length,
     sent: mailboxEvents.filter((event) => event.eventType === 'mail.sent').length,
@@ -1270,9 +1278,10 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                 <BrainIcon size={14} />
               </button>
               <button
-                onClick={() => openAIAssist({ context: { module: 'comms', threadId: selectedThread?.id } })}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-                title="Crosshair (Module AI)"
+                onClick={() => handleAiAction('reply')}
+                disabled={!selectedThread?.id}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
+                title={`Crosshair (Module AI)${selectedAgent ? ` • ${selectedAgent}` : ''}`}
               >
                 <Crosshair size={14} />
               </button>
@@ -2000,7 +2009,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     <div className="flex-1 overflow-y-auto no-scrollbar pt-0.5">
                       <div className="flex flex-col gap-0">
                         {agentRailAgents.map((agentName) => {
-                          const isSelectedAgent = selectedThread.assignee === agentName;
+                          const isSelectedAgent = selectedAgent === agentName;
                           let c;
                           if (agentName === 'ALPHA') {
                             c = HQ_AGENT_STYLE;
@@ -2016,8 +2025,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                           return (
                             <button
                               key={agentName}
-                              onClick={() => handleAssignThread(agentName)}
-                              title={agentName}
+                              onClick={() => setSelectedAgent(agentName)}
+                              title={`Assist as ${agentName}${selectedThread?.assignee ? ` • Assigned: ${selectedThread.assignee}` : ''}`}
                               className={`flex flex-col items-center justify-center px-0.5 py-1 cursor-pointer transition-all duration-300 group outline-none rounded-[var(--radius-card)] ${isSelectedAgent ? 'bg-white/5' : 'hover:bg-white/5'}`}
                             >
                               <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all duration-300 transform-gpu
@@ -2030,6 +2039,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                               <span className={`mt-0.5 text-[6px] leading-none uppercase tracking-[0.14em] ${isSelectedAgent ? 'text-white' : 'text-slate-600 group-hover:text-slate-300'}`}>
                                 {agentName}
                               </span>
+                              {selectedThread?.assignee === agentName ? (
+                                <span className="mt-0.5 text-[5px] leading-none font-black uppercase tracking-[0.18em] text-emerald-500/80">
+                                  Routed
+                                </span>
+                              ) : null}
                               {agentId && (
                                 <span className={`mt-0 text-[5px] leading-none font-mono tracking-wider ${isSelectedAgent ? 'text-slate-400' : 'text-slate-700 group-hover:text-slate-500'}`}>
                                   {agentId}

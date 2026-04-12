@@ -79,7 +79,7 @@ svg { color: inherit; }
   --radius-panel: 0.5rem;
   --radius-card: 0.25rem;
   --radius-pill: 0.25rem;
-  --layout-gap-tight: 0.375rem;
+  --layout-gap-tight: 0.5rem;
   --toolbar-height: 3rem;
   --topbar-height: 4rem;
 

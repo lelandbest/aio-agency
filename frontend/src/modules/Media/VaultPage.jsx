@@ -78,7 +78,7 @@ const VaultPage = ({ onBack }) => {
   const currentItems = categorizedItems[selectedCategory] || [];
 
   return (
-    <div className="flex flex-col h-full uppercase">
+    <div className="module-root-standard uppercase">
       <ModuleHeader
         title="Vault"
         leftActions={[
@@ -91,7 +91,7 @@ const VaultPage = ({ onBack }) => {
         ]}
       />
       
-      <div className="flex-1 overflow-auto p-6 bg-[#070708]">
+      <div className="flex-1 overflow-auto p-2 bg-[#070708]">
         <div className="max-w-5xl mx-auto">
           <div className="mb-6">
             <h2 className="text-lg font-bold text-white mb-1 tracking-widest">VAULT DISCOVERY</h2>

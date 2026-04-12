@@ -63,7 +63,7 @@ const PipelineModule = () => {
         if (Array.isArray(parsed) && parsed.length) {
           setColumns(parsed);
         }
-      } catch {}
+      } catch { }
     }
     loadContacts();
   }, []);
@@ -202,7 +202,7 @@ const PipelineModule = () => {
     window.dispatchEvent(
       new CustomEvent('aio:navigate', {
         detail: {
-          module: channelType === 'sms' ? 'sms_voip' : 'chat',
+          module: channelType === 'sms' ? 'sms_voip' : 'comms',
           threadId: thread.id
         }
       })
@@ -212,12 +212,12 @@ const PipelineModule = () => {
   const runPipelineAssist = async () => {
     const highestSignal = [...contacts].sort((a, b) => (b.leadScore || 0) - (a.leadScore || 0))[0];
     if (!highestSignal) return;
-    
-      try {
-        const response = await draftAiApi({
+
+    try {
+      const response = await draftAiApi({
         module: 'pipelines',
-          surface: 'deal-card',
-          field: 'next-action',
+        surface: 'deal-card',
+        field: 'next-action',
         intent: 'suggest',
         current_value: '',
         context: {
@@ -243,8 +243,8 @@ const PipelineModule = () => {
     const score = contact.leadScore || 0;
     const priorityTone =
       score >= 85 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' :
-      score >= 65 ? 'border-sky-500/30 bg-sky-500/10 text-sky-200' :
-      'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]';
+        score >= 65 ? 'border-sky-500/30 bg-sky-500/10 text-sky-200' :
+          'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]';
 
     return (
       <div
@@ -375,97 +375,97 @@ const PipelineModule = () => {
 
       <div className="module-content-stage module-surface-shell p-1.5">
         <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-4">
-        {loading ? (
-          <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
-            Loading pipeline...
-          </div>
-        ) : (
-          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] items-start">
-            {cardsByColumn.columns.map((column) => {
-              const cards = cardsByColumn.cards.get(column.id) || [];
-              return (
-                <div
-                  key={column.id}
-                  onDragOver={handleDragOver}
-                  onDrop={(event) => handleDrop(event, column)}
-                  className={shellPanelClass + ' min-w-0 p-3'}
-                >
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    {editingColumnId === column.id ? (
-                      <div className="flex flex-1 items-center gap-2">
-                        <input
-                          value={newColumnName}
-                          onChange={(event) => setNewColumnName(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') saveRenameColumn(column.id);
-                            if (event.key === 'Escape') setEditingColumnId(null);
-                          }}
-                          className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] shadow-island-sm transition"
-                          autoFocus
-                        />
-                        <button onClick={() => saveRenameColumn(column.id)} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                          Save
+          {loading ? (
+            <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
+              Loading pipeline...
+            </div>
+          ) : (
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] items-start">
+              {cardsByColumn.columns.map((column) => {
+                const cards = cardsByColumn.cards.get(column.id) || [];
+                return (
+                  <div
+                    key={column.id}
+                    onDragOver={handleDragOver}
+                    onDrop={(event) => handleDrop(event, column)}
+                    className={shellPanelClass + ' min-w-0 p-3'}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      {editingColumnId === column.id ? (
+                        <div className="flex flex-1 items-center gap-2">
+                          <input
+                            value={newColumnName}
+                            onChange={(event) => setNewColumnName(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') saveRenameColumn(column.id);
+                              if (event.key === 'Escape') setEditingColumnId(null);
+                            }}
+                            className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] shadow-island-sm transition"
+                            autoFocus
+                          />
+                          <button onClick={() => saveRenameColumn(column.id)} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <button onDoubleClick={() => startRenameColumn(column)} className="text-left">
+                            <div className="text-sm font-semibold text-[var(--color-text-primary)]">{column.title}</div>
+                          </button>
+                          <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{cards.length} record{cards.length === 1 ? '' : 's'}</div>
+                        </div>
+                      )}
+                      {getColumnHighlight(cards) ? (
+                        <button
+                          onClick={() => setSelectedCard(getColumnHighlight(cards))}
+                          className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] shadow-island-sm"
+                        >
+                          Top Signal
                         </button>
-                      </div>
-                    ) : (
-                      <div>
-                        <button onDoubleClick={() => startRenameColumn(column)} className="text-left">
-                          <div className="text-sm font-semibold text-[var(--color-text-primary)]">{column.title}</div>
-                        </button>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{cards.length} record{cards.length === 1 ? '' : 's'}</div>
-                      </div>
-                    )}
-                    {getColumnHighlight(cards) ? (
-                      <button
-                        onClick={() => setSelectedCard(getColumnHighlight(cards))}
-                        className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]/45 hover:text-[var(--color-text-primary)] shadow-island-sm"
-                      >
-                        Top Signal
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {cards.map(renderCard)}
+                      {cards.length === 0 ? (
+                        <div className="rounded-xl border-2 border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-8 text-center text-[var(--color-text-tertiary)]">
+                          <AlertCircle size={22} className="mx-auto mb-2 opacity-60" />
+                          <p className="text-xs">Drop CRM records here</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {showCreateStage ? (
+                <div className={shellPanelClass + ' min-w-0 p-3'}>
+                  <div className="space-y-3">
+                    <div className="text-sm font-semibold text-[var(--color-text-primary)]">New Stage</div>
+                    <input
+                      value={newColumnName}
+                      onChange={(event) => setNewColumnName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') saveNewColumn();
+                        if (event.key === 'Escape') setShowCreateStage(false);
+                      }}
+                      placeholder="Stage name"
+                      className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] shadow-island-sm transition"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowCreateStage(false)} className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
+                        Cancel
                       </button>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {cards.map(renderCard)}
-                    {cards.length === 0 ? (
-                      <div className="rounded-xl border-2 border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-8 text-center text-[var(--color-text-tertiary)]">
-                        <AlertCircle size={22} className="mx-auto mb-2 opacity-60" />
-                        <p className="text-xs">Drop CRM records here</p>
-                      </div>
-                    ) : null}
+                      <button onClick={saveNewColumn} className="flex-1 rounded-[var(--radius-card)] bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)] shadow-island transition">
+                        Add Stage
+                      </button>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-
-            {showCreateStage ? (
-              <div className={shellPanelClass + ' min-w-0 p-3'}>
-                <div className="space-y-3">
-                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">New Stage</div>
-                  <input
-                    value={newColumnName}
-                    onChange={(event) => setNewColumnName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') saveNewColumn();
-                      if (event.key === 'Escape') setShowCreateStage(false);
-                    }}
-                    placeholder="Stage name"
-                    className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)] shadow-island-sm transition"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowCreateStage(false)} className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
-                      Cancel
-                    </button>
-                    <button onClick={saveNewColumn} className="flex-1 rounded-[var(--radius-card)] bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)] shadow-island transition">
-                      Add Stage
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
 

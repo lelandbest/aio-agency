@@ -31,7 +31,7 @@
             { "id": "dashboard", "label": "Dashboard", "icon": "LayoutDashboard", "type": "internal", "visible": true },
             { "id": "aio-brain", "label": "AIO Brain", "icon": "Bot", "type": "internal", "visible": true },
             { "id": "calendar", "label": "Calendar", "icon": "CalendarIcon", "type": "internal", "visible": true },
-            { "id": "chat", "label": "Comms", "icon": "MessageSquare", "type": "internal", "visible": true }
+            { "id": "comms", "label": "Comms", "icon": "MessageSquare", "type": "internal", "visible": true }
           ]
         },
         {

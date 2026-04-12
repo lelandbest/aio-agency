@@ -270,7 +270,7 @@ const CannedResponsesModule = ({ onNavigate }) => {
           <div className="flex items-center gap-3">
             {onNavigate && (
               <button
-                onClick={() => onNavigate('chat')}
+                onClick={() => onNavigate('comms')}
                 className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition"
                 title="Back to Comms"
               >

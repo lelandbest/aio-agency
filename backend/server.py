@@ -2600,7 +2600,10 @@ async def inject_tenant_context(request: Request, call_next):
         and not allows_no_active_workspace(request.url.path)
     ):
         return JSONResponse(status_code=403, content={"detail": "No active workspace selected."})
-    if request.url.path.startswith("/api") and session and "client.access" in capabilities and not is_client_allowed_api_request(request.method, request.url.path):
+    # Only apply client-mode restrictions if the user is NOT an operator. 
+    # Admins/Owners often have 'client.access' as part of their ultimate permission set, but should not be throttled.
+    is_operator = ((session or {}).get("user") or {}).get("role") == "operator"
+    if request.url.path.startswith("/api") and session and not is_operator and "client.access" in capabilities and not is_client_allowed_api_request(request.method, request.url.path):
         return JSONResponse(status_code=403, content={"detail": "Client mode blocks this endpoint."})
 
     context_token = set_request_tenant_id(tenant_id)
@@ -2661,7 +2664,18 @@ async def enforce_camelcase_response(request: Request, call_next):
                 if body:
                     data = json.loads(body)
                     converted = convert_to_camelcase(data)
-                    response.body = json.dumps(converted).encode()
+                    new_body = json.dumps(converted).encode()
+                    
+                    headers = dict(response.headers)
+                    headers.pop("content-length", None)
+                    
+                    from fastapi.responses import Response
+                    return Response(
+                        content=new_body,
+                        status_code=response.status_code,
+                        headers=headers,
+                        media_type=getattr(response, "media_type", "application/json")
+                    )
             except (json.JSONDecodeError, AttributeError):
                 pass
     

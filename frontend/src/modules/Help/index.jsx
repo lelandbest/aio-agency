@@ -128,7 +128,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
       { type: 'action', id: 'create_flow', title: 'Create SMS Flow', payload: { type: 'create_flow', payload: { template: 'lead_capture' } } },
       { type: 'action', id: 'open_crm', title: 'Open CRM Contacts', payload: { type: 'open_module', payload: { module: 'crm' } } },
       { type: 'action', id: 'add_contact', title: 'Add New Contact', payload: { type: 'navigate', payload: { route: '/crm' } } },
-      { type: 'action', id: 'open_comms', title: 'Open Message Inbox', payload: { type: 'open_module', payload: { module: 'chat' } } }
+      { type: 'action', id: 'open_comms', title: 'Open Message Inbox', payload: { type: 'open_module', payload: { module: 'comms' } } }
     ].filter(a => a.title.toLowerCase().includes(query));
 
     // 3. Search Templates

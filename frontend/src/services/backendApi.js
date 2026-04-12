@@ -7,7 +7,8 @@ function resolveDefaultApiBaseUrl() {
 
   const currentHost = window.location.hostname || 'localhost';
   const normalizedHost = currentHost === '0.0.0.0' ? 'localhost' : currentHost;
-  return `http://${normalizedHost}:8001`;
+  const protocol = window.location.protocol; // Includes the colon (e.g., 'http:')
+  return `${protocol}//${normalizedHost}:8001`;
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || resolveDefaultApiBaseUrl()).replace(/\/$/, '');

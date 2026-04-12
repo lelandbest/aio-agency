@@ -912,7 +912,7 @@ class AuthStore:
     def _public_user(self, record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
         settings = self._user_settings_from_record(record)
         return {
-            "id": record["id"],
+            "id": record["userId"] if "userId" in record.keys() else record["id"],
             "email": record["email"],
             "username": record["username"],
             "name": record["displayName"] or record["email"],
@@ -956,6 +956,26 @@ class AuthStore:
             (user_id,),
         ).fetchall()
         if not rows:
+            # --- LEGACY BOOTSTRAP / WORKSPACE RECOVERY (SESSION HYDRATE) ---
+            # If the authenticated operator has no workspace membership, auto-seed one
+            # so legacy installs do not fall into client-mode lockout.
+            user_row = conn.execute("SELECT role FROM app_users WHERE id = ?", (user_id,)).fetchone()
+            if user_row and normalize_user_role(user_row["role"]) == "operator":
+                now = utcnow_iso()
+                default_tenant_id = self.default_tenant_id()
+                primary_tenant = conn.execute("SELECT id FROM tenants WHERE id = ?", (default_tenant_id,)).fetchone()
+                if not primary_tenant:
+                    conn.execute(
+                        "INSERT INTO tenants (id, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
+                        (default_tenant_id, "Default Workspace", now, now)
+                    )
+                conn.execute(
+                    "INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt) VALUES (?, ?, ?, 'owner', ?, ?)",
+                    (f"member-{secrets.token_hex(8)}", user_id, default_tenant_id, now, now)
+                )
+                # Rerun membership query — caller is responsible for committing the outer transaction
+                return self._tenant_memberships(conn, user_id, currentTenantId)
+            # -------------------------------------------------------------
             return None, []
         resolved_tenant_id = currentTenantId or rows[0]["tenantId"]
         tenants: list[dict[str, Any]] = []
@@ -1289,7 +1309,7 @@ class AuthStore:
         tenant_id = current_tenant.get("id") if current_tenant else None
         capabilities = []
         if tenant_id:
-            capabilities = self.get_effective_capabilities(tenant_id, "user", user_id)
+            capabilities = list(self.get_effective_capabilities(tenant_id, "user", user_id, conn=conn, skip_seed=True))
         return {
             "id": record["id"],
             "token": record["token"],
@@ -2185,6 +2205,28 @@ class AuthStore:
             (user_id,),
         ).fetchone()
         currentTenantId = tenant_row["tenantId"] if tenant_row else None
+        
+        # --- LEGACY BOOTSTRAP / WORKSPACE RECOVERY ---
+        if not currentTenantId:
+            user_row = conn.execute("SELECT role FROM app_users WHERE id = ?", (user_id,)).fetchone()
+            if user_row and normalize_user_role(user_row["role"]) == "operator":
+                default_tenant_id = self.default_tenant_id()
+                primary_tenant = conn.execute("SELECT id FROM tenants WHERE id = ?", (default_tenant_id,)).fetchone()
+                if not primary_tenant:
+                    conn.execute(
+                        "INSERT INTO tenants (id, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
+                        (default_tenant_id, "Default Workspace", createdAt, createdAt)
+                    )
+                
+                existing_member = conn.execute("SELECT id FROM memberships WHERE userId = ? AND tenantId = ?", (user_id, default_tenant_id)).fetchone()
+                if not existing_member:
+                    conn.execute(
+                        "INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt) VALUES (?, ?, ?, 'owner', ?, ?)",
+                        (f"member-{secrets.token_hex(8)}", user_id, default_tenant_id, createdAt, createdAt)
+                    )
+                currentTenantId = default_tenant_id
+        # ---------------------------------------------
+        
         conn.execute(
             """
             INSERT INTO app_sessions (id, userId, token, provider, currentTenantId, createdAt, expiresAt, lastSeenAt, userAgent)
@@ -2965,28 +3007,33 @@ class AuthStore:
             "entitySummaries": entity_summaries,
         }
 
-    def get_effective_capabilities(self, tenant_id: str, entity_type: str, entity_id: str) -> set[str]:
-        with self._connect() as conn:
+    def get_effective_capabilities(self, tenant_id: str, entity_type: str, entity_id: str, conn: sqlite3.Connection | None = None, skip_seed: bool = False) -> set[str]:
+        if conn is None:
+            with self._connect() as _conn:
+                return self.get_effective_capabilities(tenant_id, entity_type, entity_id, conn=_conn, skip_seed=skip_seed)
+                
+        if not skip_seed:
             self._ensure_workspace_role_seed(conn, tenant_id)
             self._sync_workspace_membership_role_assignments(conn, tenant_id)
-            rows = conn.execute(
-                """
-                SELECT rd.capabilitiesJson
-                FROM role_assignments ra
-                JOIN role_definitions rd ON ra.roleId = rd.id
-                WHERE ra.tenantId = ? AND ra.entityType = ? AND ra.entityId = ?
-                """,
-                (tenant_id, entity_type, entity_id),
-            ).fetchall()
-            capabilities = set()
-            for row in rows:
-                try:
-                    role_caps = json.loads(row["capabilitiesJson"])
-                    if isinstance(role_caps, list):
-                        capabilities.update(role_caps)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-            return capabilities
+            
+        rows = conn.execute(
+            """
+            SELECT rd.capabilitiesJson
+            FROM role_assignments ra
+            JOIN role_definitions rd ON ra.roleId = rd.id
+            WHERE ra.tenantId = ? AND ra.entityType = ? AND ra.entityId = ?
+            """,
+            (tenant_id, entity_type, entity_id),
+        ).fetchall()
+        capabilities = set()
+        for row in rows:
+            try:
+                role_caps = json.loads(row["capabilitiesJson"])
+                if isinstance(role_caps, list):
+                    capabilities.update(role_caps)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        return capabilities
 
     def create_workspace_role(self, token: str | None, tenant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not token:
