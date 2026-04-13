@@ -15,7 +15,7 @@ const RichTextEditor = ({
     : 'undo redo | bold italic | bullist numlist | removeformat';
 
   return (
-    <div className="rich-text-editor-container rounded-lg overflow-hidden border border-[var(--color-border)]">
+    <div className="rich-text-editor-container rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
       <Editor
         tinymceScriptSrc="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.8.3/tinymce.min.js"
         ref={editorRef}

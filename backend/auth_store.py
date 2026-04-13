@@ -955,8 +955,13 @@ class AuthStore:
             """,
             (user_id,),
         ).fetchall()
+        active_tenant_ids = {row["tenantId"] for row in rows}
+        if not rows or not currentTenantId or currentTenantId not in active_tenant_ids:
+            default_tenant_id = self._ensure_operator_default_workspace(conn, user_id)
+            if default_tenant_id and default_tenant_id != currentTenantId:
+                return self._tenant_memberships(conn, user_id, default_tenant_id)
         if not rows:
-            # --- LEGACY BOOTSTRAP / WORKSPACE RECOVERY (SESSION HYDRATE) ---
+            return None, []
             # If the authenticated operator has no workspace membership, auto-seed one
             # so legacy installs do not fall into client-mode lockout.
             user_row = conn.execute("SELECT role FROM app_users WHERE id = ?", (user_id,)).fetchone()
@@ -1470,6 +1475,61 @@ class AuthStore:
             suffix += 1
             candidate = f"{base_slug}-{suffix}"
         return candidate
+
+    def _ensure_operator_default_workspace(self, conn: sqlite3.Connection, user_id: str) -> str | None:
+        user = conn.execute(
+            "SELECT id, email, displayName, role FROM app_users WHERE id = ? LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        if not user or normalize_user_role(user["role"]) != "operator":
+            return None
+
+        workspace_seed = ((user["displayName"] or "").strip() or user["email"].split("@")[0] or "Default").strip()
+        workspace_name = f"{workspace_seed} Workspace"
+        tenant_id = f"tenant-home-{user_id}"
+        now = utcnow_iso()
+        tenant = conn.execute("SELECT id, archivedAt FROM tenants WHERE id = ? LIMIT 1", (tenant_id,)).fetchone()
+        persisted_settings = {"tenantSettings": strip_derived_tenant_sections(DEFAULT_TENANT_SETTINGS)}
+
+        if tenant:
+            if tenant["archivedAt"]:
+                conn.execute(
+                    """
+                    UPDATE tenants
+                    SET name = ?, archivedAt = NULL, archivedByUserId = NULL, updatedAt = ?
+                    WHERE id = ?
+                    """,
+                    (workspace_name, now, tenant_id),
+                )
+        else:
+            conn.execute(
+                """
+                INSERT INTO tenants (id, name, slug, settingsJson, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (tenant_id, workspace_name, self._unique_workspace_slug(conn, workspace_name), json.dumps(persisted_settings), now, now),
+            )
+
+        membership = conn.execute(
+            "SELECT id FROM memberships WHERE userId = ? AND tenantId = ? LIMIT 1",
+            (user_id, tenant_id),
+        ).fetchone()
+        if membership:
+            conn.execute(
+                "UPDATE memberships SET role = 'owner', updatedAt = ? WHERE id = ?",
+                (now, membership["id"]),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt)
+                VALUES (?, ?, ?, 'owner', ?, ?)
+                """,
+                (f"membership-{secrets.token_hex(8)}", user_id, tenant_id, now, now),
+            )
+
+        self._sync_workspace_membership_role_assignments(conn, tenant_id)
+        return tenant_id
 
     def _normalize_blueprint_flow_record(self, tenant_id: str, flow: dict[str, Any], position: int, actor_label: str) -> dict[str, Any]:
         source_id = str(flow.get("id") or flow.get("name") or f"flow-{position + 1}").strip() or f"flow-{position + 1}"
@@ -2206,27 +2266,9 @@ class AuthStore:
         ).fetchone()
         currentTenantId = tenant_row["tenantId"] if tenant_row else None
         
-        # --- LEGACY BOOTSTRAP / WORKSPACE RECOVERY ---
         if not currentTenantId:
-            user_row = conn.execute("SELECT role FROM app_users WHERE id = ?", (user_id,)).fetchone()
-            if user_row and normalize_user_role(user_row["role"]) == "operator":
-                default_tenant_id = self.default_tenant_id()
-                primary_tenant = conn.execute("SELECT id FROM tenants WHERE id = ?", (default_tenant_id,)).fetchone()
-                if not primary_tenant:
-                    conn.execute(
-                        "INSERT INTO tenants (id, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
-                        (default_tenant_id, "Default Workspace", createdAt, createdAt)
-                    )
-                
-                existing_member = conn.execute("SELECT id FROM memberships WHERE userId = ? AND tenantId = ?", (user_id, default_tenant_id)).fetchone()
-                if not existing_member:
-                    conn.execute(
-                        "INSERT INTO memberships (id, userId, tenantId, role, createdAt, updatedAt) VALUES (?, ?, ?, 'owner', ?, ?)",
-                        (f"member-{secrets.token_hex(8)}", user_id, default_tenant_id, createdAt, createdAt)
-                    )
-                currentTenantId = default_tenant_id
-        # ---------------------------------------------
-        
+            currentTenantId = self._ensure_operator_default_workspace(conn, user_id)
+
         conn.execute(
             """
             INSERT INTO app_sessions (id, userId, token, provider, currentTenantId, createdAt, expiresAt, lastSeenAt, userAgent)

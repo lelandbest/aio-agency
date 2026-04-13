@@ -419,8 +419,8 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                         type="button"
                         onClick={onOpenSystemHealth}
                         className={`shrink-0 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${healthMeta.buttonClass}`}
-                        title="Open system health"
-                        aria-label="Open system health"
+                        title="Open signals"
+                        aria-label="Open signals"
                     >
                         <HealthIcon size={14} />
                         <span className="hidden xl:inline">{healthMeta.label}</span>

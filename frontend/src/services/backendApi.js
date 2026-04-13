@@ -306,6 +306,14 @@ export async function getSignalsApi() {
   return toCamelCase(response.data || []);
 }
 
+export async function dismissSignalApi(signalId) {
+  await request(`/api/signals/${signalId}/dismiss`, { method: 'POST' });
+}
+
+export async function archiveSignalsApi(signalIds) {
+  await request('/api/signals/archive', { method: 'POST', body: JSON.stringify({ signalIds }) });
+}
+
 export async function getOmegaStatusApi(limit = 12) {
   const response = await request(`/api/omega/status?limit=${encodeURIComponent(limit)}`);
   return response.data || null;

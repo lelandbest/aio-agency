@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ThemeProvider } from './lib/ThemeContext';
 import AuthContext, { isClientRole, isOperatorRole, normalizeUserRole } from './contexts/AuthContext';
 import DbContext from './contexts/DbContext';
@@ -12,6 +12,7 @@ import { clearStoredSessionToken, getStoredSessionToken } from './services/authS
 import { getCurrentSessionApi, logoutApi, switchTenantSessionApi, updateCanonicalTenantSettingsApi } from './services/backendApi';
 import { OrchestrationProvider } from './orchestration';
 import { BrandProvider } from './contexts/BrandContext';
+import * as Lucide from 'lucide-react';
 import TicketModal from './components/TicketModal';
 import OperatorAssistDock from './components/OperatorAssistDock';
 import GlobalOverlay from './components/GlobalOverlay';
@@ -53,7 +54,6 @@ const SmsVoipModule = lazy(() => import('./modules/SmsVoip'));
 const DialerPage = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
-const SystemHealthModule = lazy(() => import('./modules/SystemHealth'));
 const ForgeModule = lazy(() => import('./modules/Forge'));
 
 // Lazy load policy pages
@@ -174,7 +174,6 @@ const MODULE_SUBTITLE_MAP = {
   orders: 'Review order records, payment state, and fulfillment posture from one workspace.',
   pipelines: 'Operate deal stages, next moves, and relationship records from one workspace.',
   settings: 'Manage account, workspace, security, branding, and automation settings.',
-  'system-health': 'Operator-only visibility into current failures, degradation, and deployment risk.'
 };
 
 const SPECIAL_MODULE_META = {
@@ -191,13 +190,6 @@ const SPECIAL_MODULE_META = {
     subtitle: MODULE_SUBTITLE_MAP.studio,
     type: 'internal',
     searchPlaceholder: 'Search studio jobs, assets, and artifacts...',
-  },
-  'system-health': {
-    label: 'System Health',
-    icon: 'Activity',
-    subtitle: MODULE_SUBTITLE_MAP['system-health'],
-    type: 'internal',
-    searchPlaceholder: 'Search system health...',
   },
 };
 
@@ -320,30 +312,40 @@ const App = () => {
   const clientMode = !isSystemOwner && isClientRole(userRole);
   const operatorMode = isOperatorRole(userRole);
   const renderedMenuStructure = clientMode ? filterMenuForClient(menuStructure) : menuStructure;
-  const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(activeModule) ? DEFAULT_CLIENT_MODULE : activeModule;
+  const normalizedActiveModule = activeModule === 'system-health' ? 'signals' : activeModule;
+  const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(normalizedActiveModule) ? DEFAULT_CLIENT_MODULE : normalizedActiveModule;
 
   const navigateToModule = useCallback((moduleId) => {
-    if (clientMode && !CLIENT_ALLOWED_MODULES.has(moduleId)) {
+    const resolvedModuleId = moduleId === 'system-health' ? 'signals' : moduleId;
+    if (clientMode && !CLIENT_ALLOWED_MODULES.has(resolvedModuleId)) {
       setActiveModule(DEFAULT_CLIENT_MODULE);
       return;
     }
     setLastActiveModule(activeModule);
-    setActiveModule(moduleId);
-    if (moduleId === 'flows') {
+    setActiveModule(resolvedModuleId);
+    if (resolvedModuleId === 'flows') {
       setFlowId(null);
       setFlowAction(null);
       setFlowIntent(null);
     }
   }, [clientMode, activeModule]);
-  const canonicalMenu = activeTenantSettings?.navigation?.menuStructure;
-  const legacyMenu = activeTenantSettings?.menu_structure;
+
+  const canonicalMenu = useMemo(() => activeTenantSettings?.navigation?.menuStructure, [activeTenantSettings]);
+  const legacyMenu = useMemo(() => activeTenantSettings?.menu_structure, [activeTenantSettings]);
 
   const hasPersistedMenuUpgradedRef = useRef(new Set());
+  const sessionTenantIdRef = useRef(session?.tenant?.id);
 
   const fullscreenModules = [];
   const isFullscreen = fullscreenModules.includes(effectiveActiveModule);
 
   useEffect(() => {
+    const tenantId = session?.tenant?.id;
+    if (!tenantId || tenantId === sessionTenantIdRef.current) {
+      return;
+    }
+    sessionTenantIdRef.current = tenantId;
+
     let nextMenu = INITIAL_MENU_STRUCTURE;
 
     if (isUsableMenuStructure(canonicalMenu)) {
@@ -354,13 +356,9 @@ const App = () => {
 
     const { upgraded, next } = upgradeMenuStructureModuleIds(nextMenu);
 
-    // Canonical tenant navigation is authoritative only when it contains a usable persisted menu.
-    // Empty canonical/legacy arrays mean "not configured yet" and must not blank the sidebar.
     setMenuStructure(ensureStudioMenuItem(next));
 
-    // One-time upgrade: rewrite persisted "chat" ids to "comms" and persist back to canonical settings.
-    const tenantId = session?.tenant?.id || null;
-    if (!tenantId || !upgraded) {
+    if (!upgraded) {
       return;
     }
     if (hasPersistedMenuUpgradedRef.current.has(tenantId)) {
@@ -809,8 +807,6 @@ const App = () => {
         return <SettingsModule menuStructure={menuStructure} onMenuUpdate={setMenuStructure} />;
       case 'aio-help':
         return <HelpModule activeModule={activeModule} />;
-      case 'system-health':
-        return <SystemHealthModule />;
       case 'forge':
         return <ForgeModule />;
       default:
@@ -865,12 +861,12 @@ const App = () => {
                               <TopBar
                                 onLogout={handleLogout}
                                 onNavigate={setCurrentPage}
-                                onOpenSystemHealth={() => setActiveModule('system-health')}
+                                onOpenSystemHealth={() => setActiveModule('signals')}
                                 title={currentModuleMeta.label}
                                 subtitle={currentModuleMeta.subtitle}
                                 titleIcon={currentModuleMeta.icon ? ICON_MAP[currentModuleMeta.icon] : null}
                                 searchPlaceholder={currentModuleMeta.searchPlaceholder}
-                                showSearch={!clientMode && currentModuleMeta.type !== 'iframe' && effectiveActiveModule !== 'system-health'}
+                                showSearch={!clientMode && currentModuleMeta.type !== 'iframe'}
                                 onToggleMobileMenu={() => setIsMobileOpen(true)}
                                 buttonToneStyle={dialerToneStyle}
                                 onButtonToneStyleChange={setDialerToneStyle}

@@ -95,7 +95,7 @@ const DesignModule = () => {
   } : undefined;
 
   return (
-    <div className="module-root-standard">
+    <div className="module-root-standard bg-[#1a1a1a]">
       {/* Toolbar */}
       <div className="module-toolbar">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -139,32 +139,27 @@ const DesignModule = () => {
         </div>
       </div>
       
-      <div className="module-content-stage module-surface-shell">
-        {isClient ? (
-          <Excalidraw
-            ref={excalidrawRef}
-            initialData={initialData}
-            onChange={handleSceneChange}
-            theme="dark"
-            viewBackgroundColor="#1a1a1a"
-            UIOptions={{
-              tools: {
-                arrow: true,
-                assignment: true,
-                diamond: true,
-                ellipse: true,
-                freedraw: true,
-                line: true,
-                rectangle: true,
-                text: true,
-              },
-            }}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-[var(--color-text-secondary)]">
-            Loading Design...
-          </div>
-        )}
+<div className="module-content-stage bg-[#1a1a1a] p-2">
+        <Excalidraw
+          ref={excalidrawRef}
+          initialData={initialData}
+          onChange={handleSceneChange}
+          theme="dark"
+          viewBackgroundColor="#1a1a1a"
+          className="h-full w-full"
+          UIOptions={{
+            tools: {
+              arrow: true,
+              assignment: true,
+              diamond: true,
+              ellipse: true,
+              freedraw: true,
+              line: true,
+              rectangle: true,
+              text: true,
+            },
+          }}
+        />
       </div>
     </div>
   );

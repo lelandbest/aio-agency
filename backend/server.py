@@ -3313,6 +3313,14 @@ async def ai_assist(request: Request, payload: OperatorAssistRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+def require_operator(request: Request, detail: str = "Only operators can perform this action.") -> dict[str, Any]:
+    session = require_session(request)
+    user = session.get("user") or {}
+    if user.get("role") != "operator":
+        raise HTTPException(status_code=403, detail=detail)
+    return session
+
+
 @app.get("/api/system/health")
 async def get_system_health(request: Request):
     session = require_operator(request, "Only operators can view system health.")
@@ -9080,7 +9088,7 @@ def _build_system_signals(token: str, session: dict[str, Any]) -> list[dict[str,
                 source_id=source_id or alert_type,
                 severity=_signal_severity(alert.get("severity"), default="high"),
                 created_at=_signal_created_at(alert.get("timestamp")),
-                module=str(navigation_target.get("module") or "system-health"),
+                module=str(navigation_target.get("module") or "signals"),
                 entity_id=str(alert.get("entityId") or "").strip() or None,
                 metadata={
                     "alertType": alert_type,
@@ -9093,15 +9101,28 @@ def _build_system_signals(token: str, session: dict[str, Any]) -> list[dict[str,
     return signals
 
 
+DISMISSED_SIGNALS: set[str] = set()
+
+
+def _dismiss_signal(signal_id: str, tenant_id: str) -> None:
+    DISMISSED_SIGNALS.add(f"{tenant_id}:{signal_id}")
+
+
+def _is_signal_dismissed(signal_id: str, tenant_id: str) -> bool:
+    return f"{tenant_id}:{signal_id}" in DISMISSED_SIGNALS
+
+
 def _build_actionable_signals(token: str, session: dict[str, Any]) -> list[dict[str, Any]]:
+    tenant_id = str((session.get("tenant") or {}).get("id") or "").strip()
     aggregated = [
         *_build_ai_run_signals(),
         *_build_verification_signals(),
         *_build_media_signals(),
         *_build_comms_signals(),
-        *_build_integration_signals(token, str((session.get("tenant") or {}).get("id") or "").strip()),
+        *_build_integration_signals(token, tenant_id),
         *_build_system_signals(token, session),
     ]
+    aggregated = [s for s in aggregated if not _is_signal_dismissed(s.get("id", ""), tenant_id)]
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     aggregated.sort(key=lambda signal: str(signal.get("createdAt") or ""), reverse=True)
     aggregated.sort(key=lambda signal: severity_order.get(str(signal.get("severity") or "low").lower(), 4))
@@ -9118,6 +9139,19 @@ async def list_actionable_signals(request: Request):
         return {"data": _build_actionable_signals(token, session)}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/signals/{signal_id}/dismiss")
+async def dismiss_signal(request: Request, signal_id: str):
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can dismiss signals.")
+    _dismiss_signal(signal_id, session.get("tenant", {}).get("id"))
+    return {"data": {"status": "dismissed", "signalId": signal_id}}
+
+
+@app.post("/api/signals/archive")
+async def archive_signals(request: Request):
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can archive signals.")
+    return {"data": {"status": "archived"}}
 
 
 @app.post("/api/signals/execute")
