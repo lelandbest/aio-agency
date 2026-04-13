@@ -1072,12 +1072,12 @@ class AuthStore:
             {
                 "entityType": "bot",
                 "entityId": key,
-                "label": definition.get("name") or key.title(),
-                "secondaryLabel": definition.get("agentId") or definition.get("id") or "",
+                "label": getattr(definition, "name", None) or getattr(definition, "label", None) or key.title(),
+                "secondaryLabel": getattr(definition, "agent_id", None) or getattr(definition, "id", None) or "",
                 "membershipRole": None,
             }
-            for key, definition in sorted(AGENT_DEFINITIONS.items(), key=lambda entry: str(entry[1].get("name") or entry[0]))
-            if not bool(definition.get("is_hidden"))
+            for key, definition in sorted(AGENT_DEFINITIONS.items(), key=lambda entry: str(getattr(entry[1], "name", None) or entry[0]))
+            if getattr(definition, "visibility", "visible") != "hidden"
         ]
         return {"users": user_directory, "bots": bot_directory}
 

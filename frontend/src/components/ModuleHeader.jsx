@@ -200,7 +200,7 @@ const ModuleHeader = ({
           <button
             onClick={() => openGlobalOverlay()}
             className={toolbarIconButtonClass}
-            title="Command Surface"
+            title="Composer"
           >
             <CommandSurfaceIcon size={15} />
           </button>

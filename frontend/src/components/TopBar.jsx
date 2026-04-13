@@ -226,7 +226,7 @@ const getPortalPos = (ref) => {
     };
 };
 
-const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu, onToggleDialer, buttonToneStyle, onButtonToneStyleChange, fromNumber, onFromNumberChange, extensionId, onExtensionIdChange }) => {
+const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title, subtitle = '', titleIcon: TitleIcon, searchPlaceholder = 'Search...', showSearch = true, onToggleMobileMenu, onToggleDialer, buttonToneStyle, onButtonToneStyleChange, fromNumber, onFromNumberChange, extensionId, onExtensionIdChange }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showTenantDropdown, setShowTenantDropdown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -494,6 +494,7 @@ const TopBar = ({ onLogout, onNavigate, onOpenSystemHealth, title, subtitle = ''
                         </>
                     , document.body)}
                 </div>
+
 
                 <div className="relative">
                     <button

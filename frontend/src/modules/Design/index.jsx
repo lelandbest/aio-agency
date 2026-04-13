@@ -8,25 +8,26 @@ import { useAIAssist } from '../../contexts/AIAssistContext';
 const STORAGE_KEY = 'aioDesignScene';
 
 const DesignModule = () => {
-  const [sceneData, setSceneData] = useState(null);
+  const [sceneData, setSceneData] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.warn('Failed to load saved design scene:', e);
+        }
+      }
+    }
+    return null;
+  });
   const [isClient, setIsClient] = useState(false);
   const { openAIAssist } = useAIAssist();
   const excalidrawRef = useRef(null);
+  const saveTimerRef = useRef(null);
 
   useEffect(() => {
     setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setSceneData(parsed);
-      } catch (e) {
-        console.warn('Failed to load saved design scene:', e);
-      }
-    }
   }, []);
 
   const handleSceneChange = useCallback((elements, appState) => {
@@ -45,7 +46,12 @@ const DesignModule = () => {
       lastSavedAt: new Date().toISOString(),
     };
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }, 1000);
   }, []);
 
   const handleClearCanvas = useCallback(() => {
@@ -89,13 +95,32 @@ const DesignModule = () => {
     }
   }, []);
 
-  const initialData = sceneData ? {
-    elements: sceneData.elements || [],
-    appState: (({ collaborators, ...rest }) => rest)(sceneData.appState || {}),
-  } : undefined;
+  const initialData = React.useMemo(() => {
+    return sceneData ? {
+      elements: sceneData.elements || [],
+      appState: (({ collaborators, ...rest }) => rest)(sceneData.appState || {}),
+    } : undefined;
+  }, [sceneData]);
+
+  const UIOptions = React.useMemo(() => ({
+    tools: {
+      arrow: true,
+      assignment: true,
+      diamond: true,
+      ellipse: true,
+      freedraw: true,
+      line: true,
+      rectangle: true,
+      text: true,
+    },
+  }), []);
+
+  if (!isClient) {
+    return <div className="module-root-standard bg-[#1a1a1a]" />;
+  }
 
   return (
-    <div className="module-root-standard bg-[#1a1a1a]">
+    <div className="module-root-standard bg-[#1a1a1a] flex flex-col h-full w-full overflow-hidden">
       {/* Toolbar */}
       <div className="module-toolbar">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -139,7 +164,7 @@ const DesignModule = () => {
         </div>
       </div>
       
-<div className="module-content-stage bg-[#1a1a1a] p-2">
+      <div className="module-content-stage bg-[#1a1a1a] p-2 flex-1 relative min-h-0">
         <Excalidraw
           ref={excalidrawRef}
           initialData={initialData}
@@ -147,18 +172,7 @@ const DesignModule = () => {
           theme="dark"
           viewBackgroundColor="#1a1a1a"
           className="h-full w-full"
-          UIOptions={{
-            tools: {
-              arrow: true,
-              assignment: true,
-              diamond: true,
-              ellipse: true,
-              freedraw: true,
-              line: true,
-              rectangle: true,
-              text: true,
-            },
-          }}
+          UIOptions={UIOptions}
         />
       </div>
     </div>

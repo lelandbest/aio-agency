@@ -3672,23 +3672,51 @@ async def ai_command(request: Request, payload: AICommandRequest):
         context={**resolved_context, "requested_agent": requested_agent},
     )
     
-    # CONVO Contract: User -> Charlie -> Cortex -> Charlie -> User
+    # CONVO Contract: User -> Charlie/Specialist -> User
     # Bypass Alpha entirely if intent is conversation
     if routing.get("intent") == "conversation" or resolved_context.get("intent") == "conversation":
-        from backend.operator_assist import generate_assist_response
-        charlie_response = generate_assist_response(
-            message=command_text,
-            context=resolved_context,
-            token=extract_session_token(request),
-            session=session,
-            auth_store=auth_store,
-            provider=provider
-        )
-        return {
-            "status": "success",
-            "message": charlie_response.get("answer"),
-            "response": charlie_response
-        }
+        req_agent = str(requested_agent or routing.get("executing_agent") or "CHARLIE").upper().strip()
+        if req_agent == "CHARLIE" or req_agent == "SYSTEM":
+            from backend.operator_assist import generate_assist_response
+            charlie_response = generate_assist_response(
+                message=command_text,
+                context=resolved_context,
+                token=extract_session_token(request),
+                session=session,
+                auth_store=auth_store,
+                provider=provider
+            )
+            return {
+                "status": "success",
+                "result": {
+                    "mode": "immediate",
+                    "intent": "conversation",
+                    "message": charlie_response.get("answer"),
+                    "response": charlie_response
+                }
+            }
+        else:
+            agent_def = AGENT_DEFINITIONS.get(req_agent)
+            agent_sys_prompt = agent_def.system_prompt if agent_def else "You are a helpful AI specialist."
+            # Append context
+            agent_sys_prompt += f"\n\nSystem Event Target Context:\n{json.dumps(resolved_context, default=str)}"
+            from backend.ai_service import AIAssistService
+            ai_service = AIAssistService()
+            provider_result = ai_service._provider_complete(
+                provider_config=ai_provider,
+                prompt=command_text,
+                system_prompt=agent_sys_prompt,
+            )
+            reply_text = provider_result.get("suggestion") if provider_result else "No agent response could be generated."
+            return {
+                "status": "success",
+                "result": {
+                    "mode": "immediate",
+                    "intent": "conversation",
+                    "message": reply_text,
+                    "response": {"answer": reply_text, "insights": [], "suggestedActions": []}
+                }
+            }
     if routing["permission_tier"] == "dangerous":
         raise HTTPException(status_code=403, detail="Dangerous commands are blocked from natural-language routing. Use the dedicated Omega admin controls.")
     flow_raw_steps: list[dict[str, Any]] = []
@@ -4583,7 +4611,7 @@ async def get_tenant_deployment(tenant_id: str, request: Request):
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.patch("/api/workspaces/{workspace_id}")
+@app.patch("/api/workspaces/{workspace_id:path}")
 async def rename_workspace(workspace_id: str, request: Request, payload: WorkspaceUpdateRequest):
     require_capability(request, "system.admin", "Only workspace admins can rename a workspace.")
     token = extract_session_token(request)
@@ -4600,7 +4628,7 @@ async def rename_workspace(workspace_id: str, request: Request, payload: Workspa
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.delete("/api/workspaces/{workspace_id}")
+@app.delete("/api/workspaces/{workspace_id:path}")
 async def archive_workspace(workspace_id: str, request: Request):
     require_session(request)
     token = extract_session_token(request)
@@ -4615,7 +4643,7 @@ async def archive_workspace(workspace_id: str, request: Request):
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.get("/api/workspaces/{workspace_id}/memberships")
+@app.get("/api/workspaces/{workspace_id:path}/memberships")
 async def list_workspace_memberships(workspace_id: str, request: Request):
     token = extract_session_token(request)
     try:
@@ -4640,7 +4668,7 @@ async def get_user_access(request: Request, email: str):
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.post("/api/workspaces/{workspace_id}/memberships")
+@app.post("/api/workspaces/{workspace_id:path}/memberships")
 async def add_workspace_member(workspace_id: str, request: Request, payload: WorkspaceMemberRequest):
     require_capability(request, "system.admin", "Only workspace admins can manage members.")
     token = extract_session_token(request)
@@ -4655,7 +4683,7 @@ async def add_workspace_member(workspace_id: str, request: Request, payload: Wor
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.post("/api/workspaces/{workspace_id}/users")
+@app.post("/api/workspaces/{workspace_id:path}/users")
 async def create_workspace_user(workspace_id: str, request: Request, payload: WorkspaceUserCreateRequest):
     require_capability(request, "system.admin", "Only workspace admins can create users.")
     token = extract_session_token(request)
@@ -4681,7 +4709,7 @@ async def create_workspace_user(workspace_id: str, request: Request, payload: Wo
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.patch("/api/workspaces/{workspace_id}/memberships/{membership_id}")
+@app.patch("/api/workspaces/{workspace_id:path}/memberships/{membership_id}")
 async def update_workspace_member(workspace_id: str, membership_id: str, request: Request, payload: WorkspaceMemberUpdateRequest):
     require_capability(request, "system.admin", "Only workspace admins can manage members.")
     token = extract_session_token(request)
@@ -4696,7 +4724,7 @@ async def update_workspace_member(workspace_id: str, membership_id: str, request
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.delete("/api/workspaces/{workspace_id}/memberships/{membership_id}")
+@app.delete("/api/workspaces/{workspace_id:path}/memberships/{membership_id}")
 async def remove_workspace_member(workspace_id: str, membership_id: str, request: Request):
     require_capability(request, "system.admin", "Only workspace admins can manage members.")
     token = extract_session_token(request)
@@ -4711,7 +4739,7 @@ async def remove_workspace_member(workspace_id: str, membership_id: str, request
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.get("/api/workspaces/{workspace_id}/roles")
+@app.get("/api/workspaces/{workspace_id:path}/roles")
 async def list_workspace_roles(workspace_id: str, request: Request):
     require_capability(request, "system.admin", "Only workspace admins can manage roles.")
     token = extract_session_token(request)
@@ -4726,7 +4754,7 @@ async def list_workspace_roles(workspace_id: str, request: Request):
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.post("/api/workspaces/{workspace_id}/roles")
+@app.post("/api/workspaces/{workspace_id:path}/roles")
 async def create_workspace_role(workspace_id: str, request: Request, payload: WorkspaceRoleCreateRequest):
     require_capability(request, "system.admin", "Only workspace admins can manage roles.")
     token = extract_session_token(request)
@@ -4741,7 +4769,7 @@ async def create_workspace_role(workspace_id: str, request: Request, payload: Wo
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.patch("/api/workspaces/{workspace_id}/roles/{role_id}")
+@app.patch("/api/workspaces/{workspace_id:path}/roles/{role_id}")
 async def update_workspace_role(workspace_id: str, role_id: str, request: Request, payload: WorkspaceRoleUpdateRequest):
     require_capability(request, "system.admin", "Only workspace admins can manage roles.")
     token = extract_session_token(request)
@@ -4756,7 +4784,7 @@ async def update_workspace_role(workspace_id: str, role_id: str, request: Reques
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.post("/api/workspaces/{workspace_id}/roles/{role_id}/assignments")
+@app.post("/api/workspaces/{workspace_id:path}/roles/{role_id}/assignments")
 async def attach_workspace_role(workspace_id: str, role_id: str, request: Request, payload: WorkspaceRoleAssignmentRequest):
     require_capability(request, "system.admin", "Only workspace admins can manage roles.")
     token = extract_session_token(request)
@@ -4771,7 +4799,7 @@ async def attach_workspace_role(workspace_id: str, role_id: str, request: Reques
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@app.delete("/api/workspaces/{workspace_id}/roles/{role_id}/assignments")
+@app.delete("/api/workspaces/{workspace_id:path}/roles/{role_id}/assignments")
 async def detach_workspace_role(workspace_id: str, role_id: str, request: Request, entityType: str, entityId: str):
     require_capability(request, "system.admin", "Only workspace admins can manage roles.")
     token = extract_session_token(request)

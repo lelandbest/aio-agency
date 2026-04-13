@@ -561,7 +561,7 @@ const AIOAgentsModule = () => {
       if (Array.isArray(parsed)) {
         setMessages(parsed);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -572,7 +572,7 @@ const AIOAgentsModule = () => {
       if (parsed?.id) {
         setSelectedFlow(parsed);
       }
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -586,7 +586,7 @@ const AIOAgentsModule = () => {
   useEffect(() => {
     try {
       localStorage.setItem(AGENT_CHAT_STORAGE_KEY, JSON.stringify(messages));
-    } catch {}
+    } catch { }
   }, [messages]);
 
   useEffect(() => {
@@ -600,22 +600,22 @@ const AIOAgentsModule = () => {
       const detail = event.detail || {};
       const nextFlow = detail?.flow?.id
         ? {
-            id: detail.flow.id,
-            name: detail.flow.name || 'Untitled Flow',
-            status: detail.flow.status || 'Draft',
-          }
+          id: detail.flow.id,
+          name: detail.flow.name || 'Untitled Flow',
+          status: detail.flow.status || 'Draft',
+        }
         : detail?.flowId
           ? {
-              id: detail.flowId,
-              name: detail.flowName || 'Untitled Flow',
-              status: detail.flowStatus || 'Draft',
-            }
+            id: detail.flowId,
+            name: detail.flowName || 'Untitled Flow',
+            status: detail.flowStatus || 'Draft',
+          }
           : null;
       if (!nextFlow) return;
       setSelectedFlow(nextFlow);
       try {
         localStorage.setItem(AGENT_SELECTED_FLOW_STORAGE_KEY, JSON.stringify(nextFlow));
-      } catch {}
+      } catch { }
     };
     window.addEventListener('aio:flow-selected', handleFlowSelected);
     return () => window.removeEventListener('aio:flow-selected', handleFlowSelected);
@@ -682,14 +682,14 @@ const AIOAgentsModule = () => {
     setLocalAttachments([]);
     try {
       localStorage.removeItem(AGENT_CHAT_STORAGE_KEY);
-    } catch {}
+    } catch { }
   };
 
   const clearSelectedFlow = () => {
     setSelectedFlow(null);
     try {
       localStorage.removeItem(AGENT_SELECTED_FLOW_STORAGE_KEY);
-    } catch {}
+    } catch { }
   };
 
   const handleSendMessage = async () => {
@@ -704,9 +704,9 @@ const AIOAgentsModule = () => {
       {
         clientId: pendingMessageId,
         role: 'assistant',
-        content: 'Awaiting canonical run...',
+        content: 'Awaiting response transmission...',
         timestamp: 'PENDING',
-        rank: 'SYSTEM',
+        rank: selectedAgent || activeAgent?.registryKey || 'CHARLIE',
         chain: '',
         status: 'PENDING',
         error: null,
@@ -761,37 +761,58 @@ const AIOAgentsModule = () => {
             prev.map((msg) =>
               msg.clientId === pendingMessageId
                 ? {
-                    ...msg,
-                    content: 'Run failed to load. Please retry.',
-                    timestamp: 'Now',
-                    rank: 'SYSTEM',
-                    chain: '',
-                    status: 'ERROR',
-                    error: error.message || 'Run failed to load. Please retry.',
-                    pending: false,
-                    runId: undefined,
-                  }
+                  ...msg,
+                  content: 'Run failed to load. Please retry.',
+                  timestamp: 'Now',
+                  rank: 'SYSTEM',
+                  chain: '',
+                  status: 'ERROR',
+                  error: error.message || 'Run failed to load. Please retry.',
+                  pending: false,
+                  runId: undefined,
+                }
                 : msg
             )
           );
         }
       } else {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.clientId === pendingMessageId
+        const immediateText = response?.message || response?.response?.answer || response?.response?.message || '';
+        if (immediateText) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.clientId === pendingMessageId
                 ? {
-                    ...msg,
-                    content: 'Canonical run was not returned. Please retry.',
-                    timestamp: 'Now',
-                    rank: 'SYSTEM',
-                    chain: '',
-                    status: 'ERROR',
-                    error: 'Canonical run was not returned. Please retry.',
-                    pending: false,
-                  }
+                  ...msg,
+                  content: immediateText,
+                  timestamp: 'Now',
+                  rank: selectedAgent || activeAgent?.registryKey || 'CHARLIE',
+                  chain: '',
+                  status: 'COMPLETED',
+                  error: null,
+                  pending: false,
+                  runId: undefined,
+                }
                 : msg
-          )
-        );
+            )
+          );
+        } else {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.clientId === pendingMessageId
+                ? {
+                  ...msg,
+                  content: 'Canonical run was not returned. Please retry.',
+                  timestamp: 'Now',
+                  rank: 'SYSTEM',
+                  chain: '',
+                  status: 'ERROR',
+                  error: 'Canonical run was not returned. Please retry.',
+                  pending: false,
+                }
+                : msg
+            )
+          );
+        }
       }
       const latestRuns = await getAiRunsApi(12);
       setAiRuns(Array.isArray(latestRuns) ? latestRuns : []);
@@ -803,16 +824,16 @@ const AIOAgentsModule = () => {
         prev.map((msg) =>
           msg.clientId === pendingMessageId
             ? {
-                ...msg,
-                content: error.message || 'Unable to run the selected agent command.',
-                timestamp: 'Now',
-                rank: 'SYSTEM',
-                chain: '',
-                status: 'ERROR',
-                error: error.message || 'Unable to run the selected agent command.',
-                pending: false,
-                runId: undefined,
-              }
+              ...msg,
+              content: error.message || 'Unable to run the selected agent command.',
+              timestamp: 'Now',
+              rank: 'SYSTEM',
+              chain: '',
+              status: 'ERROR',
+              error: error.message || 'Unable to run the selected agent command.',
+              pending: false,
+              runId: undefined,
+            }
             : msg
         )
       );
@@ -870,8 +891,11 @@ const AIOAgentsModule = () => {
     const greeting = `${agentName} Activated! ${pickSalutation()}`;
     setMessages(prev => {
       const last = prev[prev.length - 1];
-      if (last?.role === 'assistant' && last?.content?.includes('Activated!') && (last?.rank === activeAgent.registryKey || last?.rank === activeAgent.name || last?.rank === 'CHARLIE')) {
-        return prev;
+      if (last?.role === 'assistant' && last?.content?.includes('Activated!')) {
+        if (last?.rank === activeAgent.registryKey || last?.rank === activeAgent.name) {
+          return prev;
+        }
+        return [...prev.slice(0, prev.length - 1), { role: 'assistant', content: greeting, rank: activeAgent.registryKey || activeAgent.name || 'CHARLIE', timestamp: formatRunTimestamp(new Date().toISOString()) }];
       }
       return [...prev, { role: 'assistant', content: greeting, rank: activeAgent.registryKey || activeAgent.name || 'CHARLIE', timestamp: formatRunTimestamp(new Date().toISOString()) }];
     });
@@ -947,18 +971,27 @@ const AIOAgentsModule = () => {
   const getAgentColor = (key) => {
     if (key === 'ALPHA') return HQ_AGENT_STYLE;
     if (key === 'OMEGA') return OMEGA_AGENT_STYLE;
-    const idx = agents.findIndex(a => a.registryKey === key && key !== 'ALPHA' && key !== 'OMEGA');
+    const regularAgents = agents.filter(a => a.registryKey !== 'ALPHA' && a.registryKey !== 'OMEGA');
+    const idx = regularAgents.findIndex(a => a.registryKey === key);
     if (idx === -1) {
-        const fallbackIdx = Object.keys(SPECIALIST_REGISTRY).filter(k => k !== 'ALPHA' && k !== 'OMEGA').indexOf(key);
-        if (fallbackIdx === -1) return ROW_COLOR_LANES[0][0];
-        const row = Math.floor(fallbackIdx / 4);
-        const col = fallbackIdx % 4;
-        return (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
+      const fallbackIdx = Object.keys(SPECIALIST_REGISTRY).filter(k => k !== 'ALPHA' && k !== 'OMEGA').indexOf(key);
+      if (fallbackIdx === -1) return ROW_COLOR_LANES[0][0];
+      const row = Math.floor(fallbackIdx / 4);
+      const col = fallbackIdx % 4;
+      return (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
     }
     const row = Math.floor(idx / 4);
     const col = idx % 4;
     return (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
   };
+
+  const systemRoleLabel = useMemo(() => {
+    if (!user) return 'SYSTEM USER';
+    const rawRole = String(user.role || '').toLowerCase();
+    if (rawRole === 'owner' || user.is_owner) return 'SYSTEM OWNER';
+    if (rawRole === 'admin' || user.is_admin || canManageRoles) return 'SYSTEM ADMIN';
+    return rawRole ? `SYSTEM ${rawRole.toUpperCase()}` : 'SYSTEM USER';
+  }, [user, canManageRoles]);
 
   const sessionStatusLabel = error ? 'ERROR' : hasActiveRun ? activeRunStatus : 'IDLE';
   const sessionStatusTone = error
@@ -1024,31 +1057,31 @@ const AIOAgentsModule = () => {
   };
 
   return (
-     <div className="module-root-standard relative selection:bg-purple-900/50">
+    <div className="module-root-standard relative selection:bg-purple-900/50 bg-black text-white">
       <ModuleHeader
         showTitle={false}
         leftActions={[
           view === 'command'
             ? {
-                label: 'OPEN BARRACKS',
-                icon: Users,
-                onClick: () => setView('barracks'),
-                variant: 'primary'
-              }
+              label: 'OPEN BARRACKS',
+              icon: Users,
+              onClick: () => setView('barracks'),
+              variant: 'primary'
+            }
             : {
-                label: 'OPEN COMMAND',
-                icon: Terminal,
-                onClick: () => setView('command'),
-                variant: 'primary'
-              }
+              label: 'OPEN COMMAND',
+              icon: Terminal,
+              onClick: () => setView('command'),
+              variant: 'primary'
+            }
         ]}
         showActions={true}
         onModuleAi={() => openAIAssist({ context: { module: 'agents', view } })}
       />
 
       {/* Main Workspace */}
-      <div className="module-content-stage flex rounded-[var(--radius-outer)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] overflow-hidden shadow-island relative">
-        
+      <div className="module-content-stage flex overflow-hidden relative bg-black">
+
         {/* BARRACKS VIEW */}
         {view === 'barracks' && (() => {
           const alpha = agents.find(a => (a.registryKey || a.registry_key) === 'ALPHA');
@@ -1057,7 +1090,7 @@ const AIOAgentsModule = () => {
             return key !== 'ALPHA' && key !== 'OMEGA';
           });
           const alphaRegistry = SPECIALIST_REGISTRY['ALPHA'];
-          
+
           const formatRunTime = (value) => {
             if (!value) return '--:--:--';
             const parsed = new Date(value);
@@ -1102,33 +1135,33 @@ const AIOAgentsModule = () => {
             : null;
           const charlieStatus = activeRun
             ? formatStatus(
-                activeRun.status === 'failed'
-                  ? 'error'
-                  : activeRun.dispatcherAgent || activeRun.executingAgent
-                    ? 'routed'
-                    : activeRun.status || 'pending'
-              )
+              activeRun.status === 'failed'
+                ? 'error'
+                : activeRun.dispatcherAgent || activeRun.executingAgent
+                  ? 'routed'
+                  : activeRun.status || 'pending'
+            )
             : '';
           const alphaStatus = activeRun
             ? formatStatus(
-                activeRun.status === 'failed'
-                  ? 'failed'
-                  : activeRun.executingAgent
-                    ? activeRun.status || 'running'
-                    : activeRun.dispatcherAgent
-                      ? 'queued'
-                      : 'idle'
-              )
+              activeRun.status === 'failed'
+                ? 'failed'
+                : activeRun.executingAgent
+                  ? activeRun.status || 'running'
+                  : activeRun.dispatcherAgent
+                    ? 'queued'
+                    : 'idle'
+            )
             : '';
           const commandPath = activeRun
             ? [
-                selectedRoute?.source || 'OPERATOR',
-                activeRun.intakeAgent || 'CHARLIE',
-                activeRun.dispatcherAgent || 'ALPHA',
-                activeRun.flowId || activeRun.metadata?.flowId ? `FLOW ${activeRun.flowName || activeRun.metadata?.flowName || activeRun.flowId}` : null,
-                activeRun.executingAgent || activeRun.requestedAgent || 'TARGET AGENT',
-                (activeRun.status || '').toLowerCase() === 'failed' ? 'FAILED' : 'RESULT',
-              ].filter((label, index, array) => label && array.indexOf(label) === index)
+              selectedRoute?.source || 'OPERATOR',
+              activeRun.intakeAgent || 'CHARLIE',
+              activeRun.dispatcherAgent || 'ALPHA',
+              activeRun.flowId || activeRun.metadata?.flowId ? `FLOW ${activeRun.flowName || activeRun.metadata?.flowName || activeRun.flowId}` : null,
+              activeRun.executingAgent || activeRun.requestedAgent || 'TARGET AGENT',
+              (activeRun.status || '').toLowerCase() === 'failed' ? 'FAILED' : 'RESULT',
+            ].filter((label, index, array) => label && array.indexOf(label) === index)
             : [];
           const executionNodes = (() => {
             if (!activeRun || commandPath.length === 0) return [];
@@ -1168,15 +1201,15 @@ const AIOAgentsModule = () => {
                 }
                 .route-flow { animation: route-flow linear infinite; }
               `}</style>
-              
+
               {/* LEFT - Command Islands */}
-              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-primary)]/40 flex flex-col gap-4 shadow-inner overflow-hidden">
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-4 flex flex-col gap-6 overflow-hidden">
 
                 {/* ISLAND 1 — ALPHA */}
                 {alpha && (
                   <div
-                    onClick={() => { setActiveAgent(alpha); setActiveRun(null); setView('command'); }}
-                    className="group shrink-0 cursor-pointer rounded-[var(--radius-panel)] border border-green-500/30 bg-gradient-to-br from-green-500/10 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] hover:border-green-500/60 transition-all duration-500 overflow-hidden shadow-[var(--shadow-island)]"
+                    onClick={() => { setActiveAgent(alpha); setSelectedAgent('ALPHA'); setSelectionMode('talk'); setActiveRun(null); setView('command'); }}
+                    className="group shrink-0 cursor-pointer rounded-[var(--radius-panel)] border border-green-500/50 bg-black hover:border-green-400 transition-all duration-300 overflow-hidden"
                   >
                     <div className="px-4 py-3 flex items-center gap-4 border-b border-green-500/10">
                       <div className="relative shrink-0">
@@ -1212,69 +1245,70 @@ const AIOAgentsModule = () => {
 
 
                 {/* Specialist Arena */}
-                <div className="flex-1 rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/30 p-4 flex flex-col overflow-hidden shadow-inner">
+                <div className="flex-1 rounded-[var(--radius-panel)] border border-white/10 bg-black p-4 flex flex-col overflow-hidden">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Specialist Control</span>
                     <span className="text-[8px] font-mono text-[var(--color-text-tertiary)]">{regularAgents.length} Active</span>
                   </div>
                   <div className="mb-2 flex items-center justify-between gap-2 shrink-0">
                     <div className="flex items-center gap-2">
-                    <Users size={10} className="text-[var(--color-primary)]" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.28em] text-[var(--color-text-tertiary)]">
+                      <Users size={10} className="text-[var(--color-primary)]" />
+                      <span className="text-[9px] font-black uppercase tracking-[0.28em] text-[var(--color-text-tertiary)]">
                         Specialist Arena: {regularAgents.length} Agents
-                    </span>
+                      </span>
                     </div>
                     <span className="text-[8px] font-mono uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">3 × 4 Fixed Grid</span>
                   </div>
 
                   <div className="flex-1 min-h-0 overflow-hidden">
-                  <div className="grid h-full grid-cols-2 xl:grid-cols-4 gap-1.5 auto-rows-fr">
-                    {regularAgents.map((agent, idx) => {
-                      const agentKey = agent.registryKey;
-                      const row = Math.floor(idx / 4);
-                      const col = idx % 4;
-                      const c = (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
-                      return (
-                      <div
-                        key={agentKey || agent.id || idx}
-                        onClick={() => { setActiveAgent(agent); setActiveRun(null); setView('command'); }}
-                        className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
-                      >
-                        <div className="bg-[var(--color-bg-secondary)] rounded-t-lg px-2 py-1.5 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center shadow-[0_0_10px_${c.shadow}] text-[9px] font-bold tracking-tighter ${c.icon}`}>
-                                {(agentKey || agent.name || '').substring(0, 2).toUpperCase()}
-                              </div>
-                              <div>
-                                <h3 className="text-[10px] font-bold text-[var(--color-text-primary)] leading-tight">{agent.name}</h3>
+                    <div className="grid h-full grid-cols-2 xl:grid-cols-4 gap-1.5 auto-rows-fr">
+                      {regularAgents.map((agent, idx) => {
+                        const agentKey = agent.registryKey;
+                        const row = Math.floor(idx / 4);
+                        const col = idx % 4;
+                        const c = (ROW_COLOR_LANES[row] && ROW_COLOR_LANES[row][col % ROW_COLOR_LANES[row].length]) || ROW_COLOR_LANES[0][0];
+                        return (
+                          <div
+                            key={agentKey || agent.id || idx}
+                            onClick={() => { setActiveAgent(agent); setSelectedAgent(agentKey || 'CHARLIE'); setSelectionMode('talk'); setActiveRun(null); setView('command'); }}
+                            className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
+                          >
+                            <div className="bg-[var(--color-bg-secondary)] rounded-t-lg px-2 py-1.5 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center shadow-[0_0_10px_${c.shadow}] text-[9px] font-bold tracking-tighter ${c.icon}`}>
+                                    {(agentKey || agent.name || '').substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <h3 className="text-[10px] font-bold text-[var(--color-text-primary)] leading-tight">{agent.name}</h3>
+                                  </div>
+                                </div>
+                                <div className={`w-1.5 h-1.5 rounded-full mt-1 ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.7)]' : 'bg-[var(--color-text-tertiary)]'}`} />
                               </div>
                             </div>
-                            <div className={`w-1.5 h-1.5 rounded-full mt-1 ${agent.status === 'Deployed' ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.7)]' : 'bg-[var(--color-text-tertiary)]'}`} />
+                            <div className="px-2 py-1 flex-1">
+                              <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                                <Bot size={9} className={`${c.icon} shrink-0`} />
+                                <span className="truncate">{agent.specialization}</span>
+                              </div>
+                            </div>
+                            <div className={`px-2 py-1 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
+                              <span className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wider font-mono font-bold opacity-70">
+                                {resolveRuntimeAgentId(agentKey) || ''}
+                              </span>
+                              <div className="text-[var(--color-text-primary)] text-[10px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                Run <ArrowRight size={8} />
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="px-2 py-1 flex-1">
-                            <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                            <Bot size={9} className={`${c.icon} shrink-0`} />
-                            <span className="truncate">{agent.specialization}</span>
-                          </div>
-                        </div>
-                        <div className={`px-2 py-1 border-t ${c.border} flex justify-between items-center ${c.bg} rounded-b-lg`}>
-                          <span className="text-[9px] text-[var(--color-text-tertiary)] uppercase tracking-wider font-mono font-bold opacity-70">
-                            {resolveRuntimeAgentId(agentKey) || ''}
-                          </span>
-                          <div className="text-[var(--color-text-primary)] text-[10px] font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                            Run <ArrowRight size={8} />
-                          </div>
-                        </div>
-                      </div>
-                    )})}
-                  </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 
                 {/* ISLAND 3 — OMEGA */}
-                <div className="relative rounded-[var(--radius-panel)] min-h-[128px] border border-red-900/40 bg-gradient-to-br from-red-950/20 via-[var(--color-bg-primary)] to-[var(--color-bg-primary)] overflow-hidden select-none shrink-0 shadow-[0_12px_24px_rgba(0,0,0,0.22),0_0_18px_rgba(127,29,29,0.16)]">
+                <div className="relative rounded-[var(--radius-panel)] min-h-[128px] border border-red-500/40 bg-black overflow-hidden select-none shrink-0">
                   <div className="absolute inset-0 pointer-events-none" style={{
                     backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.02) 2px, rgba(255,0,0,0.02) 4px)',
                     zIndex: 1
@@ -1320,13 +1354,13 @@ const AIOAgentsModule = () => {
               </div>
 
               {/* RIGHT - Activity Panel (Monitors & Lightbars) */}
-              <div className="flex-1 min-h-0 min-w-0 w-1/2 flex flex-col gap-3 overflow-hidden">
-                
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 flex flex-col gap-6 overflow-hidden">
+
                 {/* TOP: COMMAND MONITORS */}
-                <div className="h-[42%] flex gap-3 p-3 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] shadow-sm">
-                  
+                <div className="h-[42%] flex gap-4 overflow-hidden">
+
                   {/* USER MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[#0a0a0d] rounded-[var(--radius-card)] border border-white/10 overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.35)] relative">
+                  <div className="flex-1 flex flex-col bg-black rounded-[var(--radius-panel)] border border-white/10 overflow-hidden relative">
                     <div className="absolute inset-0 pointer-events-none opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.08) 1px, rgba(255,255,255,0.08) 2px)', backgroundSize: '100% 2px' }}></div>
                     <div className="relative z-10 bg-black/40 border-b border-white/10 p-2 flex items-center justify-center gap-2 text-white/80 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.4)] animate-pulse"></div>
@@ -1356,7 +1390,7 @@ const AIOAgentsModule = () => {
                   </div>
 
                   {/* CHARLIE MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[var(--color-bg-primary)] dark:bg-[#0a0a14] rounded-[var(--radius-card)] border border-blue-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(59,130,246,0.03)] relative">
+                  <div className="flex-1 flex flex-col bg-black rounded-[var(--radius-panel)] border border-blue-500/50 overflow-hidden relative">
                     <div className="relative z-10 bg-blue-950/40 border-b border-blue-500/20 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
                       CHARLIE INTAKE
@@ -1394,10 +1428,10 @@ const AIOAgentsModule = () => {
                         <div className="text-[8px] font-mono text-blue-500/40 p-2 text-center">No active intake</div>
                       )}
                     </div>
-                   </div>
+                  </div>
 
-                   {/* ALPHA MONITOR */}
-                  <div className="flex-1 flex flex-col bg-[var(--color-bg-primary)] dark:bg-[#0a140a] rounded-[var(--radius-card)] border border-green-500/20 overflow-hidden shadow-[inset_0_0_20px_rgba(34,197,94,0.03)] relative">
+                  {/* ALPHA MONITOR */}
+                  <div className="flex-1 flex flex-col bg-black rounded-[var(--radius-panel)] border border-green-500/50 overflow-hidden relative">
                     <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
                     <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
@@ -1439,9 +1473,8 @@ const AIOAgentsModule = () => {
                 </div>
 
                 {/* BOTTOM: SPECIALIST LIGHTBARS */}
-                <div className="h-[58%] flex flex-col relative px-5 py-4 border border-[var(--color-border)] rounded-[var(--radius-panel)] bg-[var(--color-bg-secondary)] shadow-sm overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-b from-[var(--color-bg-primary)]/60 to-[var(--color-bg-primary)]/10 z-0 pointer-events-none"></div>
-                  
+                <div className="h-[58%] flex flex-col relative px-5 py-4 border border-white/10 rounded-[var(--radius-panel)] bg-black overflow-hidden">
+
                   <div className="relative z-10 flex items-center justify-between mb-4 shrink-0">
                     <h3 className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] font-bold flex items-center gap-2">
                       <Activity size={10} className="text-blue-500" /> Execution Stream
@@ -1505,509 +1538,511 @@ const AIOAgentsModule = () => {
 
         {/* COMMAND VIEW (Session) */}
         {view === 'command' && (
-          <div className="flex-1 min-h-0 flex overflow-hidden">
-             {/* Left: Command Context */}
-             <div className="w-80 min-h-0 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 flex flex-col">
-                <div className="p-6 border-b border-[var(--color-border)]">
-                   <h3 className="text-2xl font-bold text-[var(--color-text-primary)] uppercase tracking-tight flex items-baseline gap-3">
-                     {activeAgentDisplayName || mainAgentName}
-                     {mainAgentId && (
-                       <span className="text-[11px] font-mono text-[var(--color-text-tertiary)] opacity-60 tracking-[0.2em]">
-                         {mainAgentId}
-                       </span>
-                     )}
-                   </h3>
-                   <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-500/30 text-blue-400 text-[10px] font-bold uppercase rounded-full">{sessionStatusLabel}</span>
-                      <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest opacity-60">{hasActiveRun ? activeRunTimestamp : 'System Routed'}</span>
-                   </div>
+          <div className="flex-1 min-h-0 flex gap-[6px] p-[6px] overflow-hidden bg-black">
+            {/* Left: Command Context */}
+            <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col relative`}>
+              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
+                <h3 className="text-2xl font-bold text-white uppercase tracking-tight flex items-baseline gap-3">
+                  {activeAgentDisplayName || mainAgentName}
+                  {mainAgentId && (
+                    <span className={`text-[11px] font-mono ${getAgentColor(activeBotKey).icon.split(' ')[0]} opacity-80 tracking-[0.2em]`}>
+                      {mainAgentId}
+                    </span>
+                  )}
+                </h3>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={`px-2 py-0.5 border ${getAgentColor(activeBotKey).border} bg-[#000] text-[10px] font-bold uppercase rounded-full ${getAgentColor(activeBotKey).icon.split(' ')[0]}`}>
+                    {sessionStatusLabel}
+                  </span>
+                  <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE')}</span>
+                  <span className="text-[9px] text-white/30 font-mono uppercase tracking-widest ml-1">{hasActiveRun ? activeRunTimestamp : '// SYSTEM WAITING'}</span>
                 </div>
-                
-                <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
-                   {/* Directive */}
-                   <div>
-                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                         <Terminal size={14} className="text-purple-500" /> Execution Directive
-                      </h4>
-                      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 text-[11px] text-gray-300 font-mono leading-relaxed shadow-inner">{sessionDirective}</div>
-                   </div>
+              </div>
 
-                   {/* Active Context */}
-                   <div>
-                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                         <Layers size={14} className="text-blue-500" /> Active Context
-                      </h4>
-                      <div className="grid gap-2">
-                        <div className="flex items-center justify-between bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3 rounded-[var(--radius-card)]">
-                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Bound Flow</span>
-                          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{activeFlowLabel || 'No Flow Bound'}</span>
-                        </div>
-                        <div className="flex items-center justify-between bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3 rounded-[var(--radius-card)]">
-                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active Agent</span>
-                          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
-                            {contextAgentName}
-                            {contextAgentId && <span className="ml-2 opacity-50 font-mono text-[9px] tracking-widest">{contextAgentId}</span>}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between bg-[var(--color-bg-primary)] border border-[var(--color-border)] p-3 rounded-[var(--radius-card)]">
-                          <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Command Mode</span>
-                          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{commandModeLabel}</span>
-                        </div>
-                      </div>
-                   </div>
-
-                   {/* Tools */}
-                   <div>
-                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                         <Cpu size={14} className="text-yellow-500" /> Assigned Tools
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                         {(derivedAgentDefinition?.tools || []).map((tool) => (
-                           <span
-                             key={tool}
-                             className="px-3 py-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-full text-[9px] font-bold text-gray-400 uppercase tracking-wider"
-                           >
-                             {tool}
-                           </span>
-                         ))}
-                         {(!derivedAgentDefinition?.tools || derivedAgentDefinition.tools.length === 0) ? (
-                           <div className="text-[10px] text-gray-600 italic p-3 border border-dashed border-[var(--color-border)] rounded-lg text-center font-bold w-full">
-                             TOOLS WILL RESOLVE WHEN A CANONICAL RUN ASSIGNS AN AGENT
-                           </div>
-                         ) : null}
-                      </div>
-                   </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+                {/* Directive */}
+                <div>
+                  <h4 className="text-[8px] font-black text-white/40 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
+                    <Terminal size={10} className={getAgentColor(activeBotKey).icon.split(' ')[0]} /> EXECUTION DIRECTIVE
+                  </h4>
+                  <div className="border border-white/10 rounded bg-[#030303]">
+                    <div className="p-4 text-[11px] text-emerald-400 font-mono leading-relaxed uppercase tracking-wider">{sessionDirective}</div>
+                  </div>
                 </div>
-             </div>
 
-             {/* Center: Command Stream */}
-             <div className="flex-1 min-h-0 flex flex-col bg-[var(--color-bg-tertiary)]/30 backdrop-blur-sm relative overflow-hidden">
-                <div className="p-5 border-b border-[var(--color-border)]/50 flex items-center justify-between bg-[var(--color-bg-primary)]/20">
-                  <div>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center gap-3">
-                        <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentSkillset}</h4>
-                        <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
-                        <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentName(activeRunAgent)})` : sessionStatusLabel}</span>
-                      </div>
-                      
-                      {collabAgents.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {collabAgents.map(key => {
-                            const colors = getAgentColor(key);
-                            return (
-                              <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${colors.icon.split(' ')[0]} animate-pulse`} />
-                                <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentName(key)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                {/* Active Context */}
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Layers size={14} className="text-blue-500" /> Active Context
+                  </h4>
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
+                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Bound Flow</span>
+                      <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{activeFlowLabel || 'No Flow Bound'}</span>
                     </div>
-                    <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
-                      {hasActiveRun
-                        ? `Run ${activeRun.id} • ${activeRunStatus}${activeRunChain ? ` • ${activeRunChain}` : ''} • ${activeRunTimestamp}`
-                        : 'System-level command interface'}
-                    </p>
-                    <p className="text-[10px] text-[var(--color-text-tertiary)] font-medium mt-1 uppercase tracking-widest">Command Stream</p>
-                    {selectedFlow ? (
-                      <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                        <Workflow size={12} />
-                        Flow Bound: {selectedFlow.name}
-                        <button
-                          type="button"
-                          onClick={clearSelectedFlow}
-                          className="text-cyan-100/70 hover:text-white"
-                        >
-                          Clear
-                        </button>
+                    <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
+                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Active Agent</span>
+                      <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">
+                        {contextAgentName}
+                        {contextAgentId && <span className="ml-2 opacity-30 font-mono text-[9px] tracking-widest">{contextAgentId}</span>}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
+                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Command Mode</span>
+                      <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{commandModeLabel}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tools */}
+                <div>
+                  <h4 className="text-[8px] font-black text-white/40 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
+                    <Cpu size={10} className="text-yellow-600" /> ASSIGNED TOOLS
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(derivedAgentDefinition?.tools || []).map((tool) => (
+                      <span
+                        key={tool}
+                        className="px-3 py-1 border border-white/10 bg-black rounded-sm text-[8px] font-mono text-white/50 uppercase tracking-widest"
+                      >
+                        {tool}
+                      </span>
+                    ))}
+                    {(!derivedAgentDefinition?.tools || derivedAgentDefinition.tools.length === 0) ? (
+                      <div className="text-[8px] text-white/20 p-3 border border-dashed border-white/10 rounded-sm text-center font-mono uppercase tracking-widest w-full bg-black">
+                        TOOLS WILL RESOLVE ON ASSIGNMENT
                       </div>
                     ) : null}
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Chat Feed */}
-                <div ref={chatFeedRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
-                   {messages.map((msg, i) => {
-                      const preferredRun = resolveMessageRun(msg);
-                      const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
-                      const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agentRole || msg.rank) : msg.rank;
-                      const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegateChain) : msg.chain;
-                      const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updatedAt || preferredRun.createdAt) : msg.timestamp;
-                      const preferredStatus = preferredRun ? formatRunStatus(preferredRun.status) : msg.status;
-                      const preferredError = preferredRun ? preferredRun.error : msg.error;
-                      const messageToken = msg.runId || msg.clientId || `message-${i}`;
-                      const supportsJsonDownload = Boolean(preferredRun) || looksLikeJson(preferredContent);
-                      const supportsMarkdownDownload = looksLikeMarkdown(preferredContent) || preferredContent.includes('```') || Boolean(preferredRun);
-                      const referenceTargets = extractLinkTargets(preferredContent);
-                      const primaryReference = referenceTargets[0] || '';
-                      return (
-                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                         <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
-                             <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                {msg.role === 'user' ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">SYSTEM AGENT</span>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                     <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
-                                        {preferredRank || 'CHARLIE'}
-                                     </span>
-                                     {preferredChain ? (
-                                       <div className="flex items-center gap-1 opacity-60">
-                                         <span className="text-[8px] text-gray-600 font-mono">/</span>
-                                         <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-mono">
-                                           {preferredChain}
-                                         </span>
-                                       </div>
-                                     ) : null}
-                                  </div>
-                                )}
-                                <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
-                                {msg.role === 'assistant' && preferredStatus ? (
-                                  <span className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{preferredStatus}</span>
-                                ) : null}
-                               {msg.role === 'assistant' ? (
-                                 <div className="flex items-center gap-1 ml-2">
-                                   <button
-                                     type="button"
-                                     onClick={() => handleCopyMessage(msg, messageToken)}
-                                     className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                   >
-                                     {copiedToken === messageToken ? 'Copied' : 'Copy'}
-                                   </button>
-                                   <button
-                                     type="button"
-                                     onClick={() => handleDownloadMessage(msg, 'txt')}
-                                     className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                   >
-                                     TXT
-                                   </button>
-                                   <button
-                                     type="button"
-                                     onClick={() => handleDownloadMessage(msg, 'md')}
-                                     className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                   >
-                                     {supportsMarkdownDownload ? 'MD' : 'TXT->MD'}
-                                   </button>
-                                   {supportsJsonDownload ? (
-                                     <button
-                                       type="button"
-                                       onClick={() => handleDownloadMessage(msg, 'json')}
-                                       className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                     >
-                                       JSON
-                                     </button>
-                                   ) : null}
-                                   {primaryReference ? (
-                                     <a
-                                       href={normalizeLinkHref(primaryReference)}
-                                       target="_blank"
-                                       rel="noreferrer"
-                                       className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                     >
-                                       Open File
-                                     </a>
-                                   ) : null}
-                                 </div>
-                               ) : null}
-                            </div>
-                            <div className={`p-5 rounded-[var(--radius-panel)] text-sm leading-relaxed shadow-island ${
-                               msg.role === 'user' 
-                               ? 'bg-blue-900/10 border border-blue-500/40 text-blue-100 rounded-tr-none' 
-                               : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-gray-300 rounded-tl-none border-t-white/10'
-                            }`}>
-                               <div className="break-words">
-                                 {msg.role === 'assistant' ? renderMarkdownContent(preferredContent) : renderLinkedContent(preferredContent)}
-                               </div>
-                               {msg.role === 'assistant' && preferredError ? (
-                                 <div className="mt-3 text-xs text-red-400">{preferredError}</div>
-                               ) : null}
-                            </div>
-                         </div>
-                      </div>
-                   )})}
-                </div>
+            {/* Center: Command Stream */}
+            <div className={`flex-1 min-h-0 flex flex-col border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] bg-black relative overflow-hidden`}>
+              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} flex items-center justify-between bg-[#050505]`}>
+                <div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-3">
+                      <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentSkillset}</h4>
+                      <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
+                      <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentName(activeRunAgent)})` : sessionStatusLabel}</span>
+                    </div>
 
-                {/* Input Area */}
-                <div className="p-5 border-t border-[var(--color-border)]/50 bg-[var(--color-bg-primary)]/40 backdrop-blur-xl">
-                   <input ref={localFileInputRef} type="file" multiple className="hidden" onChange={handleLocalFileSelect} />
-                   <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-4 items-start">
-                     <div className="min-w-0">
-                       <div className="relative flex items-center gap-3">
-                          <div className="relative flex-1">
-                            <input 
-                              disabled={isRunPending}
-                              value={chatInput}
-                              onChange={(e) => setChatInput(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && !isRunPending && handleSendMessage()}
-                              autoComplete="off"
-                              autoCorrect="off"
-                              autoCapitalize="none"
-                              spellCheck={false}
-                              name="commandInput"
-                              id="command-input-surface"
-                              type="search"
-                              inputMode="text"
-                              enterKeyHint="send"
-                              aria-autocomplete="none"
-                              data-lpignore="true"
-                              data-1p-ignore="true"
-                              data-bwignore="true"
-                              data-form-type="other"
-                              autoSave="off"
-                              placeholder="SEND COMMAND..." 
-                              className={`w-full bg-[var(--color-bg-primary)]/70 dark:bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-card)] px-5 pt-5 pb-9 text-sm text-[var(--color-text-primary)] placeholder:text-slate-400 dark:placeholder-gray-500 focus:outline-none focus:border-[var(--color-primary)]/60 focus:ring-1 focus:ring-[var(--color-primary)]/20 font-mono uppercase tracking-[0.18em] transition-all appearance-none ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                            />
-                            <div className="absolute right-4 bottom-2 flex items-center justify-end gap-2 max-w-[calc(100%-32px)] overflow-hidden">
-                              {selectedAgent ? (
-                                <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
-                                  Target: {resolveAgentName(selectedAgent)}
-                                </span>
-                              ) : null}
-                              {collabAgents.length > 0 && !hasActiveRun ? (
-                                <div className="flex gap-1 overflow-hidden">
-                                  {collabAgents.slice(0, 2).map(key => (
-                                    <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
-                                      {resolveAgentName(key)}
-                                    </span>
-                                  ))}
-                                  {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
-                                </div>
-                              ) : null}
-                              {!selectedAgent && !collabAgents.length ? (
-                                <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
-                                  {sessionStatusLabel}
-                                </span>
-                              ) : null}
+                    {collabAgents.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {collabAgents.map(key => {
+                          const colors = getAgentColor(key);
+                          return (
+                            <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${colors.icon.split(' ')[0]} animate-pulse`} />
+                              <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentName(key)}</span>
                             </div>
-                          </div>
-                          <div className="shrink-0 flex flex-col items-stretch gap-2 w-[112px]">
-                            <button 
-                              type="button"
-                              disabled={isRunPending}
-                              onClick={handleSendMessage}
-                              className={`btn-secondary !rounded-[var(--radius-card)] !px-4 !py-3 min-w-0 flex items-center justify-center gap-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                            >
-                               <span className="text-[10px] font-black uppercase tracking-[0.18em]">Send</span>
-                               <ArrowRight size={14} />
-                            </button>
-                            <div className="inline-flex rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/60 p-1">
-                              <button
-                                type="button"
-                                onClick={() => setSelectionMode('talk')}
-                                className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${
-                                  selectionMode === 'talk'
-                                    ? 'bg-blue-500/20 text-blue-200'
-                                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                                }`}
-                              >
-                                Talk
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectionMode('collab')}
-                                className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${
-                                  selectionMode === 'collab'
-                                    ? 'bg-amber-500/20 text-amber-200'
-                                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                                }`}
-                              >
-                                Collab
-                              </button>
-                            </div>
-                          </div>
-                       </div>
-                       <div className="mt-4 flex flex-wrap items-center gap-2">
-                         {selectedFlow ? (
-                           <span className="px-2 py-1 rounded-full border border-cyan-500/20 bg-cyan-900/20 text-[8px] text-cyan-300 font-mono font-bold tracking-widest uppercase">
-                             Flow: {selectedFlow.name}
-                           </span>
-                         ) : null}
-                         {localAttachments.map((name) => (
-                           <span key={name} className="px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[8px] text-[var(--color-text-secondary)] font-mono font-bold tracking-widest uppercase">
-                             Local: {name}
-                           </span>
-                         ))}
-                         <button
-                           type="button"
-                           disabled={isRunPending}
-                           onClick={handleLocalUploadTrigger}
-                           className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                         >
-                           Upload Intel
-                         </button>
-                         <button
-                           type="button"
-                           disabled={isRunPending}
-                           onClick={handleLinkFlow}
-                           className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                         >
-                           {selectedFlow ? 'Change Flow' : 'Link Flow'}
-                         </button>
-                         <button
-                           type="button"
-                           onClick={handleCopyAll}
-                           className="btn-secondary !text-[10px] !px-4 !py-2"
-                         >
-                           {copiedToken === 'copy-all' ? 'Copied' : 'Copy All'}
-                         </button>
-                         <button
-                           type="button"
-                           onClick={() => latestAssistantMessage && handleDownloadMessage(latestAssistantMessage, looksLikeMarkdown(resolveMessageContent(latestAssistantMessage)) ? 'md' : 'txt')}
-                           disabled={!latestAssistantMessage}
-                           className={`btn-secondary !text-[10px] !px-4 !py-2 ${latestAssistantMessage ? '' : 'opacity-60 cursor-not-allowed'}`}
-                         >
-                           Download
-                         </button>
-                         <button
-                           type="button"
-                           onClick={handleClearChat}
-                           className="btn-secondary !text-[10px] !px-4 !py-2"
-                         >
-                           Clear Chat
-                         </button>
-                       </div>
-                     </div>
-                     <div>
-                       <div className="grid grid-cols-3 gap-2">
-                       {collabAgentKeys.map((agentKey) => {
-                         const isTalkSelected = selectedAgent === agentKey;
-                         const isCollabSelected = collabAgents.includes(agentKey);
-                         return (
-                           <button
-                             key={agentKey}
-                             type="button"
-                             disabled={isRunPending}
-                             onClick={() => handleToggleSelectedAgent(agentKey)}
-                             className={`rounded-[var(--radius-card)] border px-2 py-2 text-[9px] font-black uppercase tracking-[0.18em] transition-colors ${
-                               isTalkSelected
-                                 ? 'border-blue-500/50 bg-blue-500/20 text-blue-100'
-                                 : isCollabSelected
-                                   ? 'border-amber-500/50 bg-amber-500/20 text-amber-100'
-                                   : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                             } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                           >
-                             {resolveAgentName(agentKey)}
-                           </button>
-                         );
-                       })}
-                       </div>
-                     </div>
-                   </div>
-                </div>
-             </div>
-             <div className="w-80 min-h-0 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]/60 flex flex-col">
-                <div className="p-5 border-b border-[var(--color-border)]">
-                  <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Run Core</h4>
-                </div>
-                <div className="flex-1 overflow-y-auto no-scrollbar p-5 space-y-5">
-                  <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 space-y-3">
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Status</div>
-                      <div className="mt-1 text-sm font-bold text-[var(--color-text-primary)]">{sessionStatusLabel}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Agent Chain</div>
-                      <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeRunChain || 'Awaiting canonical chain'}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Mode</div>
-                      <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{commandModeLabel}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Flow</div>
-                      <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeFlowLabel || 'No Flow Bound'}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Active Agent</div>
-                      <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{contextAgentName || 'No Active Agent'}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Timestamps</div>
-                      <div className="mt-1 text-xs font-mono text-[var(--color-text-secondary)]">
-                        {metadata?.created_at ? `Created ${formatRunTimestamp(metadata.created_at)}` : 'Created PENDING'}
+                          );
+                        })}
                       </div>
-                      <div className="text-xs font-mono text-[var(--color-text-secondary)]">
-                        {metadata?.updated_at ? `Updated ${formatRunTimestamp(metadata.updated_at)}` : 'Updated PENDING'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Error</div>
-                      <div className={`mt-1 text-sm ${error ? 'text-red-400' : 'text-[var(--color-text-secondary)]'}`}>{error || 'No active error'}</div>
-                    </div>
+                    )}
                   </div>
-
-                  {canManageRoles && activeBotKey ? (
-                    <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 space-y-3">
-                      <div>
-                        <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Role Authority</div>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Attach named authority bundles to this bot. Effective permissions are the union of attached roles.</div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {botAssignedRoles.length ? botAssignedRoles.map((role) => (
-                          <div key={role.id} className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${role.isSystemRole ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]'}`}>
-                            <span>{role.name}</span>
-                            <button type="button" onClick={() => handleDetachBotRole(role.id)} disabled={rolesBusy} className="opacity-80 hover:opacity-100 disabled:opacity-50">
-                              Remove
-                            </button>
-                          </div>
-                        )) : (
-                          <div className="text-xs text-[var(--color-text-secondary)]">No roles attached.</div>
-                        )}
-                      </div>
-                      <div className="text-xs text-[var(--color-text-secondary)]">
-                        Effective capabilities: {(botEntitySummary?.effectiveCapabilities || []).length}
-                      </div>
-                      <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <select
-                          value={attachRoleId}
-                          onChange={(event) => setAttachRoleId(event.target.value)}
-                          disabled={!attachableBotRoles.length || rolesBusy}
-                          className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
-                        >
-                          <option value="">{attachableBotRoles.length ? 'Attach role…' : 'All roles attached'}</option>
-                          {attachableBotRoles.map((role) => (
-                            <option key={role.id} value={role.id}>{role.name}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={handleAttachBotRole}
-                          disabled={!attachRoleId || rolesBusy}
-                          className="btn-secondary !text-[10px] !px-4 !py-2 disabled:opacity-60"
-                        >
-                          Attach
-                        </button>
-                      </div>
-                      {rolesError ? <div className="text-xs text-red-300">{rolesError}</div> : null}
+                  <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
+                    {hasActiveRun
+                      ? `Run ${activeRun.id} • ${activeRunStatus}${activeRunChain ? ` • ${activeRunChain}` : ''} • ${activeRunTimestamp}`
+                      : 'System-level command interface'}
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-tertiary)] font-medium mt-1 uppercase tracking-widest">Command Stream</p>
+                  {selectedFlow ? (
+                    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                      <Workflow size={12} />
+                      Flow Bound: {selectedFlow.name}
+                      <button
+                        type="button"
+                        onClick={clearSelectedFlow}
+                        className="text-cyan-100/70 hover:text-white"
+                      >
+                        Clear
+                      </button>
                     </div>
                   ) : null}
+                </div>
+              </div>
 
-                  <div className="opacity-60">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Timeline (Coming soon)</h4>
-                      <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
+              {/* Chat Feed */}
+              <div ref={chatFeedRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
+                {messages.map((msg, i) => {
+                  const preferredRun = resolveMessageRun(msg);
+                  const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
+                  const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agentRole || msg.rank) : msg.rank;
+                  const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegateChain) : msg.chain;
+                  const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updatedAt || preferredRun.createdAt) : msg.timestamp;
+                  const preferredStatus = preferredRun ? formatRunStatus(preferredRun.status) : msg.status;
+                  const preferredError = preferredRun ? preferredRun.error : msg.error;
+                  const messageToken = msg.runId || msg.clientId || `message-${i}`;
+                  const supportsJsonDownload = Boolean(preferredRun) || looksLikeJson(preferredContent);
+                  const supportsMarkdownDownload = looksLikeMarkdown(preferredContent) || preferredContent.includes('```') || Boolean(preferredRun);
+                  const referenceTargets = extractLinkTargets(preferredContent);
+                  const primaryReference = referenceTargets[0] || '';
+                  return (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                      <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
+                        <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                          {msg.role === 'user' ? (
+                            <span className="text-[9px] font-black uppercase tracking-widest text-white/80">{systemRoleLabel}</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
+                                {preferredRank || 'CHARLIE'}
+                              </span>
+                              {preferredChain ? (
+                                <div className="flex items-center gap-1 opacity-60">
+                                  <span className="text-[8px] text-gray-600 font-mono">/</span>
+                                  <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-mono">
+                                    {preferredChain}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                          <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
+                          {msg.role === 'assistant' && preferredStatus ? (
+                            <span className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{preferredStatus}</span>
+                          ) : null}
+                          {msg.role === 'assistant' ? (
+                            <div className="flex items-center gap-1 ml-2">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyMessage(msg, messageToken)}
+                                className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                              >
+                                {copiedToken === messageToken ? 'Copied' : 'Copy'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadMessage(msg, 'txt')}
+                                className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                              >
+                                TXT
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadMessage(msg, 'md')}
+                                className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                              >
+                                {supportsMarkdownDownload ? 'MD' : 'TXT->MD'}
+                              </button>
+                              {supportsJsonDownload ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadMessage(msg, 'json')}
+                                  className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                >
+                                  JSON
+                                </button>
+                              ) : null}
+                              {primaryReference ? (
+                                <a
+                                  href={normalizeLinkHref(primaryReference)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                >
+                                  Open File
+                                </a>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className={`py-1 text-[11px] font-mono leading-relaxed tracking-wider ${msg.role === 'user'
+                            ? 'text-emerald-400'
+                            : getAgentColor(preferredRank).icon.split(' ')[0] || 'text-[var(--color-text-primary)]'
+                          }`}>
+                          <div className="break-words">
+                            {msg.role === 'assistant' ? renderMarkdownContent(preferredContent) : renderLinkedContent(preferredContent)}
+                          </div>
+                          {msg.role === 'assistant' && preferredError ? (
+                            <div className="mt-3 text-xs text-red-400">{preferredError}</div>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
-                    <div title="Coming soon" className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 space-y-3 cursor-not-allowed">
-                      <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
-                      <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
-                      <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                  )
+                })}
+              </div>
+
+              {/* Input Area */}
+              <div className={`p-5 border-t ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
+                <input ref={localFileInputRef} type="file" multiple className="hidden" onChange={handleLocalFileSelect} />
+                <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-4 items-start">
+                  <div className="min-w-0">
+                    <div className="relative flex items-center gap-3">
+                      <div className="relative flex-1">
+                        <input
+                          disabled={isRunPending}
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && !isRunPending && handleSendMessage()}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          name="commandInput"
+                          id="command-input-surface"
+                          type="search"
+                          inputMode="text"
+                          enterKeyHint="send"
+                          aria-autocomplete="none"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-bwignore="true"
+                          data-form-type="other"
+                          autoSave="off"
+                          placeholder="SEND COMMAND..."
+                          className={`w-full bg-[var(--color-bg-primary)]/70 dark:bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-card)] px-5 pt-5 pb-9 text-sm text-[var(--color-text-primary)] placeholder:text-slate-400 dark:placeholder-gray-500 focus:outline-none focus:border-[var(--color-primary)]/60 focus:ring-1 focus:ring-[var(--color-primary)]/20 font-mono transition-all appearance-none ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        />
+                        <div className="absolute right-4 bottom-2 flex items-center justify-end gap-2 max-w-[calc(100%-32px)] overflow-hidden">
+                          {selectedAgent ? (
+                            <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
+                              Target: {resolveAgentName(selectedAgent)}
+                            </span>
+                          ) : null}
+                          {collabAgents.length > 0 && !hasActiveRun ? (
+                            <div className="flex gap-1 overflow-hidden">
+                              {collabAgents.slice(0, 2).map(key => (
+                                <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
+                                  {resolveAgentName(key)}
+                                </span>
+                              ))}
+                              {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
+                            </div>
+                          ) : null}
+                          {!selectedAgent && !collabAgents.length ? (
+                            <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
+                              {sessionStatusLabel}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-stretch gap-2 w-[112px]">
+                        <button
+                          type="button"
+                          disabled={isRunPending}
+                          onClick={handleSendMessage}
+                          className={`btn-secondary !rounded-[var(--radius-card)] !px-4 !py-3 min-w-0 flex items-center justify-center gap-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                          <span className="text-[10px] font-black uppercase tracking-[0.18em]">Send</span>
+                          <ArrowRight size={14} />
+                        </button>
+                        <div className="inline-flex rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/60 p-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectionMode('talk')}
+                            className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'talk'
+                                ? 'bg-blue-500/20 text-blue-200'
+                                : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                              }`}
+                          >
+                            Talk
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectionMode('collab')}
+                            className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'collab'
+                                ? 'bg-amber-500/20 text-amber-200'
+                                : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                              }`}
+                          >
+                            Collab
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {selectedFlow ? (
+                        <span className="px-2 py-1 rounded-full border border-cyan-500/20 bg-cyan-900/20 text-[8px] text-cyan-300 font-mono font-bold tracking-widest uppercase">
+                          Flow: {selectedFlow.name}
+                        </span>
+                      ) : null}
+                      {localAttachments.map((name) => (
+                        <span key={name} className="px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[8px] text-[var(--color-text-secondary)] font-mono font-bold tracking-widest uppercase">
+                          Local: {name}
+                        </span>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={isRunPending}
+                        onClick={handleLocalUploadTrigger}
+                        className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      >
+                        Upload Intel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isRunPending}
+                        onClick={handleLinkFlow}
+                        className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      >
+                        {selectedFlow ? 'Change Flow' : 'Link Flow'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyAll}
+                        className="btn-secondary !text-[10px] !px-4 !py-2"
+                      >
+                        {copiedToken === 'copy-all' ? 'Copied' : 'Copy All'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => latestAssistantMessage && handleDownloadMessage(latestAssistantMessage, looksLikeMarkdown(resolveMessageContent(latestAssistantMessage)) ? 'md' : 'txt')}
+                        disabled={!latestAssistantMessage}
+                        className={`btn-secondary !text-[10px] !px-4 !py-2 ${latestAssistantMessage ? '' : 'opacity-60 cursor-not-allowed'}`}
+                      >
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearChat}
+                        className="btn-secondary !text-[10px] !px-4 !py-2"
+                      >
+                        Clear Chat
+                      </button>
                     </div>
                   </div>
-
-                  <div className="opacity-60">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Signals (Coming soon)</h4>
-                      <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
-                    </div>
-                    <div title="Coming soon" className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-card)] p-4 space-y-3 cursor-not-allowed">
-                      <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
-                      <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                  <div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {collabAgentKeys.map((agentKey) => {
+                        const isTalkSelected = selectedAgent === agentKey;
+                        const isCollabSelected = collabAgents.includes(agentKey);
+                        return (
+                          <button
+                            key={agentKey}
+                            type="button"
+                            disabled={isRunPending}
+                            onClick={() => handleToggleSelectedAgent(agentKey)}
+                            className={`rounded-[var(--radius-card)] border px-2 py-2 text-[9px] font-black uppercase tracking-[0.18em] transition-colors ${isTalkSelected
+                                ? `${getAgentColor(agentKey).border} ${getAgentColor(agentKey).bg} ${getAgentColor(agentKey).icon.split(' ')[0]}`
+                                : isCollabSelected
+                                  ? 'border-amber-500/50 bg-amber-500/20 text-amber-100'
+                                  : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                              } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          >
+                            {resolveAgentName(agentKey)}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-             </div>
+              </div>
+            </div>
+            <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col`}>
+              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
+                <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Run Core</h4>
+              </div>
+              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+                <div className="border border-white/10 bg-black rounded p-4 space-y-3">
+                  <div>
+                    <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Status</div>
+                    <div className="mt-1 text-[11px] font-mono text-white">{sessionStatusLabel}</div>
+                  </div>
+                  <div>
+                    <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Agent Chain</div>
+                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeRunChain || 'Awaiting canonical chain'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Mode</div>
+                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{commandModeLabel}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Flow</div>
+                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeFlowLabel || 'No Flow Bound'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Active Agent</div>
+                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{contextAgentName || 'No Active Agent'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Timestamps</div>
+                    <div className="mt-1 text-xs font-mono text-[var(--color-text-secondary)]">
+                      {metadata?.created_at ? `Created ${formatRunTimestamp(metadata.created_at)}` : 'Created PENDING'}
+                    </div>
+                    <div className="text-xs font-mono text-[var(--color-text-secondary)]">
+                      {metadata?.updated_at ? `Updated ${formatRunTimestamp(metadata.updated_at)}` : 'Updated PENDING'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Error</div>
+                    <div className={`mt-1 text-sm ${error ? 'text-red-400' : 'text-[var(--color-text-secondary)]'}`}>{error || 'No active error'}</div>
+                  </div>
+                </div>
+
+                {canManageRoles && activeBotKey ? (
+                  <div className="border border-white/10 bg-black rounded p-4 space-y-3">
+                    <div>
+                      <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Role Authority</div>
+                      <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Attach named authority bundles to this bot. Effective permissions are the union of attached roles.</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {botAssignedRoles.length ? botAssignedRoles.map((role) => (
+                        <div key={role.id} className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${role.isSystemRole ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]'}`}>
+                          <span>{role.name}</span>
+                          <button type="button" onClick={() => handleDetachBotRole(role.id)} disabled={rolesBusy} className="opacity-80 hover:opacity-100 disabled:opacity-50">
+                            Remove
+                          </button>
+                        </div>
+                      )) : (
+                        <div className="text-xs text-[var(--color-text-secondary)]">No roles attached.</div>
+                      )}
+                    </div>
+                    <div className="text-xs text-[var(--color-text-secondary)]">
+                      Effective capabilities: {(botEntitySummary?.effectiveCapabilities || []).length}
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto] gap-2">
+                      <select
+                        value={attachRoleId}
+                        onChange={(event) => setAttachRoleId(event.target.value)}
+                        disabled={!attachableBotRoles.length || rolesBusy}
+                        className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                      >
+                        <option value="">{attachableBotRoles.length ? 'Attach role…' : 'All roles attached'}</option>
+                        {attachableBotRoles.map((role) => (
+                          <option key={role.id} value={role.id}>{role.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAttachBotRole}
+                        disabled={!attachRoleId || rolesBusy}
+                        className="btn-secondary !text-[10px] !px-4 !py-2 disabled:opacity-60"
+                      >
+                        Attach
+                      </button>
+                    </div>
+                    {rolesError ? <div className="text-xs text-red-300">{rolesError}</div> : null}
+                  </div>
+                ) : null}
+
+                <div className="opacity-60">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Timeline (Coming soon)</h4>
+                    <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
+                  </div>
+                  <div title="Coming soon" className="border border-white/10 rounded p-4 space-y-3 cursor-not-allowed">
+                    <div className="h-8 rounded border border-dashed border-white/10"></div>
+                    <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                    <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                  </div>
+                </div>
+
+                <div className="opacity-60">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Signals (Coming soon)</h4>
+                    <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
+                  </div>
+                  <div title="Coming soon" className="border border-white/10 rounded p-4 space-y-3 cursor-not-allowed">
+                    <div className="h-8 rounded border border-dashed border-white/10"></div>
+                    <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
