@@ -641,7 +641,7 @@ const AIOAgentsModule = () => {
       return matchedRun.output || '';
     }
     if (message?.pending) {
-      return 'Awaiting canonical run...';
+      return '';
     }
     return message?.content || '';
   };
@@ -1755,7 +1755,19 @@ const AIOAgentsModule = () => {
                             : getAgentColor(preferredRank).icon.split(' ')[0] || 'text-[var(--color-text-primary)]'
                           }`}>
                           <div className="break-words">
-                            {msg.role === 'assistant' ? renderMarkdownContent(preferredContent) : renderLinkedContent(preferredContent)}
+                            {msg.role === 'assistant' ? (
+                              msg.pending && !preferredContent ? (
+                                <div className="flex items-center gap-1.5 py-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.2s' }} />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.4s' }} />
+                                </div>
+                              ) : (
+                                renderMarkdownContent(preferredContent)
+                              )
+                            ) : (
+                              renderLinkedContent(preferredContent)
+                            )}
                           </div>
                           {msg.role === 'assistant' && preferredError ? (
                             <div className="mt-3 text-xs text-red-400">{preferredError}</div>
