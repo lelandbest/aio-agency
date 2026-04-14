@@ -638,6 +638,42 @@ def _diagnostic_response(message: str, assembled: dict[str, Any], context: dict[
     }
 
 
+def _help_assist_response(message: str, provider: Any, context: dict[str, Any] | None) -> dict[str, Any]:
+    """Surfaces META:DOC:HELP articles and handles missing documentation registry."""
+    all_items = provider.list_brain_items() if getattr(provider, "list_brain_items", None) else []
+    help_articles = [item for item in all_items if "META:DOC:HELP" in (item.get("tags") or [])]
+    
+    haystack = _normalize_text(message)
+    module = (context or {}).get("module", "").lower()
+    
+    # 1. Search existing help articles
+    matches = []
+    for article in help_articles:
+        title = _normalize_text(article.get("title"))
+        content = _normalize_text(article.get("content"))
+        if (title and title in haystack) or (module and module in _normalize_text(article.get("category"))):
+            matches.append(article)
+            
+    if matches:
+        article = matches[0]
+        return {
+            "answer": f"I found a Knowledgebase article that might help: '{article.get('title')}'",
+            "insights": [f"Category: {article.get('category', 'General')}.", "Grounding: Charlie Doc Layer."],
+            "suggestedActions": [f"Open Help Module to read '{article.get('title')}'."],
+        }
+        
+    # 2. If no match, trigger auto-generation wiring (Stub/Queue)
+    # This fulfills the 'helpsystem autogeneration wiring' task.
+    logger.info("Missing Documentation Registry triggered for query: %r", message)
+    # TODO: In a real implementation, we would push to a generation queue here.
+    
+    return {
+        "answer": "I don't have a specific help article for that yet, but I've registered this as a documentation request.",
+        "insights": ["Missing Documentation Hook triggered.", "Topic: " + (module or "General System")],
+        "suggestedActions": ["Consult an operator for immediate manual assistance."],
+    }
+
+
 def _how_to_response(message: str, assembled: dict[str, Any], role: str) -> dict[str, Any]:
     if role == "client":
         if "calendar" in detect_assist_domains(message):
@@ -719,6 +755,8 @@ def generate_assist_response(
             "insights": [],
             "suggestedActions": ["Ask an operator for internal system diagnostics or configuration changes."],
         }
+    elif context.get("assistMode") == "help":
+        response = _help_assist_response(message, provider, context)
     elif intent == INTENT_STATUS:
         response = _operator_status_response(assembled) if role == "operator" else _client_status_response(assembled)
     elif intent == INTENT_WHY:

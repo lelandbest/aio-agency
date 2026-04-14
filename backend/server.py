@@ -116,6 +116,17 @@ except ModuleNotFoundError:
         update_data_store_record,
         upsert_data_store_record,
     )
+
+def strip_markdown(text: str) -> str:
+    if not text:
+        return text
+    # Character class containing: * _ # ~ > ` [ ] { }
+    import re as _re
+    text = _re.sub(r'[*_#~>`\[\]{}]+', '', text)
+    # Whitespace normalization
+    text = _re.sub(r'\s+', ' ', text)
+    return text.strip()
+
 from oauth_connect import (
     GOOGLE_CALENDAR_SCOPE,
     GOOGLE_MAIL_SCOPE,
@@ -3308,20 +3319,6 @@ async def ai_assist(request: Request, payload: OperatorAssistRequest):
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    if brain_query:
-        resolved_context = inject_brain_context(brain_query, resolved_context, tenant)
-    
-    try:
-        return generate_assist_response(
-            message=message,
-            context=resolved_context,
-            token=token,
-            session=session,
-            auth_store=auth_store,
-            provider=provider,
-        )
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 def require_operator(request: Request, detail: str = "Only operators can perform this action.") -> dict[str, Any]:
@@ -3357,6 +3354,17 @@ async def ai_draft(request: Request, payload: AIAssistRequest):
 
 
 async def ai_assist_logic(request: Request, payload: AIAssistRequest):
+    session = require_capability(request, "system.view", "Only workspace members can use AI drafting.")
+    token = extract_session_token(request)
+    user = session.get("user") or {}
+    tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
+    resolved_context = dict(payload.context or {})
+    resolved_module = payload.module
+    resolved_surface = payload.surface
+    resolved_field = payload.field
+    resolved_intent = payload.intent
+    route_hints = payload.route_hints or {}
     provider_override = payload.provider_override
     if provider_override is None and isinstance(resolved_context, dict):
         provider_override = resolved_context.get("provider_override")
@@ -3483,7 +3491,7 @@ async def ai_assist_logic(request: Request, payload: AIAssistRequest):
     provider.save_ai_run(
         {
             "id": canonical_run_id,
-            "command": str(payload.current_value or resolved_context.get("command_text") or "").strip() or f"{payload.module}:{payload.surface}:{payload.field}",
+            "command": str(payload.currentValue or resolved_context.get("command_text") or "").strip() or f"{payload.module}:{payload.surface}:{payload.field}",
             "mode": "assist",
             "status": "completed",
             "steps_json": json.dumps(run_steps),
@@ -3746,7 +3754,8 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 prompt=command_text,
                 system_prompt=charlie_sys_prompt,
             )
-            reply_text = (convo_result or {}).get("suggestion") or "I'm here. What do you need?"
+            raw_reply = (convo_result or {}).get("suggestion") or "I'm here. What do you need?"
+            reply_text = strip_markdown(raw_reply)
             return {
                 "status": "success",
                 "result": {
@@ -4038,7 +4047,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 prompt=media_review_prompt,
                 system_prompt=charlie_sys_prompt,
             )
-            final_reply = (media_review_result or {}).get("suggestion") or qc_summary
+            final_reply = strip_markdown((media_review_result or {}).get("suggestion") or qc_summary)
 
             return {
                 "status": "success" if media_assets_built or render_job_result else "error",
@@ -4126,7 +4135,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 prompt=review_prompt,
                 system_prompt=charlie_sys_prompt,
             )
-            final_reply = (review_result or {}).get("suggestion") or specialist_output
+            final_reply = strip_markdown((review_result or {}).get("suggestion") or specialist_output)
         else:
             # Alpha couldn't complete — Charlie reports back cleanly
             error_detail = (alpha_result.get("data") or {}).get("message") or alpha_result.get("error") or ""

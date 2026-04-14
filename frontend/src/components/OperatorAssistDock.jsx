@@ -25,7 +25,7 @@ const SURFACE_TERTIARY_CLASS = 'surface-tertiary rounded-[var(--radius-card)]';
 
 const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
   const { isOperator } = useAuth();
-  const { isOpen: open, closeAIAssist: setOpen } = useAIAssist();
+  const { isOpen: open, closeAIAssist: setOpen, assistMode } = useAIAssist();
   const operatorMode = isOperator?.() ?? false;
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,7 +72,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
     try {
       const response = await getOperatorAssistResponseApi({
         message,
-        context: currentContext,
+        context: { ...currentContext, assistMode },
       });
       setEntries((prev) =>
         prev.map((entry) =>
@@ -120,13 +120,17 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
         <section className={`pointer-events-auto flex h-[min(70vh,680px)] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden bg-[#0A0A0C]/95 backdrop-blur-2xl border border-[#2A2D35] shadow-[0_20px_40px_rgba(0,0,0,0.8),_inset_0_1px_1px_rgba(255,255,255,0.05)] ${FLOATING_PANEL_CLASS}`}>
           <header className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-primary)]">
-                <Sparkles size={12} />
-                Operator Assist
+              <div className={`inline-flex items-center gap-2 rounded-[var(--radius-pill)] border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-primary)] ${assistMode === 'help' ? 'border-amber-500/20 bg-amber-500/10' : 'border-sky-500/20 bg-sky-500/10'}`}>
+                {assistMode === 'help' ? <Crosshair size={12} /> : <Sparkles size={12} />}
+                {assistMode === 'help' ? 'Module Assist' : 'Operator Assist'}
               </div>
-              <div className="mt-3 text-base font-black text-[var(--color-text-primary)]">Grounded system guidance</div>
+              <div className="mt-3 text-base font-black text-[var(--color-text-primary)]">
+                {assistMode === 'help' ? 'Contextual guidance' : 'Grounded system guidance'}
+              </div>
               <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                Uses canonical <code>/api/assist</code> responses grounded on live tenant state.
+                {assistMode === 'help' 
+                  ? 'Uses help articles and module context for guidance.' 
+                  : 'Uses canonical /api/assist responses grounded on live tenant state.'}
               </div>
             </div>
             <button
@@ -143,9 +147,13 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
             {emptyState ? (
               <div className="space-y-5">
                 <div className={`${SURFACE_CARD_CLASS} p-4`}>
-                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">Ask about real system behavior</div>
+                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">
+                    {assistMode === 'help' ? 'Get help with this module' : 'Ask about real system behavior'}
+                  </div>
                   <div className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
-                    Operator Assist explains current runs, flows, settings, comms, and calendar state without inventing missing data.
+                    {assistMode === 'help'
+                      ? 'Ask about field requirements, module functionality, or how to perform specific tasks in this view.'
+                      : 'Operator Assist explains current runs, flows, settings, comms, and calendar state without inventing missing data.'}
                   </div>
                 </div>
                 <div>
@@ -244,7 +252,9 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
                     }
                   }}
                   rows={1}
-                  placeholder="Ask about runs, settings, failures, or tenant state..."
+                  placeholder={assistMode === 'help' 
+                    ? "Ask how to use this module or specific fields..." 
+                    : "Ask about runs, settings, failures, or tenant state..."}
                   className="max-h-28 min-h-[24px] w-full resize-none bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]"
                 />
               </div>

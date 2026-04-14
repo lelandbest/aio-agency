@@ -16,7 +16,7 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
     const [expandedGroup, setExpandedGroup] = useState(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { brandConfig } = useBrand();
-    const { openVTT } = useVTT();
+    const { isOpen, openVTT, isListening, setIsListening } = useVTT();
     const displayBrandName = brandConfig?.brandName || DEFAULT_BRAND_CONFIG.brandName;
     const displayLogoUrl = brandConfig?.logoUrl || DEFAULT_BRAND_CONFIG.logoUrl;
     
@@ -257,11 +257,21 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                 {!isCollapsed && <span className="text-xs">Help Docs</span>}
                             </button>
                             <button
-                                onClick={() => window.dispatchEvent(new CustomEvent('aio:open-charlie'))}
-                                className={`flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-black/60 backdrop-blur px-3 py-1.5 text-[8px] font-black text-cyan-400 uppercase tracking-widest shadow-[0_4px_16px_rgba(0,0,0,0.6)] hover:bg-black/80 transition-all ${isCollapsed ? 'justify-center w-full' : ''}`}
-                                title="Open Charlie"
+                                onClick={() => {
+                                    if (!isOpen) {
+                                        openVTT();
+                                    } else {
+                                        setIsListening(!isListening);
+                                    }
+                                }}
+                                className={`flex items-center gap-1.5 rounded-full border backdrop-blur px-3 py-1.5 text-[8px] font-black uppercase tracking-widest shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-all ${
+                                    isListening 
+                                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]' 
+                                        : 'border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-black/80'
+                                } ${isCollapsed ? 'justify-center w-full' : ''}`}
+                                title={isOpen ? (isListening ? "Stop Listening" : "Start Listening") : "Open Charlie"}
                             >
-                                <Mic size={10} />
+                                <Mic size={10} className={isListening ? 'animate-pulse' : ''} />
                                 {!isCollapsed && <span>Charlie</span>}
                             </button>
                         </div>

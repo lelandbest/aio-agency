@@ -1,10 +1,7 @@
 import React from 'react';
 import { 
-  ChevronRight, HelpCircle, 
-  Search, Bell, Settings, Info, 
-  Trash2, Shield, User, Zap, Mail, Plus,
-  FileInput, Download, Tag, X, ChevronLeft,
-  RefreshCw
+  ChevronRight, 
+  X,
 } from 'lucide-react';
 import { useAIAssist } from '../contexts/AIAssistContext';
 import { normalizeDisplayText } from '../utils/text';
@@ -108,23 +105,6 @@ const Actions = ({ actions, leadIndex = null }) => {
   );
 };
 
-/**
- * ModuleHeader Toolbar Contract:
- * 
- * Core toolbar actions (always present):
- * - Brain: Global Knowledge Base access
- * - Crosshair: Module-specific AI assistance
- * 
- * System-level icons (allowed additions):
- * - Command Surface: Global overlay / command entry point
- * 
- * The toolbar renders dynamically. Core icons are required.
- * Additional system-level icons are allowed when they provide
- * global functionality (overlay, commands, system-level entry points).
- * 
- * Layout and styling must remain consistent.
- */
-
 const ModuleHeader = ({
   title,
   subtitle = '',
@@ -134,18 +114,14 @@ const ModuleHeader = ({
   leftActions = [],
   statusBadge = null,
   showTitle = true,
-  showCompactTitle = false,
   showActions = true,
   toolbarLeftSlot = null,
   toolbarCenterSlot = null,
   toolbarRightSlot = null,
-  aiAssistSlot = null,
-  executeSlot = null,
-  hasSelection = false,
   className = '',
   onModuleAi = null,
 }) => {
-  const { openAIAssist } = useAIAssist?.() || {};
+  const { toggleAIAssist } = useAIAssist?.() || {};
   const toolbarIconButtonClass = 'p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group disabled:opacity-20 disabled:cursor-not-allowed';
   
   return (
@@ -172,14 +148,10 @@ const ModuleHeader = ({
           {showActions && <Actions actions={actions} leadIndex={leftActions.length === 0 ? 0 : null} />}
         </div>
         
-        {/* Standardized AI Assistance Toolbar */}
         <div className="module-toolbar-utility">
           {/* Brain - Global Knowledge */}
           <button
-            onClick={() => {
-              if (openAIAssist) openAIAssist();
-              else console.warn('AIAssistContext not found');
-            }}
+            onClick={() => toggleAIAssist?.({ mode: 'brain' })}
             className={toolbarIconButtonClass}
             title="Brain (Global KB)"
           >
