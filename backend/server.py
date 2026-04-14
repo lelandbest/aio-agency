@@ -3702,22 +3702,27 @@ async def ai_command(request: Request, payload: AICommandRequest):
         )
 
         # ── Step 1: Charlie classifies the input ──────────────────────────────
-        # Charlie decides: is this a conversational reply or a task delegation for Alpha?
+        # Three classes:
+#   CONVERSATION  — chat / question / comment, no execution needed
+#   MEDIA_TASK    — media creation/render/audio request, Alpha executes via media engine
+#   TASK          — all other structured work, routed through Alpha's specialist chain
         classification_prompt = (
             f"User input: \"{command_text}\"\n\n"
-            "Classify this input into exactly one of two categories:\n"
-            "  TASK  — the user is requesting an action, deliverable, or structured work "
-            "(e.g. 'take a note', 'compose an email', 'analyze this', 'draft a report', "
-            "'write a brief', 'create a plan', 'summarise', 'research X').\n"
-            "  CONVERSATION  — the user is chatting, asking a simple question, giving feedback, "
-            "or making a comment that needs no specialist execution.\n\n"
-            "Reply with a single JSON object: {\"classification\": \"TASK\"} or {\"classification\": \"CONVERSATION\"} "
+            "Classify this input into exactly one of three categories:\n"
+            "  MEDIA_TASK — the user wants to create, generate, or render any media asset: "
+            "video, audio, voice narration, music, sound effects, promo, podcast, audiogram, "
+            "render, clip, or any combination of these.\n"
+            "  TASK  — any other action or deliverable: take a note, compose an email, "
+            "draft a report, summarise, research, create a plan, analyze.\n"
+            "  CONVERSATION  — chatting, asking a simple question, giving feedback, "
+            "or a comment that needs no execution.\n\n"
+            "Reply with a single JSON object, e.g.: {\"classification\": \"MEDIA_TASK\"} "
             "and nothing else."
         )
         classification_system = (
             "You are CHARLIE, intake classifier. "
-            "Return only valid JSON with key 'classification' set to 'TASK' or 'CONVERSATION'. "
-            "No explanation. No markdown."
+            "Return only valid JSON with key 'classification' set to "
+            "'MEDIA_TASK', 'TASK', or 'CONVERSATION'. No explanation. No markdown."
         )
         classification_result = ai_service._provider_complete(
             provider_config=ai_provider,
@@ -3752,9 +3757,308 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 }
             }
 
-        # ── Step 2b: Task request — route to Alpha ────────────────────────────
-        # Charlie does NOT pick or contact any subordinate directly.
-        # Charlie hands the raw task to Alpha with full context.
+        # ── Step 2b: Task / Media-Task — route to Alpha ──────────────────
+        # Charlie hands all execution to Alpha.
+        # MEDIA_TASK gets an Alpha-driven media orchestration path.
+        # Generic TASK uses the existing agent runtime delegation chain.
+        # Charlie NEVER contacts specialists or media endpoints directly.
+
+        alpha_runtime = {
+            "command": command_text,
+            "providerConfig": ai_provider,
+            "steps": [],
+            "sharedContext": {
+                "goal": command_text,
+                "plan": [],
+                "agentNotes": [],
+                "source": "charlie_vtt_intake",
+            },
+            "trace": [],
+        }
+        alpha_context = {
+            **resolved_context,
+            "surface": "vtt",
+            "module": "vtt",
+            "intent": "media_task" if input_classification == "MEDIA_TASK" else "task",
+            "requested_agent": "ALPHA",
+            "classification": input_classification,
+        }
+
+        # ── MEDIA_TASK: Alpha runs media orchestration directly ───────────────
+        # Alpha extracts structured media intent, invokes generation endpoints,
+        # assembles the render payload, and returns a QC-ready result package.
+        # Charlie is NOT involved in any of these steps.
+        if input_classification == "MEDIA_TASK":
+            logger.info("[VTT Media] Charlie classified '%s' as MEDIA_TASK. Routing to Alpha.", command_text[:80])
+            alpha_runtime["trace"].append({
+                "step": "classification",
+                "agent": "CHARLIE",
+                "action": "classify",
+                "result": "MEDIA_TASK",
+                "input_excerpt": command_text[:120],
+            })
+
+            # ── Alpha: extract structured media intent from natural language ──
+            media_intent_prompt = (
+                f"User request: \"{command_text}\"\n\n"
+                "Extract a structured media production intent. Respond with ONLY valid JSON:\n"
+                "{\n"
+                "  \"title\": \"<job title, max 60 chars>\",\n"
+                "  \"voicePrompt\": \"<narration script or null>\",\n"
+                "  \"musicPrompt\": \"<music description or null>\",\n"
+                "  \"sfxPrompts\": [\"<sfx1 description>\", ...],\n"
+                "  \"templateId\": \"<aio_916 | aio_11 | bltv_169 | null>\",\n"
+                "  \"includeRender\": <true | false>,\n"
+                "  \"durationSeconds\": <number or null>\n"
+                "}\n\n"
+                "Rules:\n"
+                "- If user mentions music, background, bed, ambient, score: set musicPrompt\n"
+                "- If user mentions sfx, sound effects, whoosh, impact, hit, riser: add to sfxPrompts\n"
+                "- If user mentions narration, voice, spoken, script: set voicePrompt\n"
+                "- includeRender = true if user wants a final video/promo/clip/render\n"
+                "- templateId: use aio_916 for vertical video, aio_11 for square, bltv_169 for landscape, null if unspecified\n"
+                "- Return null for fields not mentioned. sfxPrompts is an empty list if no SFX requested.\n"
+                "Respond with valid JSON only. No markdown, no explanation."
+            )
+            media_intent_result = ai_service._provider_complete(
+                provider_config=ai_provider,
+                prompt=media_intent_prompt,
+                system_prompt=(
+                    "You are ALPHA, media task orchestrator. "
+                    "Extract structured media intent from natural language. "
+                    "Return only valid JSON. No markdown fences."
+                ),
+            )
+            media_intent_raw = (media_intent_result or {}).get("suggestion", "")
+            try:
+                import re as _re2
+                _mi_match = _re2.search(r'\{[\s\S]+\}', media_intent_raw)
+                media_intent = json.loads(_mi_match.group()) if _mi_match else {}
+            except Exception:
+                media_intent = {}
+
+            logger.info("[VTT Media] Alpha extracted intent: %s", json.dumps(media_intent, default=str)[:300])
+            alpha_runtime["trace"].append({
+                "step": "intent_extraction",
+                "agent": "ALPHA",
+                "action": "extract_media_intent",
+                "result": media_intent,
+            })
+
+            # ── Alpha: invoke media engine for each component ─────────────────
+            try:
+                from backend.media_engine import get_media_engine
+            except ImportError:
+                from media_engine import get_media_engine
+
+            engine = get_media_engine()
+            tenant = session.get("tenant") or {}
+            media_tenant_id = tenant.get("id")
+
+            media_assets_built: list[dict] = []
+            media_errors: list[str] = []
+            audio_layers: list[dict] = []
+
+            # ── Alpha → voice (TTS) ───────────────────────────────────────────
+            voice_prompt = str(media_intent.get("voicePrompt") or "").strip()
+            if voice_prompt:
+                logger.info("[VTT Media] Alpha invoking TTS for voice layer.")
+                alpha_runtime["trace"].append({"step": "voice_gen", "agent": "ALPHA", "action": "invoke_tts", "prompt_excerpt": voice_prompt[:80]})
+                try:
+                    from backend.vtt_service import synthesize_voice
+                    voice_url = synthesize_voice(text=voice_prompt[:600], tenant_id=media_tenant_id)
+                    if voice_url:
+                        audio_layers.append({"type": "voice", "url": voice_url})
+                        media_assets_built.append({"component": "voice", "url": voice_url})
+                        alpha_runtime["trace"].append({"step": "voice_gen", "agent": "ALPHA", "action": "tts_complete", "url": voice_url})
+                    else:
+                        media_errors.append("Voice/TTS generation returned no audio.")
+                except Exception as voice_err:
+                    media_errors.append(f"Voice generation failed: {voice_err}")
+                    logger.warning("[VTT Media] TTS error: %s", voice_err)
+
+            # ── Alpha → music generation ──────────────────────────────────────
+            music_prompt = str(media_intent.get("musicPrompt") or "").strip()
+            if music_prompt:
+                logger.info("[VTT Media] Alpha invoking music generation.")
+                alpha_runtime["trace"].append({"step": "music_gen", "agent": "ALPHA", "action": "invoke_sound_gen", "prompt_excerpt": music_prompt[:80]})
+                try:
+                    duration_for_music = float(media_intent.get("durationSeconds") or 8.0)
+                    duration_for_music = max(0.5, min(22.0, duration_for_music))
+                    music_result = engine.generate_audio_asset(
+                        {
+                            "audio_subtype": "music",
+                            "audioSubtype": "music",
+                            "prompt": music_prompt,
+                            "title": f"Music — {str(media_intent.get('title') or 'Media Job')[:40]}",
+                            "duration": duration_for_music,
+                        },
+                        tenant_id=media_tenant_id,
+                    )
+                    music_assets = (music_result.get("assets") or [])
+                    if music_assets:
+                        music_asset = music_assets[0]
+                        audio_layers.append({
+                            "type": "music",
+                            "assetId": music_asset.get("id"),
+                            "url": music_asset.get("source_url"),
+                            "volume": 0.25,
+                        })
+                        media_assets_built.append({"component": "music", "assetId": music_asset.get("id"), "url": music_asset.get("source_url")})
+                        alpha_runtime["trace"].append({"step": "music_gen", "agent": "ALPHA", "action": "music_complete", "assetId": music_asset.get("id")})
+                    else:
+                        media_errors.append("Music generation returned no asset.")
+                except Exception as music_err:
+                    media_errors.append(f"Music generation failed: {music_err}")
+                    logger.warning("[VTT Media] Music gen error: %s", music_err)
+
+            # ── Alpha → SFX generation (one layer per prompt) ─────────────────
+            sfx_prompts = [str(p).strip() for p in (media_intent.get("sfxPrompts") or []) if str(p).strip()]
+            for sfx_idx, sfx_prompt in enumerate(sfx_prompts):
+                logger.info("[VTT Media] Alpha invoking SFX generation: %s", sfx_prompt[:60])
+                alpha_runtime["trace"].append({"step": f"sfx_gen_{sfx_idx}", "agent": "ALPHA", "action": "invoke_sound_gen", "prompt_excerpt": sfx_prompt[:80]})
+                try:
+                    sfx_result = engine.generate_audio_asset(
+                        {
+                            "audio_subtype": "sfx",
+                            "audioSubtype": "sfx",
+                            "prompt": sfx_prompt,
+                            "title": f"SFX {sfx_idx + 1} — {str(media_intent.get('title') or 'Media Job')[:40]}",
+                            "duration": 3.0,
+                        },
+                        tenant_id=media_tenant_id,
+                    )
+                    sfx_assets = (sfx_result.get("assets") or [])
+                    if sfx_assets:
+                        sfx_asset = sfx_assets[0]
+                        audio_layers.append({
+                            "type": "sfx",
+                            "assetId": sfx_asset.get("id"),
+                            "url": sfx_asset.get("source_url"),
+                            "volume": 0.8,
+                        })
+                        media_assets_built.append({"component": "sfx", "sfxIndex": sfx_idx, "assetId": sfx_asset.get("id")})
+                        alpha_runtime["trace"].append({"step": f"sfx_gen_{sfx_idx}", "agent": "ALPHA", "action": "sfx_complete", "assetId": sfx_asset.get("id")})
+                    else:
+                        media_errors.append(f"SFX [{sfx_prompt[:40]}] returned no asset.")
+                except Exception as sfx_err:
+                    media_errors.append(f"SFX generation failed [{sfx_prompt[:40]}]: {sfx_err}")
+                    logger.warning("[VTT Media] SFX gen error: %s", sfx_err)
+
+            # ── Alpha → render job assembly ───────────────────────────────────
+            render_job_result = None
+            if media_intent.get("includeRender") and audio_layers:
+                logger.info("[VTT Media] Alpha assembling render job with %d audio layers.", len(audio_layers))
+                alpha_runtime["trace"].append({"step": "render_assembly", "agent": "ALPHA", "action": "assemble_render", "layer_count": len(audio_layers)})
+                try:
+                    # Resolve audio layers: voice layers use url directly, others use assetId
+                    render_audio_layers = []
+                    for layer in audio_layers:
+                        layer_entry: dict = {"type": layer["type"]}
+                        if layer.get("assetId"):
+                            layer_entry["assetId"] = layer["assetId"]
+                        if layer.get("volume") is not None:
+                            layer_entry["volume"] = layer["volume"]
+                        render_audio_layers.append(layer_entry)
+
+                    # Voice layer served as audioUrl directly (no assetId yet)
+                    voice_layer = next((l for l in audio_layers if l["type"] == "voice"), None)
+                    render_payload: dict = {
+                        "provider": "remotion_local",
+                        "title": str(media_intent.get("title") or "Media Job"),
+                        "mediaType": "video",
+                        "templateId": str(media_intent.get("templateId") or "aio_916"),
+                        "scriptPrompt": voice_prompt or None,
+                        "includeAudio": bool(voice_prompt),
+                        "audioLayers": [l for l in render_audio_layers if l["type"] != "voice"],
+                    }
+                    if voice_layer and voice_layer.get("url"):
+                        render_payload["audioUrl"] = voice_layer["url"]
+
+                    render_result = engine.render_media(render_payload, tenant_id=media_tenant_id)
+                    render_job = render_result.get("job") or {}
+                    render_job_result = {
+                        "jobId": render_job.get("id"),
+                        "status": render_job.get("status"),
+                        "title": render_job.get("title"),
+                        "assetIds": render_job.get("output_asset_ids") or [],
+                    }
+                    alpha_runtime["trace"].append({
+                        "step": "render_assembly",
+                        "agent": "ALPHA",
+                        "action": "render_submitted",
+                        "jobId": render_job_result.get("jobId"),
+                        "status": render_job_result.get("status"),
+                    })
+                    logger.info("[VTT Media] Alpha render job submitted: %s", render_job_result.get("jobId"))
+                except Exception as render_err:
+                    media_errors.append(f"Render assembly failed: {render_err}")
+                    logger.warning("[VTT Media] Render error: %s", render_err)
+
+            # ── Alpha QC: build result summary ────────────────────────────────
+            alpha_runtime["trace"].append({
+                "step": "qc",
+                "agent": "ALPHA",
+                "action": "qc_review",
+                "assets_built": len(media_assets_built),
+                "errors": len(media_errors),
+            })
+
+            # Build a concise QC summary for Charlie to present
+            qc_lines: list[str] = []
+            for built in media_assets_built:
+                comp = built.get("component", "asset")
+                if comp == "voice":
+                    qc_lines.append(f"- Voice narration: ready ({built.get('url', '').split('/')[-1]})")
+                elif comp == "music":
+                    qc_lines.append(f"- Music layer: ready (asset {str(built.get('assetId', ''))[-8:]})")
+                elif comp == "sfx":
+                    qc_lines.append(f"- SFX layer {built.get('sfxIndex', 0) + 1}: ready (asset {str(built.get('assetId', ''))[-8:]})")
+            if render_job_result:
+                qc_lines.append(f"- Render job submitted: {render_job_result.get('jobId', 'unknown')[-12:]} [{render_job_result.get('status', 'pending')}]")
+            for err in media_errors:
+                qc_lines.append(f"- ERROR: {err}")
+
+            qc_summary = "\n".join(qc_lines) if qc_lines else "No media assets were produced."
+
+            # ── Charlie review wrap (media) ───────────────────────────────────
+            media_review_prompt = (
+                f"The user asked: \"{command_text}\"\n\n"
+                "ALPHA executed the following media assembly:\n\n"
+                f"{qc_summary}\n\n"
+                "Present this result to the user. Lead with what Alpha prepared. "
+                "Do NOT say 'I generated' or 'I created' or 'I rendered'. "
+                "Use phrasing like 'Alpha assembled', 'the media package is ready', 'the render job has been submitted'. "
+                + ("Mention that some components encountered issues and offer to retry or simplify if there were errors. " if media_errors and not media_assets_built else "")
+                + ("Ask whether this matches what they requested. " if media_assets_built else "Ask if they'd like to revise the request or try again. ")
+                + "Be concise. One paragraph maximum."
+            )
+            media_review_result = ai_service._provider_complete(
+                provider_config=ai_provider,
+                prompt=media_review_prompt,
+                system_prompt=charlie_sys_prompt,
+            )
+            final_reply = (media_review_result or {}).get("suggestion") or qc_summary
+
+            return {
+                "status": "success" if media_assets_built or render_job_result else "error",
+                "result": {
+                    "mode": "media_task",
+                    "intent": "media_task",
+                    "message": final_reply,
+                    "response": {
+                        "answer": final_reply,
+                        "insights": alpha_runtime.get("trace") or [],
+                        "suggestedActions": [],
+                    },
+                    "alpha_trace": alpha_runtime.get("trace") or [],
+                    "media_assets": media_assets_built,
+                    "render_job": render_job_result,
+                    "errors": media_errors,
+                },
+            }
+
+        # ── Generic TASK: Alpha agent runtime delegation (unchanged) ──────────
         from backend.agent_runtime import AgentRegistry
 
         alpha_agent = AgentRegistry.get("ALPHA")
@@ -3777,25 +4081,6 @@ async def ai_command(request: Request, payload: AICommandRequest):
             "parameters": {"command": command_text},
             "assignedAgent": "ALPHA",
             "_delegation_depth": 0,
-        }
-        alpha_runtime = {
-            "command": command_text,
-            "providerConfig": ai_provider,
-            "steps": [],
-            "sharedContext": {
-                "goal": command_text,
-                "plan": [],
-                "agentNotes": [],
-                "source": "charlie_vtt_intake",
-            },
-            "trace": [],
-        }
-        alpha_context = {
-            **resolved_context,
-            "surface": "vtt",
-            "module": "vtt",
-            "intent": "task",
-            "requested_agent": "ALPHA",
         }
 
         try:
