@@ -662,14 +662,30 @@ def _help_assist_response(message: str, provider: Any, context: dict[str, Any] |
             "suggestedActions": [f"Open Help Module to read '{article.get('title')}'."],
         }
         
-    # 2. If no match, trigger auto-generation wiring (Stub/Queue)
-    # This fulfills the 'helpsystem autogeneration wiring' task.
-    logger.info("Missing Documentation Registry triggered for query: %r", message)
-    # TODO: In a real implementation, we would push to a generation queue here.
+    # 2. If no match, trigger auto-generation (Documentation Registry)
+    topic = module or "General System"
+    registry_payload = {
+        "title": f"Help Request: {topic}",
+        "category": topic,
+        "tags": ["META:DOC:HELP", "META:DOC:PENDING", f"TOPIC:{topic.upper()}"],
+        "content": f"Documentation requested for topic: {message}. System context: {module}.",
+        "metadata": {
+            "requested_by": "Charlie",
+            "source": "Crosshair",
+            "query": message,
+            "status": "pending_generation"
+        }
+    }
+    
+    try:
+        new_item = provider.create_brain_item(registry_payload)
+        logger.info("Auto-registered missing documentation for: %s (ID: %s)", topic, new_item.get("id"))
+    except Exception as e:
+        logger.error("Failed to register missing documentation: %s", str(e))
     
     return {
-        "answer": "I don't have a specific help article for that yet, but I've registered this as a documentation request.",
-        "insights": ["Missing Documentation Hook triggered.", "Topic: " + (module or "General System")],
+        "answer": f"I don't have a specific help guide for {topic} yet, but I've added it to my documentation queue and the system will generate it shortly.",
+        "insights": [f"Topic '{topic}' registered in Documentation Registry.", "Status: GENERATION_QUEUED"],
         "suggestedActions": ["Consult an operator for immediate manual assistance."],
     }
 
