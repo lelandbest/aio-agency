@@ -185,6 +185,11 @@ const CHARLIE_OUTPUT_HOLD_MS = 10000;
 
 function pickPreferredSystemVoice(voices = []) {
   if (!Array.isArray(voices) || !voices.length) return null;
+  const normalized = voices.map((voice) => ({
+    voice,
+    name: String(voice?.name || "").trim().toLowerCase(),
+    lang: String(voice?.lang || "").trim().toLowerCase(),
+  }));
   const rankedMatchers = [
     ({ name }) => name === "google uk english female",
     ({ name, lang }) => name.includes("google") && name.includes("uk") && name.includes("female") && lang.startsWith("en-gb"),
@@ -193,11 +198,6 @@ function pickPreferredSystemVoice(voices = []) {
     ({ lang }) => lang.startsWith("en-gb"),
     ({ name }) => name.includes("google") && name.includes("female"),
   ];
-  const normalized = voices.map((voice) => ({
-    voice,
-    name: String(voice?.name || "").trim().toLowerCase(),
-    lang: String(voice?.lang || "").trim().toLowerCase(),
-  }));
   for (const matches of rankedMatchers) {
     const candidate = normalized.find(matches);
     if (candidate?.voice) return candidate.voice;
@@ -350,17 +350,26 @@ export default function VoiceCommandModule() {
   }, [closeVTT, setIsListening, stopAudio]);
 
   const playResponse = useCallback((audioUrl, text) => {
-    if (isPlayingRef.current) return;
-    const normalizedText = String(text || '').trim();
-    if (!normalizedText) return;
+    // ── Duplicate guard: drop if already playing ──────────────────────────────
+    if (isPlayingRef.current) {
+      console.warn('[VTT] Playback already in flight — dropping duplicate');
+      return;
+    }
 
-    const responseId = audioUrl?.includes('vtt_') ? audioUrl : (text + (audioUrl || ''));
-    if (spokenResponseIds.current.has(responseId)) return;
+    const normalizedText = String(text || '').trim();
+    const normalizedAudioUrl = String(audioUrl || '').trim();
+    const playbackKey = JSON.stringify({ audioUrl: normalizedAudioUrl, text: normalizedText });
+    const responseId = audioUrl?.includes('vtt_') ? audioUrl : (text + audioUrl);
+    if (spokenResponseIds.current.has(responseId)) {
+      console.warn('[VTT] Already spoken response:', responseId);
+      return;
+    }
 
     const now = Date.now();
-    const playbackKey = JSON.stringify({ audioUrl, text: normalizedText });
-    if (lastPlaybackRef.current.key === playbackKey && (now - lastPlaybackRef.current.ts) < 2500) return;
-    
+    if (lastPlaybackRef.current.key === playbackKey && (now - lastPlaybackRef.current.ts) < 2500) {
+      console.warn('[VTT] Skipping duplicate Charlie playback');
+      return;
+    }
     lastPlaybackRef.current = { key: playbackKey, ts: now };
     spokenResponseIds.current.add(responseId);
     isPlayingRef.current = true;
@@ -374,21 +383,50 @@ export default function VoiceCommandModule() {
     activeAudioRef.current = null;
     window.speechSynthesis?.cancel?.();
 
+    if (!normalizedText && !normalizedAudioUrl) { isPlayingRef.current = false; return; }
+    if (!normalizedText) { isPlayingRef.current = false; return; }
+
+    // releaseLock keeps isPlayingRef true for a short cooldown after audio ends
+    // so the mic can't pick up the tail of the response (loopback prevention).
     const releaseLock = () => { setTimeout(() => { isPlayingRef.current = false; }, 1500); };
 
     try {
-      if (audioUrl) {
+      if (normalizedAudioUrl) {
+        let hasStartedPlaying = false;
+        // Shared flag: onerror AND play().catch() both fire on a bad URL.
+        // Only the first one to execute should call fallbackSpeak.
         let fallbackTriggered = false;
-        const audio = new Audio(audioUrl);
+        const doFallback = () => {
+          if (fallbackTriggered) return;
+          fallbackTriggered = true;
+          if (!hasStartedPlaying) fallbackSpeak(normalizedText);
+        };
+        const audio = new Audio(normalizedAudioUrl);
         activeAudioRef.current = audio;
-        audio.onended = () => { if (activeAudioRef.current === audio) activeAudioRef.current = null; releaseLock(); };
-        audio.onerror = () => { if (activeAudioRef.current === audio) activeAudioRef.current = null; releaseLock(); if (!fallbackTriggered) { fallbackTriggered = true; fallbackSpeak(normalizedText); } };
-        audio.play().catch(() => { if (activeAudioRef.current === audio) activeAudioRef.current = null; releaseLock(); if (!fallbackTriggered) { fallbackTriggered = true; fallbackSpeak(normalizedText); } });
+        audio.onplaying = () => { hasStartedPlaying = true; };
+        audio.onended = () => {
+          if (activeAudioRef.current === audio) activeAudioRef.current = null;
+          releaseLock();
+        };
+        audio.onerror = (e) => {
+          if (activeAudioRef.current === audio) activeAudioRef.current = null;
+          console.warn('[VTT] Audio error:', e);
+          releaseLock();
+          doFallback();
+        };
+        audio.play().catch((e) => {
+          if (activeAudioRef.current === audio) activeAudioRef.current = null;
+          console.warn('[VTT] Audio play blocked:', e);
+          releaseLock();
+          doFallback();
+        });
         return;
       }
     } catch (e) {
+      console.warn('[VTT] Audio hard fail, falling back:', e);
       releaseLock();
     }
+
     fallbackSpeak(normalizedText);
     setTimeout(releaseLock, 4000);
   }, [fallbackSpeak]);
@@ -398,7 +436,13 @@ export default function VoiceCommandModule() {
     setIsListening(false);
     if (!raw.trim()) return;
 
-    if (isPlayingRef.current) return;
+    // ── Loopback guard: drop transcript if Charlie is currently speaking ──────
+    // Prevents mic feedback loops (Zoom audio, open speakers, etc.) from
+    // being picked up and re-sent as a new command while TTS is active.
+    if (isPlayingRef.current) {
+      console.warn('[VTT] Dropping transcript — playback in flight (loopback guard)');
+      return;
+    }
 
     if (isContinuous || meta.isContinuousSession) {
       pushTranscriptToEditor(raw);
@@ -419,68 +463,37 @@ export default function VoiceCommandModule() {
     if (!isOpen) openVTT();
     setLoading(true);
     clearTranscript();
-
-    const COMMAND_REGISTRY = [
-      "stop", "escape", "cancel", "abort", "test 123",
-      "open brain", "open crm", "open forms", "open form builder",
-      "open flows", "open flow builder", "open media", "open integrations",
-      "open signals", "open comms", "open pipeline", "open orders",
-      "open help", "open contacts", "start postbot", "start script generator",
-      "stop script generator", "start podcast", "send email", "create image",
-      "create video", "summarize", "transcribe media", "run flow",
-      "search contacts"
-    ];
-
-    const PREFIX_COMMANDS = ["run flow"];
-    const normalized = raw.trim().toLowerCase();
-    const isExactMatch = COMMAND_REGISTRY.includes(normalized);
-    const isPrefixMatch = PREFIX_COMMANDS.some(p => normalized.startsWith(p + " "));
-    const isCommand = isExactMatch || isPrefixMatch;
-
     try {
-      if (isCommand) {
-        const res = await request('/api/vtt/command', {
-          method: 'POST',
-          body: JSON.stringify({ transcript: raw, context: {}, voiceEnabled, voiceProvider, voiceAutoPlay }),
-        });
+      const res = await request('/api/vtt/command_DISABLED', {
+        method: 'POST',
+        body: JSON.stringify({ transcript: raw, context: {}, voiceEnabled, voiceProvider, voiceAutoPlay }),
+      });
 
-        if (res.type === 'command') {
-          const result = { ...(res.result || {}), ...(res.command || {}), response: res.response };
-          addCommandMessage(raw, result);
-          if (result.action === 'navigate') navigateToModule(result.module);
-          const msg = resolveSpokenText(res);
-          scheduleOutputReset(msg);
-          if (voiceEnabled && voiceAutoPlay && msg) playResponse(res.audioUrl, msg);
-        } else {
-          addCharlieMessage(raw, res);
-          const msg = resolveSpokenText(res);
-          scheduleOutputReset(msg);
-          if (voiceEnabled && voiceAutoPlay && msg) playResponse(res.audioUrl, msg);
+      if (res.type === 'command') {
+        const result = { ...(res.result || {}), ...(res.command || {}), response: res.response };
+        addCommandMessage(raw, result);
+        const action = result.action;
+        if (action === 'navigate') navigateToModule(result.module);
+        
+        const msg = resolveSpokenText(res);
+        scheduleOutputReset(msg);
+        if (voiceEnabled && voiceAutoPlay && msg) {
+          playResponse(res.audioUrl || null, msg, res.response?.id);
         }
-      } else {
-        const res = await request('/api/ai/command', {
-          method: 'POST',
-          body: JSON.stringify({ 
-            command: raw, 
-            intent: 'conversation',
-            agent: 'CHARLIE',
-            context: { module: 'vtt', surface: 'voice', intent: 'conversation' }
-          }),
-        });
-        const spokenText =
-          res.result?.message ||
-          res.result?.response?.answer ||
-          res.message ||
-          '';
-        addCharlieMessage(raw, { ...res, response: { message: spokenText } });
-        scheduleOutputReset(spokenText);
-        if (voiceEnabled && voiceAutoPlay && spokenText) playResponse(res.audioUrl || null, spokenText);
+      } else if (res.type === 'conversational') {
+        addCharlieMessage(raw, res);
+        const msg = resolveSpokenText(res);
+        scheduleOutputReset(msg);
+        if (voiceEnabled && voiceAutoPlay) {
+          if (msg) {
+            playResponse(res.audioUrl || null, msg, res.response?.id);
+          } else if (!msg) {
+            console.warn("CHARLIE: empty spoken text from VTT conversational response", res);
+          }
+        }
       }
     } catch (e) {
       console.error('VTT error:', e);
-      const errMsg = "I couldn't process that. Please try again.";
-      addCharlieMessage(raw, { response: { message: errMsg } });
-      scheduleOutputReset(errMsg);
     } finally {
       setLoading(false);
     }
@@ -563,9 +576,11 @@ export default function VoiceCommandModule() {
         startContinuousTranscriptCapture();
       }, 1000);
     };
+
     const cancelAltToggleTimer = () => {
       window.clearTimeout(altTranscriptionTimerRef.current);
     };
+
     const onKeyDown = (e) => {
       if (e.repeat || e.key !== 'Alt') return;
       if (isOpen && isContinuous) {
@@ -575,10 +590,12 @@ export default function VoiceCommandModule() {
       }
       startAltToggleTimer();
     };
+
     const onKeyUp = (e) => {
       if (e.key !== 'Alt') return;
       cancelAltToggleTimer();
     };
+
     window.addEventListener('keydown', onKeyDown, { capture: true });
     window.addEventListener('keyup', onKeyUp, { capture: true });
     window.addEventListener('blur', cancelAltToggleTimer);
@@ -625,6 +642,7 @@ export default function VoiceCommandModule() {
 
   return (
     <div className="fixed left-[192px] bottom-4 z-50 w-80 rounded-xl border border-[#1E2024] bg-[#0D0F12] shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden">
+      {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#1E2024] bg-[#111318] gap-2">
         <div className="flex items-center gap-2 flex-shrink-0">
           <MessageSquare size={12} className="text-cyan-400" />
@@ -753,6 +771,7 @@ export default function VoiceCommandModule() {
                  <Mic size={8} /> {msg.role === 'command' ? 'you (voice)' : 'you'}:
               </div>
               <div className="text-[10px] text-emerald-400 pl-2 border-l border-emerald-500/30">{resolveUserText(msg)}</div>
+              
               {resolveMonitorReply(msg) && (
                 <>
                   <div className="text-[8px] text-amber-500 uppercase tracking-widest font-black mt-1">charlie:</div>
@@ -778,6 +797,7 @@ export default function VoiceCommandModule() {
         </div>
       )}
 
+      {/* Footer / Input */}
       <div className="border-t border-[#1E2024] px-3 py-2 bg-[#0D0F12]">
         <div className="flex items-center gap-2">
           <input
@@ -792,6 +812,7 @@ export default function VoiceCommandModule() {
             <Send size={12} />
           </button>
         </div>
+        
         <div className="mt-1 flex items-center justify-between border-t border-white/5 pt-1">
           <div className="flex items-center gap-2">
             <span className="text-[6px] text-slate-700 uppercase font-bold tracking-[0.2em]">Engine Status</span>
@@ -810,3 +831,4 @@ export default function VoiceCommandModule() {
     </div>
   );
 }
+

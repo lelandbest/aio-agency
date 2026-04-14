@@ -32,10 +32,10 @@ const DesignModule = () => {
 
   const handleSceneChange = useCallback((elements, appState) => {
     if (!elements || elements.length === 0) return;
-    
+
     // Sanitize appState for storage (remove non-serializable fields)
     const { collaborators, ...serializableAppState } = appState;
-    
+
     const data = {
       elements,
       appState: {
@@ -45,7 +45,7 @@ const DesignModule = () => {
       },
       lastSavedAt: new Date().toISOString(),
     };
-    
+
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
@@ -65,7 +65,7 @@ const DesignModule = () => {
     if (excalidrawRef.current) {
       const elements = excalidrawRef.current.getSceneElements();
       const appState = excalidrawRef.current.getAppState();
-      
+
       import('@excalidraw/excalidraw').then(({ exportToPng }) => {
         exportToPng({ elements, appState }).then((blob) => {
           const url = URL.createObjectURL(blob);
@@ -84,7 +84,7 @@ const DesignModule = () => {
       const elements = excalidrawRef.current.getSceneElements();
       const appState = excalidrawRef.current.getAppState();
       const data = JSON.stringify({ elements, appState }, null, 2);
-      
+
       const blob = new Blob([data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -120,51 +120,37 @@ const DesignModule = () => {
   }
 
   return (
-    <div className="module-root-standard bg-[#1a1a1a] flex flex-col h-full w-full overflow-hidden">
-      {/* Toolbar */}
-      <div className="module-toolbar">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <button
-            onClick={handleClearCanvas}
-            className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
-          >
-            <span className="font-bold uppercase tracking-[0.14em]">New</span>
-          </button>
-          <button
-            onClick={handleExportPng}
-            className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
-          >
-            <span className="font-bold uppercase tracking-[0.14em]">Export PNG</span>
-          </button>
-          <button
-            onClick={handleExportJson}
-            className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
-          >
-            <span className="font-bold uppercase tracking-[0.14em]">Export JSON</span>
-          </button>
-        </div>
+    <div className="module-root-standard bg-[#050505] flex flex-col h-full w-full overflow-hidden">
+      <ModuleHeader
+        title="Design Surface"
+        showTitle={false}
+        className="mx-2 mt-2"
+        leftActions={[
+          {
+            label: 'New',
+            icon: null,
+            onClick: handleClearCanvas,
+            variant: 'primary'
+          }
+        ]}
+        actions={[
+          {
+            label: 'Export PNG',
+            icon: null,
+            onClick: handleExportPng,
+            variant: 'secondary'
+          },
+          {
+            label: 'Export JSON',
+            icon: null,
+            onClick: handleExportJson,
+            variant: 'secondary'
+          }
+        ]}
+        onModuleAi={() => openAIAssist({ context: { module: 'design' } })}
+      />
 
-        <div className="flex min-w-0 items-center gap-3 shrink-0">
-          <div className="module-toolbar-utility">
-            <button
-              onClick={() => openAIAssist()}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Brain (Global KB)"
-            >
-              <BrainIcon size={14} />
-            </button>
-            <button
-              onClick={() => openAIAssist({ context: { module: 'design' } })}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Crosshair (Module AI)"
-            >
-              <Crosshair size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div className="module-content-stage bg-[#1a1a1a] p-2 flex-1 relative min-h-0">
+      <div className="module-surface-shell flex-1 mx-2 mb-2 relative overflow-hidden">
         <Excalidraw
           ref={excalidrawRef}
           initialData={initialData}

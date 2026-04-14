@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Clock, MapPin, Trash2, Edit, Eye, Copy, ExternalLink, Search } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Clock, MapPin, Trash2, Edit, Eye, Copy, ExternalLink, Search, Video, Phone, RefreshCw } from 'lucide-react';
 import {
   createBookingTypeApi,
   createCalendarEventApi,
@@ -284,6 +284,11 @@ const CalendarModule = ({ clientMode = false }) => {
     setShowEventModal(true);
   };
 
+  const handleCreateBooker = () => {
+    setSelectedBooker(null);
+    setShowBookerModal(true);
+  };
+
   const handleEditEvent = (evt) => {
     setSelectedEvent(evt);
     setShowEventModal(true);
@@ -508,9 +513,9 @@ const CalendarModule = ({ clientMode = false }) => {
     if (view === 'month') {
       const days = getDaysInMonth(currentDate);
       return (
-        <div className="grid grid-cols-7 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-white/5 border border-white/5 rounded-[var(--radius-panel)] overflow-hidden">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="bg-[var(--color-bg-primary)] p-2 text-center text-xs text-[var(--color-text-tertiary)] font-medium uppercase">
+            <div key={day} className="bg-black p-2 text-center text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
               {day}
             </div>
           ))}
@@ -521,10 +526,9 @@ const CalendarModule = ({ clientMode = false }) => {
               <div
                 key={i}
                 onClick={() => setCurrentDate(day.fullDate)}
-                className={`calendar-cell calendar-cell-hover min-h-[120px] p-2 transition group relative ${!day.isCurrentMonth ? 'opacity-40' : ''
-                  }`}
+                className={`calendar-cell min-h-[100px] p-2 transition bg-black relative ${!day.isCurrentMonth ? 'opacity-20' : ''}`}
               >
-                <div className={`text-xs mb-1 ${isToday ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] w-6 h-6 rounded-full flex items-center justify-center font-bold' : 'text-[var(--color-text-tertiary)]'}`}>
+                <div className={`text-xs mb-1 ${isToday ? 'bg-[var(--color-primary)] text-white w-6 h-6 rounded-full flex items-center justify-center font-bold' : 'text-zinc-500'}`}>
                   {day.date}
                 </div>
                 <div className="space-y-1">
@@ -534,19 +538,13 @@ const CalendarModule = ({ clientMode = false }) => {
                       <div
                         key={evt.id}
                         onClick={() => handleEditEvent(evt)}
-                        className="text-xs p-1 rounded cursor-pointer hover:opacity-80"
-                        style={{ backgroundColor: cal?.color + '20', borderLeft: `3px solid ${cal?.color}` }}
+                        className="text-[10px] p-1 rounded cursor-pointer hover:opacity-80 truncate"
+                        style={{ backgroundColor: cal?.color + '20', borderLeft: `2px solid ${cal?.color}`, color: 'white' }}
                       >
-                        <div className="text-[var(--color-text-primary)] font-medium truncate">{evt.title}</div>
-                        <div className="text-[var(--color-text-secondary)] text-[10px]">
-                          {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        </div>
+                        {evt.title}
                       </div>
                     );
                   })}
-                  {dayEvents.length > 3 && (
-                    <div className="text-xs text-[var(--color-text-tertiary)]">+{dayEvents.length - 3} more</div>
-                  )}
                 </div>
               </div>
             );
@@ -570,14 +568,14 @@ const CalendarModule = ({ clientMode = false }) => {
         <div className="overflow-x-auto no-scrollbar">
           <div className="min-w-[800px]">
             {/* Week header */}
-            <div className="grid grid-cols-8 gap-px bg-[var(--color-hover)] border border-[var(--color-border)] rounded-t-[var(--radius-panel)] overflow-hidden">
-              <div className="bg-[var(--color-bg-primary)] p-2"></div>
+            <div className="grid grid-cols-8 gap-px bg-white/5 border border-white/5 rounded-t-[var(--radius-panel)] overflow-hidden">
+              <div className="bg-black p-2"></div>
               {weekDays.map((day, i) => {
                 const isToday = day.toDateString() === new Date().toDateString();
                 return (
-                  <div key={i} className={`bg-[var(--color-bg-primary)] p-2 text-center ${isToday ? 'bg-[var(--color-primary)]/10' : ''}`}>
-                    <div className="text-xs text-[var(--color-text-tertiary)]">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                    <div className={`text-sm font-bold ${isToday ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
+                  <div key={i} className={`bg-black p-2 text-center ${isToday ? 'bg-[var(--color-primary)]/10' : ''}`}>
+                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    <div className={`text-sm font-bold ${isToday ? 'text-[var(--color-accent)]' : 'text-zinc-200'}`}>
                       {day.getDate()}
                     </div>
                   </div>
@@ -586,10 +584,10 @@ const CalendarModule = ({ clientMode = false }) => {
             </div>
 
             {/* Time slots */}
-            <div className="border border-t-0 border-[var(--color-border)] rounded-b-[var(--radius-panel)] overflow-hidden">
+            <div className="border border-t-0 border-white/5 rounded-b-[var(--radius-panel)] overflow-hidden">
               {hours.map(hour => (
-                <div key={hour} className="grid grid-cols-8 gap-px bg-[var(--color-hover)]">
-                  <div className="bg-[var(--color-bg-primary)] p-2 text-xs text-[var(--color-text-tertiary)] text-right pr-3">
+                <div key={hour} className="grid grid-cols-8 gap-px bg-white/5">
+                  <div className="bg-black p-2 text-[10px] text-zinc-500 font-bold text-right pr-3">
                     {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
                   </div>
                   {weekDays.map((day, i) => {
@@ -598,7 +596,7 @@ const CalendarModule = ({ clientMode = false }) => {
                       return evtHour === hour;
                     });
                     return (
-                      <div key={i} className="calendar-cell calendar-cell-hover p-1 min-h-[60px] transition relative">
+                      <div key={i} className="calendar-cell min-h-[50px] p-1 transition bg-black relative">
                         {dayEvents.map(evt => {
                           const cal = calendars.find(c => c.id === evt.calendarId);
                           return (
@@ -628,8 +626,8 @@ const CalendarModule = ({ clientMode = false }) => {
       const dayEvents = getEventsForDay(currentDate);
 
       return (
-        <div className="border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
-          <div className="bg-[var(--color-bg-primary)] p-4 border-b border-[var(--color-border)] text-center">
+        <div className="overflow-hidden">
+          <div className="p-4 text-center">
             <div className="text-sm text-[var(--color-text-tertiary)]">
               {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
             </div>
@@ -699,105 +697,65 @@ const CalendarModule = ({ clientMode = false }) => {
   const renderContent = () => {
     if (activeTab === 'calendar') {
       return (
-        <div className="flex h-full min-h-0">
+        <div className="flex h-full min-h-0 gap-4 p-4 bg-black overflow-hidden">
+          {/* Column 1: Source Control Islands */}
           {!clientMode ? (
-            <aside className="hidden lg:flex w-72 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-secondary)]/85">
-              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
-                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Active Source</div>
-                      <div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCalendarSource?.name || 'No source selected'}</div>
-                    </div>
-                    <button
-                      onClick={() => setShowCalendarOps((current) => !current)}
-                      className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
-                    >
-                      {showCalendarOps ? 'Hide Details' : 'Source Details'}
-                    </button>
-                  </div>
-                  <select
-                    value={selectedCalendarSourceId || ''}
-                    onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
-                    className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
-                  >
-                    {calendarSources.map((source) => (
-                      <option key={source.id} value={source.id}>{source.name}</option>
-                    ))}
-                  </select>
-                  {selectedCalendarSource ? (
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">{selectedCalendarSource.health?.label || selectedCalendarSource.status}</span>
-                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Events {selectedCalendarSource.eventCounts?.total || 0}</span>
-                      <span className="rounded-full border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-secondary)]">Conflicts {selectedCalendarSource.eventCounts?.conflicts || 0}</span>
-                    </div>
-                  ) : null}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={handleSyncCalendarSource} disabled={!selectedCalendarSource?.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">Sync</button>
-                    <button onClick={handleImportCalendarSource} disabled={!selectedCalendarSource?.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">Import</button>
-                    <button onClick={() => setShowSourceComposer((current) => !current)} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">
-                      {showSourceComposer ? 'Hide New Source' : 'New Source'}
-                    </button>
-                    <button onClick={openCalendarAdmin} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">Integrations</button>
-                  </div>
-                </div>
+            <aside className="hidden lg:flex w-72 shrink-0 flex-col gap-4">
+              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">Active Source</div>
+                <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">{selectedCalendarSource?.name || 'No source selected'}</div>
+                <select
+                  value={selectedCalendarSourceId || ''}
+                  onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                >
+                  {calendarSources.map((source) => (
+                    <option key={source.id} value={source.id}>{source.name}</option>
+                  ))}
+                </select>
+              </div>
 
-                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                  <div className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase tracking-wider">Visible Calendars</div>
-                  <div className="space-y-2">
-                    {calendars.map(cal => (
-                      <label key={cal.id} className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
-                        <input
-                          type="checkbox"
-                          checked={cal.isVisible}
-                          onChange={() => toggleCalendar(cal.id)}
-                          className="rounded bg-[var(--color-bg-primary)] border-[var(--color-border)]"
-                          style={{ accentColor: cal.color }}
-                        />
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cal.color }}></div>
-                        <span className="truncate">{cal.name}</span>
-                      </label>
-                    ))}
-                  </div>
+              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
+                <div className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-[0.2em] mb-3">Visible Layers</div>
+                <div className="space-y-3">
+                  {calendars.map(cal => (
+                    <label key={cal.id} className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] cursor-pointer hover:text-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={cal.isVisible}
+                        onChange={() => toggleCalendar(cal.id)}
+                        className="rounded bg-black border-white/10"
+                        style={{ accentColor: cal.color }}
+                      />
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cal.color }}></div>
+                      <span className="truncate">{cal.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             </aside>
           ) : null}
 
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-            <div className="calendar-panel-soft border-b border-[var(--color-border)] px-4 py-3">
+          {/* Island 2: Main Calendar (Scale 90) */}
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-[var(--radius-panel)] bg-black border border-white/10 overflow-hidden shadow-2xl">
+            <div className="px-4 py-3 bg-black">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
+                  <h2 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
                     {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                   </h2>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => navigateMonth(-1)}
-                      className="rounded-[var(--radius-card)] p-2 text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                    <button
-                      onClick={() => setCurrentDate(new Date())}
-                      className="rounded-[var(--radius-card)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-                    >
-                      Today
-                    </button>
-                    <button
-                      onClick={() => navigateMonth(1)}
-                      className="rounded-[var(--radius-card)] p-2 text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
+                  <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
+                    <button onClick={() => navigateMonth(-1)} className="p-1.5 hover:bg-white/5 rounded-md transition text-zinc-400 hover:text-white"><ChevronLeft size={16} /></button>
+                    <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-[10px] uppercase font-bold tracking-widest text-zinc-400 hover:text-white">Today</button>
+                    <button onClick={() => navigateMonth(1)} className="p-1.5 hover:bg-white/5 rounded-md transition text-zinc-400 hover:text-white"><ChevronRight size={16} /></button>
                   </div>
                 </div>
-                <div className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar">
+                <div className="flex gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
                   {['day', 'week', 'month'].map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setView(mode)}
-                      className={`shrink-0 rounded-[var(--radius-card)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${view === mode ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+                      className={`px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded-md transition-all ${view === mode ? 'bg-[var(--color-primary)] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
                       {mode}
                     </button>
@@ -806,115 +764,55 @@ const CalendarModule = ({ clientMode = false }) => {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-auto no-scrollbar p-4 md:p-6">
-              {renderCalendarView()}
+            <div className="flex-1 min-h-0 overflow-hidden relative bg-black">
+              <div className="absolute inset-0 origin-top transform scale-[0.85] p-2 no-scrollbar overflow-hidden">
+                {renderCalendarView()}
+              </div>
             </div>
           </div>
 
-          {(!clientMode || selectedDayEvents.length > 0 || upcomingBookings.length > 0 || calendarNotice) ? (
-            <aside className="hidden xl:flex w-[340px] shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-bg-secondary)]/85">
-              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
-                {calendarNotice ? (
-                  <div className={`rounded-[var(--radius-panel)] border px-3 py-3 text-sm ${calendarNotice.tone === 'success' ? 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 text-[var(--color-warning)]'}`}>
-                    {calendarNotice.message}
-                  </div>
-                ) : null}
-
-                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Selected Day</div>
-                  <div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
-                    {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {selectedDayEvents.length > 0 ? selectedDayEvents.map((evt) => (
-                      <button
-                        key={evt.id}
-                        type="button"
-                        onClick={() => handleEditEvent(evt)}
-                        className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-left transition hover:border-[var(--color-primary)]/40"
-                      >
-                        <div className="text-sm font-medium text-[var(--color-text-primary)]">{evt.title}</div>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                          {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        </div>
-                        {evt.guestName || evt.guestEmail ? (
-                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guestName || evt.guestEmail}</div>
-                        ) : null}
-                      </button>
-                    )) : (
-                      <div className="text-sm text-[var(--color-text-secondary)]">No bookings on the selected day.</div>
-                    )}
-                  </div>
+          {/* Column 3: Independent Floating Islands */}
+          {(!clientMode || selectedDayEvents.length > 0 || upcomingBookings.length > 0) ? (
+            <aside className="hidden xl:flex w-80 shrink-0 flex-col gap-4">
+              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-3">Agenda Detail</div>
+                <div className="text-sm font-bold text-white mb-4">
+                  {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
-
-                <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Upcoming Bookings</div>
-                  <div className="mt-3 space-y-3">
-                    {upcomingBookings.length > 0 ? upcomingBookings.map((evt) => (
-                      <button
-                        key={evt.id}
-                        type="button"
-                        onClick={() => {
-                          setCurrentDate(new Date(evt.startTime));
-                          handleEditEvent(evt);
-                        }}
-                        className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-left transition hover:border-[var(--color-primary)]/40"
-                      >
-                        <div className="text-sm font-medium text-[var(--color-text-primary)]">{evt.title}</div>
-                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                          {new Date(evt.startTime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                        </div>
-                        {evt.guestName || evt.guestEmail ? (
-                          <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{evt.guestName || evt.guestEmail}</div>
-                        ) : null}
-                      </button>
-                    )) : (
-                      <div className="text-sm text-[var(--color-text-secondary)]">No upcoming bookings are scheduled.</div>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  {selectedDayEvents.length > 0 ? selectedDayEvents.map((evt) => (
+                    <button
+                      key={evt.id}
+                      onClick={() => handleEditEvent(evt)}
+                      className="w-full rounded-xl border border-white/5 bg-black/20 p-3 text-left hover:border-zinc-500 transition-all group"
+                    >
+                      <div className="text-sm font-medium text-zinc-200 group-hover:text-white">{evt.title}</div>
+                      <div className="mt-1 text-[10px] text-zinc-500 font-mono">
+                        {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+                    </button>
+                  )) : (
+                    <div className="text-xs text-zinc-500 italic py-2">No bookings.</div>
+                  )}
                 </div>
+              </div>
 
-                {!clientMode && selectedCalendarSource && showCalendarOps ? (
-                  <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[var(--color-text-primary)] font-semibold">Source Details</div>
-                      <button onClick={handleTestCalendarSource} disabled={!selectedCalendarSource?.id} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)] disabled:opacity-50">Test</button>
-                    </div>
-                    <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-                      <div><span className="text-[var(--color-text-primary)] font-medium">Provider:</span> {selectedCalendarSource.provider}</div>
-                      <div><span className="text-[var(--color-text-primary)] font-medium">Authority:</span> {sourceRuleLabels[selectedCalendarSource.authority_mode] || selectedCalendarSource.authority_mode}</div>
-                      <div><span className="text-[var(--color-text-primary)] font-medium">Import:</span> {sourceRuleLabels[selectedCalendarSource.import_policy] || selectedCalendarSource.import_policy}</div>
-                      <div>{selectedCalendarSource.health?.detail || 'Calendar source ready.'}</div>
-                    </div>
-                    <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                      Calendar credentials, OAuth connection, and authority settings live in Integrations. Calendar keeps operational sync and import controls only.
-                    </div>
-                  </div>
-                ) : null}
-
-                {!clientMode && showSourceComposer ? (
-                  <div className="rounded-[var(--radius-panel)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/8 p-4 space-y-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">New Source</div>
-                    <div className="grid gap-3 text-sm">
-                      <label className="space-y-1">
-                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Source Name</div>
-                        <input value={sourceDraft.name} onChange={(e) => setSourceDraft((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-                      </label>
-                      <label className="space-y-1">
-                        <div className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-tertiary)]">Provider</div>
-                        <select value={sourceDraft.provider} onChange={(e) => setSourceDraft((current) => ({ ...current, provider: e.target.value, config: { authority_mode: current.config?.authority_mode || 'local-first', import_policy: current.config?.import_policy || 'review' } }))} className="w-full rounded-[var(--radius-card)] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] px-3 py-2 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]">
-                          {calendarProviders.map((provider) => (
-                            <option key={provider.id} value={provider.id}>{provider.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => { setShowSourceComposer(false); setSourceDraft(createCalendarSourceDraft()); }} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]">Cancel</button>
-                      <button onClick={handleCreateCalendarSource} disabled={!sourceDraft.name.trim()} className="rounded-[var(--radius-card)] bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-[var(--color-text-on-primary)] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50">Create Source</button>
-                    </div>
-                  </div>
-                ) : null}
+              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-3">Upcoming</div>
+                <div className="space-y-2">
+                  {upcomingBookings.slice(0, 3).map((evt) => (
+                    <button
+                      key={evt.id}
+                      onClick={() => { setCurrentDate(new Date(evt.startTime)); handleEditEvent(evt); }}
+                      className="w-full rounded-xl border border-white/5 bg-black/10 p-3 text-left hover:bg-white/5 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-zinc-300">{evt.title}</div>
+                      <div className="text-[10px] text-zinc-500 mt-1">
+                        {new Date(evt.startTime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </aside>
           ) : null}
@@ -926,76 +824,63 @@ const CalendarModule = ({ clientMode = false }) => {
         return (
           <div className="h-full overflow-auto no-scrollbar p-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <button
-              onClick={() => {
-                setSelectedBooker(null);
-                setShowBookerModal(true);
-              }}
-              className="border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-panel)] flex flex-col items-center justify-center p-8 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition gap-3 h-48"
-            >
-              <div className="w-10 h-10 rounded-full bg-[var(--color-bg-primary)] flex items-center justify-center border border-[var(--color-border)] shadow-island-sm">
-                <Plus size={20} />
-              </div>
-              <span className="font-medium">Create Meeting Type</span>
-            </button>
-
-            {filteredBookingTypes.map(booker => (
-              <div key={booker.id} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-5 hover:border-[var(--color-primary)]/50 transition group flex flex-col h-48 shadow-island-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <div className="font-bold text-[var(--color-text-primary)] text-lg mb-1">{booker.name}</div>
-                    <div className="text-xs text-[var(--color-text-secondary)] mb-2">{booker.duration_minutes} min • {booker.location}</div>
+              {filteredBookingTypes.map(booker => (
+                <div key={booker.id} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-5 hover:border-[var(--color-primary)]/50 transition group flex flex-col h-48 shadow-island-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <div className="font-bold text-[var(--color-text-primary)] text-lg mb-1">{booker.name}</div>
+                      <div className="text-xs text-[var(--color-text-secondary)] mb-2">{booker.duration_minutes} min • {booker.location}</div>
+                    </div>
+                    <div className={`px-2 py-0.5 rounded text-[10px] border ${booker.is_active
+                      ? 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20'
+                      : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border)]'
+                      }`}>
+                      {booker.is_active ? 'Active' : 'Inactive'}
+                    </div>
                   </div>
-                  <div className={`px-2 py-0.5 rounded text-[10px] border ${booker.is_active
-                    ? 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20'
-                    : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border)]'
-                    }`}>
-                    {booker.is_active ? 'Active' : 'Inactive'}
+
+                  <div className="text-sm text-[var(--color-text-secondary)] mb-4 line-clamp-2 flex-1">
+                    {booker.description}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedBookingType(booker);
+                        setShowBookingPage(true);
+                      }}
+                      className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                      title="Preview"
+                    >
+                      <Eye size={12} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/book/${booker.slug}`);
+                      }}
+                      className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                      title="Copy Link"
+                    >
+                      <Copy size={12} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedBooker(booker);
+                        setShowBookerModal(true);
+                      }}
+                      className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                      title="Edit"
+                    >
+                      <Edit size={12} />
+                    </button>
                   </div>
                 </div>
-
-                <div className="text-sm text-[var(--color-text-secondary)] mb-4 line-clamp-2 flex-1">
-                  {booker.description}
+              ))}
+              {filteredBookingTypes.length === 0 ? (
+                <div className="col-span-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-8 text-center text-[var(--color-text-secondary)]">
+                  No meeting types match the current search.
                 </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedBookingType(booker);
-                      setShowBookingPage(true);
-                    }}
-                    className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                    title="Preview"
-                  >
-                    <Eye size={12} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/book/${booker.slug}`);
-                    }}
-                    className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                    title="Copy Link"
-                  >
-                    <Copy size={12} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedBooker(booker);
-                      setShowBookerModal(true);
-                    }}
-                    className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                    title="Edit"
-                  >
-                    <Edit size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {filteredBookingTypes.length === 0 ? (
-              <div className="col-span-full rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-8 text-center text-[var(--color-text-secondary)]">
-                No meeting types match the current search.
-              </div>
-            ) : null}
+              ) : null}
             </div>
           </div>
         );
@@ -1003,19 +888,7 @@ const CalendarModule = ({ clientMode = false }) => {
         // List view
         return (
           <div className="h-full overflow-auto no-scrollbar p-6">
-            <div className="mb-4">
-              <button
-                onClick={() => {
-                  setSelectedBooker(null);
-                  setShowBookerModal(true);
-                }}
-                className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded text-sm font-medium flex items-center gap-2"
-              >
-                <Plus size={16} />
-                + ADD EVENT
-              </button>
-            </div>
-            <div className="border border-[var(--color-border)] rounded-lg overflow-hidden bg-[var(--color-bg-primary)]">
+            <div className="border border-white/10 rounded-lg overflow-hidden bg-[var(--color-bg-primary)] shadow-island-sm">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[var(--color-bg-primary)] border-b border-[var(--color-border)] text-[var(--color-text-secondary)] text-[11px] uppercase font-black tracking-[0.2em]">
                   <tr>
@@ -1106,142 +979,142 @@ const CalendarModule = ({ clientMode = false }) => {
         return (
           <div className="h-full overflow-auto no-scrollbar p-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredEvents.map(evt => {
-              const cal = calendars.find(c => c.id === evt.calendarId);
-              return (
-                <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-[var(--radius-panel)] p-5 transition shadow-island-sm ${evt.is_backend_artifact ? 'border-[var(--color-success)]/30' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40'}`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-[var(--color-text-primary)] mb-1">{evt.title}</h3>
-                      <div className="text-xs text-[var(--color-text-secondary)] mb-2">
-                        {new Date(evt.startTime).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
+              {filteredEvents.map(evt => {
+                const cal = calendars.find(c => c.id === evt.calendarId);
+                return (
+                  <div key={evt.id} className={`bg-[var(--color-bg-primary)] border rounded-[var(--radius-panel)] p-5 transition shadow-island-sm ${evt.is_backend_artifact ? 'border-[var(--color-success)]/30' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-[var(--color-text-primary)] mb-1">{evt.title}</h3>
+                        <div className="text-xs text-[var(--color-text-secondary)] mb-2">
+                          {new Date(evt.startTime).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+                      <select
+                        value={evt.status}
+                        onChange={(e) => handleStatusChange(evt.id, e.target.value)}
+                        className={`px-2 py-1 rounded-[var(--radius-card)] text-xs bg-[var(--color-bg-secondary)] border ${getStatusTone(evt.status)} focus:outline-none transition`}
+                      >
+                        <option value="scheduled">Scheduled</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="no_show">No Show</option>
+                      </select>
+                    </div>
+
+                    {evt.guestName && (
+                      <div className="text-sm text-[var(--color-text-secondary)] mb-2">
+                        👤 {evt.guestName}
+                      </div>
+                    )}
+                    {evt.guestEmail && (
+                      <div className="text-sm text-[var(--color-text-secondary)] mb-2">
+                        ✉️ {evt.guestEmail}
+                      </div>
+                    )}
+                    {evt.location && (
+                      <div className="text-sm text-[var(--color-text-secondary)] mb-3 flex items-center gap-1">
+                        <MapPin size={12} />
+                        {evt.location}
+                      </div>
+                    )}
+                    {evt.meetingUrl && (
+                      <a
+                        href={evt.meetingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-[var(--color-accent)] hover:opacity-80 mb-3 flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink size={12} />
+                        Join Meeting
+                      </a>
+                    )}
+                    {evt.is_backend_artifact && evt.sync_note ? (
+                      <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+                        {evt.sync_note}
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
+                          {cal?.name}
+                        </span>
+                        {evt.is_backend_artifact ? (
+                          <span className="px-2 py-1 rounded text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                            {evt.source_label || 'Comms'}
+                          </span>
+                        ) : null}
+                        {evt.is_backend_artifact ? (
+                          <span className={`px-2 py-1 rounded text-xs border ${syncTone(evt.sync_status)}`}>
+                            {evt.sync_status || 'pending'}
+                          </span>
+                        ) : null}
+                        {evt.is_backend_artifact ? (
+                          <span className={`px-2 py-1 rounded text-xs border ${conflictTone(evt.conflict_state)}`}>
+                            {evt.conflict_state || 'clear'}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex gap-2">
+                        {evt.is_backend_artifact ? (
+                          <button
+                            onClick={() => handlePushEvent(evt.id)}
+                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-success)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                            title="Push to source"
+                          >
+                            <ExternalLink size={16} />
+                          </button>
+                        ) : null}
+                        {evt.is_backend_artifact && evt.conflict_state === 'review' ? (
+                          <>
+                            <button
+                              onClick={() => handleReconcileEvent(evt.id, 'keep_local')}
+                              className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                              title="Keep local schedule"
+                            >
+                              <Copy size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleReconcileEvent(evt.id, 'accept_import')}
+                              className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-warning)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                              title="Accept imported schedule"
+                            >
+                              <Eye size={16} />
+                            </button>
+                          </>
+                        ) : null}
+                        <button
+                          onClick={() => handleEditEvent(evt)}
+                          className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                          title="Edit"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEvent(evt.id)}
+                          className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
-                    <select
-                      value={evt.status}
-                      onChange={(e) => handleStatusChange(evt.id, e.target.value)}
-                      className={`px-2 py-1 rounded-[var(--radius-card)] text-xs bg-[var(--color-bg-secondary)] border ${getStatusTone(evt.status)} focus:outline-none transition`}
-                    >
-                      <option value="scheduled">Scheduled</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                      <option value="no_show">No Show</option>
-                    </select>
                   </div>
-
-                  {evt.guestName && (
-                    <div className="text-sm text-[var(--color-text-secondary)] mb-2">
-                      👤 {evt.guestName}
-                    </div>
-                  )}
-                  {evt.guestEmail && (
-                    <div className="text-sm text-[var(--color-text-secondary)] mb-2">
-                      ✉️ {evt.guestEmail}
-                    </div>
-                  )}
-                  {evt.location && (
-                    <div className="text-sm text-[var(--color-text-secondary)] mb-3 flex items-center gap-1">
-                      <MapPin size={12} />
-                      {evt.location}
-                    </div>
-                  )}
-                  {evt.meetingUrl && (
-                    <a
-                      href={evt.meetingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-[var(--color-accent)] hover:opacity-80 mb-3 flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink size={12} />
-                      Join Meeting
-                    </a>
-                  )}
-                  {evt.is_backend_artifact && evt.sync_note ? (
-                    <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
-                      {evt.sync_note}
-                    </div>
-                  ) : null}
-
-                  <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: cal?.color + '20', color: cal?.color }}>
-                        {cal?.name}
-                      </span>
-                      {evt.is_backend_artifact ? (
-                        <span className="px-2 py-1 rounded text-xs border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                          {evt.source_label || 'Comms'}
-                        </span>
-                      ) : null}
-                      {evt.is_backend_artifact ? (
-                        <span className={`px-2 py-1 rounded text-xs border ${syncTone(evt.sync_status)}`}>
-                          {evt.sync_status || 'pending'}
-                        </span>
-                      ) : null}
-                      {evt.is_backend_artifact ? (
-                        <span className={`px-2 py-1 rounded text-xs border ${conflictTone(evt.conflict_state)}`}>
-                          {evt.conflict_state || 'clear'}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex gap-2">
-                      {evt.is_backend_artifact ? (
-                        <button
-                          onClick={() => handlePushEvent(evt.id)}
-                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-success)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                          title="Push to source"
-                        >
-                          <ExternalLink size={16} />
-                        </button>
-                      ) : null}
-                      {evt.is_backend_artifact && evt.conflict_state === 'review' ? (
-                        <>
-                          <button
-                            onClick={() => handleReconcileEvent(evt.id, 'keep_local')}
-                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                            title="Keep local schedule"
-                          >
-                            <Copy size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleReconcileEvent(evt.id, 'accept_import')}
-                            className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-warning)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                            title="Accept imported schedule"
-                          >
-                            <Eye size={16} />
-                          </button>
-                        </>
-                      ) : null}
-                      <button
-                        onClick={() => handleEditEvent(evt)}
-                        className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                        title="Edit"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEvent(evt.id)}
-                        className="p-1.5 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] rounded-[var(--radius-card)] border border-[var(--color-border)] shadow-island-sm transition"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
+                );
+              })}
+              {filteredEvents.length === 0 && (
+                <div className="col-span-full p-8 text-center text-[var(--color-text-tertiary)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg">
+                  No bookings match the current search
                 </div>
-              );
-            })}
-            {filteredEvents.length === 0 && (
-              <div className="col-span-full p-8 text-center text-[var(--color-text-tertiary)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg">
-                No bookings match the current search
-              </div>
-            )}
+              )}
             </div>
           </div>
         );
@@ -1380,10 +1253,11 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   return (
-    <div className="module-root-standard calendar-surface relative">
+    <div className="flex h-full flex-col bg-black overflow-hidden relative">
       <ModuleHeader
         showTitle={false}
         showActions={true}
+        className="mx-2 mt-2"
         leftActions={[
           ...visibleTabs.map(tab => ({
             label: tab.charAt(0).toUpperCase() + tab.slice(1),
@@ -1393,16 +1267,10 @@ const CalendarModule = ({ clientMode = false }) => {
           }))
         ]}
         actions={[
-          ...(!clientMode ? [{
-            label: 'Manage Sources',
-            icon: CalendarIcon,
-            onClick: openCalendarAdmin,
-            variant: 'secondary'
-          }] : []),
           {
-            label: '+ ADD EVENT',
+            label: activeTab === 'bookers' ? 'ADD MEETING TYPE' : 'ADD EVENT',
             icon: Plus,
-            onClick: handleCreateEvent,
+            onClick: activeTab === 'bookers' ? handleCreateBooker : handleCreateEvent,
             variant: 'primary',
             groupStart: true
           }
@@ -1440,11 +1308,11 @@ const CalendarModule = ({ clientMode = false }) => {
               </button>
             </div>
           ) : null
-        } 
+        }
         onModuleAi={() => openAIAssist({ context: { module: 'calendar', activeTab } })}
       />
 
-      <div className="module-content-stage module-surface-shell relative">
+      <div className="flex-1 min-h-0 bg-black relative px-2 pb-2 pt-3">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-[var(--color-text-secondary)]">Loading...</div>
@@ -1456,36 +1324,48 @@ const CalendarModule = ({ clientMode = false }) => {
 
       {/* Event Modal */}
       {showEventModal && (
-        <EventModal
-          event={selectedEvent}
-          calendars={calendars}
-          clientMode={clientMode}
-          managedByBackend={Boolean(selectedEvent?.threadId || selectedEvent?.source === 'comms')}
-          allowDelete={!selectedEvent?.threadId}
-          onSave={handleSaveEvent}
-          onDelete={handleDeleteEvent}
-          onClose={() => setShowEventModal(false)}
-        />
+        <div className="fixed inset-y-0 right-0 z-[100] w-full max-w-[500px] pointer-events-none">
+          <div className="relative h-full bg-black/60 backdrop-blur-xl border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300 pointer-events-auto">
+            <EventModal
+              event={selectedEvent}
+              calendars={calendars}
+              clientMode={clientMode}
+              managedByBackend={Boolean(selectedEvent?.threadId || selectedEvent?.source === 'comms')}
+              allowDelete={!selectedEvent?.threadId}
+              onSave={handleSaveEvent}
+              onDelete={handleDeleteEvent}
+              onClose={() => setShowEventModal(false)}
+            />
+          </div>
+        </div>
       )}
 
       {/* Booker Modal */}
       {!clientMode && showBookerModal && (
-        <BookerModal
-          booker={selectedBooker}
-          onSave={handleSaveBooker}
-          onDelete={handleDeleteBooker}
-          onClose={() => setShowBookerModal(false)}
-        />
+        <div className="fixed inset-y-0 right-0 z-[100] w-full max-w-[500px] pointer-events-none">
+          <div className="relative h-full bg-black/60 backdrop-blur-xl border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300 pointer-events-auto">
+            <BookerModal
+              booker={selectedBooker}
+              onSave={handleSaveBooker}
+              onDelete={handleDeleteBooker}
+              onClose={() => setShowBookerModal(false)}
+            />
+          </div>
+        </div>
       )}
 
       {/* Booking Page */}
       {showBookingPage && selectedBookingType && (
-        <BookingPage
-          bookingType={selectedBookingType}
-          events={events}
-          onClose={() => setShowBookingPage(false)}
-          onBook={handleGuestBooking}
-        />
+        <div className="fixed inset-y-0 right-0 z-[101] w-full max-w-[500px] pointer-events-none">
+          <div className="relative h-full bg-black/60 backdrop-blur-xl border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300 pointer-events-auto">
+            <BookingPage
+              bookingType={selectedBookingType}
+              events={events}
+              onClose={() => setShowBookingPage(false)}
+              onBook={handleGuestBooking}
+            />
+          </div>
+        </div>
       )}
 
       {/* Google Integration Link Modal */}
@@ -1611,24 +1491,25 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-island">
-        <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
-          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{booker ? 'Edit' : 'Create'} Meeting Type</h3>
-          <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-            <X size={20} />
-          </button>
-        </div>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-transparent">
+        <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{booker ? 'Edit' : 'Create'} Meeting Type</h3>
+        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition text-[var(--color-text-secondary)] hover:text-white">
+          <X size={20} />
+        </button>
+      </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
-          {assistError ? (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-              {assistError}
-            </div>
-          ) : null}
+      <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+        {assistError ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+            {assistError}
+          </div>
+        ) : null}
+
+        <div className="space-y-4">
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Meeting Name</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Meeting Name *</label>
               <AIAssistButton variant="inline" onAssist={() => applyBookerAssist('name')} loading={assistTarget === 'name'} tooltip="Draft meeting name" iconType="crosshair" />
             </div>
             <input
@@ -1636,28 +1517,28 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               placeholder="e.g., 30 Minute Meeting"
             />
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Description</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Description</label>
               <AIAssistButton variant="inline" onAssist={() => applyBookerAssist('description')} loading={assistTarget === 'description'} tooltip="Draft booking description" iconType="crosshair" />
             </div>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               rows="3"
               placeholder="Describe this meeting type"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Duration (minutes)</label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Duration (min)</label>
               <input
                 type="number"
                 required
@@ -1665,107 +1546,116 @@ const BookerModal = ({ booker, onSave, onDelete, onClose }) => {
                 step="15"
                 value={formData.duration_minutes}
                 onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Color</label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Color Tag</label>
+              <div className="flex gap-2 items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 h-[50px]">
+                <input
+                  type="color"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  className="w-8 h-8 rounded cursor-pointer bg-transparent border-none"
+                />
+                <span className="text-xs text-zinc-500 font-mono uppercase tracking-widest">{formData.color}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)] block mb-2">Location Strategy</label>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {[
+                { id: 'zoom', label: 'Zoom', icon: Video },
+                { id: 'google_meet', label: 'Meet', icon: Video },
+                { id: 'phone', label: 'Phone', icon: Phone },
+                { id: 'other', label: 'Other', icon: MapPin }
+              ].map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, locationType: type.id })}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${formData.locationType === type.id
+                    ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-white'
+                    : 'bg-white/5 border-white/10 text-zinc-400 hover:border-white/20'
+                    }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Location Details</label>
+                <AIAssistButton variant="inline" onAssist={() => applyBookerAssist('location')} loading={assistTarget === 'location'} tooltip="Draft location details" iconType="crosshair" />
+              </div>
               <input
-                type="color"
-                value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                className="w-full h-10 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-1 py-1 focus:border-[var(--color-primary)] focus:outline-none"
+                type="text"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+                placeholder={
+                  formData.locationType === 'zoom' ? 'Zoom Link' :
+                    formData.locationType === 'google_meet' ? 'Meet Link' :
+                      formData.locationType === 'phone' ? 'Phone number' :
+                        'Office address or meeting link'
+                }
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Location Type</label>
-            <select
-              value={formData.locationType}
-              onChange={(e) => setFormData({ ...formData, locationType: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
-            >
-              <option value="zoom">🎥 Zoom</option>
-              <option value="google_meet">📹 Google Meet</option>
-              <option value="phone">📞 Phone Call</option>
-              <option value="other">🔗 Other</option>
-            </select>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Location Details</label>
-              <AIAssistButton variant="inline" onAssist={() => applyBookerAssist('location')} loading={assistTarget === 'location'} tooltip="Draft location details" iconType="crosshair" />
-            </div>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
-              placeholder={
-                formData.locationType === 'zoom' ? 'Zoom Meeting' :
-                  formData.locationType === 'google_meet' ? 'Google Meet' :
-                    formData.locationType === 'phone' ? 'Phone number' :
-                      'e.g., Office, Address, or Link'
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Buffer Before (min)</label>
+          <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Buffer Before (min)</label>
               <input
                 type="number"
                 min="0"
                 step="5"
                 value={formData.buffer_before_minutes}
                 onChange={(e) => setFormData({ ...formData, buffer_before_minutes: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none shadow-island-sm transition"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Buffer After (min)</label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Buffer After (min)</label>
               <input
                 type="number"
                 min="0"
                 step="5"
                 value={formData.buffer_after_minutes}
                 onChange={(e) => setFormData({ ...formData, buffer_after_minutes: parseInt(e.target.value) })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               />
             </div>
           </div>
-        </form>
+        </div>
+      </form>
 
-        <div className="p-4 border-t border-[var(--color-border)] flex justify-between">
-          <div>
-            {booker && (
-              <button
-                type="button"
-                onClick={() => onDelete(booker.id)}
-                className="px-4 py-2 bg-[var(--color-danger)] hover:opacity-90 text-[var(--color-text-on-primary)] rounded text-sm font-medium flex items-center gap-2"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-[var(--color-hover)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] rounded-[var(--radius-card)] text-sm font-medium border border-[var(--color-border)] shadow-island-sm transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium border border-[var(--color-primary)] shadow-island-sm transition"
-            >
-              {booker ? 'Update' : 'Create'}
-            </button>
-          </div>
+      <div className="p-6 border-t border-white/10 bg-black/20 flex gap-3">
+        {booker && (
+          <button
+            type="button"
+            onClick={() => onDelete(booker.id)}
+            className="px-6 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl py-3 font-medium transition-all"
+          >
+            Delete
+          </button>
+        )}
+        <div className="flex-1 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 bg-white/5 hover:bg-white/10 text-white rounded-xl py-3 font-medium transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="flex-[2] bg-[var(--color-primary)] hover:opacity-90 text-white rounded-xl py-3 font-bold shadow-lg transition-all"
+          >
+            {booker ? 'Update' : 'Create'}
+          </button>
         </div>
       </div>
     </div>
@@ -1838,34 +1728,41 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-[var(--color-bg-secondary)] z-50 overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-2">{bookingType.name}</h1>
-            <p className="text-[var(--color-text-secondary)]">{bookingType.duration_minutes} minutes • {bookingType.location}</p>
-            {bookingType.description && <p className="text-[var(--color-text-secondary)] mt-2">{bookingType.description}</p>}
-          </div>
-          <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"><X size={24} /></button>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-transparent">
+        <div>
+          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{bookingType.name}</h3>
+          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{bookingType.duration_minutes} min • {bookingType.location}</p>
         </div>
+        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition text-[var(--color-text-secondary)] hover:text-white">
+          <X size={20} />
+        </button>
+      </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 shadow-island">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+        {bookingType.description && (
+          <div className="p-4 rounded-xl border border-white/5 bg-white/5 text-xs text-zinc-400 italic">
+            "{bookingType.description}"
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-[var(--color-text-primary)]">{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
-              <div className="flex gap-2">
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)]">
-                  <ChevronLeft size={20} />
+              <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-tertiary)]">{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+              <div className="flex gap-1">
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} className="p-1 hover:bg-white/10 rounded transition text-zinc-400">
+                  <ChevronLeft size={16} />
                 </button>
-                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} className="p-1 hover:bg-[var(--color-hover)] rounded text-[var(--color-text-secondary)]">
-                  <ChevronRight size={20} />
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} className="p-1 hover:bg-white/10 rounded transition text-zinc-400">
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
 
             <div className="grid grid-cols-7 gap-1">
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
-                <div key={day} className="text-center text-xs text-[var(--color-text-tertiary)] font-medium p-2">{day}</div>
+                <div key={day} className="text-center text-[10px] text-zinc-600 font-bold p-1">{day}</div>
               ))}
               {getDaysInMonth().map((day, i) => {
                 const availableSlots = day.isCurrentMonth && day.fullDate >= new Date() ? getAvailableSlots(day.fullDate) : [];
@@ -1875,7 +1772,12 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
                     key={i}
                     onClick={() => availableSlots.length > 0 && setSelectedDate(day.fullDate)}
                     disabled={!day.isCurrentMonth || availableSlots.length === 0}
-                    className={`p-2 text-sm rounded-[var(--radius-card)] ${isSelected ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)] shadow-island-sm' : availableSlots.length > 0 ? 'hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] cursor-pointer' : 'text-[var(--color-text-secondary)] cursor-not-allowed'} ${!day.isCurrentMonth ? 'opacity-40' : ''} transition`}
+                    className={`p-2 text-xs rounded-lg transition-all ${isSelected
+                      ? 'bg-[var(--color-primary)] text-white font-bold shadow-lg'
+                      : availableSlots.length > 0
+                        ? 'hover:bg-white/10 text-white'
+                        : 'text-zinc-700'
+                      } ${!day.isCurrentMonth ? 'opacity-0 pointer-events-none' : ''}`}
                   >
                     {day.date}
                   </button>
@@ -1884,43 +1786,60 @@ const BookingPage = ({ bookingType, events, onClose, onBook }) => {
             </div>
           </div>
 
-          <div className="space-y-6">
-            {selectedDate && (
-              <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 shadow-island">
-                <h3 className="font-bold text-[var(--color-text-primary)] mb-4">Available Times - {selectedDate.toLocaleDateString()}</h3>
-                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  {getAvailableSlots(selectedDate).map((slot, i) => (
-                    <button key={i} onClick={() => setSelectedTime(slot)} className={`p-2 text-sm rounded ${selectedTime && selectedTime.getTime() === slot.getTime() ? 'bg-[var(--color-primary)] text-[var(--color-text-on-primary)]' : 'bg-[var(--color-hover)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]'}`}>
-                      {slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                    </button>
-                  ))}
-                </div>
+          {selectedDate && (
+            <div className="space-y-3">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Available Times</label>
+              <div className="grid grid-cols-3 gap-2">
+                {getAvailableSlots(selectedDate).map((slot, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedTime(slot)}
+                    className={`p-2 text-[10px] font-bold rounded-lg border transition-all ${selectedTime && selectedTime.getTime() === slot.getTime()
+                      ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-white'
+                      : 'bg-white/5 border-white/10 text-zinc-400 hover:border-white/20'
+                      }`}
+                  >
+                    {slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {selectedTime && (
-              <form onSubmit={handleBooking} className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4 shadow-island">
-                <h3 className="font-bold text-[var(--color-text-primary)] mb-4">Your Information</h3>
-                <div>
-                  <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Name *</label>
-                  <input type="text" required value={guestInfo.name} onChange={(e) => setGuestInfo({ ...guestInfo, name: e.target.value })} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Email *</label>
-                  <input type="email" required value={guestInfo.email} onChange={(e) => setGuestInfo({ ...guestInfo, email: e.target.value })} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Phone</label>
-                  <input type="tel" value={guestInfo.phone} onChange={(e) => setGuestInfo({ ...guestInfo, phone: e.target.value })} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Notes</label>
-                  <textarea value={guestInfo.notes} onChange={(e) => setGuestInfo({ ...guestInfo, notes: e.target.value })} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none" rows="3" />
-                </div>
-                <button type="submit" className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] font-medium py-3 rounded-[var(--radius-panel)] shadow-island transition">Confirm Booking</button>
-              </form>
-            )}
-          </div>
+          {selectedTime && (
+            <div className="border-t border-white/5 pt-6 space-y-4">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Your Information</label>
+              <input
+                type="text"
+                required
+                placeholder="Name *"
+                value={guestInfo.name}
+                onChange={(e) => setGuestInfo({ ...guestInfo, name: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+              />
+              <input
+                type="email"
+                required
+                placeholder="Email *"
+                value={guestInfo.email}
+                onChange={(e) => setGuestInfo({ ...guestInfo, email: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+              />
+              <textarea
+                placeholder="Notes"
+                value={guestInfo.notes}
+                onChange={(e) => setGuestInfo({ ...guestInfo, notes: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+                rows="3"
+              />
+              <button
+                onClick={handleBooking}
+                className="w-full bg-[var(--color-primary)] hover:opacity-90 text-white font-bold py-4 rounded-xl shadow-lg transition-all uppercase tracking-widest text-xs"
+              >
+                Confirm Booking
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2237,41 +2156,87 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
       day: 'numeric',
       year: 'numeric',
       hour: 'numeric',
-      minute: '2-digit',
       hour12: true
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button
-        type="button"
-        aria-label="Close event panel"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/25"
-      />
-      <div className="relative flex h-screen w-full max-w-[30rem] flex-col overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-[0_0_0_1px_rgba(15,23,42,0.18),-24px_0_48px_rgba(2,6,23,0.38)]">
-        <div className="p-4 border-b border-[var(--color-border)] flex justify-between items-center">
-          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{readOnly ? 'Event Signal' : event ? 'Edit Event' : 'Create Event'}</h3>
-          <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-            <X size={20} />
-          </button>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-transparent">
+        <h3 className="text-lg font-bold text-[var(--color-text-primary)]">
+          {readOnly ? 'Event Signal' : event ? 'Edit Event' : 'Create Event'}
+        </h3>
+        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition text-[var(--color-text-secondary)] hover:text-white">
+          <X size={20} />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+        {(managedByBackend || event?.is_backend_artifact) && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Sync Pipeline: {event?.source_label || 'Comms'}</span>
+                <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold border ${syncTone(event?.sync_status)}`}>
+                  {event?.sync_status || 'synced'}
+                </span>
+              </div>
+              {event?.sync_note && <p className="text-xs text-emerald-100/70">{event.sync_note}</p>}
+            </div>
+
+            {event?.conflict_state === 'review' && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-2">Conflict Resolution Required</div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onSave({ ...formData, reconciliation_strategy: 'keep_local' })}
+                    className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 py-2 rounded-lg text-[10px] font-bold uppercase tracking-tighter transition-all"
+                  >
+                    Keep Local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSave({ ...formData, reconciliation_strategy: 'accept_import' })}
+                    className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 py-2 rounded-lg text-[10px] font-bold uppercase tracking-tighter transition-all"
+                  >
+                    Accept Import
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Meeting Status</label>
+            <select
+              value={formData.status || 'scheduled'}
+              disabled={readOnly}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all ${getStatusTone(formData.status || 'scheduled')}`}
+            >
+              <option value="scheduled">Scheduled</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no_show">No Show</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Event Visibility</label>
+            <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between">
+              <span className="text-xs text-[var(--color-text-secondary)]">Public Booking</span>
+              <div className={`w-2 h-2 rounded-full ${event?.public ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-600'}`}></div>
+            </div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
-          {managedByBackend ? (
-            <div className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-3 py-2 text-sm text-[var(--color-accent)]">
-              This meeting is managed as a backend Comms object. Changes here will update the linked thread and CRM activity trail.
-            </div>
-          ) : null}
-          {assistError ? (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-              {assistError}
-            </div>
-          ) : null}
+        <div className="space-y-4">
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Event Title *</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Event Title *</label>
               {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('title')} loading={assistTarget === 'title'} tooltip="Draft event title" iconType="crosshair" />}
             </div>
             <input
@@ -2280,72 +2245,59 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
               value={formData.title}
               disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               placeholder="Enter event title"
             />
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)]">Description</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Description</label>
               {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('description')} loading={assistTarget === 'description'} tooltip="Draft event description" iconType="crosshair" />}
             </div>
             <textarea
               value={formData.description}
               disabled={readOnly}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
               rows="3"
               placeholder="Add description"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                <Clock size={14} className="inline mr-1" />
-                Start Time *
-              </label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Start Time</label>
               <button
                 type="button"
-                disabled={readOnly}
-                onClick={() => {
-                  setShowStartPicker(!showStartPicker);
-                  setShowEndPicker(false);
-                }}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]"
+                onClick={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-left text-sm text-[var(--color-text-primary)] hover:border-white/20 transition-all flex items-center justify-between"
               >
                 {formatDateForDisplay(formData.startTime)}
+                <Clock size={14} className="opacity-40" />
               </button>
               {showStartPicker && (
                 <MiniCalendar
                   selectedDate={formData.startTime}
-                  onSelect={(date) => setFormData({ ...formData, startTime: date })}
+                  onSelect={(date) => { setFormData({ ...formData, startTime: date }); setShowStartPicker(false); }}
                   onClose={() => setShowStartPicker(false)}
-                  position="left"
                 />
               )}
             </div>
-            <div className="relative">
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                <Clock size={14} className="inline mr-1" />
-                End Time *
-              </label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">End Time</label>
               <button
                 type="button"
-                disabled={readOnly}
-                onClick={() => {
-                  setShowEndPicker(!showEndPicker);
-                  setShowStartPicker(false);
-                }}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)]"
+                onClick={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-left text-sm text-[var(--color-text-primary)] hover:border-white/20 transition-all flex items-center justify-between"
               >
                 {formatDateForDisplay(formData.endTime)}
+                <Clock size={14} className="opacity-40" />
               </button>
               {showEndPicker && (
                 <MiniCalendar
                   selectedDate={formData.endTime}
-                  onSelect={(date) => setFormData({ ...formData, endTime: date })}
+                  onSelect={(date) => { setFormData({ ...formData, endTime: date }); setShowEndPicker(false); }}
                   onClose={() => setShowEndPicker(false)}
                   position="right"
                 />
@@ -2353,163 +2305,124 @@ const EventModal = ({ event, calendars, onSave, onDelete, onClose, readOnly = fa
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Timezone</label>
-            <select
-              value={formData.timezone}
-              disabled={readOnly}
-              onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] text-sm focus:border-[var(--color-primary)] focus:outline-none"
-            >
-              {timezones.map(tz => (
-                <option key={tz.value} value={tz.value}>{tz.label}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Guest Name</label>
+              <input
+                type="text"
+                value={formData.guestName || ''}
+                disabled={readOnly}
+                onChange={(e) => setFormData({ ...formData, guestName: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+                placeholder="John Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">Guest Email</label>
+              <input
+                type="email"
+                value={formData.guestEmail || ''}
+                disabled={readOnly}
+                onChange={(e) => setFormData({ ...formData, guestEmail: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+                placeholder="john@example.com"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="all-day"
-              checked={formData.allDay}
-              disabled={readOnly}
-              onChange={(e) => setFormData({ ...formData, allDay: e.target.checked })}
-              className="rounded bg-[var(--color-bg-secondary)] border-[var(--color-border)]"
-            />
-            <label htmlFor="all-day" className="text-sm text-[var(--color-text-secondary)]">All day event</label>
+          <div className="pt-2">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={formData.allDay}
+                disabled={readOnly}
+                onChange={(e) => setFormData({ ...formData, allDay: e.target.checked })}
+                className="rounded border-white/10 bg-white/5 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+              />
+              <span className="text-sm text-[var(--color-text-secondary)] group-hover:text-white transition-colors">All Day Event</span>
+            </label>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Meeting Location</label>
-            <select
-              value={formData.locationType}
-              disabled={readOnly}
-              onChange={(e) => setFormData({ ...formData, locationType: e.target.value, meetingUrl: '' })}
-              className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-            >
-              <option value="zoom">🎥 Zoom</option>
-              <option value="google_meet">📹 Google Meet</option>
-              <option value="phone">📞 Phone Call</option>
-              <option value="other">🔗 Other</option>
-            </select>
-          </div>
-
-          {(formData.locationType === 'zoom' || formData.locationType === 'google_meet') && (
+          <div className="border-t border-white/5 pt-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Video Call Link</label>
-              <div className="flex gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-tertiary)] block mb-3">Location & Meeting Type</label>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                {[
+                  { id: 'zoom', label: 'Zoom', icon: Video },
+                  { id: 'google_meet', label: 'Meet', icon: Video },
+                  { id: 'phone', label: 'Phone', icon: Phone },
+                  { id: 'other', label: 'Other', icon: MapPin }
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    disabled={readOnly}
+                    onClick={() => setFormData({ ...formData, locationType: type.id })}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${formData.locationType === type.id
+                      ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-white'
+                      : 'bg-white/5 border-white/10 text-zinc-400 hover:border-white/20'
+                      }`}
+                  >
+                    <type.icon size={14} />
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {formData.locationType === 'other' || formData.locationType === 'phone' ? (
+              <div>
                 <input
-                  type="url"
+                  type="text"
+                  value={formData.location}
+                  disabled={readOnly}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all"
+                  placeholder={formData.locationType === 'phone' ? 'Enter phone number' : 'Enter location or address'}
+                />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="text"
                   value={formData.meetingUrl}
                   disabled={readOnly}
                   onChange={(e) => setFormData({ ...formData, meetingUrl: e.target.value })}
-                  className="flex-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none text-sm"
-                  placeholder="Meeting link will be generated"
-                  readOnly={generatingLink}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition-all text-sm"
+                  placeholder="Meeting Link (generating URL...)"
                 />
-                <button
-                  type="button"
-                  onClick={() => generateMeetingLink(formData.locationType)}
-                  disabled={generatingLink || readOnly}
-                  className="px-4 py-2 bg-[var(--color-accent)] hover:opacity-90 disabled:opacity-50 text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium whitespace-nowrap border border-transparent shadow-island-sm transition"
-                >
-                  {generatingLink ? '...' : 'Generate'}
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    disabled={generatingLink}
+                    onClick={() => generateMeetingLink(formData.locationType)}
+                    className="flex items-center gap-2 text-xs font-bold text-[var(--color-primary)] hover:opacity-80 transition-all uppercase tracking-widest"
+                  >
+                    <RefreshCw size={12} className={generatingLink ? 'animate-spin' : ''} />
+                    {generatingLink ? 'Syncing...' : 'Regenerate Link'}
+                  </button>
+                )}
               </div>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-                {formData.locationType === 'zoom' ? '🎥 Zoom' : '📹 Google Meet'} link will be created automatically
-              </p>
-            </div>
-          )}
-
-          {formData.locationType === 'phone' && (
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
-                  <MapPin size={14} className="inline mr-1" />
-                  Phone Number
-                </label>
-                {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('location')} loading={assistTarget === 'location'} tooltip="Draft phone details" iconType="crosshair" />}
-              </div>
-              <input
-                type="tel"
-                value={formData.location}
-                disabled={readOnly}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                placeholder="Enter phone number"
-              />
-            </div>
-          )}
-
-          {formData.locationType === 'other' && (
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
-                  <MapPin size={14} className="inline mr-1" />
-                  Location (Address, Link, or Details)
-                </label>
-                {!readOnly && !clientMode && <AIAssistButton variant="inline" onAssist={() => applyEventAssist('location')} loading={assistTarget === 'location'} tooltip="Draft location details" iconType="crosshair" />}
-              </div>
-              <input
-                type="text"
-                value={formData.location}
-                disabled={readOnly}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                placeholder="Enter address, link, or details"
-              />
-            </div>
-          )}
-
-          {formData.meetingUrl && (
-            <div className="bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 rounded p-3">
-              <div className="text-xs text-[var(--color-success)] mb-1 font-medium">Meeting Link Generated</div>
-              <div className="text-xs text-[var(--color-text-secondary)] break-all">{formData.meetingUrl}</div>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(formData.meetingUrl);
-                }}
-                className="text-xs text-[var(--color-accent)] hover:opacity-80 mt-2 flex items-center gap-1"
-              >
-                <Copy size={12} /> Copy Link
-              </button>
-            </div>
-          )}
-        </form>
-
-        <div className="p-4 border-t border-[var(--color-border)] flex justify-between">
-          <div>
-            {event && !readOnly && allowDelete && (
-              <button
-                type="button"
-                onClick={() => onDelete(event.id)}
-                className="px-4 py-2 bg-[var(--color-danger)] hover:opacity-90 text-[var(--color-text-on-primary)] rounded text-sm font-medium flex items-center gap-2"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
             )}
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-[var(--color-hover)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] rounded text-sm font-medium"
-            >
-              {readOnly ? 'Close' : 'Cancel'}
-            </button>
-            {!readOnly ? (
-              <button
-                onClick={handleSubmit}
-              className="px-4 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-[var(--color-text-on-primary)] rounded-[var(--radius-card)] text-sm font-medium border border-[var(--color-primary)] shadow-island-sm transition"
-              >
-                {event ? 'Update' : 'Create'}
-              </button>
-            ) : null}
-          </div>
         </div>
+      </form>
+
+      <div className="p-6 border-t border-white/10 bg-black/20 flex gap-3">
+        {!readOnly && (
+          <button
+            onClick={handleSubmit}
+            className="flex-1 bg-[var(--color-primary)] hover:opacity-90 text-white rounded-xl py-3 font-bold shadow-lg transition-all"
+          >
+            {event ? 'Update Event' : 'Create Event'}
+          </button>
+        )}
+        <button
+          onClick={onClose}
+          className="px-6 bg-white/5 hover:bg-white/10 text-white rounded-xl py-3 font-medium transition-all"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -3613,7 +3613,7 @@ async def omega_execute(request: Request, payload: OmegaExecuteRequest):
 
 @app.post("/api/ai/command")
 async def ai_command(request: Request, payload: AICommandRequest):
-    session = require_capability(request, "system.manage", "Only workspace staff or higher can run AI commands.")
+    session = require_capability(request, "system.view", "Only workspace members can run AI commands.")
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
     ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
@@ -3672,51 +3672,198 @@ async def ai_command(request: Request, payload: AICommandRequest):
         context={**resolved_context, "requested_agent": requested_agent},
     )
     
-    # CONVO Contract: User -> Charlie/Specialist -> User
-    # Bypass Alpha entirely if intent is conversation
+    # ── CONVO / TASK ROUTING ──────────────────────────────────────────────────
+    # Chain of command:
+    #   Conversation  → Charlie direct-complete (no Alpha, no delegation)
+    #   Task request  → Charlie intake → Alpha orchestrates → Specialist executes
+    #                   → Alpha QC → Charlie review wrap → User confirmation
+    #
+    # Charlie NEVER delegates directly to Alpha subordinates.
+    # Only Alpha may delegate to BRAVO, DELTA, ECHO, etc.
     if routing.get("intent") == "conversation" or resolved_context.get("intent") == "conversation":
-        req_agent = str(requested_agent or routing.get("executing_agent") or "CHARLIE").upper().strip()
-        if req_agent == "CHARLIE" or req_agent == "SYSTEM":
-            from backend.operator_assist import generate_assist_response
-            charlie_response = generate_assist_response(
-                message=command_text,
-                context=resolved_context,
-                token=extract_session_token(request),
-                session=session,
-                auth_store=auth_store,
-                provider=provider
-            )
-            return {
-                "status": "success",
-                "result": {
-                    "mode": "immediate",
-                    "intent": "conversation",
-                    "message": charlie_response.get("answer"),
-                    "response": charlie_response
-                }
-            }
-        else:
-            agent_def = AGENT_DEFINITIONS.get(req_agent)
-            agent_sys_prompt = agent_def.system_prompt if agent_def else "You are a helpful AI specialist."
-            # Append context
-            agent_sys_prompt += f"\n\nSystem Event Target Context:\n{json.dumps(resolved_context, default=str)}"
-            from backend.ai_service import AIAssistService
-            ai_service = AIAssistService()
-            provider_result = ai_service._provider_complete(
+        from backend.ai_service import AIAssistService
+        ai_service = AIAssistService()
+
+        charlie_def = AGENT_DEFINITIONS.get("CHARLIE")
+        charlie_sys_prompt = charlie_def.system_prompt if charlie_def else (
+            "You are CHARLIE, the voice intake authority for AIO Nexus. "
+            "You receive user requests and either respond conversationally or identify task requests to escalate to ALPHA."
+        )
+
+        # ── Step 1: Charlie classifies the input ──────────────────────────────
+        # Charlie decides: is this a conversational reply or a task delegation for Alpha?
+        classification_prompt = (
+            f"User input: \"{command_text}\"\n\n"
+            "Classify this input into exactly one of two categories:\n"
+            "  TASK  — the user is requesting an action, deliverable, or structured work "
+            "(e.g. 'take a note', 'compose an email', 'analyze this', 'draft a report', "
+            "'write a brief', 'create a plan', 'summarise', 'research X').\n"
+            "  CONVERSATION  — the user is chatting, asking a simple question, giving feedback, "
+            "or making a comment that needs no specialist execution.\n\n"
+            "Reply with a single JSON object: {\"classification\": \"TASK\"} or {\"classification\": \"CONVERSATION\"} "
+            "and nothing else."
+        )
+        classification_system = (
+            "You are CHARLIE, intake classifier. "
+            "Return only valid JSON with key 'classification' set to 'TASK' or 'CONVERSATION'. "
+            "No explanation. No markdown."
+        )
+        classification_result = ai_service._provider_complete(
+            provider_config=ai_provider,
+            prompt=classification_prompt,
+            system_prompt=classification_system,
+        )
+        classification_raw = (classification_result or {}).get("suggestion", "")
+        try:
+            import re as _re
+            _json_match = _re.search(r'\{[^}]+\}', classification_raw)
+            classification_json = json.loads(_json_match.group()) if _json_match else {}
+            input_classification = str(classification_json.get("classification", "CONVERSATION")).upper().strip()
+        except Exception:
+            input_classification = "CONVERSATION"
+
+        # ── Step 2a: Plain conversation — Charlie responds directly ───────────
+        if input_classification != "TASK":
+            charlie_sys_prompt += f"\n\nSystem Event Target Context:\n{json.dumps(resolved_context, default=str)}"
+            convo_result = ai_service._provider_complete(
                 provider_config=ai_provider,
                 prompt=command_text,
-                system_prompt=agent_sys_prompt,
+                system_prompt=charlie_sys_prompt,
             )
-            reply_text = provider_result.get("suggestion") if provider_result else "No agent response could be generated."
+            reply_text = (convo_result or {}).get("suggestion") or "I'm here. What do you need?"
             return {
                 "status": "success",
                 "result": {
                     "mode": "immediate",
                     "intent": "conversation",
                     "message": reply_text,
-                    "response": {"answer": reply_text, "insights": [], "suggestedActions": []}
+                    "response": {"answer": reply_text, "insights": [], "suggestedActions": []},
                 }
             }
+
+        # ── Step 2b: Task request — route to Alpha ────────────────────────────
+        # Charlie does NOT pick or contact any subordinate directly.
+        # Charlie hands the raw task to Alpha with full context.
+        from backend.agent_runtime import AgentRegistry
+
+        alpha_agent = AgentRegistry.get("ALPHA")
+        if not alpha_agent or not ai_provider:
+            fallback = "I've received your request but Alpha is not reachable right now. Please try again."
+            return {
+                "status": "error",
+                "result": {
+                    "mode": "task",
+                    "intent": "task",
+                    "message": fallback,
+                    "response": {"answer": fallback, "insights": [], "suggestedActions": []},
+                }
+            }
+
+        alpha_step = {
+            "id": "vtt-task-001",
+            "intent": "agent_task",
+            "action": "delegate",
+            "parameters": {"command": command_text},
+            "assignedAgent": "ALPHA",
+            "_delegation_depth": 0,
+        }
+        alpha_runtime = {
+            "command": command_text,
+            "providerConfig": ai_provider,
+            "steps": [],
+            "sharedContext": {
+                "goal": command_text,
+                "plan": [],
+                "agentNotes": [],
+                "source": "charlie_vtt_intake",
+            },
+            "trace": [],
+        }
+        alpha_context = {
+            **resolved_context,
+            "surface": "vtt",
+            "module": "vtt",
+            "intent": "task",
+            "requested_agent": "ALPHA",
+        }
+
+        try:
+            alpha_result = alpha_agent.execute(alpha_step, alpha_context, alpha_runtime)
+        except Exception as exc:
+            logger.error("[VTT Task] Alpha execution error: %s", exc)
+            alpha_result = {"status": "error", "data": {}}
+
+        # ── Step 3: Alpha QC — extract the specialist output ──────────────────
+        specialist_output = ""
+        if alpha_result.get("status") == "success":
+            data = alpha_result.get("data") or {}
+            specialist_output = (
+                data.get("message")
+                or data.get("suggestion")
+                or data.get("content")
+                or ""
+            ).strip()
+
+        # ── Step 4: Charlie review wrap — present to user for confirmation ────
+        # Charlie never claims to have done the work herself.
+        # She presents Alpha's result and asks the user to confirm.
+        if specialist_output:
+            delegated_agent = alpha_result.get("agent", "a specialist")
+            trace = alpha_runtime.get("trace") or []
+            # Identify which specialist Alpha delegated to (if any)
+            for trace_entry in trace:
+                if trace_entry.get("action") == "delegate" and trace_entry.get("fromAgent") == "ALPHA":
+                    delegated_agent = trace_entry.get("toAgent", delegated_agent)
+                    break
+
+            review_prompt = (
+                f"The user asked: \"{command_text}\"\n\n"
+                f"ALPHA routed this to {delegated_agent}, who produced the following output:\n\n"
+                f"{specialist_output}\n\n"
+                "Present this output to the user cleanly and concisely. "
+                "Then ask one short confirmation question: does this match what they requested? "
+                "Do not embellish. Do not re-explain. Do not claim you did the work. "
+                "Sound like the executive assistant surface you are."
+            )
+            review_result = ai_service._provider_complete(
+                provider_config=ai_provider,
+                prompt=review_prompt,
+                system_prompt=charlie_sys_prompt,
+            )
+            final_reply = (review_result or {}).get("suggestion") or specialist_output
+        else:
+            # Alpha couldn't complete — Charlie reports back cleanly
+            error_detail = (alpha_result.get("data") or {}).get("message") or alpha_result.get("error") or ""
+            fallback_prompt = (
+                f"The user asked: \"{command_text}\"\n\n"
+                "Alpha attempted to process this task but could not produce a result"
+                + (f": {error_detail}" if error_detail else ".")
+                + "\n\nInform the user briefly and professionally. "
+                "Ask if they want to rephrase or try a different approach."
+            )
+            fallback_result = ai_service._provider_complete(
+                provider_config=ai_provider,
+                prompt=fallback_prompt,
+                system_prompt=charlie_sys_prompt,
+            )
+            final_reply = (fallback_result or {}).get("suggestion") or (
+                "Alpha wasn't able to complete that task. Could you rephrase or give me a bit more detail?"
+            )
+
+        return {
+            "status": "success",
+            "result": {
+                "mode": "task",
+                "intent": "task",
+                "message": final_reply,
+                "response": {
+                    "answer": final_reply,
+                    "insights": alpha_runtime.get("trace") or [],
+                    "suggestedActions": [],
+                },
+                "alpha_trace": alpha_runtime.get("trace") or [],
+            }
+        }
     if routing["permission_tier"] == "dangerous":
         raise HTTPException(status_code=403, detail="Dangerous commands are blocked from natural-language routing. Use the dedicated Omega admin controls.")
     flow_raw_steps: list[dict[str, Any]] = []
@@ -3999,50 +4146,17 @@ async def vtt_command(request: Request, payload: VTTRequest = None):
                 reason="fast_path_match",
             )
 
-        # Regular conversational chat (User -> Charlie -> User)
-        # Honoring CONVO Schematic: Bypass Alpha entirely.
-        try:
-            from backend.operator_assist import generate_assist_response
-        except Exception as e:
-            logger.warning(f"VTT: operator_assist import failed: {e}")
-            return _build_vtt_response(
-                response_type="error",
-                input_text=raw,
-                command=None,
-                response_message="Voice assistant is temporarily unavailable.",
-                success=False,
-                result={},
-                audio_url=None,
-                reason="service_unavailable",
-            )
-        ai_context = dict(payload.context or {}) if payload and payload.context else {}
-        ai_context["intent"] = "conversation"
-        
-        provider = create_provider()
-        ai_response = generate_assist_response(
-            message=raw,
-            context=ai_context,
-            token=extract_session_token(request),
-            session=session,
-            auth_store=auth_store,
-            provider=provider
-        )
-        
-        spoken_text = str(ai_response.get("answer") or "").strip()
-        audio_url = None
-        if voice_enabled and spoken_text:
-            from backend.vtt_service import synthesize_voice
-            audio_url = synthesize_voice(spoken_text, tenant_id=tenant_id)
-
+        # REJECTION: This transcript is not a registered command.
+        # It should have been routed to /api/ai/command by the frontend.
         return _build_vtt_response(
             response_type="conversational",
             input_text=raw,
             command=None,
-            response_message=spoken_text,
-            success=True,
-            result=ai_response,
-            audio_url=audio_url,
-            reason="convo_schematic_direct",
+            response_message="I'm sorry, I didn't recognize that as a command.",
+            success=False,
+            result={},
+            audio_url=None,
+            reason="not_a_command",
         )
 
     response_data = result.get("response") or {}

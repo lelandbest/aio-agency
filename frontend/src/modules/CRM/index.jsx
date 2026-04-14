@@ -62,6 +62,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import { BrainIcon, Crosshair } from '../../components/ui/icons';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
+import ModuleHeader from '../../components/ModuleHeader';
 import { CRM_CONTACT_SOURCES, CRM_CONTACT_STATUSES, createContactDraft } from './schemaContract';
 
 const shellPanelClass = 'rounded-[28px] border border-slate-900/90 bg-[#0b0b0b] shadow-[0_24px_90px_rgba(0,0,0,0.55)]';
@@ -1213,31 +1214,88 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const renderedPhoneRows = editMode && !showDeleted ? [...editPhoneValues, ''].slice(0, Math.max(editPhoneValues.length + 1, 5)) : selectedMethods.phones;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#050505] p-2">
-      <div className="module-toolbar relative z-[30] overflow-visible !border-b-0 !bg-transparent backdrop-blur-md">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-          <button type="button" onClick={() => setShowCreateModal(true)} className="btn-primary-skeuo !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 !text-[10px] !tracking-[0.14em]"><Plus size={12} />Create</button>
+    <div className="flex h-full min-h-0 flex-col bg-[#050505]">
+      <ModuleHeader
+        title="CRM Operator Index"
+        showTitle={false}
+        showActions={true}
+        className="mx-2 mt-2"
+        leftActions={[
+          {
+            label: 'Create',
+            icon: Plus,
+            onClick: () => setShowCreateModal(true),
+            variant: 'primary'
+          }
+        ]}
+        toolbarLeftSlot={
           <div className="relative min-w-[240px] max-w-[360px] flex-1">
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={showDeleted ? 'Search deleted contacts...' : 'Search live CRM contacts...'} className="h-8 w-full rounded border border-slate-800 bg-[#0a0a0a] pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-600 focus:border-slate-500 focus:outline-none" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder={showDeleted ? 'Search deleted contacts...' : 'Search live CRM contacts...'}
+              className="h-8 w-full rounded border border-slate-800 bg-[#0a0a0a] pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-600 focus:border-slate-500 focus:outline-none"
+            />
           </div>
-          <button type="button" onClick={() => setShowDeleted(false)} className={`btn-secondary !h-8 !px-3 !py-1.5 text-[10px] ${!showDeleted ? '!border-slate-700 !bg-[#111] text-slate-200' : '!border-slate-900 !bg-[#0b0b0b] text-slate-500'}`}>Active</button>
-          <button type="button" onClick={() => setShowDeleted(true)} className={`btn-secondary !h-8 !px-3 !py-1.5 text-[10px] ${showDeleted ? '!border-slate-700 !bg-[#111] text-slate-200' : '!border-slate-900 !bg-[#0b0b0b] text-slate-500'}`}>Deleted</button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" disabled className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px] disabled:opacity-40"><Filter size={12} />Filter</button>
-          <button type="button" onClick={handleToolbarVerify} disabled={!hasToolbarSelection || bulkSaving} className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px] disabled:opacity-40"><Shield size={12} />Verify</button>
-          <button type="button" onClick={handleToolbarTag} disabled={!hasToolbarSelection || bulkSaving} className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px] disabled:opacity-40"><Tag size={12} />Tag</button>
-          <button type="button" onClick={handleToolbarDelete} disabled={!hasToolbarSelection || bulkSaving || showDeleted} className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px] disabled:opacity-40"><Trash2 size={12} />Delete</button>
-          <button type="button" disabled className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px] disabled:opacity-40"><Import size={12} />Import</button>
-          <button type="button" disabled className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px] disabled:opacity-40"><Download size={12} />Export</button>
-          <button type="button" onClick={() => loadData({ silent: true })} className="btn-secondary !flex !h-8 !items-center !gap-2 !px-3 !py-1.5 text-[10px]"><RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />Refresh</button>
-          <button type="button" onClick={() => openAIAssist()} className="rounded-lg p-1.5 text-slate-600 transition-all hover:text-cyan-400" title="Brain"><BrainIcon size={14} /></button>
-          <button type="button" onClick={openCrmAssist} className="rounded-lg p-1.5 text-slate-600 transition-all hover:text-blue-400" title="Crosshair"><Crosshair size={14} /></button>
-        </div>
-      </div>
+        }
+        toolbarCenterSlot={
+          <div className="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+            <button
+              type="button"
+              onClick={() => setShowDeleted(false)}
+              className={`px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded transition-all ${!showDeleted ? 'bg-[var(--color-primary)] text-white' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleted(true)}
+              className={`px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded transition-all ${showDeleted ? 'bg-[var(--color-primary)] text-white' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Deleted
+            </button>
+          </div>
+        }
+        actions={[
+          {
+            label: 'Filter',
+            icon: Filter,
+            disabled: true,
+            variant: 'secondary'
+          },
+          {
+            label: 'Verify',
+            icon: Shield,
+            onClick: handleToolbarVerify,
+            disabled: !hasToolbarSelection || bulkSaving,
+            variant: 'secondary'
+          },
+          {
+            label: 'Tag',
+            icon: Tag,
+            onClick: handleToolbarTag,
+            disabled: !hasToolbarSelection || bulkSaving,
+            variant: 'secondary'
+          },
+          {
+            label: 'Delete',
+            icon: Trash2,
+            onClick: handleToolbarDelete,
+            disabled: !hasToolbarSelection || bulkSaving || showDeleted,
+            variant: 'secondary'
+          },
+          {
+            label: 'Refresh',
+            icon: RefreshCw,
+            onClick: () => loadData({ silent: true }),
+            variant: 'secondary'
+          }
+        ]}
+        onModuleAi={openCrmAssist}
+      />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-3">
         <div className="mb-1.5 grid gap-1.5 md:grid-cols-4">
           {[
             { label: 'Active Contacts', value: activeContactCount },

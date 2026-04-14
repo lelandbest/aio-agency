@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
 /* All icons inherit color from parent */
-svg { color: inherit; }
+svg {
+  color: inherit;
+}
 
 /* Quill dark theme override for transcript editor */
 .transcript-quill-editor .ql-toolbar {
@@ -9,6 +11,7 @@ svg { color: inherit; }
   border-color: #2A2D35 !important;
   border-radius: 0;
 }
+
 .transcript-quill-editor .ql-container {
   border-color: #2A2D35 !important;
   border-radius: 0;
@@ -16,6 +19,7 @@ svg { color: inherit; }
   font-size: 12px;
   color: #e2e8f0;
 }
+
 .transcript-quill-editor .ql-editor {
   min-height: 160px;
   color: #e2e8f0;
@@ -23,25 +27,76 @@ svg { color: inherit; }
   font-size: 12px;
   line-height: 1.6;
 }
+
 .transcript-quill-editor .ql-editor.ql-blank::before {
   color: #475569;
   font-style: normal;
   left: 12px;
 }
-.transcript-quill-editor .ql-stroke { stroke: #94a3b8 !important; }
-.transcript-quill-editor .ql-fill { fill: #94a3b8 !important; }
-.transcript-quill-editor .ql-picker-label { color: #94a3b8 !important; }
-.transcript-quill-editor .ql-picker-options { background: #1a1c21 !important; border-color: #2A2D35 !important; }
-.transcript-quill-editor .ql-picker-item { color: #94a3b8 !important; }
-.transcript-quill-editor .ql-active .ql-stroke { stroke: #22d3ee !important; }
-.transcript-quill-editor .ql-active .ql-fill { fill: #22d3ee !important; }
-.transcript-quill-editor .ql-active .ql-picker-label { color: #22d3ee !important; }
-.transcript-quill-editor .ql-toolbar button:hover .ql-stroke { stroke: #e2e8f0 !important; }
-.transcript-quill-editor .ql-toolbar button:hover .ql-fill { fill: #e2e8f0 !important; }
-.transcript-quill-editor .ql-editor h1 { font-size: 1.5em; font-weight: 700; margin: 0.5em 0; }
-.transcript-quill-editor .ql-editor h2 { font-size: 1.25em; font-weight: 600; margin: 0.5em 0; }
-.transcript-quill-editor .ql-editor h3 { font-size: 1.1em; font-weight: 600; margin: 0.5em 0; }
-.transcript-quill-editor .ql-editor ol, .transcript-quill-editor .ql-editor ul { padding-left: 1.5em; }
+
+.transcript-quill-editor .ql-stroke {
+  stroke: #94a3b8 !important;
+}
+
+.transcript-quill-editor .ql-fill {
+  fill: #94a3b8 !important;
+}
+
+.transcript-quill-editor .ql-picker-label {
+  color: #94a3b8 !important;
+}
+
+.transcript-quill-editor .ql-picker-options {
+  background: #1a1c21 !important;
+  border-color: #2A2D35 !important;
+}
+
+.transcript-quill-editor .ql-picker-item {
+  color: #94a3b8 !important;
+}
+
+.transcript-quill-editor .ql-active .ql-stroke {
+  stroke: #22d3ee !important;
+}
+
+.transcript-quill-editor .ql-active .ql-fill {
+  fill: #22d3ee !important;
+}
+
+.transcript-quill-editor .ql-active .ql-picker-label {
+  color: #22d3ee !important;
+}
+
+.transcript-quill-editor .ql-toolbar button:hover .ql-stroke {
+  stroke: #e2e8f0 !important;
+}
+
+.transcript-quill-editor .ql-toolbar button:hover .ql-fill {
+  fill: #e2e8f0 !important;
+}
+
+.transcript-quill-editor .ql-editor h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin: 0.5em 0;
+}
+
+.transcript-quill-editor .ql-editor h2 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 0.5em 0;
+}
+
+.transcript-quill-editor .ql-editor h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.5em 0;
+}
+
+.transcript-quill-editor .ql-editor ol,
+.transcript-quill-editor .ql-editor ul {
+  padding-left: 1.5em;
+}
 
 /**
  * Theme System
@@ -50,21 +105,31 @@ svg { color: inherit; }
 
 :root {
   /* LIGHT MODE - Tactical Laboratory Aesthetic (Refined Brushed Aluminum) */
-  --color-bg-primary: #F1F5F9;     /* Deep lab base */
-  --color-bg-secondary: #E2E8F0;   /* Brushed aluminum panels */
-  --color-bg-tertiary: #CBD5E1;    /* Control surfaces */
-  --color-hover: #94A3B8;          /* Tactical hover */
+  --color-bg-primary: #F1F5F9;
+  /* Deep lab base */
+  --color-bg-secondary: #E2E8F0;
+  /* Brushed aluminum panels */
+  --color-bg-tertiary: #CBD5E1;
+  /* Control surfaces */
+  --color-hover: #94A3B8;
+  /* Tactical hover */
 
-  --color-text-primary: #0F172A;   /* Deep anthracite ink */
-  --color-text-secondary: #334155; /* Muted metal grey */
-  --color-text-tertiary: #64748B;  /* Etched details */
-  --color-border: #94A3B8;         /* Machined grooves */
+  --color-text-primary: #0F172A;
+  /* Deep anthracite ink */
+  --color-text-secondary: #334155;
+  /* Muted metal grey */
+  --color-text-tertiary: #64748B;
+  /* Etched details */
+  --color-border: #94A3B8;
+  /* Machined grooves */
   --color-sidebar-bg: #E2E8F0;
   --color-sidebar-text: #0F172A;
 
-  --color-primary: #0891B2;        /* Industrial Cyan */
+  --color-primary: #0891B2;
+  /* Industrial Cyan */
   --color-primary-hover: #06B6D4;
-  --color-accent: #10B981;         /* Emerald Accent */
+  --color-accent: #10B981;
+  /* Emerald Accent */
   --color-text-on-primary: #FFFFFF;
 
   --color-success: #10B981;
@@ -80,8 +145,8 @@ svg { color: inherit; }
   --radius-card: 0.25rem;
   --radius-pill: 0.25rem;
   --layout-gap-tight: 0.5rem;
-  --toolbar-height: 3rem;
-  --topbar-height: 4rem;
+  --toolbar-height: 48px;
+  --topbar-height: 62px;
 
   /* Light Theme Glass & Shadow */
   --glass-bg: rgba(255, 255, 255, 0.75);
@@ -104,15 +169,15 @@ svg { color: inherit; }
 
 html.dark {
   /* DARK MODE - Black Appliance Aesthetic (Refined) */
-  --color-bg-primary: #070708;     
-  --color-bg-secondary: #0F1012;   
-  --color-bg-tertiary: #16181A;    
-  --color-hover: #1E2024;          
+  --color-bg-primary: #070708;
+  --color-bg-secondary: #0F1012;
+  --color-bg-tertiary: #16181A;
+  --color-hover: #1E2024;
 
-  --color-text-primary: #EDEDED;   
-  --color-text-secondary: #8B92A0; 
-  --color-text-tertiary: #525866;  
-  --color-border: #22252A;         
+  --color-text-primary: #EDEDED;
+  --color-text-secondary: #8B92A0;
+  --color-text-tertiary: #525866;
+  --color-border: #22252A;
   --color-sidebar-bg: #0A0A0B;
   --color-sidebar-text: #EDEDED;
 
@@ -126,7 +191,8 @@ html.dark {
 }
 
 /* Global resets */
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
   background-color: var(--color-bg-primary);
@@ -303,7 +369,7 @@ html.dark .glass-input {
   border-radius: var(--radius-panel);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-island);
-  border-top-color: rgba(255, 255, 255, 0.1); 
+  border-top-color: rgba(255, 255, 255, 0.1);
 }
 
 html.dark .island-panel {
@@ -448,23 +514,34 @@ html.dark .btn-ghost:hover {
   transition: all 0.2s ease;
 }
 
-.tag-system { 
-  background: rgba(8, 145, 178, 0.1); 
-  color: #0891B2; 
-  border-color: rgba(8, 145, 178, 0.2); 
+.tag-system {
+  background: rgba(8, 145, 178, 0.1);
+  color: #0891B2;
+  border-color: rgba(8, 145, 178, 0.2);
 }
 
 html.dark .tag-system {
-  background: rgba(8, 145, 178, 0.15); 
-  color: var(--color-primary-hover); 
-  border-color: rgba(8, 145, 178, 0.3); 
+  background: rgba(8, 145, 178, 0.15);
+  color: var(--color-primary-hover);
+  border-color: rgba(8, 145, 178, 0.3);
 }
 
 /* Neurological "Living Entity" Visuals */
 @keyframes neural-pulse {
-  0% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.8; }
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
 }
 
 .animate-neural-pulse {
@@ -482,11 +559,28 @@ html.dark .tag-system {
 }
 
 @keyframes float {
-  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
-  10% { opacity: 0.2; }
-  50% { transform: translate(100px, -100px) rotate(180deg); opacity: 0.3; }
-  90% { opacity: 0.1; }
-  100% { transform: translate(200px, -200px) rotate(360deg); opacity: 0; }
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.2;
+  }
+
+  50% {
+    transform: translate(100px, -100px) rotate(180deg);
+    opacity: 0.3;
+  }
+
+  90% {
+    opacity: 0.1;
+  }
+
+  100% {
+    transform: translate(200px, -200px) rotate(360deg);
+    opacity: 0;
+  }
 }
 
 .animate-float {
@@ -592,4 +686,4 @@ html.dark .tag-system {
   cursor: pointer;
   border: none;
   box-shadow: 0 0 5px rgba(6, 182, 212, 0.3);
-}
+}
