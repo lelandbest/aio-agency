@@ -2142,6 +2142,103 @@ class ElevenLabsTTSProvider(BaseAudioRenderProvider):
 
 
 
+class ElevenLabsSoundGenProvider(BaseAudioRenderProvider):
+    """
+    ElevenLabs Sound Generation provider — music & SFX via POST /v1/sound-generation.
+    Reuses the same xi-api-key credential as ElevenLabsTTSProvider.
+    Supports audio_subtype: 'music' | 'sfx'.
+    TTS voice path is NOT affected by this class.
+    """
+
+    provider_id = "elevenlabs_sound_gen"
+    canonical_id = "elevenlabs_sound"
+    BASE_URL = "https://api.elevenlabs.io"
+    DEFAULT_DURATION = 8.0
+    MIN_DURATION = 0.5
+    MAX_DURATION = 22.0
+
+    def renderAudio(self, job: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        import urllib.request
+        import urllib.error
+
+        prompt = clean_text(payload.get("prompt") or payload.get("text"))
+        if not prompt:
+            raise ValueError("Sound generation requires a 'prompt' describing the desired audio.")
+
+        tenant_id = clean_text(job.get("tenant_id") or job.get("tenantId")) or None
+        try:
+            api_key = get_elevenlabs_api_key(tenant_id)
+        except Exception:
+            api_key = None
+        if not api_key:
+            raise ValueError("ElevenLabs Sound Generation is not configured for this workspace.")
+
+        requested_duration = float(payload.get("duration") or self.DEFAULT_DURATION)
+        duration = max(self.MIN_DURATION, min(self.MAX_DURATION, requested_duration))
+
+        audio_subtype = clean_text(payload.get("audio_subtype") or payload.get("audioSubtype") or "sfx").lower()
+        if audio_subtype not in {"music", "sfx"}:
+            audio_subtype = "sfx"
+
+        title = clean_text(payload.get("title")) or clean_text(job.get("title")) or f"{audio_subtype.upper()} Asset"
+
+        request_body = json.dumps({"text": prompt, "duration_seconds": duration}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.BASE_URL}/v1/sound-generation",
+            data=request_body,
+            headers={"xi-api-key": api_key, "Content-Type": "application/json", "Accept": "audio/mpeg"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response:
+                audio_bytes = response.read()
+        except urllib.error.HTTPError as e:
+            body_text = ""
+            try:
+                body_text = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                pass
+            if e.code == 401:
+                raise ValueError("ElevenLabs API key is invalid.")
+            elif e.code == 429:
+                raise ValueError("ElevenLabs API quota exceeded or rate limited.")
+            raise ValueError(f"ElevenLabs sound generation failed ({e.code}): {body_text or e.reason}")
+        except Exception as e:
+            raise ValueError(f"ElevenLabs sound generation error: {str(e)}")
+
+        if not audio_bytes:
+            raise ValueError("ElevenLabs sound generation returned empty audio.")
+
+        audio_dir = Path(__file__).resolve().parent / "data" / "audio"
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        job_id = clean_text(job.get("id")) or unique_id("snd")
+        filename = f"{audio_subtype}_{job_id}.mp3"
+        audio_path = audio_dir / filename
+        audio_path.write_bytes(audio_bytes)
+
+        return {
+            "assets": [
+                {
+                    "asset_type": f"generated_{audio_subtype}",
+                    "media_type": "audio",
+                    "title": title,
+                    "source_url": f"/api/media/audio/{filename}",
+                    "metadata": {
+                        "provider": self.provider_id,
+                        "audio_subtype": audio_subtype,
+                        "audioSubtype": audio_subtype,
+                        "prompt": prompt,
+                        "duration_seconds": duration,
+                        "mimeType": "audio/mpeg",
+                        "fileSizeBytes": len(audio_bytes),
+                        "source": "generated",
+                    },
+                }
+            ],
+            "message": f"{audio_subtype.upper()} asset generated via ElevenLabs Sound Generation.",
+        }
+
+
 class MediaEngine:
     def __init__(self, store: MediaStateStore | None = None) -> None:
         self.store = store or MediaStateStore()
@@ -2169,6 +2266,8 @@ class MediaEngine:
         self.audio_render_providers: dict[str, BaseAudioRenderProvider] = {
             ElevenLabsTTSProvider.provider_id: ElevenLabsTTSProvider(),
             ElevenLabsTTSProvider.canonical_id: ElevenLabsTTSProvider(),
+            ElevenLabsSoundGenProvider.provider_id: ElevenLabsSoundGenProvider(),
+            ElevenLabsSoundGenProvider.canonical_id: ElevenLabsSoundGenProvider(),
         }
 
     def list_assets(self) -> list[dict[str, Any]]:
@@ -2472,7 +2571,38 @@ class MediaEngine:
             self.store.upsert("run_of_show_jobs", failed)
             return {"job": failed, "artifact": None}
 
+    def generate_audio_asset(
+        self,
+        payload: dict[str, Any],
+        *,
+        tenant_id: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate a music or SFX asset from a text prompt.
+        Routes through ElevenLabsSoundGenProvider.
+        Persists the result to Vault with audio_subtype metadata.
+        Does NOT touch the voice TTS pipeline.
+        """
+        audio_subtype = clean_text(payload.get("audio_subtype") or payload.get("audioSubtype") or "sfx").lower()
+        if audio_subtype not in {"music", "sfx"}:
+            audio_subtype = "sfx"
+        provider = self.audio_render_providers.get(ElevenLabsSoundGenProvider.provider_id)
+        if not provider:
+            raise ValueError("ElevenLabs Sound Generation provider is not available.")
+        attachments = normalize_attachment_links(payload, context)
+        job = build_audio_render_job(
+            tenant_id=tenant_id,
+            provider=ElevenLabsSoundGenProvider.provider_id,
+            title=clean_text(payload.get("title")) or f"{audio_subtype.upper()} Generation Job",
+            input_payload=payload,
+            attachments=attachments,
+        )
+        self.store.upsert("audio_render_jobs", job)
+        return self._process_audio_render_job(provider, job, payload, tenant_id=tenant_id, attachments=attachments)
+
     def render_audio(self, payload: dict[str, Any], *, tenant_id: str | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
+
         provider_id = clean_text(payload.get("provider")) or ElevenLabsTTSProvider.canonical_id
         provider_id = normalize_provider_key(provider_id)
         provider = self.audio_render_providers.get(provider_id)
@@ -2663,6 +2793,55 @@ class MediaEngine:
                 if resolved_videos:
                     render_payload["videoClips"] = resolved_videos
             
+            # -- audioLayers resolution (optional music + sfx layers) ------
+            # Spec: { type: voice|music|sfx, assetId, volume?, startTime?, endTime? }
+            # - voice: backward compat, sets audioUrl.
+            # - music: sets render_payload['musicUrl'] + optional volume/timing.
+            # - sfx: appended to render_payload['sfxLayers'] list.
+            # Missing optional layers never abort the render.
+            audio_layers = render_payload.get('audioLayers')
+            if isinstance(audio_layers, list):
+                sfx_layers_resolved = []
+                for layer in audio_layers:
+                    if not isinstance(layer, dict):
+                        continue
+                    layer_type = clean_text(layer.get('type')).lower()
+                    layer_asset_id = clean_text(layer.get('assetId'))
+                    if not layer_asset_id:
+                        continue
+                    layer_asset = self.get_asset(layer_asset_id)
+                    if not layer_asset:
+                        logger.warning("[audioLayers] Asset not found: %s -- skipped.", layer_asset_id)
+                        continue
+                    layer_url = clean_text(layer_asset.get('source_url'))
+                    if not layer_url:
+                        logger.warning("[audioLayers] Asset has no source_url: %s -- skipped.", layer_asset_id)
+                        continue
+                    volume = float(layer['volume']) if layer.get('volume') is not None else None
+                    start_time = layer.get('startTime')
+                    end_time = layer.get('endTime')
+                    if layer_type == 'voice':
+                        render_payload['audioUrl'] = layer_url
+                    elif layer_type == 'music':
+                        render_payload['musicUrl'] = layer_url
+                        if volume is not None:
+                            render_payload['musicVolume'] = volume
+                        if start_time is not None:
+                            render_payload['musicStartTime'] = start_time
+                        if end_time is not None:
+                            render_payload['musicEndTime'] = end_time
+                    elif layer_type == 'sfx':
+                        sfx_entry = {'url': layer_url}
+                        if volume is not None:
+                            sfx_entry['volume'] = volume
+                        if start_time is not None:
+                            sfx_entry['startTime'] = start_time
+                        if end_time is not None:
+                            sfx_entry['endTime'] = end_time
+                        sfx_layers_resolved.append(sfx_entry)
+                if sfx_layers_resolved:
+                    render_payload['sfxLayers'] = sfx_layers_resolved
+
             # Handle TTS generation if includeAudio is true and no vault audio
             if render_payload.get("includeAudio") and render_payload.get("scriptPrompt") and not audio_asset_id:
                 voice_id = render_payload.get("voiceId") or "21m00Tcm4TlvDq8ikWAM"
@@ -2701,6 +2880,16 @@ class MediaEngine:
             # Convert video URLs
             if render_payload.get("videoClips"):
                 render_payload["videoClips"] = [make_absolute_url(u) for u in render_payload["videoClips"]]
+            
+            # Convert music URL
+            if render_payload.get("musicUrl"):
+                render_payload["musicUrl"] = make_absolute_url(render_payload["musicUrl"])
+            
+            # Convert sfxLayers URLs
+            if render_payload.get("sfxLayers"):
+                for sfx_layer in render_payload["sfxLayers"]:
+                    if isinstance(sfx_layer, dict) and sfx_layer.get("url"):
+                        sfx_layer["url"] = make_absolute_url(sfx_layer["url"])
             
             result = provider.renderMedia(started, render_payload)
             assets: list[dict[str, Any]] = []

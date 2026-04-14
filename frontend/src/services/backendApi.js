@@ -741,6 +741,15 @@ export async function createMediaAudioRenderJobApi(payload) {
   return toCamelCase(response.data || null);
 }
 
+export async function generateAudioAssetApi(payload) {
+  // payload: { audioSubtype: 'music'|'sfx', prompt, title?, duration? }
+  const response = await request('/api/media/audio-generate', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return toCamelCase(response.data || null);
+}
+
 export async function createMediaRenderJobApi(payload) {
   const response = await request('/api/media/render-jobs', {
     method: 'POST',

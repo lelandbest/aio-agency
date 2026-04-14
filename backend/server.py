@@ -2182,6 +2182,17 @@ class MediaRenderRequest(BaseModel):
     audioAssetId: str | None = None
     imageAssetIds: list[str] | None = None
     videoAssetIds: list[str] | None = None
+    # Optional audio layers: voice / music / sfx
+    audioLayers: list[dict[str, Any]] | None = None
+
+
+class MediaAudioGenerateRequest(BaseModel):
+    """Request model for on-demand music or SFX generation."""
+    audioSubtype: str  # 'music' or 'sfx'
+    prompt: str
+    title: str | None = None
+    duration: float | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class MediaTranscriptRequest(BaseModel):
@@ -6265,6 +6276,38 @@ async def create_audio_render_job(request: Request, payload: MediaAudioRenderReq
         engine.store.upsert("audio_render_jobs", job)
         background_tasks.add_task(engine.process_job, "audio", job["id"], payload.model_dump(exclude_none=True), tenant_id)
         return {"data": {"job": job}}
+    except (ValueError, NotImplementedError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/media/audio-generate")
+async def generate_audio_asset_endpoint(request: Request, payload: MediaAudioGenerateRequest):
+    """
+    Generate a music or SFX audio asset from a text prompt.
+    Persists result to Vault with audio_subtype metadata (music|sfx).
+    Does NOT affect the voice TTS pipeline.
+    """
+    session = require_capability(request, "system.manage", "Only workspace staff or higher can generate audio assets.")
+    tenant = session.get("tenant") or {}
+    tenant_id = tenant.get("id")
+    audio_subtype = clean_text(payload.audioSubtype).lower() or "sfx"
+    if audio_subtype not in {"music", "sfx"}:
+        raise HTTPException(status_code=400, detail="audioSubtype must be 'music' or 'sfx'.")
+    prompt = clean_text(payload.prompt)
+    if not prompt:
+        raise HTTPException(status_code=400, detail="prompt is required.")
+    try:
+        engine = get_media_engine()
+        generation_payload = {
+            "audio_subtype": audio_subtype,
+            "audioSubtype": audio_subtype,
+            "prompt": prompt,
+            "title": clean_text(payload.title) or f"{audio_subtype.upper()} — {prompt[:60]}",
+            "duration": float(payload.duration) if payload.duration else None,
+            "metadata": payload.metadata or {},
+        }
+        result = engine.generate_audio_asset(generation_payload, tenant_id=tenant_id)
+        return {"data": result}
     except (ValueError, NotImplementedError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

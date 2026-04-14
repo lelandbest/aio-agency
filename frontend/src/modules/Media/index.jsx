@@ -60,6 +60,7 @@ import {
   probeMediaAssetApi,
   withSessionToken,
   getBrainItemsApi,
+  generateAudioAssetApi,
 } from '../../services/backendApi';
 import { VISIBLE_SPECIALIST_KEYS, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from '../Agents/data/agentRegistry';
 import { templates } from '../Flows/data/templates';
@@ -128,6 +129,8 @@ const QUICK_ACTIONS = [
   { key: 'generateScript', label: 'Generate Script', icon: FileText, provider: 'stub-script' },
   { key: 'generateRunOfShow', label: 'Generate Run of Show', icon: ListChecks, provider: 'stub-run-of-show' },
   { key: 'generateVoice', label: 'Generate Voice', icon: AudioLines, provider: 'elevenlabs_tts' },
+  { key: 'generateMusic', label: 'Generate Music', icon: Waves, provider: 'elevenlabs_sound_gen' },
+  { key: 'generateSfx', label: 'Generate SFX', icon: Volume2, provider: 'elevenlabs_sound_gen' },
   { key: 'generateThumbnail', label: 'Generate Thumbnail', icon: ImageIcon, provider: 'stub-render' },
   { key: 'generateVideo', label: 'Generate Video', icon: Video, provider: 'stub-render' },
   { key: 'scribeMedia', label: 'Transcribe Media', icon: Waves, provider: 'elevenlabs_scribe' },
@@ -174,6 +177,12 @@ const DEFAULT_FORM_STATE = {
   audioAssetId: '',
   imageAssetIds: [],
   videoAssetIds: [],
+  // Audio generation
+  audioSubtype: 'music',
+  audioGeneratePrompt: '',
+  audioGenerateDuration: 8,
+  // Audio layers for render jobs
+  audioLayers: [],
 };
 
 const NEXUS_TABS = [
@@ -1245,6 +1254,8 @@ const StudioModule = () => {
       if (selectedAction === 'generateScript') r = await createMediaScriptJobApi({ provider: activeAction.provider, title: formState.title || 'Script', topic: formState.topic, tone: formState.tone, duration: formState.duration });
       else if (selectedAction === 'generateRunOfShow') r = await createMediaRunOfShowJobApi({ provider: activeAction.provider, title: formState.title || 'Run of Show', topic: formState.topic });
       else if (selectedAction === 'generateVoice') r = await createMediaAudioRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Voice', text: formState.text, voice: formState.voice, style: formState.style });
+      else if (selectedAction === 'generateMusic') r = await generateAudioAssetApi({ audioSubtype: 'music', prompt: formState.audioGeneratePrompt || formState.prompt || 'Background music', title: formState.title || 'Music', duration: formState.audioGenerateDuration || 8 });
+      else if (selectedAction === 'generateSfx') r = await generateAudioAssetApi({ audioSubtype: 'sfx', prompt: formState.audioGeneratePrompt || formState.prompt || 'Sound effect', title: formState.title || 'SFX', duration: formState.audioGenerateDuration || 4 });
       else if (selectedAction === 'generateThumbnail') r = await createMediaRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Thumbnail', mediaType: 'image', script: formState.prompt, metadata: { prompt: formState.prompt } });
       else if (selectedAction === 'generateVideo') {
         // Determine audio source: TTS (includeAudio), Vault audio (audioAssetId), or none
@@ -1276,6 +1287,7 @@ const StudioModule = () => {
           audioAssetId,
           imageAssetIds: formState.imageAssetIds?.filter(Boolean) || null,
           videoAssetIds: formState.videoAssetIds?.filter(Boolean) || null,
+          audioLayers: formState.audioLayers?.filter(l => l?.assetId) || null,
           metadata: {
             prompt: formState.scriptPrompt,
             description: formState.description,
