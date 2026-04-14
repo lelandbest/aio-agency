@@ -17,6 +17,8 @@ import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
 const STORAGE_KEY = 'aio_pipeline_layout_v2';
+const BOARDS_STORAGE_KEY = 'aio_pipeline_boards_v1';
+
 const DEFAULT_COLUMNS = [
   { id: 'new', title: 'New' },
   { id: 'qualified', title: 'Qualified' },
@@ -49,28 +51,52 @@ const PipelineModule = () => {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draggedCard, setDraggedCard] = useState(null);
-  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [editingColumnId, setEditingColumnId] = useState(null);
   const [newColumnName, setNewColumnName] = useState('');
   const [selectedCard, setSelectedCard] = useState(null);
   const [showCreateStage, setShowCreateStage] = useState(false);
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+  const [showCreateBoard, setShowCreateBoard] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardType, setNewBoardType] = useState('Sales');
+
+  const loadBoards = () => {
+    const savedBoards = window.localStorage.getItem(BOARDS_STORAGE_KEY);
+    if (savedBoards) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length) {
-          setColumns(parsed);
-        }
-      } catch { }
+        const parsed = JSON.parse(savedBoards);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      } catch {}
     }
-    loadContacts();
-  }, []);
+    const legacyLayout = window.localStorage.getItem(STORAGE_KEY);
+    let legacyStages = DEFAULT_COLUMNS;
+    if (legacyLayout) {
+      try { legacyStages = JSON.parse(legacyLayout) || DEFAULT_COLUMNS; } catch {}
+    }
+    return [{
+      id: 'default',
+      name: 'Main Pipeline',
+      type: 'Sales',
+      stages: legacyStages,
+      cards: []
+    }];
+  };
+
+  const [boards, setBoards] = useState(loadBoards);
+  const [activeBoardId, setActiveBoardId] = useState(() => {
+    return window.localStorage.getItem('aio_active_board_v1') || 'default';
+  });
+
+  const activeBoard = useMemo(() => boards.find(b => b.id === activeBoardId) || boards[0], [boards, activeBoardId]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
-  }, [columns]);
+    window.localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(boards));
+    window.localStorage.setItem('aio_active_board_v1', activeBoardId);
+  }, [boards, activeBoardId]);
+
+  useEffect(() => {
+    loadContacts();
+  }, []);
 
   const loadContacts = async () => {
     setLoading(true);
@@ -85,39 +111,43 @@ const PipelineModule = () => {
   };
 
   const cardsByColumn = useMemo(() => {
-    const columnMap = new Map(columns.map((column) => [column.id, []]));
+    const columnMap = new Map((activeBoard.stages || []).map((column) => [column.id, []]));
     const dynamicColumns = [];
 
     contacts.forEach((contact) => {
       const stageId = normalizeStageId(contact.pipelineStage);
-      if (!columnMap.has(stageId)) {
+      if (columnMap.has(stageId)) {
+        columnMap.get(stageId).push(contact);
+      } else if (activeBoard.id === 'default') {
         const title = contact.pipelineStage || 'New';
-        columnMap.set(stageId, []);
+        columnMap.set(stageId, [contact]);
         dynamicColumns.push({ id: stageId, title });
       }
-      columnMap.get(stageId).push(contact);
     });
 
-    const resolvedColumns = [...columns];
-    dynamicColumns.forEach((column) => {
-      if (!resolvedColumns.find((entry) => entry.id === column.id)) {
-        resolvedColumns.push(column);
-      }
-    });
+    const resolvedColumns = [...(activeBoard.stages || [])];
+    if (activeBoard.id === 'default') {
+      dynamicColumns.forEach((column) => {
+        if (!resolvedColumns.find((entry) => entry.id === column.id)) {
+          resolvedColumns.push(column);
+        }
+      });
+    }
 
     return {
       columns: resolvedColumns,
       cards: columnMap
     };
-  }, [columns, contacts]);
+  }, [activeBoard, contacts]);
 
   const pipelineStats = useMemo(() => {
-    const total = contacts.length;
-    const open = contacts.filter((contact) => !['Closed Won', 'Closed Lost'].includes(contact.pipelineStage)).length;
-    const highValue = contacts.filter((contact) => (contact.leadScore || 0) >= 80).length;
-    const noOwner = contacts.filter((contact) => !contact.owner).length;
+    const boardCards = Array.from(cardsByColumn.cards.values()).flat();
+    const total = boardCards.length;
+    const open = boardCards.filter((contact) => !['Closed Won', 'Closed Lost'].includes(contact.pipelineStage)).length;
+    const highValue = boardCards.filter((contact) => (contact.leadScore || 0) >= 80).length;
+    const noOwner = boardCards.filter((contact) => !contact.owner).length;
     return { total, open, highValue, noOwner };
-  }, [contacts]);
+  }, [cardsByColumn]);
 
   const toolbarStats = [
     { label: 'Deals', value: pipelineStats.open, color: 'emerald' },
@@ -157,12 +187,12 @@ const PipelineModule = () => {
     const trimmed = newColumnName.trim();
     if (!trimmed) return;
     const id = normalizeStageId(trimmed);
-    if (columns.find((column) => column.id === id)) {
+    if (activeBoard.stages.find((column) => column.id === id)) {
       setShowCreateStage(false);
       setNewColumnName('');
       return;
     }
-    setColumns((current) => [...current, { id, title: trimmed }]);
+    setBoards(prev => prev.map(b => b.id === activeBoard.id ? { ...b, stages: [...b.stages, { id, title: trimmed }] } : b));
     setShowCreateStage(false);
     setNewColumnName('');
   };
@@ -170,11 +200,59 @@ const PipelineModule = () => {
   const saveRenameColumn = (columnId) => {
     const trimmed = newColumnName.trim();
     if (!trimmed) return;
-    setColumns((current) =>
-      current.map((column) => (column.id === columnId ? { ...column, title: trimmed } : column))
-    );
+    setBoards(prev => prev.map(b => b.id === activeBoard.id ? {
+      ...b,
+      stages: b.stages.map(col => col.id === columnId ? { ...col, title: trimmed } : col)
+    } : b));
     setEditingColumnId(null);
     setNewColumnName('');
+  };
+
+  const handleCreateBoard = () => {
+    if (!newBoardName.trim()) return;
+    let initialStages = [];
+    if (newBoardType === 'Sales') {
+      initialStages = [
+        { id: 'new', title: 'New' },
+        { id: 'qualified', title: 'Qualified' },
+        { id: 'discovery', title: 'Discovery' },
+        { id: 'negotiating', title: 'Negotiating' },
+        { id: 'closed-won', title: 'Closed Won' },
+        { id: 'closed-lost', title: 'Closed Lost' }
+      ];
+    } else if (newBoardType === 'Task') {
+      initialStages = [
+        { id: 'new', title: 'New' },
+        { id: 'queued', title: 'Queued' },
+        { id: 'in-progress', title: 'In Progress' },
+        { id: 'review', title: 'Review' },
+        { id: 'complete', title: 'Complete' }
+      ];
+    } else if (newBoardType === 'Build') {
+      initialStages = [
+        { id: 'concept', title: 'Concept' },
+        { id: 'active', title: 'Active' },
+        { id: 'integrating', title: 'Integrating' },
+        { id: 'testing', title: 'Testing' },
+        { id: 'live', title: 'Live' }
+      ];
+    } else {
+      initialStages = [
+        { id: 'new', title: 'New' }
+      ];
+    }
+    const newBoard = {
+      id: 'board_' + Date.now(),
+      name: newBoardName.trim(),
+      type: newBoardType,
+      stages: initialStages,
+      cards: []
+    };
+    setBoards(prev => [...prev, newBoard]);
+    setActiveBoardId(newBoard.id);
+    setShowCreateBoard(false);
+    setNewBoardName('');
+    setNewBoardType('Sales');
   };
 
   const startRenameColumn = (column) => {
@@ -327,6 +405,25 @@ const PipelineModule = () => {
       {/* Toolbar */}
       <div className="module-toolbar">
         <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <select
+              value={activeBoardId}
+              onChange={(e) => setActiveBoardId(e.target.value)}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] transition"
+            >
+              {boards.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowCreateBoard(true)}
+              className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] transition"
+              title="New Board"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="h-4 w-px bg-[var(--color-border)] opacity-30" />
           <button
             onClick={() => {
               setShowCreateStage(true);
@@ -509,6 +606,56 @@ const PipelineModule = () => {
               </button>
               <button onClick={() => openCommsThread(selectedCard, 'sms')} className="rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
                 SMS
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showCreateBoard ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={shellPanelClass + ' w-full max-w-sm'}>
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+              <h3 className="text-sm font-semibold tracking-wider text-[var(--color-text-primary)] uppercase">Create New Board</h3>
+              <button onClick={() => setShowCreateBoard(false)} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Board Name</label>
+                <input
+                  value={newBoardName}
+                  onChange={(e) => setNewBoardName(e.target.value)}
+                  placeholder="e.g. Q3 Roadmap"
+                  className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Pipeline Type</label>
+                <select
+                  value={newBoardType}
+                  onChange={(e) => setNewBoardType(e.target.value)}
+                  className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition"
+                >
+                  <option value="Sales">Sales</option>
+                  <option value="Task">Task</option>
+                  <option value="Build">Build</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-5 py-4">
+              <button onClick={() => setShowCreateBoard(false)} className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] shadow-island-sm transition">
+                Cancel
+              </button>
+              <button 
+                onClick={handleCreateBoard}
+                disabled={!newBoardName.trim()}
+                className="flex-1 rounded-[var(--radius-card)] bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold uppercase tracking-wider text-[var(--color-text-on-primary)] hover:bg-[var(--color-primary-hover)] shadow-island transition disabled:opacity-50"
+              >
+                Create
               </button>
             </div>
           </div>
