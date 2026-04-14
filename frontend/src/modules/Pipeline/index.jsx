@@ -12,7 +12,8 @@ import {
   Building2
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { BrainIcon, Crosshair } from '../../components/ui/icons';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
+import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
 
@@ -47,7 +48,7 @@ const shellPanelClass = 'rounded-[var(--radius-panel)] border border-[var(--colo
 const innerPanelClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
 
 const PipelineModule = () => {
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draggedCard, setDraggedCard] = useState(null);
@@ -453,7 +454,7 @@ const PipelineModule = () => {
 
           <div className="module-toolbar-utility">
             <button
-              onClick={() => openAIAssist()}
+              onClick={() => toggleAIAssist({ mode: 'brain' })}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
               title="Brain (Global KB)"
             >
@@ -465,6 +466,13 @@ const PipelineModule = () => {
               title="Crosshair (Module AI)"
             >
               <Crosshair size={14} />
+            </button>
+            <button
+              onClick={() => openGlobalOverlay()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Composer"
+            >
+              <CommandSurfaceIcon size={14} />
             </button>
           </div>
         </div>

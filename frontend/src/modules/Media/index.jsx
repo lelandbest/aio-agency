@@ -126,16 +126,14 @@ function formatDuration(seconds) {
 }
 
 const QUICK_ACTIONS = [
-  { key: 'generateScript', label: 'Generate Script', icon: FileText, provider: 'stub-script' },
-  { key: 'generateRunOfShow', label: 'Generate Run of Show', icon: ListChecks, provider: 'stub-run-of-show' },
-  { key: 'generateVoice', label: 'Generate Voice', icon: AudioLines, provider: 'elevenlabs_tts' },
-  { key: 'generateMusic', label: 'Generate Music', icon: Waves, provider: 'elevenlabs_sound_gen' },
-  { key: 'generateSfx', label: 'Generate SFX', icon: Volume2, provider: 'elevenlabs_sound_gen' },
-  { key: 'generateThumbnail', label: 'Generate Thumbnail', icon: ImageIcon, provider: 'stub-render' },
-  { key: 'generateVideo', label: 'Generate Video', icon: Video, provider: 'stub-render' },
-  { key: 'scribeMedia', label: 'Transcribe Media', icon: Waves, provider: 'elevenlabs_scribe' },
-  { key: 'ingestMeetingArtifacts', label: 'Ingest Meeting Artifacts', icon: Mic, provider: 'zoom' },
-  { key: 'publishMedia', label: 'Publish Media', icon: Send, provider: 'internal-publish' },
+  { key: 'generateScript', label: 'Event Scripts', icon: FileText, provider: 'stub-script' },
+  { key: 'transcribeMedia', label: 'Transcriptions', icon: Mic, provider: 'elevenlabs_scribe' },
+  { key: 'generateVoice', label: 'Voice', icon: AudioLines, provider: 'elevenlabs_tts' },
+  { key: 'generateMusic', label: 'Music', icon: Waves, provider: 'elevenlabs_sound_gen' },
+  { key: 'generateSfx', label: 'SFX', icon: Volume2, provider: 'elevenlabs_sound_gen' },
+  { key: 'generateThumbnail', label: 'Thumbnail', icon: ImageIcon, provider: 'stub-render' },
+  { key: 'generateVideo', label: 'Video', icon: Video, provider: 'stub-render' },
+  { key: 'publishMedia', label: 'Publish', icon: Send, provider: 'internal-publish' },
 ];
 
 const QUICK_ACTION_MAP = QUICK_ACTIONS.reduce((accumulator, action) => {
@@ -458,6 +456,9 @@ const StudioModule = () => {
   const [mediaRenderTemplates, setMediaRenderTemplates] = useState([]);
   const [isVideoTemplatePickerOpen, setIsVideoTemplatePickerOpen] = useState(false);
   const [isVoicePickerOpen, setIsVoicePickerOpen] = useState(false);
+  const [audioPickerOpen, setAudioPickerOpen] = useState(false);
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [videoPickerOpen, setVideoPickerOpen] = useState(false);
   const [workspace, setWorkspace] = useState({
     jobs: [],
     outputs: [],
@@ -1251,8 +1252,14 @@ const StudioModule = () => {
     setError('');
     try {
       let r = null;
-      if (selectedAction === 'generateScript') r = await createMediaScriptJobApi({ provider: activeAction.provider, title: formState.title || 'Script', topic: formState.topic, tone: formState.tone, duration: formState.duration });
-      else if (selectedAction === 'generateRunOfShow') r = await createMediaRunOfShowJobApi({ provider: activeAction.provider, title: formState.title || 'Run of Show', topic: formState.topic });
+      if (selectedAction === 'generateScript') {
+        const isRunOfShow = formState.scriptMode === 'runofshow';
+        if (isRunOfShow) {
+          r = await createMediaRunOfShowJobApi({ provider: activeAction.provider, title: formState.title || 'Run of Show', topic: formState.topic, description: formState.description });
+        } else {
+          r = await createMediaScriptJobApi({ provider: activeAction.provider, title: formState.title || 'Script', topic: formState.topic, tone: formState.tone, duration: formState.duration });
+        }
+      }
       else if (selectedAction === 'generateVoice') r = await createMediaAudioRenderJobApi({ provider: activeAction.provider, title: formState.title || 'Voice', text: formState.text, voice: formState.voice, style: formState.style });
       else if (selectedAction === 'generateMusic') r = await generateAudioAssetApi({ audioSubtype: 'music', prompt: formState.audioGeneratePrompt || formState.prompt || 'Background music', title: formState.title || 'Music', duration: formState.audioGenerateDuration || 8 });
       else if (selectedAction === 'generateSfx') r = await generateAudioAssetApi({ audioSubtype: 'sfx', prompt: formState.audioGeneratePrompt || formState.prompt || 'Sound effect', title: formState.title || 'SFX', duration: formState.audioGenerateDuration || 4 });
@@ -1294,34 +1301,38 @@ const StudioModule = () => {
           },
         });
       }
-      else if (selectedAction === 'scribeMedia') {
-        r = await createMediaTranscriptJobApi({
-          provider: activeAction.provider,
-          title: formState.title || 'Transcript',
-          assetId: formState.assetId || selectedSourceAsset?.assetId || '',
-          sourceAssetIds: formState.assetId || selectedSourceAsset?.assetId ? [formState.assetId || selectedSourceAsset?.assetId].filter(Boolean) : [],
-          sourceUrl: formState.sourceUrl || selectedSourceAsset?.sourceUrl || '',
-          transcriptText: formState.transcriptText,
-        });
-      } else if (selectedAction === 'ingestMeetingArtifacts') {
-        const ingestPayload = formState.rawPayload
-          ? normalizeIngestPayload(formState.rawPayload, {
-            provider: formState.meetingProvider,
-            meetingId: formState.meetingId,
-            meetingTitle: formState.meetingTitle,
-            title: formState.title || formState.meetingTitle,
-          })
-          : buildUrlIngestPayload({
-            provider: formState.meetingProvider,
-            meetingId: formState.meetingId,
-            meetingTitle: formState.meetingTitle,
-            title: formState.title || formState.meetingTitle,
-            mediaUrl: formState.mediaUrl,
+else if (selectedAction === 'transcribeMedia') {
+        if (formState.mediaUrl || formState.rawPayload) {
+          r = await createMediaTranscriptJobApi({
+            provider: activeAction.provider,
+            title: formState.title || 'Transcript',
+            assetId: formState.assetId || selectedSourceAsset?.assetId || '',
+            sourceAssetIds: formState.assetId || selectedSourceAsset?.assetId ? [formState.assetId || selectedSourceAsset?.assetId].filter(Boolean) : [],
+            sourceUrl: formState.mediaUrl || formState.sourceUrl || selectedSourceAsset?.sourceUrl || '',
+            transcriptText: formState.transcriptText,
           });
-        if (!ingestPayload) {
-          throw new Error('Provide a media URL or raw JSON payload to ingest meeting artifacts.');
+        } else if (formState.meetingProvider && formState.meetingId) {
+          const ingestPayload = formState.rawPayload
+            ? normalizeIngestPayload(formState.rawPayload, {
+                provider: formState.meetingProvider,
+                meetingId: formState.meetingId,
+                meetingTitle: formState.meetingTitle,
+                title: formState.title || formState.meetingTitle,
+              })
+            : buildUrlIngestPayload({
+                provider: formState.meetingProvider,
+                meetingId: formState.meetingId,
+                meetingTitle: formState.meetingTitle,
+                title: formState.title || formState.meetingTitle,
+                mediaUrl: formState.mediaUrl,
+              });
+          if (!ingestPayload) {
+            throw new Error('Provide a media URL or meeting provider details to transcribe.');
+          }
+          r = await ingestMeetingMediaApi(ingestPayload);
+        } else {
+          throw new Error('Provide a media URL or meeting provider details to transcribe.');
         }
-        r = await ingestMeetingMediaApi(ingestPayload);
       }
 
       await syncMediaMutation(r, activeAction.label.toUpperCase());
@@ -1464,6 +1475,7 @@ const StudioModule = () => {
 
   const renderTacticalForm = () => {
     const inputClass = "w-full rounded bg-black/40 border border-[#2A2D35] px-2 py-1.5 text-[10px] text-indigo-100 focus:border-cyan-500 font-mono focus:outline-none transition-all";
+    const selectClass = "w-full rounded bg-black/40 border border-[#2A2D35] px-2 py-1.5 text-[10px] text-slate-100 focus:border-cyan-500 font-mono focus:outline-none transition-all cursor-pointer";
     const labelClass = "text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1";
     const compactButtonClass = "px-2 py-1 text-[7px] font-black uppercase tracking-[0.25em] rounded border transition-all";
 
@@ -1604,22 +1616,31 @@ const StudioModule = () => {
       return renderNexusDropZone();
     }
     if (selectedAction === 'generateScript') {
+      const isRunOfShow = formState.scriptMode === 'runofshow';
       return (
-        <div className="flex flex-col gap-2">
-          <label><span className={labelClass}>PROP // MISSION TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder="PODCAST OPEN" /></label>
-          <label><span className={labelClass}>CORE TOPIC</span><input value={formState.topic} onChange={(e) => updateField('topic', e.target.value)} className={inputClass} placeholder="TOPIC REF" /></label>
-          <div className="flex gap-2">
-            <label className="flex-1"><span className={labelClass}>OBJECTIVE TONE</span><input value={formState.tone} onChange={(e) => updateField('tone', e.target.value)} className={inputClass} placeholder="PROFESSIONAL" /></label>
-            <label className="w-20"><span className={labelClass}>DUR TARGET</span><input value={formState.duration} onChange={(e) => updateField('duration', e.target.value)} className={inputClass} placeholder="300S" /></label>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 mb-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={isRunOfShow}
+                onChange={(e) => updateField('scriptMode', e.target.checked ? 'runofshow' : 'script')}
+                className="w-4 h-4 rounded border-[var(--color-border)] bg-[var(--color-bg-primary)] accent-cyan-500"
+              />
+              <span className="text-[9px] uppercase tracking-wider text-slate-400">Run of Show</span>
+            </label>
           </div>
-        </div>
-      );
-    }
-    if (selectedAction === 'generateRunOfShow') {
-      return (
-        <div className="flex flex-col gap-2">
-          <label><span className={labelClass}>PROP // SHOW TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder="OPS HUDDLE" /></label>
-          <label><span className={labelClass}>CORE TOPIC</span><input value={formState.topic} onChange={(e) => updateField('topic', e.target.value)} className={inputClass} placeholder="LAUNCH RECAP" /></label>
+          <label><span className={labelClass}>PROP // MISSION TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder={isRunOfShow ? "OPS HUDDLE" : "PODCAST OPEN"} /></label>
+          <label><span className={labelClass}>CORE TOPIC</span><input value={formState.topic} onChange={(e) => updateField('topic', e.target.value)} className={inputClass} placeholder="TOPIC REF" /></label>
+          {!isRunOfShow && (
+            <div className="flex gap-2">
+              <label className="flex-1"><span className={labelClass}>OBJECTIVE TONE</span><input value={formState.tone} onChange={(e) => updateField('tone', e.target.value)} className={inputClass} placeholder="PROFESSIONAL" /></label>
+              <label className="w-20"><span className={labelClass}>DUR TARGET</span><input value={formState.duration} onChange={(e) => updateField('duration', e.target.value)} className={inputClass} placeholder="300S" /></label>
+            </div>
+          )}
+          {isRunOfShow && (
+            <label><span className={labelClass}>SHOW DETAILS</span><textarea value={formState.description} onChange={(e) => updateField('description', e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder="Segment durations, guests, key talking points..."></textarea></label>
+          )}
         </div>
       );
     }
@@ -1747,45 +1768,89 @@ const StudioModule = () => {
           </div>
           {/* Asset selection row */}
           <div className="flex items-center gap-2">
-            <label className="flex-1">
+            <label className="relative flex-1">
               <span className={labelClass}>AUDIO SOURCE</span>
-              <select 
-                value={formState.audioAssetId} 
-                onChange={(e) => updateField('audioAssetId', e.target.value)} 
-                className={inputClass}
-              >
-                <option value="">TTS</option>
-                <option value="__vault__">-- FROM VAULT --</option>
-                {vaultRailItems.filter(item => item.mediaType === 'audio').map(item => (
-                  <option key={item.assetId} value={item.assetId}>{item.title || item.filename}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAudioPickerOpen((current) => !current)}
+                  className={`${inputClass} flex items-center justify-between gap-2 text-left hover:border-cyan-500/70 hover:bg-black/55`}
+                >
+                  <span className="truncate text-[10px] text-slate-100 uppercase">
+                    {formState.audioAssetId === '' ? 'TTS' : formState.audioAssetId === '__vault__' ? '-- FROM VAULT --' : vaultRailItems.find(i => i.assetId === formState.audioAssetId)?.title || formState.audioAssetId}
+                  </span>
+                  <ChevronDown size={12} className={`shrink-0 text-cyan-400 transition-transform ${audioPickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {audioPickerOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-md border border-[#2A2D35] bg-[#0A0C10] shadow-[0_12px_32px_rgba(0,0,0,0.65)] max-h-40 overflow-y-auto">
+                    <button type="button" onClick={() => { updateField('audioAssetId', ''); setAudioPickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${formState.audioAssetId === '' ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                      <span className="truncate text-[10px] uppercase">TTS</span>
+                    </button>
+                    <button type="button" onClick={() => { updateField('audioAssetId', '__vault__'); setAudioPickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${formState.audioAssetId === '__vault__' ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                      <span className="truncate text-[10px] uppercase">-- FROM VAULT --</span>
+                    </button>
+                    {vaultRailItems.filter(item => item.mediaType === 'audio').map(item => (
+                      <button type="button" key={item.assetId} onClick={() => { updateField('audioAssetId', item.assetId); setAudioPickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${formState.audioAssetId === item.assetId ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                        <span className="truncate text-[10px] uppercase">{item.title || item.filename}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </label>
-            <label className="flex-1">
+            <label className="relative flex-1">
               <span className={labelClass}>IMAGES</span>
-              <select 
-                value={formState.imageAssetIds?.[0] || ''} 
-                onChange={(e) => updateField('imageAssetIds', e.target.value ? [e.target.value] : [])} 
-                className={inputClass}
-              >
-                <option value="">NONE</option>
-                {vaultRailItems.filter(item => item.mediaType === 'image').map(item => (
-                  <option key={item.assetId} value={item.assetId}>{item.title || item.filename}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setImagePickerOpen((current) => !current)}
+                  className={`${inputClass} flex items-center justify-between gap-2 text-left hover:border-cyan-500/70 hover:bg-black/55`}
+                >
+                  <span className="truncate text-[10px] text-slate-100 uppercase">
+                    {!formState.imageAssetIds?.[0] ? 'NONE' : vaultRailItems.find(i => i.assetId === formState.imageAssetIds[0])?.title || formState.imageAssetIds[0]}
+                  </span>
+                  <ChevronDown size={12} className={`shrink-0 text-cyan-400 transition-transform ${imagePickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {imagePickerOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-md border border-[#2A2D35] bg-[#0A0C10] shadow-[0_12px_32px_rgba(0,0,0,0.65)] max-h-40 overflow-y-auto">
+                    <button type="button" onClick={() => { updateField('imageAssetIds', []); setImagePickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${!formState.imageAssetIds?.[0] ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                      <span className="truncate text-[10px] uppercase">NONE</span>
+                    </button>
+                    {vaultRailItems.filter(item => item.mediaType === 'image').map(item => (
+                      <button type="button" key={item.assetId} onClick={() => { updateField('imageAssetIds', [item.assetId]); setImagePickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${formState.imageAssetIds?.[0] === item.assetId ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                        <span className="truncate text-[10px] uppercase">{item.title || item.filename}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </label>
-            <label className="flex-1">
+            <label className="relative flex-1">
               <span className={labelClass}>B-ROLL</span>
-              <select 
-                value={formState.videoAssetIds?.[0] || ''} 
-                onChange={(e) => updateField('videoAssetIds', e.target.value ? [e.target.value] : [])} 
-                className={inputClass}
-              >
-                <option value="">NONE</option>
-                {vaultRailItems.filter(item => item.mediaType === 'video').map(item => (
-                  <option key={item.assetId} value={item.assetId}>{item.title || item.filename}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setVideoPickerOpen((current) => !current)}
+                  className={`${inputClass} flex items-center justify-between gap-2 text-left hover:border-cyan-500/70 hover:bg-black/55`}
+                >
+                  <span className="truncate text-[10px] text-slate-100 uppercase">
+                    {!formState.videoAssetIds?.[0] ? 'NONE' : vaultRailItems.find(i => i.assetId === formState.videoAssetIds[0])?.title || formState.videoAssetIds[0]}
+                  </span>
+                  <ChevronDown size={12} className={`shrink-0 text-cyan-400 transition-transform ${videoPickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {videoPickerOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-md border border-[#2A2D35] bg-[#0A0C10] shadow-[0_12px_32px_rgba(0,0,0,0.65)] max-h-40 overflow-y-auto">
+                    <button type="button" onClick={() => { updateField('videoAssetIds', []); setVideoPickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${!formState.videoAssetIds?.[0] ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                      <span className="truncate text-[10px] uppercase">NONE</span>
+                    </button>
+                    {vaultRailItems.filter(item => item.mediaType === 'video').map(item => (
+                      <button type="button" key={item.assetId} onClick={() => { updateField('videoAssetIds', [item.assetId]); setVideoPickerOpen(false); }} className={`flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left font-mono transition-all ${formState.videoAssetIds?.[0] === item.assetId ? 'bg-cyan-950/40 text-cyan-200' : 'bg-[#0A0C10] text-slate-300 hover:bg-[#11151c] hover:text-white'}`}>
+                        <span className="truncate text-[10px] uppercase">{item.title || item.filename}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </label>
           </div>
           <label><span className={labelClass}>PROP // VIDEO TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder="MISSION CLIP" /></label>
@@ -1794,44 +1859,76 @@ const StudioModule = () => {
         </div>
       );
     }
-    if (selectedAction === 'scribeMedia') {
-      if (!sourceBackedAssets.length) {
-        return renderInlineAssetFallback('TRANSCRIBE MEDIA');
-      }
+    if (selectedAction === 'transcribeMedia') {
+      const inputClass = "w-full rounded bg-black/40 border border-[#2A2D35] px-2 py-1.5 text-[10px] text-indigo-100 focus:border-cyan-500 font-mono focus:outline-none transition-all";
+      const selectClass = "w-full rounded bg-black/40 border border-[#2A2D35] px-2 py-1.5 text-[10px] text-slate-100 focus:border-cyan-500 font-mono focus:outline-none transition-all cursor-pointer";
+      const labelClass = "text-[7px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1";
+      
       return (
         <div className="flex flex-col gap-2">
-          <label>
-            <span className={labelClass}>TARGET ASSET</span>
-            <select value={formState.assetId} onChange={(e) => updateField('assetId', e.target.value)} className={inputClass}>
-              <option value="">SELECT SOURCE ASSET</option>
-              {sourceBackedAssets.map((output) => (
-                <option key={output.assetId} value={output.assetId}>{output.title}</option>
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-400 shrink-0">SOURCE TYPE</span>
+            <div className="flex gap-2">
+              {[
+                { id: 'media', label: 'FILE/URL' },
+                { id: 'meeting', label: 'MEETING' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => updateField('transcribeMode', opt.id)}
+                  className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.15em] rounded border transition-all ${
+                    formState.transcribeMode === opt.id
+                      ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300'
+                      : 'border-[#1E2024] bg-black/20 text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
               ))}
-            </select>
-          </label>
-          <label><span className={labelClass}>TRANSCRIPT TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder="Transcript Job" /></label>
-          <label><span className={labelClass}>SOURCE URL</span><input value={formState.sourceUrl || selectedSourceAsset?.sourceUrl || ''} onChange={(e) => updateField('sourceUrl', e.target.value)} className={inputClass} placeholder="Asset URL auto-fills when selected" /></label>
-          <label><span className={labelClass}>INLINE TRANSCRIPT OVERRIDE</span><textarea value={formState.transcriptText} onChange={(e) => updateField('transcriptText', e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder="Optional direct transcript input..."></textarea></label>
-        </div>
-      );
-    }
-    if (selectedAction === 'ingestMeetingArtifacts') {
-      return (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <label className="w-24">
-              <span className={labelClass}>PROVIDER</span>
-              <select value={formState.meetingProvider} onChange={(e) => updateField('meetingProvider', e.target.value)} className={inputClass}>
-                <option value="zoom">ZOOM</option>
-                <option value="googleMeetDrive">MEET DRIVE</option>
-                <option value="jitsi">JITSI</option>
-              </select>
-            </label>
-            <label className="flex-1"><span className={labelClass}>MEETING ID</span><input value={formState.meetingId} onChange={(e) => updateField('meetingId', e.target.value)} className={inputClass} placeholder="NEXUS-INGEST-001" /></label>
+            </div>
           </div>
-          <label><span className={labelClass}>MEETING TITLE</span><input value={formState.meetingTitle} onChange={(e) => updateField('meetingTitle', e.target.value)} className={inputClass} placeholder="Nexus Ingest Session" /></label>
-          <label><span className={labelClass}>MEDIA URL</span><input value={formState.mediaUrl} onChange={(e) => updateField('mediaUrl', e.target.value)} className={inputClass} placeholder="https://cdn.example.com/meeting.wav" /></label>
-          <label><span className={labelClass}>RAW PAYLOAD</span><textarea value={formState.rawPayload} onChange={(e) => updateField('rawPayload', e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder='{"provider":"zoom","recordingFiles":[{"downloadUrl":"https://..."}]}'></textarea></label>
+          
+          {formState.transcribeMode === 'meeting' ? (
+            <>
+              <div className="flex gap-2">
+                <label className="w-24 shrink-0">
+                  <span className={labelClass}>PROVIDER</span>
+                  <select value={formState.meetingProvider} onChange={(e) => updateField('meetingProvider', e.target.value)} className={selectClass}>
+                    <option value="zoom">ZOOM</option>
+                    <option value="googleMeetDrive">MEET</option>
+                    <option value="jitsi">JITSI</option>
+                    <option value="upload">UPLOAD</option>
+                    <option value="url">URL</option>
+                  </select>
+                </label>
+                <label className="flex-1"><span className={labelClass}>MEETING ID</span><input value={formState.meetingId} onChange={(e) => updateField('meetingId', e.target.value)} className={inputClass} placeholder="NEXUS-001" /></label>
+                <label className="flex-1"><span className={labelClass}>TITLE</span><input value={formState.meetingTitle} onChange={(e) => updateField('meetingTitle', e.target.value)} className={inputClass} placeholder="Session" /></label>
+              </div>
+              {(formState.meetingProvider === 'upload' || formState.meetingProvider === 'url') && (
+                <label><span className={labelClass}>{formState.meetingProvider === 'upload' ? 'VIDEO FILE' : 'SOURCE URL'}</span><input value={formState.mediaUrl} onChange={(e) => updateField('mediaUrl', e.target.value)} className={inputClass} placeholder={formState.meetingProvider === 'upload' ? "Select video file" : "https://youtube.com/watch?v=..."} /></label>
+              )}
+            </>
+          ) : (
+            <>
+              {sourceBackedAssets.length > 0 && (
+                <label>
+                  <span className={labelClass}>FROM VAULT</span>
+<select value={formState.assetId} onChange={(e) => updateField('assetId', e.target.value)} className={selectClass}>
+                    <option value="">SELECT ASSET</option>
+                    {sourceBackedAssets.map((output) => (
+                      <option key={output.assetId} value={output.assetId}>{output.title}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label><span className={labelClass}>MEDIA URL</span><input value={formState.mediaUrl} onChange={(e) => updateField('mediaUrl', e.target.value)} className={inputClass} placeholder="https://cdn.example.com/media.wav" /></label>
+              <div className="flex gap-2">
+                <label className="flex-1"><span className={labelClass}>TITLE</span><input value={formState.title} onChange={(e) => updateField('title', e.target.value)} className={inputClass} placeholder="Transcript Job" /></label>
+                <label className="flex-1"><span className={labelClass}>RAW JSON</span><textarea value={formState.rawPayload} onChange={(e) => updateField('rawPayload', e.target.value)} rows={1} className={`${inputClass} resize-none`} placeholder='{"provider":"zoom"...}'></textarea></label>
+              </div>
+            </>
+          )}
         </div>
       );
     }
@@ -1886,11 +1983,12 @@ const StudioModule = () => {
     if (!selectedAction) {
       return nexusMode === 'file' || hasNexusInput;
     }
-    if (selectedAction === 'scribeMedia') {
-      return Boolean(formState.transcriptText.trim() || formState.sourceUrl.trim() || selectedSourceAsset?.sourceUrl);
-    }
-    if (selectedAction === 'ingestMeetingArtifacts') {
-      return hasNexusInput;
+    if (selectedAction === 'transcribeMedia') {
+      const isMeeting = formState.transcribeMode === 'meeting';
+      if (isMeeting) {
+        return Boolean(formState.meetingProvider && (formState.meetingId || formState.mediaUrl));
+      }
+      return Boolean(formState.mediaUrl.trim() || formState.rawPayload.trim() || formState.assetId);
     }
     if (selectedAction === 'publishMedia') {
       return Boolean(formState.publishTarget.trim() || publishableAssets.length);
@@ -2256,23 +2354,23 @@ const StudioModule = () => {
             <span className="text-[10px] uppercase tracking-[0.5em] text-cyan-500/80 font-black">CONTROL DECK</span>
           </div>
 
-          <div className="pt-[10px] p-3.5 flex flex-col gap-3 relative z-10">
+          <div className="pt-[10px] p-3 flex flex-col gap-3 relative z-10">
             {/* IMAGE ADJUSTMENTS */}
-            <div className="grid grid-cols-1 gap-4">
-              <div className="bg-[#0A0A0C] p-3.5 rounded-lg border border-[#1E2024] flex flex-col gap-3 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_10px_20px_-10px_rgba(0,0,0,0.5)] shrink-0 leading-none relative overflow-hidden group/adj">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-1">
+            <div className="grid grid-cols-1 gap-2">
+              <div className="bg-[#0A0A0C] p-2 rounded-lg border border-[#1E2024] flex flex-col gap-2 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_10px_20px_-10px_rgba(0,0,0,0.5)] shrink-0 leading-none relative overflow-hidden group/adj">
+                <div className="flex items-center justify-between border-b border-white/5 pb-1 mb-1">
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
-                    <span className="text-[8px] font-black text-slate-100 uppercase tracking-[0.3em]">IMAGERY ADJ</span>
+                    <span className="text-[7px] font-black text-slate-100 uppercase tracking-[0.3em]">IMAGERY ADJ</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[6px] font-mono text-slate-700 uppercase tracking-widest leading-none">HW-ID: ADJ-747X</span>
+                    <span className="text-[5px] font-mono text-slate-700 uppercase tracking-widest leading-none">HW-ID: ADJ-747X</span>
                     {!activeOutput?.sourceUrl && (
-                      <span className="text-[6px] font-mono text-rose-500/80 uppercase border border-rose-500/30 px-1 bg-rose-500/5 leading-none">PREV_ONLY</span>
+                      <span className="text-[5px] font-mono text-rose-500/80 uppercase border border-rose-500/30 px-1 bg-rose-500/5 leading-none">PREV_ONLY</span>
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
                   {[
                     { key: 'brightness', label: 'BRIGHTNESS', short: 'BRI', min: 0, max: 200, unit: '%', default: 100 },
                     { key: 'contrast', label: 'CONTRAST', short: 'CON', min: 0, max: 200, unit: '%', default: 100 },
@@ -2355,7 +2453,7 @@ const StudioModule = () => {
             </div>
 
             {/* TACTICAL FORM */}
-            <div className="h-auto flex flex-col bg-[#0A0A0C] border border-white/5 rounded-lg p-3 pb-4 shadow-inner relative overflow-hidden">
+            <div className="flex flex-col bg-[#0A0A0C] border border-white/5 rounded-lg p-3 pb-14 shadow-inner relative overflow-hidden">
               <div className="overflow-y-auto no-scrollbar max-h-[560px]">{renderTacticalForm()}</div>
               {error && <div className="mt-2 text-[7px] text-rose-500 font-mono uppercase bg-rose-900/10 p-2 border border-rose-900/20 rounded leading-tight">{error}</div>}
             </div>

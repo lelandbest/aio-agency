@@ -4,7 +4,7 @@ import { Key, Settings, Save, User, Mail, Shield, Smartphone, Globe, Clock, PenT
 import { useAuth } from '../../contexts/AuthContext';
 import { useBrand } from '../../contexts/BrandContext';
 import { useAIAssist } from '../../contexts/AIAssistContext';
-import { BrainIcon, Crosshair } from '../../components/ui/icons';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import { clearStoredSessionToken } from '../../services/authStorage';
 import ModuleHeader from '../../components/ModuleHeader';
 import {
@@ -3392,7 +3392,7 @@ const SETTINGS_TAB_KEY = 'aio-settings-active-tab';
 
 const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const { tenant, user } = useAuth();
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const [activeTab, setActiveTab] = useState(() => {
     if (activeSettingsTab) return activeSettingsTab;
     try {
@@ -3508,8 +3508,9 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
             <button onClick={() => wlHandlers.current.save?.()} className="text-[10px] py-1 px-2 h-6 flex items-center justify-center rounded border border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] hover:bg-[var(--color-primary)]/20 transition font-medium whitespace-nowrap">Save</button>
           </div>
           <div className="module-toolbar-utility">
-            <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><BrainIcon size={14} /></button>
+            <button onClick={() => toggleAIAssist({ mode: 'brain' })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><BrainIcon size={14} /></button>
             <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><Crosshair size={14} /></button>
+            <button onClick={() => openGlobalOverlay()} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><CommandSurfaceIcon size={14} /></button>
           </div>
         </div>
       </div>

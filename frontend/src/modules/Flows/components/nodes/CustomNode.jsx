@@ -79,7 +79,7 @@ const CustomNode = ({ data, selected, isConnectable }) => {
           borderColor: selected ? glowColor.primary : borderColor,
           ringColor: glowColor.primary,
           boxShadow: isGhost ? 'none' : selected 
-            ? `0 0 12px ${glowColor.primary}50, 0 0 24px ${glowColor.secondary}25`
+            ? `0 0 0 3px var(--color-bg-primary), 0 0 0 5px ${glowColor.primary}, 0 0 15px ${glowColor.primary}60`
             : isProcessing
               ? `0 0 16px ${glowColor.primary}80, 0 0 32px ${glowColor.secondary}40`
               : `0 0 8px ${glowColor.primary}25, 0 0 16px ${glowColor.secondary}15`,

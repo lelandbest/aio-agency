@@ -23,6 +23,23 @@ import {
   getRecentActions
 } from './state/helpState';
 
+const sanitizeDisplayText = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/^[*#]+\s*/gm, '')
+    .replace(/\s*[*#]+$/gm, '')
+    .replace(/\*\*\*/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/`{1,3}/g, '')
+    .replace(/^###\s+/gm, '')
+    .replace(/^##\s+/gm, '')
+    .replace(/^#\s+/gm, '')
+    .replace(/\n###+\s*/g, '\n')
+    .replace(/\n##+\s*/g, '\n')
+    .replace(/\n#+\s*/g, '\n')
+    .trim();
+};
+
 const HelpModule = ({ activeModule = 'dashboard' }) => {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -532,7 +549,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                 </button>
               </div>
               <p className="text-sm font-medium text-[var(--color-text-secondary)] leading-relaxed italic">
-                "{charlieResponse.answer}"
+                "{sanitizeDisplayText(charlieResponse.answer)}"
               </p>
 
               {charlieResponse.insights?.length > 0 && (
@@ -541,7 +558,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                   <div className="space-y-2">
                     {charlieResponse.insights.map((insight, index) => (
                       <div key={`insight-${index}`} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-[var(--color-text-secondary)]">
-                        {insight}
+                        {sanitizeDisplayText(insight)}
                       </div>
                     ))}
                   </div>

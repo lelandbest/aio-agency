@@ -13,7 +13,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { BullseyeIcon, BrainIcon, Crosshair } from '../../components/ui/icons';
+import { BullseyeIcon, BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
+import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import {
@@ -455,7 +456,7 @@ function SignalCard({ signal, isSelected, onSelect, busyActionType, onAction }) 
 }
 
 export default function SignalsModule() {
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const { showNotice } = useNotice();
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -745,7 +746,7 @@ export default function SignalsModule() {
         <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
           <div className="module-toolbar-utility">
             <button
-              onClick={() => openAIAssist()}
+              onClick={() => toggleAIAssist({ mode: 'brain' })}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
               title="Brain (Global KB)"
             >
@@ -757,6 +758,13 @@ export default function SignalsModule() {
               title="Crosshair (Module AI)"
             >
               <Crosshair size={14} />
+            </button>
+            <button
+              onClick={() => openGlobalOverlay()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              title="Composer"
+            >
+              <CommandSurfaceIcon size={14} />
             </button>
           </div>
         </div>
