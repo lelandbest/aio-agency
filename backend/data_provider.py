@@ -12,6 +12,10 @@ from uuid import uuid4
 from backend.calendar_adapters import get_calendar_adapter, get_calendar_provider_catalog
 from backend.mail_adapters import get_mail_adapter, get_provider_catalog
 try:
+    from backend.media_engine import clone_json
+except ModuleNotFoundError:
+    from media_engine import clone_json
+try:
     from backend.agent_definitions import AGENT_DEFINITIONS
 except ModuleNotFoundError:
     from agent_definitions import AGENT_DEFINITIONS

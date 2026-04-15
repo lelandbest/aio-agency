@@ -206,7 +206,7 @@ class CommsProviderAdapter(ABC):
     def is_available(self) -> bool:
         """Check if provider is currently available for requests."""
         health = self.get_health()
-        return health.status in ("healthy", "degraded") or health.status == "unknown"
+        return health.status in ("healthy", "degraded")
 
 
 class StubProviderAdapter(CommsProviderAdapter):
@@ -274,33 +274,96 @@ class TelnyxProviderAdapter(CommsProviderAdapter):
         return "Telnyx"
 
     def validate_config(self) -> tuple[bool, str]:
+        print("TELNYX VERIFY START")
+
         if not self.config.api_key:
+            print("TELNYX VERIFY FAIL: api_key missing")
             return False, "Telnyx API key is required"
-        if not self.config.api_key.startswith("KEY_"):
-            return False, "Invalid Telnyx API key format"
-        return True, ""
+        if not self.config.api_key.startswith("KEY"):
+            print("TELNYX VERIFY FAIL: invalid key format")
+            return False, "Invalid Telnyx API key format (must start with KEY)"
+        url = f"{self._base_url}/messaging_profiles?page[size]=1"
+        masked_key = f"****{self.config.api_key[-4:]}" if len(self.config.api_key) >= 4 else "****"
+        print(f"  URL: {url}")
+        print(f"  API Key: {masked_key}")
+
+        try:
+            import urllib.request
+            import json
+
+            req = urllib.request.Request(url, method="GET")
+            req.add_header("Authorization", f"Bearer {self.config.api_key}")
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                status_code = response.status
+                body = response.read().decode()[:500]
+                print(f"  Response Status: {status_code}")
+                print(f"  Response Body: {body}")
+
+                if status_code == 200:
+                    print("TELNYX VERIFY END: SUCCESS")
+                    return True, ""
+                else:
+                    print(f"TELNYX VERIFY END: FAIL (HTTP {status_code})")
+                    return False, f"Telnyx API returned HTTP {status_code}"
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()[:500] if e.fp else ""
+            print(f"  Response Status: {e.code}")
+            print(f"  Response Body: {error_body}")
+            if e.code == 401:
+                print("TELNYX VERIFY END: FAIL (Unauthorized)")
+                return False, "Invalid Telnyx API key (Unauthorized)"
+            print(f"TELNYX VERIFY END: FAIL (HTTP {e.code})")
+            return False, f"Telnyx API returned HTTP {e.code}: {error_body}"
+        except Exception as e:
+            error_msg = str(e)
+            print(f"  Response Status: ERROR")
+            print(f"  Error: {error_msg}")
+            print("TELNYX VERIFY END: FAIL (Network Error)")
+            return False, f"Telnyx API connection failed: {error_msg}"
 
     def get_health(self) -> ProviderHealth:
         if not self.config.api_key:
             return ProviderHealth(status="not_configured", message="API key not set")
-        
+
+        print("TELNYX HEALTH CHECK START")
+        url = f"{self._base_url}/messaging_profiles?page[size]=1"
+        masked_key = f"****{self.config.api_key[-4:]}" if len(self.config.api_key) >= 4 else "****"
+        print(f"  URL: {url}")
+        print(f"  API Key: {masked_key}")
+
         try:
             import urllib.request
             import json
-            
-            req = urllib.request.Request(
-                f"{self._base_url}/health",
-                method="GET"
-            )
+
+            req = urllib.request.Request(url, method="GET")
             req.add_header("Authorization", f"Bearer {self.config.api_key}")
-            
+
             with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                if response.status == 200:
-                    return ProviderHealth(status="healthy", message="Telnyx API reachable")
-                return ProviderHealth(status="unhealthy", message=f"API returned {response.status}")
+                status_code = response.status
+                body = response.read().decode()[:500]
+                print(f"  Response Status: {status_code}")
+                print(f"  Response Body: {body}")
+                if status_code == 200:
+                    print("TELNYX HEALTH CHECK END: healthy")
+                    return ProviderHealth(status="healthy", message="Telnyx API verified")
+                print(f"TELNYX HEALTH CHECK END: unhealthy (HTTP {status_code})")
+                return ProviderHealth(status="unhealthy", message=f"API returned {status_code}")
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()[:500] if e.fp else ""
+            print(f"  Response Status: {e.code}")
+            print(f"  Response Body: {error_body}")
+            if e.code == 401:
+                print("TELNYX HEALTH CHECK END: unhealthy (Unauthorized)")
+                return ProviderHealth(status="unhealthy", message="Invalid API Key (Unauthorized)")
+            print(f"TELNYX HEALTH CHECK END: unhealthy (HTTP {e.code})")
+            return ProviderHealth(status="unhealthy", message=f"API returned HTTP {e.code}: {error_body}")
         except Exception as e:
-            return ProviderHealth(status="unhealthy", message=str(e))
+            error_msg = str(e)
+            print(f"  Response Status: ERROR")
+            print(f"  Error: {error_msg}")
+            print("TELNYX HEALTH CHECK END: unhealthy (Network Error)")
+            return ProviderHealth(status="unhealthy", message=f"Connection failed: {error_msg}")
 
     def send_sms(self, request: SmsSendRequest) -> SmsSendResult:
         if not self.config.api_key:

@@ -30,7 +30,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 from pydantic import BaseModel
@@ -1353,35 +1353,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-ALLOWED_ORIGINS = [
-    origin.strip().rstrip("/")
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS",
-        ",".join(
-            [
-                "http://localhost:5175",
-                "http://127.0.0.1:5175",
-                "http://0.0.0.0:5175",
-
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "http://0.0.0.0:3000",
-            ]
-        ),
-    ).split(",")
-    if origin.strip()
-]
-# Add both normalized and trailing slash variants to the list for safety with CORSMiddleware
-ALLOWED_ORIGINS = list(set(ALLOWED_ORIGINS + [f"{o}/" for o in ALLOWED_ORIGINS]))
-
-# NOTE: CORSMiddleware is defined here but will be moved to after @app.middleware declarations
-# to ensure it runs FIRST in the stack (LIFO ordering in FastAPI/Starlette).
-# However, for clarity and baseline config, we keep the initialization logic here.
+ALLOWED_ORIGINS = ["*"]
+ALLOWED_METHODS = ["*"]
+ALLOWED_HEADERS = ["*"]
 CORS_CONFIG = {
     "allow_origins": ALLOWED_ORIGINS,
     "allow_credentials": True,
-    "allow_methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization", "X-Session-Token", "X-Requested-With", "Accept", "Origin", "X-Tenant-Id"],
+    "allow_methods": ALLOWED_METHODS,
+    "allow_headers": ALLOWED_HEADERS,
 }
 
 
@@ -2680,8 +2659,10 @@ async def enforce_camelcase_response(request: Request, call_next):
     response = await call_next(request)
     
     if request.url.path.startswith("/api"):
-        if hasattr(response, "body"):
-            try:
+        try:
+            # We must use a custom response to handle headers/media_type correctly
+            # But we must ensure CORS headers are preserved or the middleware will add them
+            if hasattr(response, "body") and not isinstance(response, (StreamingResponse, FileResponse)):
                 body = response.body
                 if body:
                     data = json.loads(body)
@@ -2696,10 +2677,11 @@ async def enforce_camelcase_response(request: Request, call_next):
                         content=new_body,
                         status_code=response.status_code,
                         headers=headers,
-                        media_type=getattr(response, "media_type", "application/json")
+                        media_type="application/json"
                     )
-            except (json.JSONDecodeError, AttributeError):
-                pass
+        except Exception as e:
+            logger.error(f"Middleware casing error: {e}")
+            pass
     
     return response
 
@@ -7227,6 +7209,235 @@ async def list_help_articles():
     return {"data": [item for item in all_items if "META:DOC:HELP" in (item.get("tags") or [])]}
 
 
+@app.post("/api/help/generate-docs")
+async def generate_system_docs(request: Request):
+    """Generate system documentation from existing module structure and store as help articles."""
+    require_capability(request, "system.manage", "Only workspace staff can generate documentation.")
+    
+    required_doc_tags = ["META:DOC:SYSTEM", "META:DOC:USER", "META:DOC:SETUP"]
+    existing_tags = set()
+    for item in provider.list_brain_items():
+        for tag in (item.get("tags") or []):
+            existing_tags.add(tag)
+    missing_doc_tags = [t for t in required_doc_tags if t not in existing_tags]
+    if not missing_doc_tags:
+        return {"data": {"generated": 0, "message": "Documentation already exists. Delete existing docs to regenerate."}}
+    
+    # System modules derived from initialDb.js structure
+    modules = [
+        {"id": "signals", "name": "Signals", "category": "Dashboard", "description": "Real-time activity feed showing all system events, notifications, and updates."},
+        {"id": "brain", "name": "Brain", "category": "Intelligence", "description": "AI-powered knowledge base and reasoning engine. Stores context, makes decisions, and learns from interactions."},
+        {"id": "comms", "name": "Comms", "category": "Operations", "description": "Communication hub for SMS, VoIP, and messaging. Manages all outbound/inbound message traffic."},
+        {"id": "crm", "name": "CRM", "category": "Operations", "description": "Customer relationship management. Tracks contacts, companies, deals, and interactions."},
+        {"id": "studio", "name": "Studio", "category": "Operations", "description": "Media production workspace. Create scripts, voiceovers, video renders, transcripts, and ingest workflows."},
+        {"id": "forge", "name": "Forge", "category": "Operations", "description": "Assembly and editing workspace. Combine media assets, edit transcripts, and prepare content for export."},
+        {"id": "composer", "name": "Composer", "category": "Operations", "description": "Visual content composer for timeline-based media assembly. Drag-drop assets, trim, arrange, and export."},
+        {"id": "boom", "name": "BOOM", "category": "Operations", "description": "Quick capture module for screen/camera recording with segment management. Auto-transcribes and sends to Forge."},
+        {"id": "flows", "name": "Flows", "category": "Operations", "description": "Workflow automation builder. Create trigger-action sequences, manage agents, and build pipelines."},
+        {"id": "forms", "name": "Forms", "category": "Operations", "description": "Form builder for data collection. Create custom forms with validation and storage."},
+        {"id": "orders", "name": "Orders", "category": "Operations", "description": "Order management and tracking. Process orders, manage inventory, and handle fulfillment."},
+        {"id": "pipelines", "name": "Pipelines", "category": "Operations", "description": "Pipeline builder for complex multi-step workflows. Visual node-based automation."},
+        {"id": "calendar", "name": "Calendar", "category": "Operations", "description": "Scheduling and event management. Book meetings, set reminders, manage availability."},
+        {"id": "design", "name": "Design", "category": "Operations", "description": "Graphic design workspace. Create visual assets, edit images, and manage design library."},
+        {"id": "agents", "name": "Agents", "category": "Growth", "description": "AI agent management. Configure, deploy, and monitor autonomous AI workers."},
+        {"id": "integrations", "name": "Integrations", "category": "Admin", "description": "Third-party service connections. Connect external APIs, webhooks, and data sources."},
+        {"id": "settings", "name": "Settings", "category": "Admin", "description": "System configuration and preferences. Manage users, roles, permissions, and workspace settings."}
+    ]
+    
+    # Core workflows derived from actual system behavior
+    workflows = [
+        {"id": "create_flow", "title": "Creating a Flow", "steps": ["Navigate to Flows", "Click 'New Flow'", "Select trigger type", "Add actions", "Configure conditions", "Save and activate"]},
+        {"id": "use_composer", "title": "Using Composer", "steps": ["Open Composer from sidebar", "Drag assets from Vault tray", "Drop on timeline", "Trim/move clips", "Add transitions", "Export"]},
+        {"id": "use_boom", "title": "Using BOOM Capture", "steps": ["Click Boom in sidebar/Composer/Forge", "Select mode (Screen/Camera)", "Choose mic/camera", "Click Start Recording", "Use Mark for checkpoints", "Use Revert to undo", "Stop when done", "Preview and Save to Vault"]},
+        {"id": "agent_interaction", "title": "Interacting with Charlie (Voice)", "steps": ["Click Charlie mic in sidebar", "Speak command naturally", "Charlie parses intent", "Routes to specialist agent", "Agent executes action", "Returns result to Charlie", "Charlie responds verbally"]},
+        {"id": "studio_transcription", "title": "Transcribing Media in Studio", "steps": ["Upload media or use existing", "Enable transcription job", "Wait for processing", "View/edit transcript in Forge", "Export or continue editing"]}
+    ]
+    
+    docs_created = 0
+
+    # Create System Documentation article (if missing)
+    if "META:DOC:SYSTEM" not in existing_tags:
+        system_doc = {
+            "title": "AIO Platform Overview",
+            "category": "guide",
+            "content": """# AIO Platform Overview
+
+Welcome to the AIO ecosystem—a consolidated operating environment for high-density business orchestration. This platform merges the Cortex reasoning layer with execution-ready surfaces for media, comms, and automation.
+
+## Core Architectural Layers
+
+### 1. The Cortex (Intelligence)
+Located in the **Brain** module, Cortex handles all system-level reasoning, memory management, and agent orchestration. It is the central nervous system that coordinates logic across all other modules.
+
+### 2. Execution Surfaces
+- **Comms**: Unified triage for SMS, email, and internal threads. Includes multi-channel routing and automated response templates.
+- **Studio**: Advanced media production pipeline for video, audio, and transcription. Supports thin-air rendering and automated Nexus templates.
+- **CRM**: The truth-layer for contact records and relationship lifecycle. Tracks every interaction from first touch to closed-won.
+
+### 3. Logic & Automation
+- **Flows**: Visual builder for event-driven automation. Create complex trigger-action sequences without code.
+- **Signals**: Real-time heuristic feed for monitoring system health, operational status, and user engagement metrics.
+
+## Navigating the Chassis
+The 'Dead Black' chassis is designed for maximum information density. Use the Sidebar for module switching and **Charlie** (bottom left) for voice-commanded system execution. Click the Mic icon or use the 'aio:open-charlie' event to engage the intelligence layer.
+""",
+            "tags": ["META:DOC:HELP", "META:DOC:SYSTEM"]
+        }
+        provider.create_brain_item(system_doc)
+        docs_created += 1
+
+    # Create User Manual article (if missing)
+    if "META:DOC:USER" not in existing_tags:
+        user_manual = {
+            "title": "AIO Operational Manual",
+            "category": "guide",
+            "content": """# AIO Operational Manual
+
+This manual provides the operational protocols for navigating and executing tasks within the AIO environment.
+
+## 1. Communications & Triage
+The **Comms** module is your primary workspace for engagement. All interactions (SMS, Email, Voice) are grouped into **Threads**.
+- **Unified Feed**: Filter by 'Needs Reply' or 'Waiting' to manage your queue.
+- **Action Pathways**: Use the rapid-reply bar to send messages, add internal notes, or assign tasks to specialist agents.
+- **Tagging**: Categorize threads to trigger automated downstream Flows (e.g., tagging as 'Qualified' moves a lead in the Pipeline).
+
+## 2. Media Production (Studio)
+The **Studio** module is an industrial-grade media engine powered by the Nexus render contract.
+- **Vault Ingest**: Upload raw footage, audio, or documents to the central Vault.
+- **Render Jobs**: Initiate 'thin-air' renders using templates like `aio_audiogram_vertical`.
+- **Transcription**: Convert any audio/video asset into a searchable transcript using the local `ffmpeg_transcribe` engine.
+
+## 3. Automation Builder (Flows)
+Create robust, event-driven automation in the **Flows** module.
+- **Trigger-Action Architecture**: Define a trigger (e.g., Form Submission) and chain multiple actions (Send SMS, Create CRM Contact, Assign Owner).
+- **Agent Integration**: Embed AI Agents into your flows to perform complex reasoning or data extraction tasks.
+
+## 4. System Interfacing
+- **Charlie**: Voice-assisted navigation. Click the Mic icon or use 'aio:open-charlie' to speak commands.
+- **BOOM**: Viewport capture for rapid ingest. Perfect for recording screen segments or camera clips directly into the Vault.
+""",
+            "tags": ["META:DOC:HELP", "META:DOC:USER"]
+        }
+        provider.create_brain_item(user_manual)
+        docs_created += 1
+
+    # Create Setup Guide article (if missing)
+    if "META:DOC:SETUP" not in existing_tags:
+        setup_guide = {
+            "title": "AIO Configuration Guide",
+            "category": "guide",
+            "content": """# AIO Configuration Guide
+
+Follow these configuration protocols to optimize your AIO workspace for high-efficiency operations.
+
+## Environment Preparation
+AIO is a browser-native platform. For optimal performance, use a Chromium-based browser (Chrome, Brave, Edge) with hardware acceleration enabled.
+
+### 1. Hardware Permissions
+The following permissions are required for full system functionality:
+- **Microphone**: Essential for Charlie voice commands.
+- **Camera**: Essential for BOOM viewport capture.
+- **Clipboard**: Used for rapid metadata and link transfers.
+
+### 2. Infrastructure Connectivity
+Navigate to the **Integrations** module to connect your external services:
+- **Mailboxes**: Connect via Gmail OAuth, Microsoft 365, or standard IMAP/SMTP.
+- **Calendars**: Sync external calendars to manage appointment availability in the Calendar module.
+- **AI Providers**: (Optional) Configure high-order LLM keys for advanced reasoning tasks in the Brain module.
+
+### 3. Personalization & Branding
+Customize the chassis in the **Settings** module:
+- **Profile**: Set your avatar and contact details.
+- **Whitelabel**: Upload your brand logo and configure workspace colors.
+- **Theming**: Toggle between 'Dead Black', 'AIO Classic', and 'Glassmorphism' visual styles.
+
+### 4. Verification Pathway
+Once configured, visit the **Signals** feed to verify that system heartbeat and event tracking are operational.
+""",
+            "tags": ["META:DOC:HELP", "META:DOC:SETUP"]
+        }
+        provider.create_brain_item(setup_guide)
+        docs_created += 1
+
+    # Create individual module docs (only missing ones)
+    for module in modules:
+        module_tag = f"META:DOC:MODULE:{module['id'].upper()}"
+        if module_tag not in existing_tags:
+            doc = {
+                "title": f"{module['name']} Intel",
+                "category": "module",
+                "content": f"""# {module['name']} Module
+
+## Overview
+The {module['name']} module is a core component of the AIO {module['category']} layer. {module['description']}
+
+## Operational Protocol
+To utilize {module['name']} effectively, follow these standard operating procedures:
+
+1.  **Ingest & Analysis**: Ensure all relevant data sources are connected via the Integrations panel.
+2.  **Specialized Execution**: Navigate to the {module['name']} workbench to access module-specific tools.
+3.  **Cross-Module Collaboration**: Logic from {module['name']} can be exported to **Flows** for automated trigger-action chaining.
+
+## Key Features
+- **High-Density Monitoring**: Real-time feedback on module health and execution metrics.
+- **Deep Integration**: Seamless data transfer between {module['name']} and the central **Brain** intelligence layer.
+- **Operator-First Design**: Optimized for rapid execution with minimal UI friction.
+
+## Help & Support
+For advanced configurations, contact system administration or engage **Charlie** for voice-assisted troubleshooting.
+""",
+                "tags": ["META:DOC:HELP", module_tag]
+            }
+            provider.create_brain_item(doc)
+            docs_created += 1
+    
+    if docs_created == 0:
+        return {"data": {"generated": 0, "message": "Documentation already exists. Delete existing docs to regenerate."}}
+    return {"data": {"generated": docs_created, "message": f"Generated {docs_created} documentation articles."}}
+
+
+@app.post("/api/help/missing")
+async def capture_missing_help(request: Request, payload: dict):
+    """Capture missing help requests for future documentation expansion."""
+    require_capability(request, "studio.view", "Only workspace members can request help.")
+    
+    query = payload.get("query", "")
+    if not query:
+        raise HTTPException(status_code=400, detail="Query is required")
+    
+    # Check if related article exists
+    all_items = provider.list_brain_items()
+    matching = [item for item in all_items if "META:DOC:HELP" in (item.get("tags") or [])]
+    
+    # Simple keyword match
+    query_lower = query.lower()
+    found = any(query_lower in item.get("content", "").lower() or query_lower in item.get("title", "").lower() for item in matching)
+    
+    if found:
+        return {"data": {"captured": False, "message": "Related documentation exists."}}
+    
+    # Create missing help entry
+    missing_entry = {
+        "title": f"Missing: {query[:50]}",
+        "category": "help_request",
+        "content": f"""# Help Request: {query}
+
+## Status: Needs Documentation
+
+User asked for help on this topic but no documentation exists.
+
+## Suggested Resolution
+- Create documentation explaining this topic
+- Add to existing relevant docs
+- Tag with META:DOC:HELP
+""",
+        "tags": ["META:DOC:HELP", "META:MISSING_HELP"]
+    }
+    provider.create_brain_item(missing_entry)
+    
+    return {"data": {"captured": True, "message": "Help request captured for future documentation."}}
+
+
 @app.get("/api/agents")
 async def list_agents():
     """Public agent listing — excludes hidden agents (OMEGA)."""
@@ -8006,6 +8217,8 @@ async def save_comms_provider_config(request: Request, payload: dict[str, Any]):
         
         result = save_provider_config(provider_type, config, is_active)
         return {"data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

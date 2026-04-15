@@ -2031,27 +2031,6 @@ export async function updateHelpTicketApi(ticketId, payload) {
   return response.data;
 }
 
-export async function getHelpArticlesApi() {
-  const response = await request('/api/help/articles');
-  return response.data || [];
-}
-
-
-export async function getHelpBroadcastsApi() {
-  const response = await request('/api/help/broadcasts');
-  return response.data || [];
-}
-
-export async function createHelpBroadcastApi(payload) {
-  const response = await request('/api/help/broadcasts', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-  return response.data;
-}
-
-// --- End Help Desk APIs ---
-
 // --- Notification APIs ---
 
 export async function getNotificationsApi(limit = 50, unreadOnly = false) {
@@ -2077,6 +2056,31 @@ export async function deleteNotificationApi(notificationId) {
   return request(`/api/notifications/${encodeURIComponent(notificationId)}`, {
     method: 'DELETE'
   });
+}
+
+// ── Help / Documentation ─────────────────────────────────────────────────────
+
+export async function getHelpArticlesApi() {
+  const response = await request('/api/help/articles');
+  return response.data || [];
+}
+
+export async function getHelpBroadcastsApi() {
+  const response = await request('/api/help/broadcasts');
+  return response.data || [];
+}
+
+export async function generateDocsApi() {
+  const response = await request('/api/help/generate-docs', { method: 'POST' });
+  return response.data || null;
+}
+
+export async function captureMissingHelpApi(query) {
+  const response = await request('/api/help/missing', {
+    method: 'POST',
+    body: JSON.stringify({ query })
+  });
+  return response.data || null;
 }
 
 export { API_BASE_URL };

@@ -1040,14 +1040,14 @@ export default function Composer({ activeModule, isOpen, onClose }) {
     alert('Queue to Social - connects to social pipeline');
   };
 
-  if (!isOpen) return null;
-
-  // Boom event listener
+  // Boom event listener - must be before any early return
   useEffect(() => {
     const handler = () => setBoomMode('screen');
     window.addEventListener('aio:open-boom', handler);
     return () => window.removeEventListener('aio:open-boom', handler);
   }, []);
+
+  if (!isOpen) return null;
 
   // Boom Modal
   if (boomMode) {

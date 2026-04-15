@@ -792,10 +792,10 @@ const useWhiteLabelControlPlane = ({ menuStructure, onMenuUpdate, handlersRef })
   const persistedMobileItems = Array.isArray(tenantSettings?.navigation?.mobileItems)
     ? tenantSettings.navigation.mobileItems
     : null;
-  const draftMenuStructure = Array.isArray(persistedMenuStructure)
-    ? persistedMenuStructure
-    : Array.isArray(menuStructure)
-      ? menuStructure
+  const draftMenuStructure = Array.isArray(menuStructure) && menuStructure.length > 0
+    ? menuStructure
+    : Array.isArray(persistedMenuStructure)
+      ? persistedMenuStructure
       : [];
 
   const [menuItems, setMenuItems] = useState([]);
@@ -1283,30 +1283,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
         {/* BRANDING TAB */}
         {activeTab === 'branding' && (
           <div className="space-y-6">
-            {/* Theme Selection */}
-            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4">
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-4">Theme</h3>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => updateBrandingTheme('light')}
-                  className={`px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'light'
-                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                    : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                    }`}
-                >
-                  <Palette size={16} /> Light
-                </button>
-                <button
-                  onClick={() => updateBrandingTheme('dark')}
-                  className={`px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium transition flex items-center gap-2 ${brandingData.theme === 'dark'
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                    : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                    }`}
-                >
-                  <Palette size={16} /> Dark
-                </button>
-              </div>
-            </div>
+            {/* Theme selection removed for forced dark mode */}
 
             {/* Color Settings */}
             <div className="grid grid-cols-2 gap-4">
@@ -2040,15 +2017,8 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
   }, [search]);
 
   const handleToggle = async (template) => {
-    setError('');
-    setStatus('');
-    try {
-      const updated = await updateSystemEmailTemplateApi(template.id, { enabled: !template.enabled });
-      await loadTemplates(search);
-      setStatus(`${updated.emailType} updated.`);
-    } catch (toggleError) {
-      setError(toggleError.message || 'Unable to update template state.');
-    }
+    // Disabled in current phase - Coming Soon
+    return;
   };
 
   const openEditor = (template) => {
@@ -2115,7 +2085,11 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
                   <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.subject}</td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.sendTo}</td>
                   <td className="px-5 py-4">
-                    <button onClick={() => handleToggle(template)} className={`w-12 h-6 rounded-full border transition relative ${template.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
+                    <button 
+                      disabled
+                      title="Mail transport integration coming soon."
+                      className={`w-12 h-6 rounded-full border transition relative opacity-50 cursor-not-allowed ${template.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}
+                    >
                       <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${template.enabled ? 'left-6' : 'left-0.5'}`} />
                     </button>
                   </td>
@@ -2591,77 +2565,7 @@ const ProfileSettings = () => {
   );
 };
 
-// ============ BILLING SETTINGS ============
-const BillingSettings = () => {
-  const [billing, setBilling] = useState({
-    plan: 'Pro',
-    status: 'Active',
-    nextBillingDate: '2026-02-10',
-    amount: '$99.99'
-  });
 
-  return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-        {/* Current Plan Card */}
-        <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-4">Current Subscription</h3>
-          <div className="flex justify-between items-center pb-3 border-b border-[var(--color-border)]">
-            <span className="text-xs text-[var(--color-text-secondary)]">Plan</span>
-            <span className="text-xs text-[var(--color-text-primary)] font-bold">{billing.plan}</span>
-          </div>
-          <div className="flex justify-between items-center pb-3 border-b border-[var(--color-border)]">
-            <span className="text-xs text-[var(--color-text-secondary)]">Billing Status</span>
-            <span className="px-2 py-0.5 rounded text-[10px] bg-green-900/30 text-green-400 font-medium">{billing.status}</span>
-          </div>
-          <div className="flex justify-between items-center pb-3 border-b border-[var(--color-border)]">
-            <span className="text-xs text-[var(--color-text-secondary)]">Next Billing Date</span>
-            <span className="text-xs text-[var(--color-text-primary)]">{billing.nextBillingDate}</span>
-          </div>
-          <div className="flex justify-between items-center pt-2">
-            <span className="text-xs text-[var(--color-text-secondary)] font-medium">Monthly Charge</span>
-            <span className="text-sm text-[var(--color-text-primary)] font-bold">{billing.amount}</span>
-          </div>
-        </div>
-
-        {/* Payment Method */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Payment Method</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-8 bg-blue-600 rounded-[var(--radius-card)] flex items-center justify-center text-[var(--color-text-primary)] text-xs font-bold">VISA</div>
-                <div>
-                  <div className="text-[var(--color-text-primary)] font-medium">•••• •••• •••• 4242</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">Expires 12/26</div>
-                </div>
-              </div>
-              <button className="text-xs bg-[var(--color-bg-tertiary)] hover:bg-white hover:text-black text-[var(--color-text-primary)] px-3 py-1.5 rounded-[var(--radius-card)] transition">Update</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Billing History */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Billing History</h3>
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl overflow-hidden">
-            <div className="grid grid-cols-4 p-4 border-b border-[var(--color-border)] text-xs font-bold text-[var(--color-text-secondary)] uppercase">
-              <div>Date</div>
-              <div>Amount</div>
-              <div>Status</div>
-              <div className="text-right">Invoice</div>
-            </div>
-            <div className="divide-y divide-[var(--color-border)]">
-              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Jan 10, 2026</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-[var(--color-accent)] hover:text-[var(--color-text-primary)] text-right">Download</button></div>
-              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Dec 10, 2025</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-[var(--color-accent)] hover:text-[var(--color-text-primary)] text-right">Download</button></div>
-              <div className="grid grid-cols-4 p-4 text-sm items-center"><span className="text-[var(--color-text-primary)]">Nov 10, 2025</span><span className="text-[var(--color-text-primary)]">$99.99</span><span className="px-2 py-1 rounded text-xs bg-green-900/30 text-green-400 w-fit">Paid</span><button className="text-[var(--color-accent)] hover:text-[var(--color-text-primary)] text-right">Download</button></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const OmegaSettings = () => {
   const { tenant, user, hasCapability } = useAuth();
@@ -3421,7 +3325,6 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   const mainTabs = [
     { id: 'account', label: 'Account', icon: User },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'variables', label: 'Variables', icon: Key },
     { id: 'whitelabel', label: 'White Label', icon: Globe },
     { id: 'workspace', label: 'Workspace', icon: Layers },
@@ -3430,7 +3333,6 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
 
   const tabMeta = {
     account: { description: 'Identity, preferences, password, and active sessions.', status: 'Live' },
-    billing: { description: 'Subscription, payment methods, and billing history.', status: 'Staged' },
     workspace: { description: 'Switch, rename, and manage members.', status: 'Live' },
     whitelabel: { description: 'Brand, menu, and presentation controls.' },
     variables: { description: 'Global variables and tokens for builders and workflows.', status: 'Legacy' },
@@ -3445,7 +3347,6 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'account': return <ProfileSettings />;
-      case 'billing': return <BillingSettings />;
       case 'workspace': return <WorkspaceSettings />;
       case 'whitelabel': return <WhiteLabelSettings menuStructure={menuStructure} onMenuUpdate={onMenuUpdate} handlersRef={wlHandlers.current} />;
       case 'variables': return <GlobalVarsManager />;
@@ -3536,20 +3437,7 @@ const BrandingSection = ({ brandingData, setBrandingData, updateBrandingColor, u
         <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Branding</h3>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Theme, layout, and report-facing identity controls.</p>
       </div>
-      <div className="flex flex-wrap gap-3">
-        {['light', 'dark'].map((theme) => (
-          <button
-            key={theme}
-            onClick={() => updateBrandingTheme(theme)}
-            className={`px-4 py-2 rounded-[var(--radius-card)] text-sm font-medium border transition ${brandingData.theme === theme
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
-              : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-            }`}
-          >
-            {theme === 'light' ? 'Light' : 'Dark'}
-          </button>
-        ))}
-      </div>
+      {/* Theme selection removed for forced dark mode */}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Menu Background</label>
@@ -3984,7 +3872,6 @@ const buildSettingsCategories = (isAdmin) => {
       description: 'Workspace members and workspace preferences.',
       items: [
         { id: 'account', label: 'Account', description: 'Profile, preferences, and sessions.' },
-        { id: 'billing', label: 'Billing', description: 'Subscription surface (placeholder if unconfigured).' },
         { id: 'members', label: 'Members', description: 'Manage workspace memberships.' },
         { id: 'preferences', label: 'Preferences', description: 'Workspace-level configuration and locks.' },
       ],
@@ -4181,8 +4068,6 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
           : <SettingsPlaceholderSurface icon={Lock} title="Omega" description="Omega remains owner-only." detail="The system category is admin-only, and Omega itself remains restricted to owners." />;
       case 'workspace:account':
         return <ProfileSettings />;
-      case 'workspace:billing':
-        return <BillingSettings />;
       case 'workspace:members':
         return <WorkspaceSettings view="members" />;
       case 'workspace:preferences':
@@ -4326,6 +4211,6 @@ const PackageSection = () => (
   <div className="p-6 text-center text-sm text-slate-400">Package settings placeholder</div>
 );
 
-export { GlobalVarsManager, WhiteLabelSettings, ProfileSettings, BillingSettings, WorkspaceSettings, OmegaSettings, BrandingSection, NavigationSection, AgentsSection, SystemEmailsSection };
+export { GlobalVarsManager, WhiteLabelSettings, ProfileSettings, WorkspaceSettings, OmegaSettings, BrandingSection, NavigationSection, AgentsSection, SystemEmailsSection };
 export default SettingsShellModule;
 

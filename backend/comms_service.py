@@ -13,6 +13,26 @@ from backend.comms_providers import (
 _active_adapter: Any = None
 _active_provider_type: str = "stub"
 
+# Canonical field mapping contract (Frontend camelCase <-> Backend snake_case)
+CONFIG_MAPPING = {
+    "apiKey": "api_key",
+    "apiSecret": "api_secret",
+    "phoneNumber": "phone_number",
+    "accountSid": "account_sid",
+    "authToken": "auth_token",
+    "publicApiKey": "public_key",
+    "publicKey": "public_key",
+    "messagingProfileId": "messaging_profile_id",
+    "connectionId": "connection_id",
+    "authId": "auth_id",
+    "accountId": "account_id",
+    "clientSecret": "client_secret",
+    "clientId": "client_id",
+}
+CONFIG_REVERSE_MAPPING = {v: k for k, v in CONFIG_MAPPING.items()}
+# Precision override for ambiguous mappings
+CONFIG_REVERSE_MAPPING["public_key"] = "publicApiKey"
+
 
 def _get_active_adapter() -> Any:
     """Get or create the active provider adapter."""
@@ -82,14 +102,38 @@ def list_provider_configs() -> list[dict[str, Any]]:
     results = []
     for row in rows:
         result = dict(row)
+        # Ensure 'providerKey' alias is available for frontend backward compatibility
+        result["providerKey"] = result.get("providerType")
+        
         if result.get("configJson"):
             import json
             try:
-                config = json.loads(result["configJson"])
-                result["hasConfig"] = bool(config.get("api_key") or config.get("api_secret"))
-                result["configJson"] = json.dumps({k: v for k, v in config.items() if k in ("api_key", "api_secret")})
+                raw_config = json.loads(result["configJson"])
+                
+                # Pre-normalize: resolve legacy key duplicates in favor of canonical snake_case
+                config = {}
+                for k, v in raw_config.items():
+                    config[CONFIG_MAPPING.get(k, k)] = v
+                
+                result["hasConfig"] = bool(config.get("api_key") or config.get("api_secret") or config.get("auth_token"))
+                
+                # Return mapped config for UI rehydration
+                # Mask sensitive values but keep the keys
+                masked_config = {}
+                sensitive_keys = ("api_key", "api_secret", "auth_token", "public_key")
+                for k, v in config.items():
+                    ui_key = CONFIG_REVERSE_MAPPING.get(k, k)
+                    if k in sensitive_keys and v:
+                        masked_config[ui_key] = "********"
+                    else:
+                        masked_config[ui_key] = v
+                result["config"] = masked_config
             except:
                 result["hasConfig"] = False
+                result["config"] = {}
+        else:
+            result["hasConfig"] = False
+            result["config"] = {}
         results.append(result)
     
     return results
@@ -108,6 +152,62 @@ def save_provider_config(
     now = datetime.now(timezone.utc).isoformat()
     config_id = f"provider-{provider_type}-{tenant_id}"
     
+    # Verify health if config is provided
+    try:
+        provider_inst = create_provider()
+        
+        normalized_config = {}
+        for k, v in config.items():
+            normalized_config[CONFIG_MAPPING.get(k, k)] = v
+        
+        # Load existing config for merging
+        existing_config = {}
+        with provider_inst._connect() as conn:
+            row = conn.execute("SELECT configJson FROM comms_provider_configs WHERE id = ?", (config_id,)).fetchone()
+            if row and row["configJson"]:
+                try:
+                    existing_config = json.loads(row["configJson"])
+                except:
+                    existing_config = {}
+        
+        # Merge logic: canonicalize existing keys to purge legacy 'poison' (camelCase keys)
+        # and ensure we only persist snake_case at rest.
+        base_config = {}
+        for k, v in existing_config.items():
+            # Map existing keys to snake_case; if unmapped, keep as is
+            base_config[CONFIG_MAPPING.get(k, k)] = v
+            
+        final_config = base_config.copy()
+        sensitive_keys = ("api_key", "api_secret", "auth_token", "public_key")
+        
+        for k, v in normalized_config.items():
+            is_sensitive = k in sensitive_keys
+            # If sensitive and (masked or empty), keep existing
+            if is_sensitive and (v == "********" or not v):
+                continue
+            # Otherwise overwrite
+            final_config[k] = v
+
+        config_obj = ProviderConfig(**final_config)
+        adapter = create_provider_adapter(provider_type, config_obj, tenant_id)
+        valid, err = adapter.validate_config()
+        
+        if not valid:
+            raise ValueError(f"Provider verification failed: {err}")
+
+        health = adapter.get_health()
+        health_status = health.status
+        health_msg = health.message
+
+        if health_status != "healthy":
+            raise ValueError(f"Provider health check failed: {health_msg}")
+
+        status = "verified"
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Provider verification error: {str(e)}")
+
     with provider._connect() as conn:
         existing = conn.execute(
             "SELECT id FROM comms_provider_configs WHERE id = ?",
@@ -117,16 +217,16 @@ def save_provider_config(
         if existing:
             conn.execute(
                 """UPDATE comms_provider_configs 
-                   SET configJson = ?, isActive = ?, updatedAt = ?
+                   SET configJson = ?, isActive = ?, status = ?, healthStatus = ?, lastHealthCheck = ?, updatedAt = ?
                    WHERE id = ?""",
-                (json.dumps(config), 1 if is_active else 0, now, config_id)
+                (json.dumps(final_config), 1 if is_active else 0, status, health_status, now, now, config_id)
             )
         else:
             conn.execute(
                 """INSERT INTO comms_provider_configs 
-                   (id, tenantId, providerType, providerName, configJson, status, isActive, createdAt, updatedAt)
-                   VALUES (?, ?, ?, ?, ?, 'configured', ?, ?, ?)""",
-                (config_id, tenant_id, provider_type, provider_type.title(), json.dumps(config), 1 if is_active else 0, now, now)
+                   (id, tenantId, providerType, providerName, configJson, status, isActive, healthStatus, lastHealthCheck, createdAt, updatedAt)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (config_id, tenant_id, provider_type, provider_type.title(), json.dumps(final_config), status, 1 if is_active else 0, health_status, now, now, now)
             )
         
         if is_active:
@@ -139,7 +239,14 @@ def save_provider_config(
     
     _refresh_active_adapter()
     
-    return {"id": config_id, "providerType": provider_type, "isActive": is_active}
+    return {
+        "id": config_id, 
+        "providerType": provider_type, 
+        "isActive": is_active, 
+        "status": status, 
+        "healthStatus": health_status,
+        "message": health_msg
+    }
 
 
 def delete_provider_config(provider_type: str) -> None:

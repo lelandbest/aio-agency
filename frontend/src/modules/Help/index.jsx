@@ -12,7 +12,9 @@ import {
   createHelpTicketApi,
   getOperatorAssistResponseApi,
   getHelpTicketsApi,
-  getHelpBroadcastsApi
+  getHelpBroadcastsApi,
+  generateDocsApi,
+  captureMissingHelpApi
 } from '../../services/backendApi';
 import { dispatchAction } from '../../orchestration';
 import { helpTemplates } from './templates/helpTemplates';
@@ -53,11 +55,12 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
   const [recentArticles, setRecentArticles] = useState([]);
   const [recentActions, setRecentActions] = useState([]);
 
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('row');
   const [showTicketsView, setShowTicketsView] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [broadcasts, setBroadcasts] = useState([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [generatingDocs, setGeneratingDocs] = useState(false);
 
   const checkAiStatus = async () => {
     try {
@@ -82,9 +85,23 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
       
       const itemsData = results[0].status === 'fulfilled' ? results[0].value : [];
       
-      // Tag-driven: /api/help/articles returns only items tagged META:DOC:HELP
       const helpArticles = itemsData || [];
       setArticles(helpArticles);
+
+      if (helpArticles.length === 0) {
+        try {
+          setGeneratingDocs(true);
+          const genResult = await generateDocsApi();
+          if (genResult?.generated > 0) {
+            const newArticles = await getHelpArticlesApi();
+            setArticles(newArticles || []);
+          }
+        } catch (genErr) {
+          console.error('Auto-generate docs failed:', genErr);
+        } finally {
+          setGeneratingDocs(false);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -206,6 +223,13 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
         suggestedActions: Array.isArray(response?.suggestedActions) ? response.suggestedActions : [],
         templates: searchResults.templates.slice(0, 1)
       });
+
+      // Capture missing help if no articles matched the query
+      if (searchResults.articles.length === 0 && searchQuery.trim()) {
+        try {
+          await captureMissingHelpApi(searchQuery.trim());
+        } catch (_) { /* non-blocking */ }
+      }
     } catch (err) {
       console.error('Charlie failed:', err);
     } finally {
@@ -405,7 +429,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
   }
 
   return (
-    <div className="module-root-standard">
+    <div className="module-root-standard flex flex-col h-full">
       <ModuleHeader
         showTitle={false}
         actions={[]}
@@ -431,7 +455,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
         )}
       />
 
-      <div className="module-content-stage overflow-auto no-scrollbar space-y-2 px-1.5 pb-1.5">
+      <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 px-1.5 pb-1.5">
         {/* Hero Section */}
         <div className="text-center space-y-2 pt-2 pb-0">
           <h1 className="text-4xl font-black text-[var(--color-text-primary)] uppercase tracking-tighter leading-none">
@@ -615,42 +639,23 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
               )}
             </div>
           )}
-          <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={() => setShowTicketsView(true)}
-              className="group flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-sky-500/10 hover:border-sky-500/30 transition-all text-left"
-            >
-              <MessageSquare size={16} className="text-sky-400 group-hover:scale-110 transition-transform" />
-              <div>
-                <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">My Tickets</div>
-              </div>
-            </button>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('aio:open-ticket'))}
-              className="group flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-[var(--color-primary)]/10 hover:border-[var(--color-primary)]/30 transition-all text-left"
-            >
-              <Plus size={16} className="text-[var(--color-primary)] group-hover:scale-110 transition-transform" />
-              <div>
-                <div className="text-[10px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">Submit Ticket</div>
-              </div>
-            </button>
-          </div>
+          {/* Search resulted in no buttons here anymore */}
 
           {/* Recent + Recommended Layer */}
           {(recentArticles.length > 0 || recentActions.length > 0) && (
-            <div className="max-w-4xl mx-auto grid grid-cols-2 gap-8 pt-4 pb-2">
+            <div className="max-w-6xl mx-auto space-y-6 pt-4 pb-6">
               {recentArticles.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-[8px] font-black text-slate-500 uppercase tracking-widest border-l-2 border-[var(--color-primary)] pl-2">
                     <Clock size={10} />
                     Recently Viewed Intel
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {recentArticles.map(article => (
+                  <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar pb-2">
+                    {recentArticles.slice(0, 5).map(article => (
                       <button
                         key={article.id}
                         onClick={() => handleSelectArticle(articles.find(a => a.id === article.id))}
-                        className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[9px] font-bold text-white hover:bg-white/10 transition-all truncate max-w-[150px]"
+                        className="flex-none px-4 py-2 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-white hover:bg-[var(--color-primary)]/20 hover:border-[var(--color-primary)]/30 transition-all whitespace-nowrap active:scale-95"
                       >
                         {article.title}
                       </button>
@@ -664,12 +669,12 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                     <Star size={10} />
                     Frequent Actions
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar">
                     {recentActions.map((action, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleRunAction({ type: action.type, payload: action.payload }, action.label)}
-                        className="px-3 py-1.5 rounded-lg bg-sky-500/5 border border-sky-500/10 text-[9px] font-bold text-sky-400 hover:bg-sky-500/10 transition-all"
+                        className="flex-none px-4 py-2 rounded-full bg-sky-500/5 border border-sky-500/10 text-[10px] font-bold text-sky-400 hover:bg-sky-500/10 transition-all whitespace-nowrap active:scale-95"
                       >
                         {action.label}
                       </button>
@@ -684,9 +689,27 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
         {/* Library Cards Section */}
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
-             <div className="text-[11px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.3em] flex items-center gap-3">
-               <GraduationCap size={16} className="text-[var(--color-primary)]" />
-               Knowledgebase Repository
+             <div className="flex items-center gap-8">
+               <div className="text-[11px] font-black text-[var(--color-text-primary)] uppercase tracking-[0.3em] flex items-center gap-3">
+                 <GraduationCap size={16} className="text-[var(--color-primary)]" />
+                 Knowledgebase Repository
+               </div>
+               <div className="flex items-center gap-3">
+                 <button
+                   onClick={() => setShowTicketsView(true)}
+                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-sky-500/10 hover:border-sky-500/30 transition-all text-[9px] font-black text-slate-400 uppercase tracking-widest"
+                 >
+                   <MessageSquare size={12} className="text-sky-400" />
+                   My Tickets
+                 </button>
+                 <button
+                   onClick={() => window.dispatchEvent(new CustomEvent('aio:open-ticket'))}
+                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-[var(--color-primary)]/10 hover:border-[var(--color-primary)]/30 transition-all text-[9px] font-black text-slate-400 uppercase tracking-widest"
+                 >
+                   <Plus size={12} className="text-[var(--color-primary)]" />
+                   Submit
+                 </button>
+               </div>
              </div>
              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-1 bg-white/[0.03] p-1 rounded-lg border border-white/5">
@@ -715,19 +738,19 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                 <div 
                   key={item.id}
                   onClick={() => handleSelectArticle(item)}
-                  className="group relative w-[225px] h-[300px] rounded-[2rem] bg-white/[0.02] border border-white/5 p-6 hover:bg-white/[0.04] hover:border-sky-500/30 transition-all duration-500 cursor-pointer overflow-hidden shadow-2xl hover:shadow-sky-500/10 flex flex-col"
+                  className="group relative w-[225px] h-[160px] rounded-[1.5rem] bg-white/[0.02] border border-white/5 p-4 hover:bg-white/[0.04] hover:border-sky-500/30 transition-all duration-500 cursor-pointer overflow-hidden shadow-2xl hover:shadow-sky-500/10 flex flex-col items-center justify-center text-center"
                 >
                   {/* Visual Accent */}
                   <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 blur-[40px] -mr-12 -mt-12 group-hover:bg-sky-500/15 transition-all duration-700" />
                   
-                  <div className="relative flex-1 flex flex-col items-center justify-center text-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform duration-500 shadow-lg shrink-0">
-                      <GraduationCap size={22} />
+                  <div className="relative flex flex-col items-center justify-center text-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform duration-500 shadow-lg shrink-0">
+                      <GraduationCap size={18} />
                     </div>
                     
                     <div className="space-y-1">
                       <h3 className="text-[11px] font-black text-white uppercase tracking-widest leading-relaxed line-clamp-2">
-                        {item.title || "Untitled Intelligence"}
+                        {item.title || "Untitled Intel"}
                       </h3>
                       <p className="text-[9px] text-slate-500 line-clamp-2 px-2 leading-relaxed">
                         {item.description || "Comprehensive guide and action pathways for this system module."}
@@ -735,27 +758,6 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                     </div>
                   </div>
 
-                  {/* Quick Actions Injection */}
-                  <div className="border-t border-white/5 pt-4 mt-auto space-y-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-                    <div className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">Quick Actions</div>
-                    <div className="flex gap-2 justify-center">
-                       {item.actions?.slice(0, 2).map((action, idx) => (
-                         <button 
-                            key={idx}
-                            onClick={(e) => { e.stopPropagation(); handleRunAction(action, action.label); }}
-                            className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-lg"
-                         >
-                           <Zap size={12} />
-                         </button>
-                       ))}
-                       <button 
-                          onClick={(e) => { e.stopPropagation(); handleSelectArticle(item); }}
-                          className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-sky-400 hover:bg-sky-400 hover:text-white transition-all shadow-lg"
-                       >
-                         <ExternalLink size={12} />
-                       </button>
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
@@ -774,7 +776,7 @@ const HelpModule = ({ activeModule = 'dashboard' }) => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-[11px] font-black text-white uppercase tracking-widest group-hover:text-sky-400 transition-colors truncate">
-                      {item.title || "Untitled Intelligence"}
+                      {item.title || "Untitled Intel"}
                     </h3>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-[7px] font-bold text-sky-500/60 uppercase tracking-widest">Intel Module</span>

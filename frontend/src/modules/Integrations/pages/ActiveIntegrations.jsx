@@ -781,12 +781,12 @@ const ResourceCard = ({ icon: Icon, logoId, title, subtitle, status, detail, sel
   </button>
 );
 
-export const ActiveIntegrations = ({ initialCategory = null }) => {
+export const ActiveIntegrations = ({ initialCategory = null, initialProvider = null }) => {
   const { showNotice } = useNotice();
   const { openAIAssist } = useAIAssist();
   const [integrations, setIntegrations] = useState([]);
-  const [activeCategory, setActiveCategory] = useState(initialCategory);
-  const [selectorProviderKey, setSelectorProviderKey] = useState(null);
+  const [activeCategory, setActiveCategory] = useState(initialCategory || INTEGRATION_CATEGORIES.AUTOMATION);
+  const [selectorProviderKey, setSelectorProviderKey] = useState(initialProvider);
   const [legacyActivationSelections, setLegacyActivationSelections] = useState({});
   const [loading, setLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -1309,7 +1309,7 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     [selectedCommsProviderKey]
   );
   const selectedCommsProviderConfig = useMemo(
-    () => commsProviderConfigs.find((c) => c.providerKey === selectedCommsProviderKey || c.id === selectedCommsProviderKey) || null,
+    () => commsProviderConfigs.find((c) => (c.providerType === selectedCommsProviderKey || c.providerKey === selectedCommsProviderKey) || c.id === selectedCommsProviderKey) || null,
     [commsProviderConfigs, selectedCommsProviderKey]
   );
 
@@ -1640,6 +1640,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
 
   const handleSelectorCategoryChange = (categoryId) => {
     setActiveCategory(categoryId);
+    window.dispatchEvent(new CustomEvent('aio:navigate', { 
+      detail: { module: 'integrations', integrationCategory: categoryId, integrationProvider: null } 
+    }));
   };
 
   const handleSelectorProviderSelect = (providerId, categoryId = activeCategory) => {
@@ -1647,6 +1650,9 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
       setActiveCategory(categoryId);
     }
     setSelectorProviderKey(providerId);
+    window.dispatchEvent(new CustomEvent('aio:navigate', { 
+      detail: { module: 'integrations', integrationCategory: categoryId || activeCategory, integrationProvider: providerId } 
+    }));
 
     if (categoryId === INTEGRATION_CATEGORIES.AUTOMATION) {
       setSelectedAutomationProviderKey(providerId);
@@ -2359,12 +2365,18 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
         if (commsProviderForm[name] !== undefined) config[name] = commsProviderForm[name];
       });
       // Use real backend contract: POST /api/comms/provider-configs
-      await saveCommsProviderConfigApi(
+      const result = await saveCommsProviderConfigApi(
         selectedCommsProviderCatalog.id, // providerType
         config,
         true // isActive
       );
-      showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog.name} communications settings saved.` });
+      
+      if (result.status === 'verified') {
+        showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog.name} settings saved and verified.` });
+      } else {
+        showNotice({ tone: 'warning', message: `${selectedCommsProviderCatalog.name} settings saved, but verification failed: ${result.message || 'unknown error'}` });
+      }
+      
       triggerSavedAction('communications-save');
       await loadAll();
     } catch (error) {
@@ -2372,9 +2384,32 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
     }
   };
 
-  // No backend test endpoint exists for comms providers � handler is a no-op
   const handleTestCommsProvider = async () => {
-    showNotice({ tone: 'warning', message: 'Connection testing is not yet available for communications providers. Save your credentials and they will be used automatically.' });
+    if (!selectedCommsProviderCatalog?.id) return;
+    setBusyAction('comms-provider-test');
+    try {
+      const fieldNames = (selectedCommsProviderCatalog.fields || []).map(f => f.name);
+      const config = {};
+      fieldNames.forEach(name => {
+        if (commsProviderForm[name] !== undefined) config[name] = commsProviderForm[name];
+      });
+      const result = await saveCommsProviderConfigApi(
+        selectedCommsProviderCatalog.id,
+        config,
+        true
+      );
+      if (result.status === 'verified') {
+        showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog.name} connection verified.` });
+      } else {
+        showNotice({ tone: 'error', message: `Verification failed: ${result.message || 'unknown error'}` });
+      }
+      triggerSavedAction('comms-provider-test');
+      await loadAll();
+    } catch (error) {
+      showNotice({ tone: 'error', message: readErrorMessage(error) });
+    } finally {
+      setBusyAction('');
+    }
   };
 
   const handleDeleteCommsProvider = async () => {
@@ -4152,7 +4187,16 @@ export const ActiveIntegrations = ({ initialCategory = null }) => {
             </div>
 
             <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCommsProviderCatalog.stub ? 'Coming Soon' : selectedCommsProviderConfig ? 'Configured' : 'Standby'}</div></div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Status</div>
+                <div className={`mt-1 text-sm font-semibold ${
+                  selectedCommsProviderConfig?.status === 'verified' && selectedCommsProviderConfig?.healthStatus === 'healthy' 
+                  ? 'text-emerald-400' 
+                  : (selectedCommsProviderConfig?.status === 'needs_config' || selectedCommsProviderConfig?.status === 'error' ? 'text-amber-400' : 'text-[var(--color-text-primary)]')
+                }`}>
+                  {selectedCommsProviderCatalog.stub ? 'Coming Soon' : (selectedCommsProviderConfig ? (selectedCommsProviderConfig.status === 'verified' ? 'Verified' : (selectedCommsProviderConfig.status === 'needs_config' ? 'Needs Config' : 'Configured')) : 'Standby')}
+                </div>
+              </div>
               <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Provider</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">{selectedCommsProviderCatalog.name}</div></div>
               <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2.5 py-2"><div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Distribution</div><div className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">Comms Relay</div></div>
             </div>

@@ -56,7 +56,6 @@ const DialerPage = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const ForgeModule = lazy(() => import('./modules/Forge'));
-const BoomModule = lazy(() => import('./components/Boom'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -145,6 +144,7 @@ const readNavigationStateFromUrl = () => {
     flowIntent: normalizeNavigationValue(params.get('intent')),
     commsThreadId: normalizeNavigationValue(params.get('threadId')),
     integrationCategory: normalizeNavigationValue(params.get('integrationCategory')) || DEFAULT_INTEGRATION_CATEGORY,
+    integrationProvider: normalizeNavigationValue(params.get('integrationProvider')),
     crmContactId: normalizeNavigationValue(params.get('contactId')),
   };
 };
@@ -282,6 +282,7 @@ const App = () => {
   const [flowIntent, setFlowIntent] = useState(initialNavigation.flowIntent);
   const [commsThreadId, setCommsThreadId] = useState(initialNavigation.commsThreadId);
   const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
+  const [integrationProvider, setIntegrationProvider] = useState(initialNavigation.integrationProvider);
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showBoomModal, setShowBoomModal] = useState(false);
@@ -482,8 +483,10 @@ const App = () => {
 
     if (effectiveActiveModule === 'integrations') {
       setParam('integrationCategory', integrationCategory);
+      setParam('integrationProvider', integrationProvider);
     } else {
       params.delete('integrationCategory');
+      params.delete('integrationProvider');
     }
 
     const nextSearch = params.toString();
@@ -492,7 +495,7 @@ const App = () => {
     if (nextUrl !== currentUrl) {
       window.history.pushState({}, '', nextUrl);
     }
-  }, [currentPage, effectiveActiveModule, flowId, flowAction, flowIntent, commsThreadId, crmContactId, integrationCategory]);
+  }, [currentPage, effectiveActiveModule, flowId, flowAction, flowIntent, commsThreadId, crmContactId, integrationCategory, integrationProvider]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -504,6 +507,7 @@ const App = () => {
       setFlowIntent(state.flowIntent);
       setCommsThreadId(state.commsThreadId);
       setIntegrationCategory(state.integrationCategory);
+      setIntegrationProvider(state.integrationProvider);
       setCrmContactId(state.crmContactId);
     };
     window.addEventListener('popstate', handlePopState);
@@ -574,6 +578,9 @@ const App = () => {
       }
       if (detail.integrationCategory !== undefined) {
         setIntegrationCategory(detail.integrationCategory);
+      }
+      if (detail.integrationProvider !== undefined) {
+        setIntegrationProvider(detail.integrationProvider);
       }
     };
     window.addEventListener('aio:navigate', handleNavigate);
@@ -790,7 +797,7 @@ const App = () => {
       case 'studio':
         return <StudioModule />;
       case 'integrations':
-        return <IntegrationsManager initialCategory={integrationCategory} />;
+        return <IntegrationsManager initialCategory={integrationCategory} initialProvider={integrationProvider} />;
       case 'flows':
         return <FlowsModule flowId={flowId} action={flowAction} intent={flowIntent} onFlowContextChange={handleFlowContextChange} onExit={() => setActiveModule(lastActiveModule)} />;
       case 'comms':

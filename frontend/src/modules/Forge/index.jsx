@@ -570,12 +570,13 @@ const Forge = () => {
               <X size={10} />
             </button>
           </div>
-          <div className="flex-1 flex items-center justify-center overflow-hidden p-2 bg-black min-h-0">
+          <div className="flex items-center justify-center overflow-hidden p-2 bg-black min-h-0" style={{ height: '360px' }}>
             <video
+              key={asset.assetId || asset.id}
               controls
               src={playbackUrl}
-              className="max-h-full max-w-full rounded shadow-xl"
-              style={{ maxHeight: '240px' }}
+              className="h-full w-auto rounded shadow-xl"
+              style={{ maxWidth: '100%' }}
             />
           </div>
         </div>
@@ -730,9 +731,27 @@ const Forge = () => {
 
         {/* CENTER — REVIEW + EDITOR */}
         <div className="min-w-[150px] flex-1 flex-col bg-[#0A0A0C] relative overflow-hidden border border-[#1E2024] rounded-xl">
-
-          {/* INLINE ASSET REVIEW PANEL — rendered above the editor when an asset is mounted */}
-          <AssetReviewPanel asset={activeAsset} />
+          {/* INLINE ASSET REVIEW PANEL — static 16:9 video + static editor, no flex layout shifting */}
+          {activeAsset ? (
+            <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/80">
+              <AssetReviewPanel asset={activeAsset} />
+            </div>
+          ) : (
+            <div className="flex-shrink-0 border-b border-[#1E2024] bg-black/40">
+              <div className="flex items-center gap-2 px-4 py-1 border-b border-[#1E2024] flex-shrink-0 bg-black/40">
+                <span className="text-[7px] uppercase tracking-[0.4em] text-slate-400 font-black">MON A // IDLE</span>
+              </div>
+              <div className="p-4 min-h-[100px] flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-2">
+                    <FileText size={20} className="text-slate-600" />
+                  </div>
+                  <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">NO ASSET MOUNTED</div>
+                  <div className="text-[8px] text-slate-700 mt-1">Select an asset from the Vault</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Editor status bar */}
           <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-white/5 mx-2 mt-2 mb-2">
@@ -743,8 +762,9 @@ const Forge = () => {
             {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
           </div>
 
-          <div className={`flex-1 flex flex-col min-h-0 ${activeAsset ? 'px-2 pb-2' : 'px-2 pb-2 pt-8'}`}>
-            <div className="flex-1 rounded overflow-hidden bg-black/40 flex flex-col h-full">
+          {/* Editor - static height, no flex shrinking/growing */}
+          <div className="px-2 pb-2 h-[400px] flex-shrink-0">
+            <div className="w-full h-full rounded overflow-hidden bg-black/40">
               <RichTextEditor
                 key={forgeState.transcript ? 'data-loaded' : 'data-pending'}
                 value={forgeState.transcript}
@@ -1085,6 +1105,7 @@ const Forge = () => {
                 if (mt === 'video' && activeAsset.sourceUrl) {
                   return (
                     <video
+                      key={activeAsset.assetId || activeAsset.id}
                       controls
                       src={playbackUrl}
                       className="max-h-full max-w-full rounded-lg shadow-2xl"

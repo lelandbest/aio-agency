@@ -33,23 +33,31 @@ export default function Boom({ isOpen, onClose }) {
   const boomRevertedSegmentRef = useRef(null);
 
   useEffect(() => {
+    if (!isOpen) return;
     const loadDevices = async () => {
       try {
+        // Force permission request first to unlock full device list and labels
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+          stream.getTracks().forEach(t => t.stop());
+        } catch (permErr) {
+          console.warn('Permission prompt error:', permErr);
+        }
+
         const devs = await navigator.mediaDevices.enumerateDevices();
-        setBoomDevices({
-          mics: devs.filter(d => d.kind === 'audioinput'),
-          cameras: devs.filter(d => d.kind === 'videoinput'),
-        });
         const mics = devs.filter(d => d.kind === 'audioinput');
         const cameras = devs.filter(d => d.kind === 'videoinput');
-        if (mics[0]) setBoomSelectedMic(mics[0].deviceId);
-        if (cameras[0]) setBoomSelectedCamera(cameras[0].deviceId);
+        
+        setBoomDevices({ mics, cameras });
+        
+        if (mics[0] && !boomSelectedMic) setBoomSelectedMic(mics[0].deviceId);
+        if (cameras[0] && !boomSelectedCamera) setBoomSelectedCamera(cameras[0].deviceId);
       } catch (e) {
-        console.warn('Boom devices error:', e);
+        console.warn('Boom devices enumeration error:', e);
       }
     };
     loadDevices();
-  }, []);
+  }, [isOpen]);
 
   const boomStartRecording = useCallback(async () => {
     try {
@@ -57,12 +65,12 @@ export default function Boom({ isOpen, onClose }) {
       if (boomMode === 'screen') {
         stream = await navigator.mediaDevices.getDisplayMedia({ 
           video: { cursor: 'always' }, 
-          audio: boomSelectedMic ? { deviceId: { ideal: boomSelectedMic } } : true 
+          audio: boomSelectedMic ? { deviceId: { exact: boomSelectedMic } } : true 
         });
       } else {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: boomSelectedCamera ? { deviceId: { ideal: boomSelectedCamera } } : true,
-          audio: boomSelectedMic ? { deviceId: { ideal: boomSelectedMic } } : true,
+          video: boomSelectedCamera ? { deviceId: { exact: boomSelectedCamera } } : true,
+          audio: boomSelectedMic ? { deviceId: { exact: boomSelectedMic } } : true,
         });
       }
 

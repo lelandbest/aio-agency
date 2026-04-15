@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 
 const RichTextEditor = ({ 
@@ -9,35 +9,42 @@ const RichTextEditor = ({
   tools = 'full'
 }) => {
   const editorRef = useRef(null);
+  const [loading, setLoading] = useState(true);
 
   const toolbar = tools === 'full' 
     ? 'undo redo | formatselect | bold italic underline strikethrough | alignleft aligncenter alignright | bullist numlist outdent indent | link image table | removeformat code'
     : 'undo redo | bold italic | bullist numlist | removeformat';
 
   return (
-    <div className="rich-text-editor-container rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+    <div className="rich-text-editor-container w-full h-full relative" style={{ minHeight }}>
+      {loading && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center bg-[#1e293b] z-10"
+          style={{ minHeight }}
+        >
+          <span className="text-slate-500 text-xs">Loading...</span>
+        </div>
+      )}
       <Editor
         tinymceScriptSrc="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.8.3/tinymce.min.js"
         ref={editorRef}
         value={value || ''}
         onEditorChange={(content) => onChange(content)}
+        onInit={() => setLoading(false)}
         init={{
-          height: minHeight,
+          height: '100%',
+          min_height: minHeight,
           menubar: false,
           placeholder: placeholder,
           content_style: `
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 14px;
-              color: var(--color-text-primary, #e2e8f0);
-              background-color: var(--color-bg-secondary, #1e293b);
-              padding: 12px;
-            }
+            html, body { background-color: #1e293b !important; color: #e2e8f0 !important; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; padding: 12px; margin: 0; }
             p { margin: 0 0 8px 0; }
             h1, h2, h3 { margin: 16px 0 8px 0; }
             h1 { font-size: 1.5rem; }
             h2 { font-size: 1.25rem; }
             h3 { font-size: 1.1rem; }
+            .mce-content-body { background-color: #1e293b !important; color: #e2e8f0 !important; }
           `,
           skin: 'oxide-dark',
           content_css: 'dark',

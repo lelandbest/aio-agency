@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
-import { Sun, Moon, Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X, AlertCircle } from 'lucide-react';
+import { Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X, AlertCircle } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi, getPhoneNumbersApi, getContactsWithPhoneApi, startOutboundCallApi, endCallSessionApi, getCommsRoutesApi } from '../services/backendApi';
 
@@ -346,27 +346,7 @@ const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title,
     // Portal panel class - used with createPortal at document.body level to escape backdrop-filter stacking context
     const panelCls = 'overflow-hidden rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.05)]';
 
-    const handleThemeToggle = async () => {
-        if (!tenant?.id || themeSaving) {
-            return;
-        }
-        const nextTheme = theme === 'dark' ? 'light' : 'dark';
-        try {
-            setThemeSaving(true);
-            await updateCanonicalTenantSettingsApi({
-                branding: {
-                    ...(tenant?.tenant_settings?.branding || {}),
-                    theme: nextTheme,
-                },
-            });
-            setTheme(nextTheme);
-            await refreshSession?.();
-        } catch (error) {
-            console.warn('Failed to persist theme:', error);
-        } finally {
-            setThemeSaving(false);
-        }
-    };
+    // handleThemeToggle removed as part of forced dark mode mandate
 
     return (
         <div className="chrome-surface" style={{ position: "relative", zIndex: 40 }}>
@@ -432,17 +412,7 @@ const TopBar = ({ activeModule, onLogout, onNavigate, onOpenSystemHealth, title,
                     </button>
                 ) : null}
 
-                {!clientMode ? (
-                    <button
-                        onClick={handleThemeToggle}
-                        disabled={themeSaving}
-                        className="p-2 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition text-yellow-500 hover:text-yellow-600"
-                        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-                        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-                    >
-                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                    </button>
-                ) : null}
+                {/* Theme toggle removed for forced dark mode */}
 
                 <div className="relative">
                     <button

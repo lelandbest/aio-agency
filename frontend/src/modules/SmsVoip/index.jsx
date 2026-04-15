@@ -143,14 +143,28 @@ function normalizeProvider(record) {
 function providerState(providerType, activeProviderType, configs) {
     const config = configs.find((item) => item.providerType === providerType);
     if (!config) return { label: 'Not Connected', tone: 'neutral', detail: 'No saved config record exists.' };
-    if (config.healthStatus.includes('error') || config.healthStatus.includes('unauthor') || config.status.includes('error')) {
-        return { label: 'Reconnect Required', tone: 'warning', detail: 'Backend marked this provider as unhealthy or unauthorized.' };
+    
+    // Explicit error or unauthorized states
+    if (config.healthStatus === 'unhealthy' || config.healthStatus === 'error' || config.status === 'error') {
+        return { label: 'Not Verified', tone: 'warning', detail: 'Credentials provided failed verification check.' };
     }
-    if (!config.hasConfig) return { label: 'Needs Config', tone: 'warning', detail: 'Credentials were not detected on the saved record.' };
-    if (config.isActive && activeProviderType === providerType) {
-        return { label: 'Connected', tone: 'success', detail: 'This is the active runtime transport. No dedicated test endpoint exists.' };
+    
+    // Config absence
+    if (!config.hasConfig || config.status === 'needs_config') {
+        return { label: 'Needs Config', tone: 'warning', detail: 'Credentials were not detected on the saved record.' };
     }
-    return { label: 'Not Connected', tone: 'neutral', detail: 'Credentials are saved, but this provider is not active.' };
+
+    // Active & Verified
+    if (config.isActive && activeProviderType === providerType && config.status === 'verified') {
+        return { label: 'Activated', tone: 'success', detail: 'This is the verified active transport.' };
+    }
+
+    // Configured but either not active or verification pending
+    if (config.status === 'verified') {
+        return { label: 'Verified', tone: 'neutral', detail: 'Credentials verified, but this provider is not currently active.' };
+    }
+    
+    return { label: 'Configured', tone: 'neutral', detail: 'Credentials saved, but verification status is uncertain.' };
 }
 
 function providerFields(providerType) {
@@ -158,6 +172,7 @@ function providerFields(providerType) {
         return [
             { name: 'label', label: 'Connection Label', required: true, defaultValue: 'Telnyx' },
             { name: 'apiKey', label: 'API Key', required: true },
+            { name: 'publicApiKey', label: 'Public Key' },
             { name: 'phoneNumber', label: 'Default From Number' },
             { name: 'connectionId', label: 'Connection ID' },
             { name: 'messagingProfileId', label: 'Messaging Profile ID' },
@@ -183,6 +198,7 @@ function providerPayload(form) {
         apiKey: 'api_key',
         apiSecret: 'api_secret',
         phoneNumber: 'phone_number',
+        publicApiKey: 'public_key',
         connectionId: 'connection_id',
         messagingProfileId: 'messaging_profile_id',
     };
@@ -241,7 +257,9 @@ function DialerTab({
     routingFromNumber,
     onRoutingFromNumberChange,
     routingExtensionId,
-    onRoutingExtensionIdChange
+    onRoutingExtensionIdChange,
+    activeProviderType,
+    providerConfigs
 }) {
     const { showNotice } = useNotice();
 
@@ -264,6 +282,36 @@ function DialerTab({
         e.preventDefault();
         await attachNumber();
     };
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Ignore if user is typing in an input, textarea, or if there's an active call
+            if (activeCall || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const key = e.key;
+            
+            // Map standard keys and Numpad keys
+            if (/^[0-9]$/.test(key)) {
+                handlePress(key);
+            } else if (key === '*' || key === 'Multiply') {
+                handlePress('*');
+            } else if (key === '#' || (e.shiftKey && key === '3')) {
+                handlePress('#');
+            } else if (key === 'Backspace') {
+                handleBackspace();
+            } else if (key === 'Enter') {
+                // Trigger call start if criteria met
+                if (dialer.phoneNumber.length >= 10 && routingFromNumber) {
+                    startCall();
+                }
+            } else if (key === 'Escape') {
+                setDialer(prev => ({ ...prev, phoneNumber: '' }));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeCall, dialer.phoneNumber, routingFromNumber, startCall, buttonToneStyle]);
 
     return (
         <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1.2fr)] p-1">
@@ -451,7 +499,12 @@ function DialerTab({
                                     </div>
                                 </MachinedButton>
                             ) : (
-                                <MachinedButton glow="emerald" active={dialer.phoneNumber.length >= 10} onClick={startCall} disabled={!dialer.phoneNumber || !routingFromNumber}>
+                                <MachinedButton 
+                                    glow="emerald" 
+                                    active={dialer.phoneNumber.length >= 10} 
+                                    onClick={startCall} 
+                                    disabled={!dialer.phoneNumber || !routingFromNumber || (activeProviderType !== 'stub' && providerConfigs.find(c => c.providerType === activeProviderType)?.status !== 'verified')}
+                                >
                                     <div className={`h-16 w-16 rounded-full border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center ${dialer.phoneNumber.length >= 10 ? 'animate-pulse' : 'opacity-25'} shadow-[0_0_15px_rgba(16,185,129,0.2)]`}>
                                         <PhoneCall className={dialer.phoneNumber.length >= 10 ? 'text-emerald-400' : 'text-slate-500'} size={28} />
                                     </div>
@@ -709,14 +762,19 @@ export default function SmsVoipModule({
 
     const activateProvider = async (providerType) => {
         const config = providerConfigs.find(c => c.providerType === providerType);
-        if (!config) {
+        if (!config || !config.hasConfig) {
             showNotice({ type: 'warning', message: `Please configure ${providerType} in Integrations first.` });
             return;
         }
         try {
-            await saveCommsProviderConfigApi(providerType, config.config || {}, true);
+            const result = await saveCommsProviderConfigApi(providerType, config.config || {}, true);
             await loadAll();
-            showNotice({ type: 'success', message: `${providerType.charAt(0).toUpperCase() + providerType.slice(1)} activated.` });
+            
+            if (result.status === 'verified') {
+                showNotice({ type: 'success', message: `${providerType.charAt(0).toUpperCase() + providerType.slice(1)} activated and verified.` });
+            } else {
+                showNotice({ type: 'warning', message: `${providerType.charAt(0).toUpperCase() + providerType.slice(1)} configuration saved, but verification failed: ${result.message || 'unknown error'}` });
+            }
         } catch (e) {
             showNotice({ type: 'error', message: 'Failed to switch provider.' });
         }
@@ -822,6 +880,8 @@ export default function SmsVoipModule({
                     onRoutingFromNumberChange={onFromNumberChange}
                     routingExtensionId={extensionId}
                     onRoutingExtensionIdChange={onExtensionIdChange}
+                    activeProviderType={activeProviderType}
+                    providerConfigs={providerConfigs}
                 />
             </div>
         </div>

@@ -6,6 +6,7 @@ import {
   Mic,
   Sparkles,
   X,
+  Crosshair,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAIAssist } from '../contexts/AIAssistContext';

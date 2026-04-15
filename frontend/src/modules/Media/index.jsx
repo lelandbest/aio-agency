@@ -590,10 +590,14 @@ const StudioModule = () => {
         ...publishJobs.map(j => ({ id: j.id, title: j.title || 'Publish', type: 'publish', status: j.status || 'queued', createdAt: j.createdAt })),
       ];
 
+      const normalizedOutputs = outputs
+        .map(normalizeWorkspaceOutputItem)
+        .filter(Boolean);
+
       setWorkspace({
         jobs: sortWorkspaceJobs(jobs),
-        outputs: sortWorkspaceOutputs(outputs),
-        counts: { jobs: jobs.length, outputs: outputs.length, ingestSources: INGESTION_SOURCES.length },
+        outputs: sortWorkspaceOutputs(normalizedOutputs),
+        counts: { jobs: jobs.length, outputs: normalizedOutputs.length, ingestSources: INGESTION_SOURCES.length },
       });
     } catch (e) {
       setError(e.message || 'Unable to load workspace.');

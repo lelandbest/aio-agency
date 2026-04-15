@@ -13,7 +13,7 @@ ARTICLES = [
     {
         "title": "AIO System Foundations",
         "category": "system",
-        "tags": ["META:DOC:HELP", "SYSTEM:CORE"],
+        "tags": ["META:DOC:HELP", "META:DOC:SYSTEM", "SYSTEM:CORE"],
         "content": """# AIO System Foundations
 
 The AIO platform is built on a three-pillar architecture:
@@ -29,7 +29,7 @@ The AIO platform is built on a three-pillar architecture:
     {
         "title": "Operator Standard Operating Procedure",
         "category": "operations",
-        "tags": ["META:DOC:HELP", "OPS:SOP"],
+        "tags": ["META:DOC:HELP", "META:DOC:USER", "OPS:SOP"],
         "content": """# Operator Standard Operating Procedure (SOP)
 
 As an AIO Operator, your primary goal is to ensure the deterministic execution of the Cortex.
@@ -45,7 +45,7 @@ If a self-constructing help article is marked as PENDING, it means the system ha
     {
         "title": "CRM & Lead Management",
         "category": "crm",
-        "tags": ["META:DOC:HELP", "CRM:GUIDE"],
+        "tags": ["META:DOC:HELP", "META:DOC:SETUP", "CRM:GUIDE"],
         "content": """# CRM & Lead Management Guide
 
 The CRM module is the central repository for all client interactions.
