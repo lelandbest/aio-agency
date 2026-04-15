@@ -79,12 +79,22 @@ def _refresh_active_adapter() -> None:
 
 
 def get_provider_info() -> dict[str, Any]:
-    """Get current provider information."""
+    """Get current provider information with live health verification."""
     adapter = _get_active_adapter()
+    health_status = "not_configured"
+    is_active = False
+
+    if adapter.provider_type != "stub":
+        health = adapter.get_health()
+        health_status = health.status
+        is_active = health.status == "healthy"
+        print(f"COMMS PROVIDER INFO: type={adapter.provider_type} health={health.status} isActive={is_active}")
+
     return {
         "providerType": adapter.provider_type,
         "providerName": adapter.provider_name,
-        "isActive": adapter.provider_type != "stub",
+        "isActive": is_active,
+        "healthStatus": health_status,
     }
 
 
@@ -116,9 +126,31 @@ def list_provider_configs() -> list[dict[str, Any]]:
                     config[CONFIG_MAPPING.get(k, k)] = v
                 
                 result["hasConfig"] = bool(config.get("api_key") or config.get("api_secret") or config.get("auth_token"))
-                
-                # Return mapped config for UI rehydration
-                # Mask sensitive values but keep the keys
+
+                if result["hasConfig"] and result.get("providerType") in ("telnyx", "twilio"):
+                    print(f"COMMS CONFIG LOAD: live health check for {result['providerType']}")
+                    try:
+                        config_obj = ProviderConfig(**config)
+                        adapter = create_provider_adapter(result["providerType"], config_obj, tenant_id)
+                        health = adapter.get_health()
+                        result["healthStatus"] = health.status
+                        result["status"] = "verified" if health.status == "healthy" else "configured"
+                        result["lastHealthCheck"] = datetime.now(timezone.utc).isoformat()
+                        print(f"COMMS CONFIG LOAD: {result['providerType']} health={health.status} status={result['status']}")
+                        try:
+                            with provider._connect() as conn2:
+                                conn2.execute(
+                                    "UPDATE comms_provider_configs SET status = ?, healthStatus = ?, lastHealthCheck = ? WHERE id = ?",
+                                    (result["status"], health.status, result["lastHealthCheck"], result["id"])
+                                )
+                                conn2.commit()
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        print(f"COMMS CONFIG LOAD: {result['providerType']} health check error: {e}")
+                        result["healthStatus"] = "unhealthy"
+                        result["status"] = "error"
+
                 masked_config = {}
                 sensitive_keys = ("api_key", "api_secret", "auth_token", "public_key")
                 for k, v in config.items():
@@ -137,6 +169,41 @@ def list_provider_configs() -> list[dict[str, Any]]:
         results.append(result)
     
     return results
+
+
+def verify_provider_config(
+    provider_type: str,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify provider credentials against live API. Does NOT persist or modify DB."""
+    print(f"COMMS VERIFY-ONLY: {provider_type}")
+
+    normalized_config = {}
+    for k, v in config.items():
+        normalized_config[CONFIG_MAPPING.get(k, k)] = v
+
+    config_obj = ProviderConfig(**normalized_config)
+    adapter = create_provider_adapter(provider_type, config_obj, "default")
+
+    valid, err = adapter.validate_config()
+    if not valid:
+        print(f"COMMS VERIFY-ONLY: {provider_type} validate_config FAILED: {err}")
+        return {"status": "failed", "healthStatus": "unhealthy", "message": err}
+
+    health = adapter.get_health()
+    print(f"COMMS VERIFY-ONLY: {provider_type} health={health.status}")
+
+    if health.status == "healthy":
+        return {
+            "status": "verified",
+            "healthStatus": "healthy",
+            "message": health.message or "Provider verified successfully",
+        }
+    return {
+        "status": "failed",
+        "healthStatus": health.status,
+        "message": health.message or f"Health check returned {health.status}",
+    }
 
 
 def save_provider_config(

@@ -8168,6 +8168,7 @@ async def get_comms_integration_info(request: Request):
                 "providerStatus": provider_info.get("providerType", "stub"),
                 "providerName": provider_info.get("providerName", "Stub"),
                 "isProviderActive": provider_info.get("isActive", False),
+                "providerHealthStatus": provider_info.get("healthStatus", "not_configured"),
                 "availableProviders": providers,
                 "crmIntegration": "ready",
                 "signalsIntegration": "ready",
@@ -8199,6 +8200,29 @@ async def list_comms_provider_configs(request: Request):
         return {"data": list_provider_configs()}
     except ImportError:
         return {"data": []}
+
+
+@app.post("/api/comms/verify-provider")
+async def verify_comms_provider(request: Request, payload: dict[str, Any]):
+    """Verify provider credentials without persisting."""
+    session = require_capability(request, "integrations.manage", "Only workspace staff or higher can verify provider config.")
+    try:
+        from comms_service import verify_provider_config
+
+        provider_type = payload.get("providerType")
+        config = payload.get("config", {})
+
+        if not provider_type:
+            raise HTTPException(status_code=400, detail="providerType is required")
+
+        result = verify_provider_config(provider_type, config)
+        if result.get("status") != "verified":
+            raise HTTPException(status_code=400, detail=result.get("message", "Verification failed"))
+        return {"data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/comms/provider-configs")

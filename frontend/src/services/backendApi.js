@@ -1950,6 +1950,14 @@ export async function saveCommsProviderConfigApi(providerType, config, isActive 
   return response.data;
 }
 
+export async function verifyCommsProviderConfigApi(providerType, config) {
+  const response = await request('/api/comms/verify-provider', {
+    method: 'POST',
+    body: JSON.stringify({ providerType, config })
+  });
+  return response.data;
+}
+
 export async function deleteCommsProviderConfigApi(providerType) {
   const response = await request(`/api/comms/provider-configs/${encodeURIComponent(providerType)}`, {
     method: 'DELETE'

@@ -66,7 +66,8 @@ import {
   deletePaymentProviderConfigApi,
   getCommsProviderConfigsApi,
   saveCommsProviderConfigApi,
-  deleteCommsProviderConfigApi
+  deleteCommsProviderConfigApi,
+  verifyCommsProviderConfigApi
 } from '../../../services/backendApi';
 import { openOAuthPopup } from '../../../utils/oauthPopup';
 import SystemConfirmModal from '../../../components/Modals/SystemConfirmModal';
@@ -2386,29 +2387,15 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
 
   const handleTestCommsProvider = async () => {
     if (!selectedCommsProviderCatalog?.id) return;
-    setBusyAction('comms-provider-test');
     try {
-      const fieldNames = (selectedCommsProviderCatalog.fields || []).map(f => f.name);
-      const config = {};
-      fieldNames.forEach(name => {
-        if (commsProviderForm[name] !== undefined) config[name] = commsProviderForm[name];
-      });
-      const result = await saveCommsProviderConfigApi(
+      const result = await verifyCommsProviderConfigApi(
         selectedCommsProviderCatalog.id,
-        config,
-        true
+        commsProviderForm
       );
-      if (result.status === 'verified') {
-        showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog.name} connection verified.` });
-      } else {
-        showNotice({ tone: 'error', message: `Verification failed: ${result.message || 'unknown error'}` });
-      }
-      triggerSavedAction('comms-provider-test');
-      await loadAll();
+      showNotice({ tone: 'success', message: `${selectedCommsProviderCatalog.name} connection test passed. API verified.` });
+      triggerSavedAction('communications-test');
     } catch (error) {
-      showNotice({ tone: 'error', message: readErrorMessage(error) });
-    } finally {
-      setBusyAction('');
+      showNotice({ tone: 'error', message: `${selectedCommsProviderCatalog?.name || 'Provider'} connection test failed: ${readErrorMessage(error)}` });
     }
   };
 
@@ -4140,12 +4127,12 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
                     logoId={config.providerKey}
                     title={config.label || providerCatalog.name}
                     subtitle={config.providerKey}
-                    status={config.enabled ? 'connected' : 'disabled'}
+                    status={config.status === 'verified' && config.healthStatus === 'healthy' ? 'connected' : (config.status === 'error' || config.healthStatus === 'unhealthy' ? 'error' : 'disabled')}
                     detail={providerCatalog.description}
                     selected={selectedCommsProviderKey === config.providerKey}
                     onClick={() => setSelectedCommsProviderKey(config.providerKey)}
                     chips={[
-                      config.enabled ? 'enabled' : 'disabled',
+                      config.status === 'verified' && config.healthStatus === 'healthy' ? 'verified' : (config.status === 'error' ? 'failed' : 'unverified'),
                     ]}
                   />
                 );
