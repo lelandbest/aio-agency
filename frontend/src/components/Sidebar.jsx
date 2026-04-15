@@ -248,12 +248,22 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                     <div className={`border-t border-[var(--color-border)] flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-3'}`}>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => window.dispatchEvent(new CustomEvent('aio:open-boom'))}
-                                className={`flex-1 p-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50 transition flex items-center justify-center gap-1`}
-                                title="Boom Capture"
+                                onClick={() => {
+                                    if (!isOpen) {
+                                        openVTT();
+                                    } else {
+                                        setIsListening(!isListening);
+                                    }
+                                }}
+                                className={`flex-1 p-2 rounded-lg border transition flex items-center justify-center gap-1 ${
+                                    isListening 
+                                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 hover:border-emerald-500/50' 
+                                        : 'border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50'
+                                }`}
+                                title="Open Charlie"
                             >
-                                <Camera size={14} className="text-cyan-400" />
-                                {!isCollapsed && <span className="text-[10px] font-semibold uppercase">Boom</span>}
+                                <Mic size={10} className={isListening ? 'animate-pulse' : ''} />
+                                {!isCollapsed && <span className="text-[10px] font-semibold uppercase">Charlie</span>}
                             </button>
                             <div className="flex flex-col gap-1 flex-1">
                                 <button
@@ -262,25 +272,15 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
                                     title="Help Documentation"
                                 >
                                     <HelpCircle size={16} />
-                                    {!isCollapsed && <span className="text-xs">Help Docs</span>}
+                                    {!isCollapsed && <span className="text-xs">Help</span>}
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        if (!isOpen) {
-                                            openVTT();
-                                        } else {
-                                            setIsListening(!isListening);
-                                        }
-                                    }}
-                                    className={`flex items-center gap-1.5 rounded-full border backdrop-blur px-3 py-1.5 text-[8px] font-black uppercase tracking-widest shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-all ${
-                                        isListening 
-                                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]' 
-                                            : 'border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-black/80'
-                                    } ${isCollapsed ? 'justify-center w-full' : ''}`}
-                                    title={isOpen ? (isListening ? "Stop Listening" : "Start Listening") : "Open Charlie"}
+                                    onClick={() => window.dispatchEvent(new CustomEvent('aio:open-boom'))}
+                                    className={`flex items-center gap-1.5 rounded-full border backdrop-blur px-3 py-1.5 text-[8px] font-black uppercase tracking-widest shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-all border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-black/80 ${isCollapsed ? 'justify-center w-full' : ''}`}
+                                    title="Boom Capture"
                                 >
-                                    <Mic size={10} className={isListening ? 'animate-pulse' : ''} />
-                                    {!isCollapsed && <span>Charlie</span>}
+                                    <Camera size={14} className="text-cyan-400" />
+                                    {!isCollapsed && <span>Boom</span>}
                                 </button>
                             </div>
                         </div>
