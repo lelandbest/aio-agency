@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme } from '../lib/ThemeContext';
 import {
-    Menu, X, ChevronRight, ExternalLink, HelpCircle, PenTool, MessageSquare, Mic
+    Menu, X, ChevronRight, ExternalLink, HelpCircle, PenTool, MessageSquare, Mic, Camera
 } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
@@ -245,35 +245,44 @@ const Sidebar = ({ activeModule, onSelectModule, onLogout, isMobileOpen, setIsMo
 
                 {/* Help Docs Link */}
                 {showHelp ? (
-                    <div className={`border-t border-[var(--color-border)] flex-shrink-0 flex items-center justify-between ${isCollapsed ? 'p-2' : 'p-3'}`}>
-                        {!isCollapsed && <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase">Resources</span>}
-                        <div className="flex flex-col gap-1 w-full">
+                    <div className={`border-t border-[var(--color-border)] flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-3'}`}>
+                        <div className="flex gap-2">
                             <button
-                                onClick={() => onSelectModule('aio-help')}
-                                className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
-                                title="Help Documentation"
+                                onClick={() => window.dispatchEvent(new CustomEvent('aio:open-boom'))}
+                                className={`flex-1 p-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50 transition flex items-center justify-center gap-1`}
+                                title="Boom Capture"
                             >
-                                <HelpCircle size={16} />
-                                {!isCollapsed && <span className="text-xs">Help Docs</span>}
+                                <Camera size={14} className="text-cyan-400" />
+                                {!isCollapsed && <span className="text-[10px] font-semibold uppercase">Boom</span>}
                             </button>
-                            <button
-                                onClick={() => {
-                                    if (!isOpen) {
-                                        openVTT();
-                                    } else {
-                                        setIsListening(!isListening);
-                                    }
-                                }}
-                                className={`flex items-center gap-1.5 rounded-full border backdrop-blur px-3 py-1.5 text-[8px] font-black uppercase tracking-widest shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-all ${
-                                    isListening 
-                                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]' 
-                                        : 'border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-black/80'
-                                } ${isCollapsed ? 'justify-center w-full' : ''}`}
-                                title={isOpen ? (isListening ? "Stop Listening" : "Start Listening") : "Open Charlie"}
-                            >
-                                <Mic size={10} className={isListening ? 'animate-pulse' : ''} />
-                                {!isCollapsed && <span>Charlie</span>}
-                            </button>
+                            <div className="flex flex-col gap-1 flex-1">
+                                <button
+                                    onClick={() => onSelectModule('aio-help')}
+                                    className={`p-1.5 text-[var(--color-text-secondary)] hover:text-blue-400 hover:bg-[var(--color-hover)] rounded-[var(--radius-card)] transition flex items-center gap-2 ${isCollapsed ? 'w-full flex justify-center' : ''}`}
+                                    title="Help Documentation"
+                                >
+                                    <HelpCircle size={16} />
+                                    {!isCollapsed && <span className="text-xs">Help Docs</span>}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!isOpen) {
+                                            openVTT();
+                                        } else {
+                                            setIsListening(!isListening);
+                                        }
+                                    }}
+                                    className={`flex items-center gap-1.5 rounded-full border backdrop-blur px-3 py-1.5 text-[8px] font-black uppercase tracking-widest shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-all ${
+                                        isListening 
+                                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]' 
+                                            : 'border-cyan-500/30 bg-black/60 text-cyan-400 hover:bg-black/80'
+                                    } ${isCollapsed ? 'justify-center w-full' : ''}`}
+                                    title={isOpen ? (isListening ? "Stop Listening" : "Start Listening") : "Open Charlie"}
+                                >
+                                    <Mic size={10} className={isListening ? 'animate-pulse' : ''} />
+                                    {!isCollapsed && <span>Charlie</span>}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ) : null}

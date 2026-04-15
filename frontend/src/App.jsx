@@ -22,6 +22,7 @@ import { NoticeProvider, GlobalNoticeViewport } from './contexts/NoticeContext';
 import { VTTProvider, useVTT } from './contexts/VTTContext';
 import VoiceCommandModule from './modules/VoiceCommand';
 import StatusBar from './components/StatusBar';
+import Boom from './components/Boom';
 
 /** Bridge: listens for the sidebar's aio:open-charlie event and opens the VTT modal. */
 function VTTOpener() {
@@ -55,6 +56,7 @@ const DialerPage = lazy(() => import('./modules/SmsVoip'));
 const SystemsModule = lazy(() => import('./modules/Systems'));
 const HelpModule = lazy(() => import('./modules/Help'));
 const ForgeModule = lazy(() => import('./modules/Forge'));
+const BoomModule = lazy(() => import('./components/Boom'));
 
 // Lazy load policy pages
 const TermsPage = lazy(() => import('./pages/Terms'));
@@ -282,6 +284,7 @@ const App = () => {
   const [integrationCategory, setIntegrationCategory] = useState(initialNavigation.integrationCategory);
   const [crmContactId, setCrmContactId] = useState(initialNavigation.crmContactId);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showBoomModal, setShowBoomModal] = useState(false);
   const [dialerToneStyle, setDialerToneStyle] = useState('military');
   const [dialerFromNumber, setDialerFromNumber] = useState('');
   const [dialerExtensionId, setDialerExtensionId] = useState('');
@@ -578,9 +581,13 @@ const App = () => {
     const handleOpenTicket = () => setShowTicketModal(true);
     window.addEventListener('aio:open-ticket', handleOpenTicket);
 
+    const handleOpenBoom = () => setShowBoomModal(true);
+    window.addEventListener('aio:open-boom', handleOpenBoom);
+
     return () => {
       window.removeEventListener('aio:navigate', handleNavigate);
       window.removeEventListener('aio:open-ticket', handleOpenTicket);
+      window.removeEventListener('aio:open-boom', handleOpenBoom);
     };
   }, [clientMode]);
 
@@ -904,6 +911,7 @@ const App = () => {
               </OrchestrationProvider>
             </AIAssistProvider>
             <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} />
+            <Boom isOpen={showBoomModal} onClose={() => setShowBoomModal(false)} />
             <GlobalNoticeViewport />
           </BrandProvider>
           <StatusBar />
