@@ -3,8 +3,6 @@ import { ArrowRight, FolderOpen, Layers, Plus, Search, Tag, Workflow, Trash2, Fo
 import FolderTable from '../../components/FolderTable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
-import { BrainIcon, Crosshair } from '../../components/ui/icons';
-import AIAssistButton from '../../components/AIAssistButton';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import TemplateLibraryModal from './components/TemplateLibraryModal';
@@ -49,7 +47,7 @@ const getFlowSourceMeta = (flow) => {
 };
 
 const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlow = null, selectionMode = false }) => {
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const { showNotice } = useNotice();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +55,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   const [renameFlowId, setRenameFlowId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [selectedFlowIds, setSelectedFlowIds] = useState([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState([]);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [customTemplates, setCustomTemplates] = useState([]);
   const [busyAction, setBusyAction] = useState('');
@@ -216,22 +215,41 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }, [loadFlows]);
 
   const toggleSelectAllFlows = useCallback(() => {
-    setSelectedFlowIds((prev) => (prev.length === flows.length ? [] : flows.map((f) => f.id)));
-  }, [flows.length, flows]);
+    if (selectedFlowIds.length === flows.length && selectedFolderIds.length === flowFolders.length) {
+      setSelectedFlowIds([]);
+      setSelectedFolderIds([]);
+    } else {
+      setSelectedFlowIds(flows.map((f) => f.id));
+      setSelectedFolderIds(flowFolders.map((f) => f.id));
+    }
+  }, [flows, flowFolders, selectedFlowIds, selectedFolderIds]);
+
+  const toggleFolderSelection = useCallback((folderId) => {
+    setSelectedFolderIds((prev) =>
+      prev.includes(folderId) ? prev.filter(id => id !== folderId) : [...prev, folderId]
+    );
+  }, []);
 
   const bulkDeleteSelectedFlows = useCallback(async () => {
-    if (selectedFlowIds.length === 0) return;
+    const totalSelected = selectedFlowIds.length + selectedFolderIds.length;
+    if (totalSelected === 0) return;
     const isConfirmed = await systemConfirm({
-      title: 'Delete Selected Flows',
-      message: `Permanently delete ${selectedFlowIds.length} automation flow(s)? This cannot be undone.`,
-      confirmText: `Delete ${selectedFlowIds.length} Flows`,
+      title: 'Delete Selected',
+      message: `Permanently delete ${totalSelected} item${totalSelected > 1 ? 's' : ''}? This cannot be undone.`,
+      confirmText: `Delete ${totalSelected} Item${totalSelected > 1 ? 's' : ''}`,
       variant: 'danger'
     });
     if (isConfirmed) {
       try {
         setLoading(true);
-        await bulkDeleteFlowsApi(selectedFlowIds);
+        if (selectedFlowIds.length > 0) {
+          await bulkDeleteFlowsApi(selectedFlowIds);
+        }
+        for (const folderId of selectedFolderIds) {
+          await deleteFlowFolderApi(folderId).catch(() => {});
+        }
         setSelectedFlowIds([]);
+        setSelectedFolderIds([]);
         await loadFlows();
       } catch (err) {
         setError('Bulk delete failed: ' + err.message);
@@ -239,7 +257,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         setLoading(false);
       }
     }
-  }, [selectedFlowIds, loadFlows, systemConfirm]);
+  }, [selectedFlowIds, selectedFolderIds, loadFlows, systemConfirm]);
 
   const handleCreateFromTemplate = useCallback(
     async (template) => {
@@ -477,26 +495,15 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       />
       
       {/* Toolbar */}
-      <div className="module-toolbar">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <button
-            onClick={handleCreateBlank}
-            disabled={Boolean(busyAction)}
-            className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 disabled:opacity-40"
-          >
-            <Plus size={12} />
-            <span className="font-bold uppercase tracking-[0.14em]">Create Flow</span>
-          </button>
-          <button
-            onClick={handleCreateFolder}
-            className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
-          >
-            <FolderPlus size={12} />
-            <span className="font-bold uppercase tracking-[0.14em]">New Folder</span>
-          </button>
-        </div>
-
-        <div className="flex flex-1 justify-center items-center h-full min-w-0">
+      <ModuleHeader
+        titleIcon={Workflow}
+        title="Flows"
+        actions={[
+          { label: 'Create Flow', icon: Plus, onClick: handleCreateBlank, variant: 'primary', disabled: Boolean(busyAction) },
+          { label: 'New Folder', icon: FolderPlus, onClick: handleCreateFolder },
+          { label: 'Browse', icon: Layers, onClick: () => setShowTemplateGallery(true) },
+        ]}
+        toolbarCenterSlot={
           <div className="relative w-full max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
             <input
@@ -507,9 +514,8 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               className="w-full h-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-[11px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
             />
           </div>
-        </div>
-
-        <div className="flex min-w-0 items-center gap-3 shrink-0">
+        }
+        toolbarRightSlot={
           <div className="flex items-center gap-2">
             <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-8">
               <FolderOpen size={14} className="text-[var(--color-text-tertiary)]" />
@@ -521,34 +527,10 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               <span>TEMPLATES</span>
               <span className="text-[var(--color-text-primary)]">{totalTemplatesUsed}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowTemplateGallery(true)}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8 font-bold"
-            >
-              <Layers size={14} />
-              <span className="uppercase text-[10px] font-bold tracking-widest">Browse</span>
-            </button>
           </div>
-
-          <div className="module-toolbar-utility">
-            <button
-              onClick={() => openAIAssist()}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Brain (Global KB)"
-            >
-              <BrainIcon size={14} />
-            </button>
-            <button
-              onClick={() => openAIAssist({ context: { module: 'flows' } })}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Crosshair (Module AI)"
-            >
-              <Crosshair size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
+        }
+        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'flows' } })}
+      />
 
       <div className="module-surface-shell px-3 py-3">
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
@@ -603,17 +585,19 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
           }}
           onSelectAll={toggleSelectAllFlows}
           selectedItems={selectedFlowIds}
+          selectedFolders={selectedFolderIds}
+          onFolderSelect={toggleFolderSelection}
           onCreateItem={handleCreateBlank}
           createItemLabel="Create Flow"
           actions={
             <div className="flex items-center gap-2">
-              {selectedFlowIds.length > 0 && (
+              {(selectedFlowIds.length + selectedFolderIds.length) > 0 && (
                 <button
                   onClick={bulkDeleteSelectedFlows}
                   className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm"
                 >
                   <Trash2 size={14} />
-                  <span>DELETE SELECTED ({selectedFlowIds.length})</span>
+                  <span>DELETE SELECTED ({selectedFlowIds.length + selectedFolderIds.length})</span>
                 </button>
               )}
               {tableActions}

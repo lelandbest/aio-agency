@@ -1,15 +1,17 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 
 const AIAssistContext = createContext(null);
 
 export function AIAssistProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [assistMode, setAssistMode] = useState('brain'); // 'brain' or 'help'
+  const [assistMode, setAssistMode] = useState('brain');
   const [assistContext, setAssistContext] = useState(null);
+  const modeRef = useRef('brain');
 
   const openAIAssist = useCallback((args = {}) => {
     const { context = null } = args;
     const mode = args.mode || (context ? 'help' : 'brain');
+    modeRef.current = mode;
     setAssistMode(mode);
     setAssistContext(context);
     setIsOpen(true);
@@ -24,23 +26,15 @@ export function AIAssistProvider({ children }) {
     const mode = args.mode || (context ? 'help' : 'brain');
     
     setIsOpen(prev => {
-      // If closing, we just close if it's the SAME mode.
-      if (prev) {
-        if (assistMode === mode) {
-          return false;
-        }
-        // Switch mode and keep open
-        setAssistMode(mode);
-        setAssistContext(context);
-        return true;
+      if (prev && modeRef.current === mode) {
+        return false;
       }
-      
-      // If opening, set state and return true
+      modeRef.current = mode;
       setAssistMode(mode);
       setAssistContext(context);
       return true;
     });
-  }, [assistMode]);
+  }, []);
 
   return (
     <AIAssistContext.Provider value={{ 

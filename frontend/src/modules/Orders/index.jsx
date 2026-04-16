@@ -154,7 +154,7 @@ const OrdersModule = () => {
         ]}
         showActions={true}
         hasSelection={false}
-        onModuleAi={() => openAIAssist({ context: { module: 'orders', tab: activeTab } })}
+        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'orders', tab: activeTab } })}
       />
       <div className="module-content-stage module-surface-shell p-1.5">
         <SystemConfirmModal

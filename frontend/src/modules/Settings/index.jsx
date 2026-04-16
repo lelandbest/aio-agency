@@ -3410,7 +3410,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
           </div>
           <div className="module-toolbar-utility">
             <button onClick={() => toggleAIAssist({ mode: 'brain' })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><BrainIcon size={14} /></button>
-            <button onClick={() => openAIAssist({ context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><Crosshair size={14} /></button>
+            <button onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'settings', tab: activeTab } })} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><Crosshair size={14} /></button>
             <button onClick={() => openGlobalOverlay()} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"><CommandSurfaceIcon size={14} /></button>
           </div>
         </div>
@@ -3966,7 +3966,7 @@ const SettingsSelectorPanel = ({
 
 const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
   const { tenant, user } = useAuth();
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const role = String(tenant?.role || user?.role || 'viewer').toLowerCase();
   const { hasCapability } = useAuth();
   const isAdmin = hasCapability('system.admin');
@@ -4116,7 +4116,7 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
             )}
           </div>
         )}
-        onModuleAi={() => openAIAssist?.({ context: { module: 'settings', category: selection.categoryId, item: selection.itemId } })}
+        onModuleAi={() => toggleAIAssist?.({ mode: 'help', context: { module: 'settings', category: selection.categoryId, item: selection.itemId } })}
       />
 
       <div className="module-content-stage module-surface-shell p-2">

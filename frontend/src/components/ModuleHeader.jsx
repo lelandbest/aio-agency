@@ -160,8 +160,13 @@ const ModuleHeader = ({
           
           {/* Crosshair - Module Specific Assistance */}
           <button
-            onClick={() => onModuleAi?.()}
-            disabled={!onModuleAi}
+            onClick={() => {
+              if (onModuleAi) {
+                onModuleAi();
+              } else {
+                toggleAIAssist?.({ mode: 'help' });
+              }
+            }}
             className={toolbarIconButtonClass}
             title="Crosshair (Module AI)"
           >

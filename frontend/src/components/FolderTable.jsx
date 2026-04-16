@@ -2,13 +2,9 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import {
     Folder, FolderOpen, ChevronRight, Search, Plus,
-    MoreHorizontal, ChevronDown, Edit2, Trash2, FolderPlus, Copy
+    Edit2, Trash2, FolderPlus, Copy, ArrowRight
 } from 'lucide-react';
 
-/**
- * FolderTable Component
- * Reusable component for displaying items categorized into folders with a table view
- */
 const FolderTable = ({
     title,
     description,
@@ -20,17 +16,21 @@ const FolderTable = ({
     onFolderRename,
     onFolderDelete,
     onFolderCopy,
+    onFolderOpen,
     onItemSelect,
-    selectedItems,
+    selectedItems = [],
     onSelectAll,
     onCreateItem,
     createItemLabel = "Create New",
     actions,
-    folderProperty = "folder_id", // The property on items that links to folder.id
+    folderProperty = "folder_id",
     showHeader = true,
     searchQuery: controlledSearchQuery,
     onSearchQueryChange,
     searchPlaceholder = "Search...",
+    selectedFolders = [],
+    onFolderSelect,
+    bulkDeleteLabel = "DELETE SELECTED",
 }) => {
     const [localSearchQuery, setLocalSearchQuery] = useState('');
     const [editingFolderId, setEditingFolderId] = useState(null);
@@ -57,12 +57,20 @@ const FolderTable = ({
         }
     };
 
-    // Filter items based on search
     const filteredItems = items.filter(item =>
         Object.values(item).some(val =>
             String(val).toLowerCase().includes(searchQuery.toLowerCase())
         )
     );
+
+    const filteredFolders = folders.filter(folder =>
+        folder.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        filteredItems.some(item => item[folderProperty] === folder.id)
+    );
+
+    const allVisibleCount = filteredItems.length + filteredFolders.length;
+    const allSelectedCount = selectedItems.length + selectedFolders.length;
+    const allSelected = allVisibleCount > 0 && allSelectedCount >= allVisibleCount;
 
     const headerActions = [];
     if (onFolderCreate) {
@@ -81,6 +89,12 @@ const FolderTable = ({
             variant: 'primary'
         });
     }
+
+    const handleSelectAll = () => {
+        if (onSelectAll) {
+            onSelectAll();
+        }
+    };
 
     return (
         <div className="h-full bg-[var(--color-bg-secondary)] rounded-xl border border-[var(--color-border)] flex flex-col overflow-hidden">
@@ -124,17 +138,17 @@ const FolderTable = ({
                 </div>
             ) : null}
 
-            {/* Table */}
             <div className="no-scrollbar flex-1 overflow-auto px-4">
                 <table className="w-full">
                     <thead className="rounded-lg mb-2">
                         <tr className="border-b border-[var(--color-border)]">
-                            <th className="px-3 py-2 text-left w-12">
+                            <th className="px-3 py-2 text-left w-10">
                                 <input
                                     type="checkbox"
                                     className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]"
-                                    checked={items.length > 0 && selectedItems.length === items.length}
-                                    onChange={onSelectAll}
+                                    checked={allSelected}
+                                    ref={(el) => { if (el) el.indeterminate = allSelectedCount > 0 && !allSelected; }}
+                                    onChange={handleSelectAll}
                                 />
                             </th>
                             {columns.map((col, idx) => (
@@ -145,24 +159,25 @@ const FolderTable = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)]">
-                        {folders.map(folder => (
+                        {filteredFolders.map(folder => (
                             <React.Fragment key={`folder-${folder.id}`}>
-                                {/* Folder Row */}
                                 <tr className="hover:bg-[var(--color-bg-tertiary)]/50 cursor-pointer group border-b border-[var(--color-border)]/50">
-                                    <td className="px-4 py-3">
-                                        {/* Folder row selection disabled as per user request */}
+                                    <td className="px-3 py-2">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-[var(--color-border)] bg-[var(--color-bg-primary)]"
+                                            checked={selectedFolders.includes(folder.id)}
+                                            onChange={() => onFolderSelect?.(folder.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <button onClick={() => onFolderToggle(folder.id)}>
-                                            {folder.expanded ? <FolderOpen size={20} className="text-yellow-500" /> : <Folder size={20} className="text-yellow-500" />}
-                                        </button>
-                                    </td>
-                                    <td className="px-4 py-3" colSpan={columns.length}>
+                                    <td className="px-3 py-2" colSpan={columns.length - 1}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2" onClick={() => onFolderToggle(folder.id)}>
                                                 <button>
                                                     <ChevronRight size={16} className={`text-[var(--color-text-tertiary)] transition-transform ${folder.expanded ? 'rotate-90' : ''}`} />
                                                 </button>
+                                                {folder.expanded ? <FolderOpen size={16} className="text-yellow-500" /> : <Folder size={16} className="text-yellow-500" />}
                                                 {editingFolderId === folder.id ? (
                                                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                                         <input
@@ -180,31 +195,28 @@ const FolderTable = ({
                                                     </span>
                                                 )}
                                             </div>
-                                            {/* Folder Actions - visible on hover */}
-                                            <div className="opacity-0 group-hover:opacity-100 flex gap-2 mr-4">
+                                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onFolderDelete?.(folder.id); }}
+                                                    className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)] transition"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
                                                 <button
                                                     onClick={(e) => startRename(e, folder)}
-                                                    className="p-1 hover:text-[var(--color-primary)] text-[var(--color-text-secondary)] transition"
-                                                    title="Rename folder"
+                                                    className="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] transition font-medium ghost-button"
+                                                    title="Rename"
                                                 >
-                                                    <Edit2 size={14} />
+                                                    Rename
                                                 </button>
-                                                {onFolderCopy && (
+                                                {onFolderOpen && (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); onFolderCopy(folder); }}
-                                                        className="p-1 hover:text-[var(--color-primary)] text-[var(--color-text-secondary)] transition"
-                                                        title="Duplicate folder"
+                                                        onClick={(e) => { e.stopPropagation(); onFolderOpen(folder.id); }}
+                                                        className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition"
+                                                        title="Open"
                                                     >
-                                                        <Copy size={13} />
-                                                    </button>
-                                                )}
-                                                {onFolderDelete && (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); onFolderDelete(folder.id); }}
-                                                        className="p-1 hover:text-red-500 text-[var(--color-text-secondary)] transition"
-                                                        title="Delete folder"
-                                                    >
-                                                        <Trash2 size={14} />
+                                                        Open
                                                     </button>
                                                 )}
                                             </div>
@@ -212,7 +224,6 @@ const FolderTable = ({
                                     </td>
                                 </tr>
 
-                                {/* Items in Folder */}
                                 {folder.expanded && filteredItems.filter(f => f[folderProperty] === folder.id).map(item => (
                                     <tr key={item.id} className="hover:bg-[var(--color-hover)] group">
                                         <td className="px-3 py-2">
@@ -233,14 +244,15 @@ const FolderTable = ({
                             </React.Fragment>
                         ))}
 
-                        {/* Uncategorized Items (if any, optional) */}
                         {filteredItems.filter(f => !f[folderProperty] || !folders.find(fol => fol.id === f[folderProperty])).length > 0 && (
                             <>
-                                <tr className="bg-[var(--color-bg-tertiary)]/50">
-                                    <td colSpan={columns.length + 1} className="px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
-                                        Uncategorized
-                                    </td>
-                                </tr>
+                                {filteredFolders.length > 0 && (
+                                    <tr className="bg-[var(--color-bg-tertiary)]/50">
+                                        <td colSpan={columns.length + 1} className="px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
+                                            Uncategorized
+                                        </td>
+                                    </tr>
+                                )}
                                 {filteredItems.filter(f => !f[folderProperty] || !folders.find(fol => fol.id === f[folderProperty])).map(item => (
                                     <tr key={item.id} className="hover:bg-[var(--color-hover)] group">
                                         <td className="px-3 py-2">
@@ -275,16 +287,17 @@ FolderTable.propTypes = {
     columns: PropTypes.arrayOf(PropTypes.shape({
         header: PropTypes.string.isRequired,
         key: PropTypes.string,
-        render: PropTypes.func
+        render: PropTypes.func,
+        width: PropTypes.string,
     })).isRequired,
     onFolderToggle: PropTypes.func.isRequired,
     onFolderCreate: PropTypes.func,
     onFolderRename: PropTypes.func,
     onFolderDelete: PropTypes.func,
     onFolderCopy: PropTypes.func,
+    onFolderOpen: PropTypes.func,
     onItemSelect: PropTypes.func.isRequired,
     onSelectAll: PropTypes.func,
-    selectedItems: PropTypes.array.isRequired,
     onCreateItem: PropTypes.func,
     createItemLabel: PropTypes.string,
     actions: PropTypes.node,
@@ -292,7 +305,10 @@ FolderTable.propTypes = {
     showHeader: PropTypes.bool,
     searchQuery: PropTypes.string,
     onSearchQueryChange: PropTypes.func,
-    searchPlaceholder: PropTypes.string
+    searchPlaceholder: PropTypes.string,
+    selectedFolders: PropTypes.array,
+    onFolderSelect: PropTypes.func,
+    bulkDeleteLabel: PropTypes.string,
 };
 
 export default FolderTable;

@@ -885,7 +885,8 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     loadSelectedContactData(selectedContact.id);
   }, [selectedContact, showDeleted, loadSelectedContactData]);
 
-  const openCrmAssist = () => openAIAssist({
+  const openCrmAssist = () => toggleAIAssist({
+    mode: 'help',
     context: {
       module: 'crm',
       selectedContactId: selectedContact?.id || null,

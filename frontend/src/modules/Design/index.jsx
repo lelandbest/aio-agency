@@ -147,7 +147,7 @@ const DesignModule = () => {
             variant: 'secondary'
           }
         ]}
-        onModuleAi={() => openAIAssist({ context: { module: 'design' } })}
+        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'design' } })}
       />
 
       <div className="module-surface-shell flex-1 mx-2 mb-2 relative overflow-hidden">

@@ -26,7 +26,7 @@ import {
   Code, Columns, Layers, Table, GripVertical, Trash2, ExternalLink, Save,
   Bot, Settings, Bold, Italic, Underline, AlignCenter, AlignRight, GitMerge,
   Database, Download, Search, Filter, Folder, FolderOpen, ChevronRight,
-  Eye, ArrowLeft
+  Eye, ArrowLeft, Tag
 } from 'lucide-react';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
@@ -200,6 +200,7 @@ const FormBuilderModule = () => {
   const [draggedField, setDraggedField] = useState(null);
   const [activeTab, setActiveTab] = useState('display');
   const [selectedForms, setSelectedForms] = useState([]);
+  const [selectedFolders, setSelectedFolders] = useState([]);
   const [assistTarget, setAssistTarget] = useState('');
   const [assistError, setAssistError] = useState('');
 
@@ -652,21 +653,28 @@ const FormBuilderModule = () => {
   };
 
   const bulkDeleteSelectedForms = async () => {
-    if (selectedForms.length === 0) return;
+    const totalSelected = selectedForms.length + selectedFolders.length;
+    if (totalSelected === 0) return;
     const isConfirmed = await systemConfirm({
-      title: 'Delete Selected Forms',
-      message: `Are you sure you want to delete ${selectedForms.length} selected forms? This action is irreversible.`,
-      confirmText: `Delete ${selectedForms.length} Forms`,
+      title: 'Delete Selected',
+      message: `Are you sure you want to delete ${totalSelected} selected item${totalSelected > 1 ? 's' : ''}? This action is irreversible.`,
+      confirmText: `Delete ${totalSelected} Item${totalSelected > 1 ? 's' : ''}`,
       variant: 'danger'
     });
     if (isConfirmed) {
       try {
         setLoading(true);
-        await bulkDeleteFormsApi(selectedForms);
+        if (selectedForms.length > 0) {
+          await bulkDeleteFormsApi(selectedForms);
+        }
+        for (const folderId of selectedFolders) {
+          await deleteFormFolderApi(folderId).catch(() => {});
+        }
         setSelectedForms([]);
+        setSelectedFolders([]);
         await fetchForms();
       } catch (error) {
-        setAlertMessage('Failed to delete forms: ' + error.message);
+        setAlertMessage('Failed to delete: ' + error.message);
         setTimeout(() => setAlertMessage(null), 3000);
       } finally {
         setLoading(false);
@@ -703,11 +711,21 @@ const FormBuilderModule = () => {
   };
 
   const toggleSelectAllForms = () => {
-    if (selectedForms.length === forms.length) {
+    if (selectedForms.length === forms.length && selectedFolders.length === folders.length) {
       setSelectedForms([]);
+      setSelectedFolders([]);
     } else {
       setSelectedForms(forms.map(f => f.id));
+      setSelectedFolders(folders.map(f => f.id));
     }
+  };
+
+  const toggleFolderSelection = (folderId) => {
+    setSelectedFolders(prev =>
+      prev.includes(folderId)
+        ? prev.filter(id => id !== folderId)
+        : [...prev, folderId]
+    );
   };
 
 
@@ -899,6 +917,33 @@ const FormBuilderModule = () => {
         )
       },
       {
+        header: "Source",
+        key: "source",
+        width: "180px",
+        render: (form) => {
+          const templateName = form.templateSourceName || form.metadata?.sourceTemplateName;
+          if (templateName) {
+            return (
+              <div className="space-y-1">
+                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                  <Tag size={11} />
+                  Template
+                </span>
+                <div className="text-xs text-[var(--color-text-secondary)]">{templateName}</div>
+              </div>
+            );
+          }
+          return (
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
+                Custom
+              </span>
+              <div className="text-xs text-[var(--color-text-tertiary)]">Blank / Custom</div>
+            </div>
+          );
+        }
+      },
+      {
         header: "Automation",
         key: "automation",
         width: "100px",
@@ -917,10 +962,16 @@ const FormBuilderModule = () => {
         width: "100px",
         render: (form) => (
           <button
-            onClick={async () => {
-              const newStatus = form.isActive ? 'Draft' : 'Live';
-              await updateFormApi(form.id, { status: newStatus, isActive: !form.isActive });
-              fetchForms();
+            onClick={() => {
+              const newActive = !form.isActive;
+              const newStatus = newActive ? 'Live' : 'Draft';
+              setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: newActive, status: newStatus } : f));
+              updateFormApi(form.id, { status: newStatus, isActive: newActive }).then(() => {
+                fetchForms();
+              }).catch((err) => {
+                console.error('Toggle failed, reverting:', err);
+                setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: !newActive, status: !newActive ? 'Live' : 'Draft' } : f));
+              });
             }}
             className={`w-12 h-6 rounded-full relative transition-colors ${
               form.isActive
@@ -954,39 +1005,37 @@ const FormBuilderModule = () => {
       {
         header: "",
         key: "actions",
-        width: "160px",
+        width: "220px",
         render: (form) => (
           <div className="flex items-center gap-1">
             <button
-              onClick={() => handleOpenFormEntry(form)}
-              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)]"
-              title="Fill Form (Data Entry)"
-            >
-              <FileText size={16} />
-            </button>
-            <button
               onClick={() => deleteForm(form.id)}
-              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)]"
+              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)] transition"
               title="Delete"
             >
-              <Trash2 size={16} />
+              <Trash2 size={14} />
+            </button>
+            <button
+              onClick={() => {
+                const newName = prompt('Rename form:', form.name);
+                if (newName && newName.trim()) {
+                  updateFormApi(form.id, { name: newName.trim() }).then(() => fetchForms());
+                }
+              }}
+              className="px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] rounded transition"
+              title="Rename"
+            >
+              Rename
             </button>
             <button
               onClick={() => {
                 setCurrentForm(normalizeFormRecord(form));
                 setView('editor');
               }}
-              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)]"
+              className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition"
               title="Open"
             >
-              <ArrowRight size={16} />
-            </button>
-            <button
-              onClick={() => handleOpenPublicLink(form)}
-              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
-              title="Open in Tab"
-            >
-              <ExternalLink size={16} />
+              Open
             </button>
           </div>
         )
@@ -999,7 +1048,7 @@ const FormBuilderModule = () => {
           <ModuleHeader
             title="Forms"
             showTitle={false}
-            onModuleAi={() => openAIAssist?.({ context: { module: 'forms', surface: 'library', formsCount: forms.length } })}
+            onModuleAi={() => toggleAIAssist?.({ mode: 'help', context: { module: 'forms', surface: 'library', formsCount: forms.length } })}
             leftActions={[
               {
                 label: 'Create Form',
@@ -1095,14 +1144,16 @@ const FormBuilderModule = () => {
               onItemSelect={toggleFormSelection}
               onSelectAll={toggleSelectAllForms}
               selectedItems={selectedForms}
+              selectedFolders={selectedFolders}
+              onFolderSelect={toggleFolderSelection}
               actions={
-                selectedForms.length > 0 && (
+                (selectedForms.length + selectedFolders.length) > 0 && (
                   <button
                     onClick={bulkDeleteSelectedForms}
                     className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded border border-red-500/30 transition shadow-sm"
                   >
                     <Trash2 size={14} />
-                    <span>DELETE SELECTED ({selectedForms.length})</span>
+                    <span>DELETE SELECTED ({selectedForms.length + selectedFolders.length})</span>
                   </button>
                 )
               }
@@ -1174,7 +1225,8 @@ const FormBuilderModule = () => {
       <ModuleHeader
         title="Forms"
         showTitle={false}
-        onModuleAi={() => openAIAssist?.({
+        onModuleAi={() => toggleAIAssist?.({
+          mode: 'help',
           context: {
             module: 'forms',
             surface: 'builder',

@@ -1076,7 +1076,7 @@ const AIOAgentsModule = () => {
             }
         ]}
         showActions={true}
-        onModuleAi={() => openAIAssist({ context: { module: 'agents', view } })}
+        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'agents', view } })}
       />
 
       {/* Main Workspace */}

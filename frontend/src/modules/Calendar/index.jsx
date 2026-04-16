@@ -1309,7 +1309,7 @@ const CalendarModule = ({ clientMode = false }) => {
             </div>
           ) : null
         }
-        onModuleAi={() => openAIAssist({ context: { module: 'calendar', activeTab } })}
+        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'calendar', activeTab } })}
       />
 
       <div className="flex-1 min-h-0 bg-black relative px-2 pb-2 pt-3">
