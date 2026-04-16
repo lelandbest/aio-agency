@@ -298,6 +298,16 @@ export const validateFlowSpec = (spec, options = {}) => {
       }
     }
 
+    if (nodeType === 'input') {
+      const sourceMode = config.sourceMode || (intent === 'ai-form-builder' ? 'generate' : 'existing');
+      if (sourceMode === 'existing' && !config.formId && !config.existingFormId) {
+        blockers.push(`${node?.data?.label || nodeId} is missing a form selection.`);
+      }
+      if (sourceMode === 'generate' && !config.prompt) {
+        blockers.push(`${node?.data?.label || nodeId} is missing an AI prompt for form generation.`);
+      }
+    }
+
     if (nodeType === 'logic' && !normalizeNodeKey(config.logicType || node?.data?.logicType || node?.data?.templateId)) {
       blockers.push(`${node?.data?.label || nodeId} is missing a logic type.`);
     }

@@ -37,7 +37,11 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
   }, [node, videoTemplateOptions]);
 
   useEffect(() => {
-    if (isOpen && node?.data?.id === 'form-submitted-trigger') {
+    if (isOpen && (
+      node?.data?.id === 'form-submitted-trigger' || 
+      node?.data?.id === 'user-input' ||
+      node?.data?.templateId === 'user-input'
+    )) {
       loadForms();
     }
   }, [isOpen, node]);
@@ -524,13 +528,14 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
       );
     }
 
-    if (nodeType === 'input') {
-      const isAiBuilder = node.data.id === 'ai-form-builder';
-      const sourceMode = config.sourceMode || (config.existingFormId ? 'existing' : 'generate');
+        if (nodeType === 'input') {
+      const isAiBuilder = node.data.templateId === 'ai-form-builder' || node.data.id === 'ai-form-builder';
+      const isManualInput = node.data.templateId === 'user-input' || node.data.id === 'user-input';
+      const sourceMode = config.sourceMode || (isAiBuilder ? 'generate' : 'existing');
       
       return (
         <div className="space-y-4">
-          {isAiBuilder && (
+          {(isAiBuilder || isManualInput) && (
             <div>
               <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
                 Form Source
@@ -538,23 +543,23 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => handleInputChange('sourceMode', 'generate')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${sourceMode === 'generate' ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]'}`}
-                >
-                  Generate New
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleInputChange('sourceMode', 'existing')}
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${sourceMode === 'existing' ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)]'}`}
                 >
-                  Use Existing
+                  Existing Form
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('sourceMode', 'generate')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${sourceMode === 'generate' ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-primary)] border border(--color-border)] text-[var(--color-text-primary)]'}`}
+                >
+                  Generate (AI)
                 </button>
               </div>
             </div>
           )}
 
-          {isAiBuilder && sourceMode === 'existing' ? (
+          {sourceMode === 'existing' ? (
             <div>
               <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
                 Select Saved Form
@@ -565,8 +570,8 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                 </div>
               ) : forms.length > 0 ? (
                 <select
-                  value={config.existingFormId || ''}
-                  onChange={(e) => handleInputChange('existingFormId', e.target.value)}
+                  value={config.formId || config.existingFormId || ''}
+                  onChange={(e) => handleInputChange('formId', e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 >
                   <option value="">Select a form...</option>
@@ -576,73 +581,61 @@ const NodeConfigDrawer = ({ node, isOpen, onClose, onSave, videoTemplateOptions 
                 </select>
               ) : (
                 <div className="text-sm text-[var(--color-text-tertiary)]">
-                  No forms found. Switch to "Generate New" to create one.
+                  No forms found. Create one in the Forms module or switch to "Generate".
                 </div>
               )}
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
-                Selected form fields will be available as variables.
-              </p>
             </div>
           ) : (
-            <>
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                  {isAiBuilder ? 'AI Form Description' : 'Form Fields'}
+                  AI Form Prompt
                 </label>
                 <textarea
-                  value={config.fields || config.prompt || ''}
-                  onChange={(e) => handleInputChange(isAiBuilder ? 'prompt' : 'fields', e.target.value)}
-                  placeholder={isAiBuilder ? 'Describe the form you want to create...' : 'Enter field definitions (JSON)...'}
+                  value={config.prompt || ''}
+                  onChange={(e) => handleInputChange('prompt', e.target.value)}
+                  placeholder="Describe the form you want to create (e.g. 'A lead intake form with name, email, and company size')..."
                   className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] min-h-[120px]"
                 />
               </div>
               
-              {isAiBuilder && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                      Save Form As
-                    </label>
-                    <input
-                      type="text"
-                      value={config.formName || ''}
-                      onChange={(e) => handleInputChange('formName', e.target.value)}
-                      placeholder="My AI Generated Form"
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-                      Target Module
-                    </label>
-                    <select
-                      value={config.targetModule || ''}
-                      onChange={(e) => handleInputChange('targetModule', e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                    >
-                      <option value="">Select module...</option>
-                      <option value="crm">CRM (Create Contact)</option>
-                      <option value="pipeline">Pipeline (Create Deal)</option>
-                      <option value="comms">Dispatch (Send Message)</option>
-                      <option value="brain">Brain (Save to Memory)</option>
-                    </select>
-                  </div>
-                </>
-              )}
-            </>
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
+                  Temporary Form Name
+                </label>
+                <input
+                  type="text"
+                  value={config.formName || ''}
+                  onChange={(e) => handleInputChange('formName', e.target.value)}
+                  placeholder="e.g. Dynamic Intake Form"
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                />
+              </div>
+            </div>
           )}
-          
+
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
-              Output Variable Name
+              Display Message
             </label>
             <input
               type="text"
-              value={config.outputVar || 'formData'}
-              onChange={(e) => handleInputChange('outputVar', e.target.value)}
-              placeholder="formData"
+              value={config.message || ''}
+              onChange={(e) => handleInputChange('message', e.target.value)}
+              placeholder="Please complete this form to continue."
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
             />
+          </div>
+          
+          <div className="p-3 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)]">
+             <div className="flex items-center gap-2 text-xs font-semibold text-[var(--color-accent)] mb-1">
+               <Zap size={12} /> Flow Behavior
+             </div>
+             <p className="text-[10px] text-[var(--color-text-tertiary)] leading-relaxed">
+               When this node is reached, the flow will pause. The user will be prompted to fill out the form. 
+               Once submitted, the flow will resume automatically with the form data accessible via 
+               <code className="mx-1 px-1 bg-black/20 rounded text-cyan-400">form_data</code> variable.
+             </p>
           </div>
         </div>
       );

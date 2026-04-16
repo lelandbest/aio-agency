@@ -1969,6 +1969,7 @@ class OllamaModelsRequest(BaseModel):
 
 class FormSubmissionRequest(BaseModel):
     formData: dict[str, Any]
+    flowRunId: str | None = None
 
 
 class ThreadCreateRequest(BaseModel):
@@ -7628,7 +7629,26 @@ async def get_form_by_id(form_id: str):
 @app.post("/api/forms/{form_id}/submit")
 async def submit_form(form_id: str, request: FormSubmissionRequest):
     try:
-        return provider.submit_form(form_id, request.formData)
+        res = provider.submit_form(form_id, request.formData)
+        
+        # If this submission is linked to an active AI run, resume it
+        if request.flowRunId:
+            try:
+                engine = ExecutionEngine(provider)
+                # Resuming will proceed to the next node after the INPUT_REQUIRED node
+                engine.run(
+                    raw_steps=[],
+                    mode="resume",
+                    command="Resuming from form submission",
+                    context={"form_data": request.formData},
+                    actor={"id": "system"},
+                    tenant={"id": get_request_tenant_id()},
+                    run_id=request.flowRunId
+                )
+            except Exception as rex:
+                logger.error(f"Failed to resume flow {request.flowRunId} after form submission: {rex}")
+        
+        return res
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

@@ -1889,7 +1889,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
     try {
       await ingestMailboxMessageApi(selectedMailbox.id, {
         subject: `${selectedMailbox.name || 'Mailbox'} ingest test`,
-        body: 'Inbound mailbox test generated from Integrations so provider routing and mailbox ingestion can be validated without using the Dispatch toolbar.',
+        body: 'Inbound mailbox test generated from Integrations so provider routing and mailbox ingestion can be validated without using the Comms toolbar.',
         senderName: 'Inbound Test Contact',
         sender_email: 'contact@inbox.local',
         recipients: [selectedMailbox.address].filter(Boolean)
@@ -1918,7 +1918,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
         throw new Error('Failed to create thread test.');
       }
       await sendThreadMessageApi(thread.id, {
-        body: 'Inbound thread test generated from Integrations so thread hydration and inbound handling can be validated without using the Dispatch toolbar.',
+        body: 'Inbound thread test generated from Integrations so thread hydration and inbound handling can be validated without using the Comms toolbar.',
         channelType: 'email',
         senderName: 'Inbound Test Contact',
         sender_email: 'contact@inbox.local',
@@ -2825,7 +2825,7 @@ export const ActiveIntegrations = ({ initialCategory = null, initialProvider = n
                 />
                 <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-3">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Mailbox Tests</div>
-                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Run mailbox-owned inbound checks from Integrations after provider setup. These utilities are no longer exposed in Dispatch.</div>
+                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Run mailbox-owned inbound checks from Integrations after provider setup. These utilities are no longer exposed in Comms.</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       onClick={handleRunMailboxIngestTest}

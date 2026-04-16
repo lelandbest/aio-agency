@@ -1236,6 +1236,21 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       nodeCount: sanitizedNodes.length,
     };
 
+    // Extract associated form IDs for persistence
+    const formTriggerIds = sanitizedNodes
+      .filter(n => n.type === 'trigger' && n.data?.config?.event === 'form_submitted')
+      .flatMap(n => {
+        const c = n.data?.config || {};
+        return Array.isArray(c.formIds) ? c.formIds : (c.formId ? [c.formId] : []);
+      });
+    
+    const inputFormIds = sanitizedNodes
+      .filter(n => n.type === 'input')
+      .map(n => n.data?.config?.formId || n.data?.config?.existingFormId)
+      .filter(Boolean);
+      
+    nextMetadata.formIds = Array.from(new Set([...formTriggerIds, ...inputFormIds]));
+
     if (asNew) {
       const originTemplateId = nextMetadata.sourceTemplateId || null;
       const originTemplateName = nextMetadata.sourceTemplateName || null;

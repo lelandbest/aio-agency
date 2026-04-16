@@ -92,6 +92,7 @@ DIRECT_EXECUTION_INTENTS = {
     "publish_asset",
     "rss_ingest",
     "generate_image",
+    "INPUT_REQUIRED",
 }
 
 BOOKING_WRITE_INTENTS = {"schedule_calendar", "create_booking", "update_booking", "cancel_booking"}
@@ -941,6 +942,8 @@ class StepExecutor:
             "publish_asset": self._publish_asset,
             "rss_ingest": self._rss_ingest,
             "generate_image": self._generate_image,
+            "INPUT_REQUIRED": self._input_required,
+            "INPUT_REQUIRED",
         }
 
     def _merged_step_config(self, step: dict[str, Any]) -> dict[str, Any]:
@@ -1633,6 +1636,23 @@ class StepExecutor:
                 "runVars": safe_clone(next_run_vars),
             },
             "metadata": {"service": "variableService", "executionType": "deterministic"},
+        }
+
+
+    def _input_required(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
+        params = step.get("parameters", {})
+        form_id = params.get("form_id") or params.get("formId")
+        
+        return {
+            "stepId": step.get("id"),
+            "intent": step.get("intent"),
+            "status": "paused",
+            "data": {
+                "pauseReason": "input_required",
+                "formId": form_id,
+                "message": params.get("message") or "Waiting for form submission."
+            },
+            "metadata": {"service": "logicService", "executionType": "bridge"}
         }
 
     def _send_email(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:

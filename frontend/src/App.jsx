@@ -87,6 +87,7 @@ const upgradeMenuStructureModuleIds = (structure) => {
         const nextItem = { ...item };
         if (nextItem.id === 'chat' || nextItem.id === 'dispatch') {
           nextItem.id = 'comms';
+          nextItem.label = 'Comms';
           upgraded = true;
         }
         if (nextItem.id === 'sms_voip') {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock, Mail, Database, Box, Shield } from 'lucide-react';
+import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock, Mail, Database, Box, Shield, Brain, Headset } from 'lucide-react';
 import { attachWorkspaceRoleApi, detachWorkspaceRoleApi, getAiAgentsApi, getAiRunApi, getAiRunsApi, getWorkspaceRolesApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -20,6 +20,32 @@ const formatResponseKey = (value) =>
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const SignalPulse = ({ active, from, to, delay = 0 }) => {
+  if (!active) return null;
+
+  // Path mapping for the specific Operations Floor build
+  const PATHS = {
+    'Charlie-Alpha': { top: '34%', left: '50%', width: '120px', transform: 'translateX(-50%) rotate(0deg)' },
+    'Alpha-Cortex': { top: '18%', left: '50%', width: '80px', transform: 'translateX(-50%) rotate(-90deg)' },
+    'Alpha-Workbench': { top: '48%', left: '50%', width: '60px', transform: 'translateX(-50%) rotate(90deg)' },
+    'Workbench-Alpha': { top: '48%', left: '50%', width: '60px', transform: 'translateX(-50%) rotate(-90deg)' },
+    'Alpha-Charlie': { top: '34%', left: '50%', width: '120px', transform: 'translateX(-50%) rotate(180deg)' },
+  };
+
+  const pathKey = `${from}-${to}`;
+  const style = PATHS[pathKey] || { display: 'none' };
+
+  return (
+    <div
+      className="absolute z-100 ops-signal-active"
+      style={{
+        ...style,
+        animationDelay: `${delay}s`
+      }}
+    />
+  );
+};
 
 const indentLines = (value) =>
   String(value || '')
@@ -1201,56 +1227,33 @@ const AIOAgentsModule = () => {
                 }
                 .route-flow { animation: route-flow linear infinite; }
                 
-                @keyframes pulse-trail-horizontal {
-                  0% { transform: translateX(-100%); opacity: 0; }
+                @keyframes ops-pulse-dot {
+                  0% { left: 0%; transform: translateY(-50%) scale(0.5); opacity: 0; }
                   20% { opacity: 1; }
                   80% { opacity: 1; }
-                  100% { transform: translateX(100%); opacity: 0; }
+                  100% { left: 100%; transform: translateY(-50%) scale(0.8); opacity: 0; }
                 }
 
-                @keyframes pulse-trail-vertical {
-                  0% { transform: translateY(-100%); opacity: 0; }
-                  20% { opacity: 1; }
-                  80% { opacity: 1; }
-                  100% { transform: translateY(100%); opacity: 0; }
+                @keyframes ops-ping {
+                  0% { transform: scale(1); opacity: 0.4; }
+                  100% { transform: scale(2); opacity: 0; }
                 }
 
-                @keyframes pulse-dot-horizontal {
-                  0% { left: 0%; transform: translateY(-50%) translateX(-100%); opacity: 0; }
-                  10% { opacity: 1; }
-                  90% { opacity: 1; }
-                  100% { left: 100%; transform: translateY(-50%) translateX(0%); opacity: 0; }
+                @keyframes signal-witness {
+                  0% { opacity: 0; transform: scaleX(0); transform-origin: left; }
+                  30% { opacity: 0.6; transform: scaleX(1); }
+                  70% { opacity: 0.6; transform: scaleX(1); }
+                  100% { opacity: 0; transform: scaleX(0); transform-origin: right; }
                 }
 
-                @keyframes pulse-dot-vertical {
-                  0% { top: 0%; transform: translateX(-50%) translateY(-100%); opacity: 0; }
-                  10% { opacity: 1; }
-                  90% { opacity: 1; }
-                  100% { top: 100%; transform: translateX(-50%) translateY(0%); opacity: 0; }
-                }
-
-                @keyframes pulse-heartbeat {
-                  0%, 100% { opacity: 0.3; }
-                  50% { opacity: 0.7; }
-                }
-
-                .flow-active-line {
+                .ops-signal-active {
                   position: relative;
-                  overflow: hidden;
-                  background: rgba(255,255,255,0.02) !important;
-                  animation: pulse-heartbeat 1.5s ease-in-out infinite;
+                  height: 1px;
+                  background: linear-gradient(90deg, transparent, rgba(59,130,246,0.3) 50%, transparent);
+                  animation: signal-witness 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
                 }
 
-                .flow-active-line.horizontal::before {
-                  content: "";
-                  position: absolute;
-                  inset: 0;
-                  background: linear-gradient(90deg, transparent, currentColor 85%, transparent);
-                  width: 100%;
-                  animation: pulse-trail-horizontal 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                }
-
-                .flow-active-line.horizontal::after {
+                .ops-signal-active::after {
                   content: "";
                   position: absolute;
                   top: 50%;
@@ -1258,32 +1261,9 @@ const AIOAgentsModule = () => {
                   height: 4px;
                   background: #fff;
                   border-radius: 50%;
-                  box-shadow: 0 0 10px 2px #fff, 0 0 5px 1px currentColor;
-                  animation: pulse-dot-horizontal 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                  z-index: 2;
-                }
-
-                .flow-active-line.vertical::before {
-                  content: "";
-                  position: absolute;
-                  inset: 0;
-                  background: linear-gradient(180deg, transparent, currentColor 85%, transparent);
-                  height: 100%;
-                  width: 100%;
-                  animation: pulse-trail-vertical 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                }
-
-                .flow-active-line.vertical::after {
-                  content: "";
-                  position: absolute;
-                  left: 50%;
-                  width: 4px;
-                  height: 4px;
-                  background: #fff;
-                  border-radius: 50%;
-                  box-shadow: 0 0 10px 2px #fff, 0 0 5px 1px currentColor;
-                  animation: pulse-dot-vertical 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                  z-index: 2;
+                  box-shadow: 0 0 10px 2px #fff, 0 0 5px 1px #3b82f6;
+                  animation: ops-pulse-dot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                  z-index: 10;
                 }
 
 
@@ -1491,775 +1471,830 @@ const AIOAgentsModule = () => {
                     </h3>
                   </div>
                   <div className="flex-1 flex gap-4 overflow-hidden">
-                  {/* USER MONITOR */}
-                  <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-white rounded-[var(--radius-panel)] border border-white/20 overflow-hidden">
-                    <div className="agent-screen-depth bg-white/5 border-b border-white/10 p-2 flex items-center justify-center gap-2 text-white/90 font-mono text-[9px] uppercase tracking-[0.2em]">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)] animate-pulse"></div>
-                      ADMIN COMMAND MONITOR
-                    </div>
-                    <div className="agent-screen-depth flex-1 overflow-y-auto no-scrollbar p-2 space-y-1">
-                      <div className="grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[8px] font-mono text-white/50 uppercase tracking-[0.26em] px-1 pb-1">
-                        <span>TIME</span>
-                        <span>SOURCE</span>
-                        <span>ACTION</span>
-                        <span>TARGET</span>
-                        <span className="text-right">STATE</span>
+                    {/* USER MONITOR */}
+                    <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-white rounded-[var(--radius-panel)] border border-white/20 overflow-hidden">
+                      <div className="agent-screen-depth bg-white/5 border-b border-white/10 p-2 flex items-center justify-center gap-2 text-white/90 font-mono text-[9px] uppercase tracking-[0.2em]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)] animate-pulse"></div>
+                        ADMIN COMMAND MONITOR
                       </div>
-                      {adminEvents.map(event => (
-                        <div key={event.id} onClick={() => event.runId && handleSelectRun(event.runId, 'barracks')} className={`grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[9px] font-mono text-white/80 px-1 py-1 border-t border-white/5 ${event.runId ? 'cursor-pointer hover:bg-white/5' : ''}`}>
-                          <span className="text-white/40">{event.time}</span>
-                          <span className="truncate">{event.source}</span>
-                          <span className="truncate">{event.action}</span>
-                          <span className="truncate text-white/70">{event.target}</span>
-                          <span className="text-right text-white/50">{event.status}</span>
+                      <div className="agent-screen-depth flex-1 overflow-y-auto no-scrollbar p-2 space-y-1">
+                        <div className="grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[8px] font-mono text-white/50 uppercase tracking-[0.26em] px-1 pb-1">
+                          <span>TIME</span>
+                          <span>SOURCE</span>
+                          <span>ACTION</span>
+                          <span>TARGET</span>
+                          <span className="text-right">STATE</span>
                         </div>
-                      ))}
-                      {adminEvents.length === 0 && (
-                        <div className="text-[9px] font-mono text-white/40 p-2 text-center">AWAITING COMMANDS...</div>
-                      )}
+                        {adminEvents.map(event => (
+                          <div key={event.id} onClick={() => event.runId && handleSelectRun(event.runId, 'barracks')} className={`grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[9px] font-mono text-white/80 px-1 py-1 border-t border-white/5 ${event.runId ? 'cursor-pointer hover:bg-white/5' : ''}`}>
+                            <span className="text-white/40">{event.time}</span>
+                            <span className="truncate">{event.source}</span>
+                            <span className="truncate">{event.action}</span>
+                            <span className="truncate text-white/70">{event.target}</span>
+                            <span className="text-right text-white/50">{event.status}</span>
+                          </div>
+                        ))}
+                        {adminEvents.length === 0 && (
+                          <div className="text-[9px] font-mono text-white/40 p-2 text-center">AWAITING COMMANDS...</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* CHARLIE MONITOR */}
-                  <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-blue rounded-[var(--radius-panel)] border border-blue-500/40 overflow-hidden">
-                    <div className="agent-screen-depth bg-blue-950/40 border-b border-blue-500/30 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-[0.2em]">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
-                      CHARLIE INTAKE MONITOR
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                    {/* CHARLIE MONITOR */}
+                    <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-blue rounded-[var(--radius-panel)] border border-blue-500/40 overflow-hidden">
+                      <div className="agent-screen-depth bg-blue-950/40 border-b border-blue-500/30 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-[0.2em]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                        CHARLIE INTAKE MONITOR
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                      </div>
+                      <div className="agent-screen-depth flex-1 p-2 space-y-2 overflow-y-auto">
+                        {activeRun ? (
+                          <>
+                            <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Source</span>
+                                <span>{selectedRoute?.source || 'OPERATOR'}</span>
+                              </div>
+                            </div>
+                            <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Intake</span>
+                                <span>{activeRun.intakeAgent || 'CHARLIE'}</span>
+                              </div>
+                            </div>
+                            <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Status</span>
+                                <span>{charlieStatus}</span>
+                              </div>
+                            </div>
+                            <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Target</span>
+                                <span>{activeRun.dispatcherAgent || activeRun.executingAgent || activeRun.requestedAgent || 'TARGET'}</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[8px] font-mono text-blue-500/40 p-2 text-center">No active intake</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="agent-screen-depth flex-1 p-2 space-y-2 overflow-y-auto">
-                      {activeRun ? (
-                        <>
-                          <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Source</span>
-                              <span>{selectedRoute?.source || 'OPERATOR'}</span>
-                            </div>
-                          </div>
-                          <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Intake</span>
-                              <span>{activeRun.intakeAgent || 'CHARLIE'}</span>
-                            </div>
-                          </div>
-                          <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Status</span>
-                              <span>{charlieStatus}</span>
-                            </div>
-                          </div>
-                          <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Target</span>
-                              <span>{activeRun.dispatcherAgent || activeRun.executingAgent || activeRun.requestedAgent || 'TARGET'}</span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-[8px] font-mono text-blue-500/40 p-2 text-center">No active intake</div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* ALPHA MONITOR */}
-                  <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-green rounded-[var(--radius-panel)] border border-green-500/40 overflow-hidden">
-                    <div className="agent-screen-depth bg-green-950/40 border-b border-green-500/30 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-[0.2em]">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
-                      ALPHA COMMAND MONITOR
+                    {/* ALPHA MONITOR */}
+                    <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-green rounded-[var(--radius-panel)] border border-green-500/40 overflow-hidden">
+                      <div className="agent-screen-depth bg-green-950/40 border-b border-green-500/30 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-[0.2em]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
+                        ALPHA COMMAND MONITOR
+                      </div>
+                      <div className="agent-screen-depth flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                        {activeRun ? (
+                          <>
+                            <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Owner</span>
+                                <span>{activeRun.executingAgent || activeRun.requestedAgent || 'UNASSIGNED'}</span>
+                              </div>
+                            </div>
+                            <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Status</span>
+                                <span>{alphaStatus}</span>
+                              </div>
+                            </div>
+                            <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Stage</span>
+                                <span>{formatAction(latestStep?.intent || latestStep?.type || activeRun.intent || 'execution')}</span>
+                              </div>
+                            </div>
+                            <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
+                              <div className="flex items-center justify-between">
+                                <span>Result</span>
+                                <span>{formatStatus(activeRun.status || 'idle')}</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">No active execution</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="agent-screen-depth flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
-                      {activeRun ? (
-                        <>
-                          <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Owner</span>
-                              <span>{activeRun.executingAgent || activeRun.requestedAgent || 'UNASSIGNED'}</span>
-                            </div>
-                          </div>
-                          <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Status</span>
-                              <span>{alphaStatus}</span>
-                            </div>
-                          </div>
-                          <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Stage</span>
-                              <span>{formatAction(latestStep?.intent || latestStep?.type || activeRun.intent || 'execution')}</span>
-                            </div>
-                          </div>
-                          <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
-                            <div className="flex items-center justify-between">
-                              <span>Result</span>
-                              <span>{formatStatus(activeRun.status || 'idle')}</span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">No active execution</div>
-                      )}
                   </div>
                 </div>
-              </div>
-            </div>
 
-                {/* BOTTOM: EXECUTION STREAM */}
-                <div className="h-[58%] flex flex-col relative px-5 py-4 border border-white/10 rounded-[var(--radius-panel)] bg-black overflow-hidden">
-                  <div className="relative z-10 flex items-center justify-between mb-4 shrink-0">
+                {/* BOTTOM: EXECUTION STREAM — LIVE OPERATIONS FLOOR */}
+                <div className="h-[58%] flex flex-col relative px-5 py-4 border border-white/10 rounded-[var(--radius-panel)] bg-black overflow-hidden group/ops">
+                  <div className="relative z-20 flex items-center justify-between mb-1 shrink-0">
                     <h3 className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] font-bold flex items-center gap-2">
-                      <Activity size={10} className="text-blue-500" /> Execution Stream
+                       <Activity size={10} className="text-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.3)]" /> Operations Floor <span className="text-[8px] opacity-30 font-mono tracking-widest px-2 py-0.5 border border-white/5 rounded">LIVE // NO-DRIFT</span>
                     </h3>
                   </div>
-                <div className="relative z-10 flex-1 flex flex-col justify-center overflow-hidden">
-                  {activeRun ? (
-                    <div className="flex flex-col gap-6">
-                      {(() => {
-                        const PIPELINE = [
-                          { id: 'charlie_in', label: 'Intake', icon: Mail, color: 'text-amber-500', bg: 'rgba(245,158,11,0.1)' },
-                          { id: 'cortex_r', label: 'Cortex Read', icon: Database, color: 'text-slate-400', bg: 'rgba(148,163,184,0.1)', cortex: true },
-                          { id: 'alpha_orch', label: 'Alpha Dispatch', icon: Layers, color: 'text-blue-500', bg: 'rgba(59,130,246,0.1)' },
-                          { id: 'agent', label: activeRun.executingAgent || 'Specialist', icon: Bot, color: 'text-teal-400', bg: 'rgba(45,212,191,0.1)' },
-                          { id: 'alpha_qc', label: 'Alpha QC', icon: Shield, color: 'text-blue-500', bg: 'rgba(59,130,246,0.1)' },
-                          { id: 'cortex_w', label: 'Cortex Write', icon: Database, color: 'text-slate-400', bg: 'rgba(148,163,184,0.1)', cortex: true },
-                          { id: 'charlie_out', label: 'Charlie Response', icon: MessageSquare, color: 'text-amber-500', bg: 'rgba(245,158,11,0.1)' },
-                          { id: 'admin_final', label: 'Admin Finalized', icon: Terminal, color: 'text-white', bg: 'rgba(255,255,255,0.05)' },
-                        ];
 
-                        const status = (activeRun.status || '').toLowerCase();
-                        const isComplete = ['completed', 'success'].includes(status);
+                  <div className="relative z-10 flex-1 flex flex-col items-center min-h-0">
+                    {activeRun ? (
+                      <div className="w-full h-full flex flex-col items-center justify-start pt-0">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.03),transparent_70%)] pointer-events-none" />
+                        
+                        {(() => {
+                          const status = (activeRun.status || '').toLowerCase();
+                          const isComplete = ['completed', 'success'].includes(status);
+                          const isFailed = status === 'failed';
+                          
+                          let activeIdx = 0; // 0: Idle/Waiting
+                          if (isComplete) activeIdx = 8;
+                          else if (isFailed) activeIdx = 0;
+                          else if (activeRun.status === 'finalizing' || activeRun.status === 'reviewing') activeIdx = 7;
+                          else if (activeRun.status === 'writing' || activeRun.status === 'qc') activeIdx = 6;
+                          else if (activeRun.executingAgent) activeIdx = 5;
+                          else if (activeRun.status === 'deploying') activeIdx = 4;
+                          else if (activeRun.dispatcherAgent) activeIdx = 3;
+                          else if (activeRun.status === 'routing') activeIdx = 2;
+                          else if (activeRun.status === 'reading' || activeRun.intakeAgent) activeIdx = 1;
 
-                        // Refined active stage mapping based on priority chain
-                        let activeIdx = 0;
-                        if (isComplete) {
-                          activeIdx = 8;
-                        } else if (activeRun.status === 'finalizing') {
-                          activeIdx = 7;
-                        } else if (activeRun.status === 'writing') {
-                          activeIdx = 6;
-                        } else if (activeRun.status === 'qc' || (activeRun.status === 'running' && activeRun.executingAgent && activeRun.steps?.some(s => s.type === 'qc'))) {
-                          activeIdx = 4;
-                        } else if (activeRun.executingAgent) {
-                          activeIdx = 3;
-                        } else if (activeRun.dispatcherAgent) {
-                          activeIdx = 2;
-                        } else if (activeRun.status === 'reading' || activeRun.status === 'routing') {
-                          activeIdx = 1;
-                        }
+                          // CRITICAL: Determine if this was a Charlie-only execution (no handoff to Alpha/Workbench)
+                          const involvesAlpha = !!(activeRun.dispatcherAgent || activeRun.executingAgent || ['routing', 'deploying', 'writing', 'qc', 'finalizing', 'reviewing'].includes(activeRun.status));
+                          const isCharlieOnly = activeRun && !involvesAlpha;
 
-                         return (
-                          <div className="flex flex-col gap-0 w-full max-w-xl mx-auto py-1 px-4 overflow-hidden flex-1 active-pipeline-container">
-                            {PIPELINE.map((node, idx) => {
-                              const isActive = idx === activeIdx;
-                              const isCompleted = idx < activeIdx;
-                              const stateClass = isActive ? 'active' : isCompleted ? 'completed' : 'idle';
-                              const Icon = node.icon || Box;
-                              const isRight = idx % 2 !== 0;
-
-                              return (
-                                <React.Fragment key={node.id}>
-                                  {/* NODE ROW */}
-                                  <div className={`flex w-full ${isRight ? 'justify-end' : 'justify-start'}`}>
-                                    <div
-                                      className={`
-                                        pipeline-node px-3 py-1.5 rounded-full flex items-center gap-2 min-w-[130px] shadow-md transition-all duration-300
-                                        ${stateClass} ${node.color} scale-[0.85] origin-center
-                                      `}
-                                    >
-                                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${node.bg} border border-white/5`}>
-                                        <Icon size={10} className={node.color} />
-                                      </div>
-                                      <div className="flex flex-col min-w-0">
-                                        <span className="text-[8px] font-black uppercase tracking-widest leading-none mb-0.5 truncate">{node.label}</span>
-                                        <span className="text-[6px] font-mono opacity-40 uppercase tracking-tighter truncate">{idx === 3 ? (activeRun.executingAgent || 'SPEC') : node.id.split('_')[0]}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* TIGHT STEPPED CONNECTOR */}
-                                  {idx < PIPELINE.length - 1 && (
-                                    <div className={`relative w-full h-4 ${isActive || isCompleted ? 'opacity-100' : 'opacity-10'}`}>
-                                      {/* Vertical drop from current node */}
-                                      <div 
-                                        className={`absolute w-[1px] h-1/2 ${isRight ? 'right-16' : 'left-16'} ${isActive || isCompleted ? 'bg-white/30' : 'bg-white/5'} ${isActive ? 'flow-active-line vertical' : ''}`}
-                                        style={{ top: '0', color: isActive ? 'white' : 'currentColor' }}
-                                      ></div>
-                                      
-                                      {/* Horizontal bridge - dynamic span */}
-                                      <div 
-                                        className={`absolute h-[1px] top-1/2 ${isActive || isCompleted ? 'bg-white/30' : 'bg-white/5'} ${isActive ? 'flow-active-line horizontal' : ''}`}
-                                        style={{ 
-                                          left: '64px', 
-                                          right: '64px',
-                                          color: isActive ? 'white' : 'currentColor' 
-                                        }}
-                                      ></div>
-                                      
-                                      {/* Vertical entry to next node */}
-                                      <div 
-                                        className={`absolute w-[1px] h-1/2 ${isRight ? 'left-16' : 'right-16'} ${isActive || isCompleted ? 'bg-white/30' : 'bg-white/5'} ${isActive ? 'flow-active-line vertical' : ''}`}
-                                        style={{ bottom: '0', color: isActive ? 'white' : 'currentColor' }}
-                                      ></div>
-                                    </div>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-
-
-
-                      <div className="grid grid-cols-4 gap-2 text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-secondary)]">
-                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
-                          Source: {selectedRoute?.source || 'OPERATOR'}
-                        </div>
-                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
-                          Intake: {activeRun?.intakeAgent || 'CHARLIE'}
-                        </div>
-                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
-                          Dispatch: {activeRun?.dispatcherAgent || 'ALPHA'}
-                        </div>
-                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
-                          Result: {formatStatus(activeRun?.status || 'idle')}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-[10px] uppercase tracking-[0.4em] text-[var(--color-text-tertiary)] font-black opacity-30">
-                      Awaiting Canonical Intent Stream
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-          );
-        })()}
-        {/* COMMAND VIEW (Session) */}
-        {view === 'command' && (
-          <div className="flex-1 min-h-0 flex gap-[6px] px-0 pb-[6px] pt-0 overflow-hidden bg-black">
-            {/* Left: Command Context */}
-            <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col relative`}>
-              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-black`}>
-                <h3 className="text-2xl font-bold text-white uppercase tracking-tight flex items-baseline gap-3">
-                  {activeAgentDisplayName || mainAgentName}
-                  {mainAgentId && (
-                    <span className={`text-[11px] font-mono ${getAgentColor(activeBotKey).icon.split(' ')[0]} opacity-80 tracking-[0.2em]`}>
-                      {mainAgentId}
-                    </span>
-                  )}
-                </h3>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className={`px-2 py-0.5 border ${getAgentColor(activeBotKey).border} bg-[#000] text-[10px] font-bold uppercase rounded-full ${getAgentColor(activeBotKey).icon.split(' ')[0]}`}>
-                    {sessionStatusLabel}
-                  </span>
-                  <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE')}</span>
-                  <span className="text-[9px] text-white/30 font-mono uppercase tracking-widest ml-1">{hasActiveRun ? activeRunTimestamp : '// SYSTEM WAITING'}</span>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
-                {/* Directive */}
-                <div>
-                  <h4 className="text-[8px] font-black text-white/40 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
-                    <Terminal size={10} className={getAgentColor(activeBotKey).icon.split(' ')[0]} /> EXECUTION DIRECTIVE
-                  </h4>
-                  <div className="border border-white/10 rounded bg-[#030303]">
-                    <div className="p-4 text-[11px] text-emerald-400 font-mono leading-relaxed uppercase tracking-wider">{sessionDirective}</div>
-                  </div>
-                </div>
-
-                {/* Active Context */}
-                <div>
-                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Layers size={14} className="text-blue-500" /> Active Context
-                  </h4>
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
-                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Bound Flow</span>
-                      <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{activeFlowLabel || 'No Flow Bound'}</span>
-                    </div>
-                    <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
-                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Active Agent</span>
-                      <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">
-                        {contextAgentName}
-                        {contextAgentId && <span className="ml-2 opacity-30 font-mono text-[9px] tracking-widest">{contextAgentId}</span>}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
-                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Command Mode</span>
-                      <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{commandModeLabel}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tools */}
-                <div>
-                  <h4 className="text-[8px] font-black text-white/40 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
-                    <Cpu size={10} className="text-yellow-600" /> ASSIGNED TOOLS
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {(derivedAgentDefinition?.tools || []).map((tool) => (
-                      <span
-                        key={tool}
-                        className="px-3 py-1 border border-white/10 bg-black rounded-sm text-[8px] font-mono text-white/50 uppercase tracking-widest"
-                      >
-                        {tool}
-                      </span>
-                    ))}
-                    {(!derivedAgentDefinition?.tools || derivedAgentDefinition.tools.length === 0) ? (
-                      <div className="text-[8px] text-white/20 p-3 border border-dashed border-white/10 rounded-sm text-center font-mono uppercase tracking-widest w-full bg-black">
-                        TOOLS WILL RESOLVE ON ASSIGNMENT
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Center: Command Stream */}
-            <div className={`flex-1 min-h-0 flex flex-col border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] bg-black relative overflow-hidden`}>
-              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} flex items-center justify-between bg-[#050505]`}>
-                <div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-3">
-                      <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentSkillset}</h4>
-                      <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
-                      <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentName(activeRunAgent)})` : sessionStatusLabel}</span>
-                    </div>
-
-                    {collabAgents.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {collabAgents.map(key => {
-                          const colors = getAgentColor(key);
                           return (
-                            <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
-                              <div className={`w-1.5 h-1.5 rounded-full ${colors.icon.split(' ')[0]} animate-pulse`} />
-                              <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentName(key)}</span>
+                            <div className="w-full flex-1 flex flex-col items-center justify-start">
+                              {/* TIER 1: CORTEX */}
+                              <div className="relative z-30 mb-1 mt-0 flex justify-center">
+                                <div className={`p-4 rounded-full border-2 transition-all duration-700 ${activeIdx >= 7 ? 'border-sky-500 shadow-[0_0_30px_rgba(14,165,233,0.4)] scale-110' : 'border-white/10 bg-black/40'}`}>
+                                  <Brain size={28} className={activeIdx >= 7 ? 'text-sky-400 animate-pulse' : 'text-white/20'} />
+                                </div>
+                              </div>
+
+                              {/* VERTICAL SIGNAL: CORTEX -> CONTROL */}
+                              <div className="w-px h-4 border-l border-dashed border-white/20 relative">
+                                {activeIdx >= 1 && activeIdx <= 7 && (
+                                  <div className={`absolute inset-0 border-l animate-pulse ${isCharlieOnly ? 'border-blue-400' : 'border-emerald-400'}`} />
+                                )}
+                              </div>
+
+                              {/* TIER 2: CONTROL LAYER */}
+                              <div className="relative z-30 flex items-center gap-16 mb-2">
+                                <div className="flex flex-col items-center gap-1.5 opacity-75">
+                                  <div className="p-2.5 rounded-xl border border-white/20 bg-black/40"><Terminal size={16} className="text-white/70" /></div>
+                                  <span className="text-[7px] font-black uppercase tracking-widest text-white/80">Admin</span>
+                                </div>
+                                <div className={`flex flex-col items-center gap-1.5 transition-all ${(activeIdx === 1 || activeIdx === 2 || (isCharlieOnly && isComplete)) ? 'scale-110' : 'opacity-75'}`}>
+                                  <div className={`p-3.5 rounded-xl border transition-colors ${(activeIdx === 1 || activeIdx === 2 || (isCharlieOnly && isComplete)) ? 'border-blue-400/60 bg-blue-400/10 shadow-[0_0_15px_rgba(96,165,250,0.3)]' : 'border-blue-400/20 bg-blue-400/[0.02]'}`}>
+                                    <Headset size={20} className={(activeIdx === 1 || activeIdx === 2 || (isCharlieOnly && isComplete)) ? 'text-blue-400 animate-pulse' : 'text-blue-400/40'} />
+                                  </div>
+                                  <span className={`text-[7px] font-black uppercase tracking-widest ${(activeIdx === 1 || activeIdx === 2 || (isCharlieOnly && isComplete)) ? 'text-blue-400' : 'text-blue-400/60'}`}>Charlie</span>
+                                </div>
+                                <div className={`flex flex-col items-center gap-1.5 transition-all ${(activeIdx === 3 || activeIdx === 4 || activeIdx === 6) ? 'scale-110' : (isCharlieOnly ? 'opacity-50' : 'opacity-75')}`}>
+                                  <div className={`p-3.5 rounded-xl border transition-colors ${(activeIdx === 3 || activeIdx === 4 || activeIdx === 6) ? 'border-emerald-400/60 bg-emerald-400/10 shadow-[0_0_15px_rgba(52,211,153,0.3)]' : 'border-emerald-400/20 bg-emerald-400/[0.02]'}`}>
+                                    <Shield size={20} className={(activeIdx === 3 || activeIdx === 4 || activeIdx === 6) ? 'text-emerald-400' : 'text-emerald-400/40'} />
+                                  </div>
+                                  <span className={`text-[7px] font-black uppercase tracking-widest ${(activeIdx === 3 || activeIdx === 4 || activeIdx === 6) ? 'text-emerald-400' : 'text-emerald-400/60'}`}>Alpha</span>
+                                </div>
+                              </div>
+
+                              {/* VERTICAL SIGNAL: CONTROL -> WORKBENCH */}
+                              <div className="w-px h-4 border-l border-dashed border-white/20 relative">
+                                {activeIdx >= 4 && activeIdx <= 6 && (
+                                  <div className={`absolute inset-0 border-l animate-pulse ${isCharlieOnly ? 'border-blue-400' : 'border-emerald-400'}`} />
+                                )}
+                              </div>
+
+                              {/* TIER 4: WORKBENCH */}
+                              <div className="relative z-20 w-full px-12 mb-2">
+                                <div className="h-10 border border-white/10 bg-[#0b0b0d] rounded-lg flex items-center justify-around overflow-hidden shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">
+                                  {[0, 1, 2, 3, 4].map(station => {
+                                    const isOccupied = activeRun && (activeIdx === 5 || activeIdx === 6) && station === 2;
+                                    
+                                    // Derive agent identity and style
+                                    const agentName = activeRun?.executingAgent || 'Specialist';
+                                    const agentEntry = Object.values(SPECIALIST_REGISTRY).find(a => a.label === agentName);
+                                    const agentRole = agentEntry?.role || 'Support';
+                                    
+                                    const roleStyles = {
+                                      'Strategy': 'bg-blue-500/10 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]',
+                                      'Support': 'bg-blue-500/10 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]',
+                                      'Coordination': 'bg-blue-500/10 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]',
+                                      'Comms': 'bg-amber-500/10 border-amber-400/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)]',
+                                      'Copy': 'bg-emerald-500/10 border-emerald-400/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]',
+                                      'Engineering': 'bg-cyan-500/10 border-cyan-400/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.1)]',
+                                      'Analytics': 'bg-emerald-500/10 border-emerald-400/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]',
+                                      'Logistics': 'bg-blue-500/10 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]',
+                                      'SEO': 'bg-emerald-500/10 border-emerald-400/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]',
+                                      'Recruitment': 'bg-blue-500/10 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]',
+                                      'Sales': 'bg-emerald-500/10 border-emerald-400/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]',
+                                      'Design': 'bg-cyan-500/10 border-cyan-400/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.1)]',
+                                      'HQ': 'bg-emerald-500/10 border-emerald-400/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
+                                    };
+                                    const currentStyle = roleStyles[agentRole] || 'bg-teal-500/10 border-teal-400/40 text-teal-400 shadow-[0_0_10px_rgba(45,212,191,0.1)]';
+
+                                    return (
+                                      <div key={station} className="relative w-16 h-7 border border-dashed border-white/20 rounded flex items-center justify-center">
+                                        {isOccupied ? (
+                                          <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border animate-in zoom-in duration-300 ${currentStyle}`}>
+                                            <Bot size={7} />
+                                            <span className="text-[6px] font-black uppercase tracking-widest truncate max-w-[40px]">{agentName}</span>
+                                          </div>
+                                        ) : <span className="text-[5px] font-mono text-white/30 uppercase tracking-tighter">STN {station + 1}</span>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[5px] font-black uppercase tracking-[0.4em] text-white/40 whitespace-nowrap">Field Workbench // Level 1</div>
+                              </div>
+
+                              {/* VERTICAL SIGNAL: WORKBENCH -> BARRACKS */}
+                              <div className="w-px h-4 border-l border-dashed border-white/20 relative">
+                                {activeIdx >= 4 && activeIdx <= 6 && (
+                                  <div className={`absolute inset-0 border-l animate-pulse ${isCharlieOnly ? 'border-blue-400' : 'border-emerald-400'}`} />
+                                )}
+                              </div>
+
+                              {/* TIER 3: BARRACKS */}
+                              <div className="relative w-full max-w-[280px] mt-0.5 opacity-90 scale-95 origin-bottom">
+                                <div className="p-1.5 border border-white/30 bg-[#08080a] rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.4)]">
+                                  <div className="flex justify-center gap-4">
+                                    {[0, 1, 2].map(groupIdx => (
+                                      <div key={groupIdx} className="grid grid-cols-2 gap-1 px-1">
+                                        {Object.values(SPECIALIST_REGISTRY).filter(a => a.visibility !== 'hidden' && a.role !== 'HQ').slice(groupIdx * 4, groupIdx * 4 + 4).map(agent => {
+                                          const isDeployed = activeRun && (activeIdx === 5 || activeIdx === 6) && (activeRun.executingAgent === agent.label || activeRun.requestedAgent === agent.label);
+                                          
+                                          const squadStyles = [
+                                            'text-blue-400 border-blue-400/20 bg-blue-400/5',
+                                            'text-cyan-400 border-cyan-400/20 bg-cyan-400/5',
+                                            'text-emerald-400 border-emerald-400/20 bg-emerald-400/5'
+                                          ];
+                                          const currentStyle = squadStyles[groupIdx] || 'text-white/40 border-white/10 bg-white/5';
+
+                                          return (
+                                            <div key={agent.label} title={agent.label} className={`p-1.5 w-7 rounded-md border transition-all duration-500 flex flex-col items-center shadow-sm ${isDeployed ? 'opacity-20 translate-y-[-3px] grayscale' : currentStyle}`}>
+                                              <Bot size={10} />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="mt-1.5 text-center text-[5px] font-black uppercase tracking-[0.4em] text-white/30">Staging Barracks // Tier 3</div>
+                              </div>
+
+                              {/* SIGNAL OVERLAY */}
+                              <div className="absolute inset-0 pointer-events-none z-20">
+                                 <SignalPulse active={!isCharlieOnly && activeIdx === 2} from="Charlie" to="Alpha" />
+                                 <SignalPulse active={!isCharlieOnly && activeIdx === 4} from="Alpha" to="Workbench" />
+                                 <SignalPulse active={!isCharlieOnly && activeIdx === 6} from="Workbench" to="Alpha" />
+                                 <SignalPulse active={activeIdx === 7} from="Alpha" to="Cortex" delay={0.2} />
+                              </div>
+
+                              {/* STATUS */}
+                              <div className="mt-8 flex justify-center">
+                                <div className="px-5 py-1.5 rounded-full border border-white/5 bg-black/40 text-[8px] font-black uppercase tracking-[0.3em] text-white/60 flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                  <span>STAGE {activeIdx} // {activeRun.status || 'PROCESSING'}</span>
+                                </div>
+                              </div>
                             </div>
                           );
-                        })}
+                        })()}
+                      </div>
+                    ) : (
+                      <div className="flex-1 w-full h-full flex flex-col items-center justify-center">
+                        <div className="text-[10px] uppercase tracking-[0.4em] text-white/10 font-black animate-pulse flex flex-col items-center gap-4">
+                          <Activity size={24} className="opacity-10" />
+                          <span>Awaiting System Ignition</span>
+                        </div>
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
-                    {hasActiveRun
-                      ? `Run ${activeRun.id} • ${activeRunStatus}${activeRunChain ? ` • ${activeRunChain}` : ''} • ${activeRunTimestamp}`
-                      : 'System-level command interface'}
-                  </p>
-                  <p className="text-[10px] text-[var(--color-text-tertiary)] font-medium mt-1 uppercase tracking-widest">Command Stream</p>
-                  {selectedFlow ? (
-                    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                      <Workflow size={12} />
-                      Flow Bound: {selectedFlow.name}
-                      <button
-                        type="button"
-                        onClick={clearSelectedFlow}
-                        className="text-cyan-100/70 hover:text-white"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               </div>
+            </div>
+          );
+        })()}
+              {/* COMMAND VIEW (Session) */}
+              {view === 'command' && (
+                <div className="flex-1 min-h-0 flex gap-[6px] px-0 pb-[6px] pt-0 overflow-hidden bg-black">
+                  {/* Left: Command Context */}
+                  <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col relative`}>
+                    <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-black`}>
+                      <h3 className="text-2xl font-bold text-white uppercase tracking-tight flex items-baseline gap-3">
+                        {activeAgentDisplayName || mainAgentName}
+                        {mainAgentId && (
+                          <span className={`text-[11px] font-mono ${getAgentColor(activeBotKey).icon.split(' ')[0]} opacity-80 tracking-[0.2em]`}>
+                            {mainAgentId}
+                          </span>
+                        )}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`px-2 py-0.5 border ${getAgentColor(activeBotKey).border} bg-[#000] text-[10px] font-bold uppercase rounded-full ${getAgentColor(activeBotKey).icon.split(' ')[0]}`}>
+                          {sessionStatusLabel}
+                        </span>
+                        <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">{resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE')}</span>
+                        <span className="text-[9px] text-white/30 font-mono uppercase tracking-widest ml-1">{hasActiveRun ? activeRunTimestamp : '// SYSTEM WAITING'}</span>
+                      </div>
+                    </div>
 
-              {/* Chat Feed */}
-              <div ref={chatFeedRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
-                {messages.map((msg, i) => {
-                  const preferredRun = resolveMessageRun(msg);
-                  const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
-                  const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agentRole || msg.rank) : msg.rank;
-                  const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegateChain) : msg.chain;
-                  const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updatedAt || preferredRun.createdAt) : msg.timestamp;
-                  const preferredStatus = preferredRun ? formatRunStatus(preferredRun.status) : msg.status;
-                  const preferredError = preferredRun ? preferredRun.error : msg.error;
-                  const messageToken = msg.runId || msg.clientId || `message-${i}`;
-                  const supportsJsonDownload = Boolean(preferredRun) || looksLikeJson(preferredContent);
-                  const supportsMarkdownDownload = looksLikeMarkdown(preferredContent) || preferredContent.includes('```') || Boolean(preferredRun);
-                  const referenceTargets = extractLinkTargets(preferredContent);
-                  const primaryReference = referenceTargets[0] || '';
-                  return (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                      <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
-                        <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                          {msg.role === 'user' ? (
-                            <span className="text-[9px] font-black uppercase tracking-widest text-white/80">{systemRoleLabel}</span>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
-                                {preferredRank || 'CHARLIE'}
-                              </span>
-                              {preferredChain ? (
-                                <div className="flex items-center gap-1 opacity-60">
-                                  <span className="text-[8px] text-gray-600 font-mono">/</span>
-                                  <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-mono">
-                                    {preferredChain}
-                                  </span>
-                                </div>
-                              ) : null}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+                      {/* Directive */}
+                      <div>
+                        <h4 className="text-[8px] font-black text-white/40 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
+                          <Terminal size={10} className={getAgentColor(activeBotKey).icon.split(' ')[0]} /> EXECUTION DIRECTIVE
+                        </h4>
+                        <div className="border border-white/10 rounded bg-[#030303]">
+                          <div className="p-4 text-[11px] text-emerald-400 font-mono leading-relaxed uppercase tracking-wider">{sessionDirective}</div>
+                        </div>
+                      </div>
+
+                      {/* Active Context */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <Layers size={14} className="text-blue-500" /> Active Context
+                        </h4>
+                        <div className="grid gap-2">
+                          <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
+                            <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Bound Flow</span>
+                            <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{activeFlowLabel || 'No Flow Bound'}</span>
+                          </div>
+                          <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
+                            <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Active Agent</span>
+                            <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">
+                              {contextAgentName}
+                              {contextAgentId && <span className="ml-2 opacity-30 font-mono text-[9px] tracking-widest">{contextAgentId}</span>}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between border border-white/10 bg-black p-3 rounded">
+                            <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Command Mode</span>
+                            <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{commandModeLabel}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tools */}
+                      <div>
+                        <h4 className="text-[8px] font-black text-white/40 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
+                          <Cpu size={10} className="text-yellow-600" /> ASSIGNED TOOLS
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {(derivedAgentDefinition?.tools || []).map((tool) => (
+                            <span
+                              key={tool}
+                              className="px-3 py-1 border border-white/10 bg-black rounded-sm text-[8px] font-mono text-white/50 uppercase tracking-widest"
+                            >
+                              {tool}
+                            </span>
+                          ))}
+                          {(!derivedAgentDefinition?.tools || derivedAgentDefinition.tools.length === 0) ? (
+                            <div className="text-[8px] text-white/20 p-3 border border-dashed border-white/10 rounded-sm text-center font-mono uppercase tracking-widest w-full bg-black">
+                              TOOLS WILL RESOLVE ON ASSIGNMENT
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Center: Command Stream */}
+                  <div className={`flex-1 min-h-0 flex flex-col border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] bg-black relative overflow-hidden`}>
+                    <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} flex items-center justify-between bg-[#050505]`}>
+                      <div>
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-3">
+                            <h4 className="text-[12px] font-black text-[var(--color-text-primary)] uppercase tracking-widest">{activeAgentSkillset}</h4>
+                            <span className={`w-2 h-2 rounded-full ${sessionStatusTone}`}></span>
+                            <span className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">{activeRunAgent ? `${sessionStatusLabel} (${resolveAgentName(activeRunAgent)})` : sessionStatusLabel}</span>
+                          </div>
+
+                          {collabAgents.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {collabAgents.map(key => {
+                                const colors = getAgentColor(key);
+                                return (
+                                  <div key={key} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${colors.border} ${colors.bg} shadow-sm shadow-black/20`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${colors.icon.split(' ')[0]} animate-pulse`} />
+                                    <span className={`text-[8px] font-black uppercase tracking-widest ${colors.icon.split(' ')[0]}`}>{resolveAgentName(key)}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
-                          <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
-                          {msg.role === 'assistant' && preferredStatus ? (
-                            <span className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{preferredStatus}</span>
-                          ) : null}
-                          {msg.role === 'assistant' ? (
-                            <div className="flex items-center gap-1 ml-2">
-                              <button
-                                type="button"
-                                onClick={() => handleCopyMessage(msg, messageToken)}
-                                className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                              >
-                                {copiedToken === messageToken ? 'Copied' : 'Copy'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadMessage(msg, 'txt')}
-                                className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                              >
-                                TXT
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadMessage(msg, 'md')}
-                                className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                              >
-                                {supportsMarkdownDownload ? 'MD' : 'TXT->MD'}
-                              </button>
-                              {supportsJsonDownload ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDownloadMessage(msg, 'json')}
-                                  className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                >
-                                  JSON
-                                </button>
-                              ) : null}
-                              {primaryReference ? (
-                                <a
-                                  href={normalizeLinkHref(primaryReference)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
-                                >
-                                  Open File
-                                </a>
-                              ) : null}
-                            </div>
-                          ) : null}
                         </div>
-                        <div className={`py-1 text-[11px] font-mono leading-relaxed tracking-wider ${msg.role === 'user'
-                          ? 'text-emerald-400'
-                          : getAgentColor(preferredRank).icon.split(' ')[0] || 'text-[var(--color-text-primary)]'
-                          }`}>
-                          <div className="break-words">
-                            {msg.role === 'assistant' ? (
-                              msg.pending && !preferredContent ? (
-                                <div className="flex items-center gap-1.5 py-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" />
-                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.4s' }} />
-                                </div>
-                              ) : (
-                                renderMarkdownContent(preferredContent)
-                              )
-                            ) : (
-                              renderLinkedContent(preferredContent)
-                            )}
+                        <p className="text-[11px] text-[var(--color-text-secondary)] font-medium mt-0.5">
+                          {hasActiveRun
+                            ? `Run ${activeRun.id} • ${activeRunStatus}${activeRunChain ? ` • ${activeRunChain}` : ''} • ${activeRunTimestamp}`
+                            : 'System-level command interface'}
+                        </p>
+                        <p className="text-[10px] text-[var(--color-text-tertiary)] font-medium mt-1 uppercase tracking-widest">Command Stream</p>
+                        {selectedFlow ? (
+                          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                            <Workflow size={12} />
+                            Flow Bound: {selectedFlow.name}
+                            <button
+                              type="button"
+                              onClick={clearSelectedFlow}
+                              className="text-cyan-100/70 hover:text-white"
+                            >
+                              Clear
+                            </button>
                           </div>
-                          {msg.role === 'assistant' && preferredError ? (
-                            <div className="mt-3 text-xs text-red-400">{preferredError}</div>
-                          ) : null}
-                        </div>
+                        ) : null}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
 
-              {/* Input Area */}
-              <div className={`p-5 border-t ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
-                <input ref={localFileInputRef} type="file" multiple className="hidden" onChange={handleLocalFileSelect} />
-                <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-4 items-start">
-                  <div className="min-w-0">
-                    <div className="relative flex items-center gap-3">
-                      <div className="relative flex-1">
-                        <input
-                          disabled={isRunPending}
-                          value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && !isRunPending && handleSendMessage()}
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="none"
-                          spellCheck={false}
-                          name="commandInput"
-                          id="command-input-surface"
-                          type="search"
-                          inputMode="text"
-                          enterKeyHint="send"
-                          aria-autocomplete="none"
-                          data-lpignore="true"
-                          data-1p-ignore="true"
-                          data-bwignore="true"
-                          data-form-type="other"
-                          autoSave="off"
-                          placeholder="SEND COMMAND..."
-                          className={`w-full bg-[var(--color-bg-primary)]/70 dark:bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-card)] px-5 pt-5 pb-9 text-sm text-[var(--color-text-primary)] placeholder:text-slate-400 dark:placeholder-gray-500 focus:outline-none focus:border-[var(--color-primary)]/60 focus:ring-1 focus:ring-[var(--color-primary)]/20 font-mono transition-all appearance-none ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        />
-                        <div className="absolute right-4 bottom-2 flex items-center justify-end gap-2 max-w-[calc(100%-32px)] overflow-hidden">
-                          {selectedAgent ? (
-                            <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
-                              Target: {resolveAgentName(selectedAgent)}
-                            </span>
-                          ) : null}
-                          {collabAgents.length > 0 && !hasActiveRun ? (
-                            <div className="flex gap-1 overflow-hidden">
-                              {collabAgents.slice(0, 2).map(key => (
-                                <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
-                                  {resolveAgentName(key)}
-                                </span>
-                              ))}
-                              {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
-                            </div>
-                          ) : null}
-                          {!selectedAgent && !collabAgents.length ? (
-                            <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
-                              {sessionStatusLabel}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="shrink-0 flex flex-col items-stretch gap-2 w-[112px]">
-                        <button
-                          type="button"
-                          disabled={isRunPending}
-                          onClick={handleSendMessage}
-                          className={`btn-secondary !rounded-[var(--radius-card)] !px-4 !py-3 min-w-0 flex items-center justify-center gap-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                          <span className="text-[10px] font-black uppercase tracking-[0.18em]">Send</span>
-                          <ArrowRight size={14} />
-                        </button>
-                        <div className="inline-flex rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/60 p-1">
-                          <button
-                            type="button"
-                            onClick={() => setSelectionMode('talk')}
-                            className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'talk'
-                              ? 'bg-blue-500/20 text-blue-200'
-                              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                              }`}
-                          >
-                            Talk
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectionMode('collab')}
-                            className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'collab'
-                              ? 'bg-amber-500/20 text-amber-200'
-                              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                              }`}
-                          >
-                            Collab
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {selectedFlow ? (
-                        <span className="px-2 py-1 rounded-full border border-cyan-500/20 bg-cyan-900/20 text-[8px] text-cyan-300 font-mono font-bold tracking-widest uppercase">
-                          Flow: {selectedFlow.name}
-                        </span>
-                      ) : null}
-                      {localAttachments.map((name) => (
-                        <span key={name} className="px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[8px] text-[var(--color-text-secondary)] font-mono font-bold tracking-widest uppercase">
-                          Local: {name}
-                        </span>
-                      ))}
-                      <button
-                        type="button"
-                        disabled={isRunPending}
-                        onClick={handleLocalUploadTrigger}
-                        className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      >
-                        Upload Intel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isRunPending}
-                        onClick={handleLinkFlow}
-                        className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      >
-                        {selectedFlow ? 'Change Flow' : 'Link Flow'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCopyAll}
-                        className="btn-secondary !text-[10px] !px-4 !py-2"
-                      >
-                        {copiedToken === 'copy-all' ? 'Copied' : 'Copy All'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => latestAssistantMessage && handleDownloadMessage(latestAssistantMessage, looksLikeMarkdown(resolveMessageContent(latestAssistantMessage)) ? 'md' : 'txt')}
-                        disabled={!latestAssistantMessage}
-                        className={`btn-secondary !text-[10px] !px-4 !py-2 ${latestAssistantMessage ? '' : 'opacity-60 cursor-not-allowed'}`}
-                      >
-                        Download
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleClearChat}
-                        className="btn-secondary !text-[10px] !px-4 !py-2"
-                      >
-                        Clear Chat
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {collabAgentKeys.map((agentKey) => {
-                        const isTalkSelected = selectedAgent === agentKey;
-                        const isCollabSelected = collabAgents.includes(agentKey);
+                    {/* Chat Feed */}
+                    <div ref={chatFeedRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
+                      {messages.map((msg, i) => {
+                        const preferredRun = resolveMessageRun(msg);
+                        const preferredContent = msg.role === 'assistant' ? resolveMessageContent(msg) : msg.content;
+                        const preferredRank = preferredRun ? (preferredRun.executingAgent || preferredRun.agentRole || msg.rank) : msg.rank;
+                        const preferredChain = preferredRun ? normalizeDelegateChain(preferredRun.delegateChain) : msg.chain;
+                        const preferredTimestamp = preferredRun ? formatRunTimestamp(preferredRun.updatedAt || preferredRun.createdAt) : msg.timestamp;
+                        const preferredStatus = preferredRun ? formatRunStatus(preferredRun.status) : msg.status;
+                        const preferredError = preferredRun ? preferredRun.error : msg.error;
+                        const messageToken = msg.runId || msg.clientId || `message-${i}`;
+                        const supportsJsonDownload = Boolean(preferredRun) || looksLikeJson(preferredContent);
+                        const supportsMarkdownDownload = looksLikeMarkdown(preferredContent) || preferredContent.includes('```') || Boolean(preferredRun);
+                        const referenceTargets = extractLinkTargets(preferredContent);
+                        const primaryReference = referenceTargets[0] || '';
                         return (
-                          <button
-                            key={agentKey}
-                            type="button"
-                            disabled={isRunPending}
-                            onClick={() => handleToggleSelectedAgent(agentKey)}
-                            className={`rounded-[var(--radius-card)] border px-2 py-2 text-[9px] font-black uppercase tracking-[0.18em] transition-colors ${isTalkSelected
-                              ? `${getAgentColor(agentKey).border} ${getAgentColor(agentKey).bg} ${getAgentColor(agentKey).icon.split(' ')[0]}`
-                              : isCollabSelected
-                                ? 'border-amber-500/50 bg-amber-500/20 text-amber-100'
-                                : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-                              } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                          >
-                            {resolveAgentName(agentKey)}
-                          </button>
-                        );
+                          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                            <div className={`max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} flex flex-col`}>
+                              <div className={`flex items-center gap-2 mb-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                {msg.role === 'user' ? (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-white/80">{systemRoleLabel}</span>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[9px] font-black uppercase tracking-widest ${getAgentColor(preferredRank).icon.split(' ')[0]}`}>
+                                      {preferredRank || 'CHARLIE'}
+                                    </span>
+                                    {preferredChain ? (
+                                      <div className="flex items-center gap-1 opacity-60">
+                                        <span className="text-[8px] text-gray-600 font-mono">/</span>
+                                        <span className="text-[9px] uppercase tracking-widest text-[var(--color-text-tertiary)] font-mono">
+                                          {preferredChain}
+                                        </span>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                )}
+                                <span className="text-[8px] text-gray-600 font-mono tracking-tighter">[{preferredTimestamp}]</span>
+                                {msg.role === 'assistant' && preferredStatus ? (
+                                  <span className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">{preferredStatus}</span>
+                                ) : null}
+                                {msg.role === 'assistant' ? (
+                                  <div className="flex items-center gap-1 ml-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyMessage(msg, messageToken)}
+                                      className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                    >
+                                      {copiedToken === messageToken ? 'Copied' : 'Copy'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadMessage(msg, 'txt')}
+                                      className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                    >
+                                      TXT
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadMessage(msg, 'md')}
+                                      className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                    >
+                                      {supportsMarkdownDownload ? 'MD' : 'TXT->MD'}
+                                    </button>
+                                    {supportsJsonDownload ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownloadMessage(msg, 'json')}
+                                        className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                      >
+                                        JSON
+                                      </button>
+                                    ) : null}
+                                    {primaryReference ? (
+                                      <a
+                                        href={normalizeLinkHref(primaryReference)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[8px] text-gray-500 font-mono uppercase tracking-widest hover:text-[var(--color-text-primary)]"
+                                      >
+                                        Open File
+                                      </a>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className={`py-1 text-[11px] font-mono leading-relaxed tracking-wider ${msg.role === 'user'
+                                ? 'text-emerald-400'
+                                : getAgentColor(preferredRank).icon.split(' ')[0] || 'text-[var(--color-text-primary)]'
+                                }`}>
+                                <div className="break-words">
+                                  {msg.role === 'assistant' ? (
+                                    msg.pending && !preferredContent ? (
+                                      <div className="flex items-center gap-1.5 py-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.2s' }} />
+                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500/40 animate-pulse" style={{ animationDelay: '0.4s' }} />
+                                      </div>
+                                    ) : (
+                                      renderMarkdownContent(preferredContent)
+                                    )
+                                  ) : (
+                                    renderLinkedContent(preferredContent)
+                                  )}
+                                </div>
+                                {msg.role === 'assistant' && preferredError ? (
+                                  <div className="mt-3 text-xs text-red-400">{preferredError}</div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        )
                       })}
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col`}>
-              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-black`}>
-                <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Run Core</h4>
-              </div>
-              <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
-                <div className="border border-white/10 bg-black rounded p-4 space-y-3">
-                  <div>
-                    <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Status</div>
-                    <div className="mt-1 text-[11px] font-mono text-white">{sessionStatusLabel}</div>
-                  </div>
-                  <div>
-                    <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Agent Chain</div>
-                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeRunChain || 'Awaiting canonical chain'}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Mode</div>
-                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{commandModeLabel}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Flow</div>
-                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeFlowLabel || 'No Flow Bound'}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Active Agent</div>
-                    <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{contextAgentName || 'No Active Agent'}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Timestamps</div>
-                    <div className="mt-1 text-xs font-mono text-[var(--color-text-secondary)]">
-                      {metadata?.created_at ? `Created ${formatRunTimestamp(metadata.created_at)}` : 'Created PENDING'}
-                    </div>
-                    <div className="text-xs font-mono text-[var(--color-text-secondary)]">
-                      {metadata?.updated_at ? `Updated ${formatRunTimestamp(metadata.updated_at)}` : 'Updated PENDING'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Error</div>
-                    <div className={`mt-1 text-sm ${error ? 'text-red-400' : 'text-[var(--color-text-secondary)]'}`}>{error || 'No active error'}</div>
-                  </div>
-                </div>
 
-                {canManageRoles && activeBotKey ? (
-                  <div className="border border-white/10 bg-black rounded p-4 space-y-3">
-                    <div>
-                      <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Role Authority</div>
-                      <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Attach named authority bundles to this bot. Effective permissions are the union of attached roles.</div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {botAssignedRoles.length ? botAssignedRoles.map((role) => (
-                        <div key={role.id} className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${role.isSystemRole ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]'}`}>
-                          <span>{role.name}</span>
-                          <button type="button" onClick={() => handleDetachBotRole(role.id)} disabled={rolesBusy} className="opacity-80 hover:opacity-100 disabled:opacity-50">
-                            Remove
-                          </button>
+                    {/* Input Area */}
+                    <div className={`p-5 border-t ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
+                      <input ref={localFileInputRef} type="file" multiple className="hidden" onChange={handleLocalFileSelect} />
+                      <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-4 items-start">
+                        <div className="min-w-0">
+                          <div className="relative flex items-center gap-3">
+                            <div className="relative flex-1">
+                              <input
+                                disabled={isRunPending}
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && !isRunPending && handleSendMessage()}
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                name="commandInput"
+                                id="command-input-surface"
+                                type="search"
+                                inputMode="text"
+                                enterKeyHint="send"
+                                aria-autocomplete="none"
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-bwignore="true"
+                                data-form-type="other"
+                                autoSave="off"
+                                placeholder="SEND COMMAND..."
+                                className={`w-full bg-[var(--color-bg-primary)]/70 dark:bg-black/40 border border-[var(--color-border)] rounded-[var(--radius-card)] px-5 pt-5 pb-9 text-sm text-[var(--color-text-primary)] placeholder:text-slate-400 dark:placeholder-gray-500 focus:outline-none focus:border-[var(--color-primary)]/60 focus:ring-1 focus:ring-[var(--color-primary)]/20 font-mono transition-all appearance-none ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                              />
+                              <div className="absolute right-4 bottom-2 flex items-center justify-end gap-2 max-w-[calc(100%-32px)] overflow-hidden">
+                                {selectedAgent ? (
+                                  <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
+                                    Target: {resolveAgentName(selectedAgent)}
+                                  </span>
+                                ) : null}
+                                {collabAgents.length > 0 && !hasActiveRun ? (
+                                  <div className="flex gap-1 overflow-hidden">
+                                    {collabAgents.slice(0, 2).map(key => (
+                                      <span key={key} className="shrink-0 px-2 py-1 rounded-full border border-amber-500/20 bg-amber-900/20 text-[8px] text-amber-300 font-mono font-bold tracking-widest uppercase">
+                                        {resolveAgentName(key)}
+                                      </span>
+                                    ))}
+                                    {collabAgents.length > 2 && <span className="text-[8px] text-amber-500/60 font-mono">+{collabAgents.length - 2}</span>}
+                                  </div>
+                                ) : null}
+                                {!selectedAgent && !collabAgents.length ? (
+                                  <span className="shrink-0 px-2 py-1 rounded-full border border-blue-500/20 bg-blue-900/20 text-[8px] text-blue-300 font-mono font-bold tracking-widest uppercase">
+                                    {sessionStatusLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="shrink-0 flex flex-col items-stretch gap-2 w-[112px]">
+                              <button
+                                type="button"
+                                disabled={isRunPending}
+                                onClick={handleSendMessage}
+                                className={`btn-secondary !rounded-[var(--radius-card)] !px-4 !py-3 min-w-0 flex items-center justify-center gap-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                              >
+                                <span className="text-[10px] font-black uppercase tracking-[0.18em]">Send</span>
+                                <ArrowRight size={14} />
+                              </button>
+                              <div className="inline-flex rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)]/60 p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectionMode('talk')}
+                                  className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'talk'
+                                    ? 'bg-blue-500/20 text-blue-200'
+                                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                                    }`}
+                                >
+                                  Talk
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectionMode('collab')}
+                                  className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'collab'
+                                    ? 'bg-amber-500/20 text-amber-200'
+                                    : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                                    }`}
+                                >
+                                  Collab
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            {selectedFlow ? (
+                              <span className="px-2 py-1 rounded-full border border-cyan-500/20 bg-cyan-900/20 text-[8px] text-cyan-300 font-mono font-bold tracking-widest uppercase">
+                                Flow: {selectedFlow.name}
+                              </span>
+                            ) : null}
+                            {localAttachments.map((name) => (
+                              <span key={name} className="px-2 py-1 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[8px] text-[var(--color-text-secondary)] font-mono font-bold tracking-widest uppercase">
+                                Local: {name}
+                              </span>
+                            ))}
+                            <button
+                              type="button"
+                              disabled={isRunPending}
+                              onClick={handleLocalUploadTrigger}
+                              className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            >
+                              Upload Intel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isRunPending}
+                              onClick={handleLinkFlow}
+                              className={`btn-secondary !text-[10px] !px-4 !py-2 ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            >
+                              {selectedFlow ? 'Change Flow' : 'Link Flow'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCopyAll}
+                              className="btn-secondary !text-[10px] !px-4 !py-2"
+                            >
+                              {copiedToken === 'copy-all' ? 'Copied' : 'Copy All'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => latestAssistantMessage && handleDownloadMessage(latestAssistantMessage, looksLikeMarkdown(resolveMessageContent(latestAssistantMessage)) ? 'md' : 'txt')}
+                              disabled={!latestAssistantMessage}
+                              className={`btn-secondary !text-[10px] !px-4 !py-2 ${latestAssistantMessage ? '' : 'opacity-60 cursor-not-allowed'}`}
+                            >
+                              Download
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleClearChat}
+                              className="btn-secondary !text-[10px] !px-4 !py-2"
+                            >
+                              Clear Chat
+                            </button>
+                          </div>
                         </div>
-                      )) : (
-                        <div className="text-xs text-[var(--color-text-secondary)]">No roles attached.</div>
-                      )}
+                        <div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {collabAgentKeys.map((agentKey) => {
+                              const isTalkSelected = selectedAgent === agentKey;
+                              const isCollabSelected = collabAgents.includes(agentKey);
+                              return (
+                                <button
+                                  key={agentKey}
+                                  type="button"
+                                  disabled={isRunPending}
+                                  onClick={() => handleToggleSelectedAgent(agentKey)}
+                                  className={`rounded-[var(--radius-card)] border px-2 py-2 text-[9px] font-black uppercase tracking-[0.18em] transition-colors ${isTalkSelected
+                                    ? `${getAgentColor(agentKey).border} ${getAgentColor(agentKey).bg} ${getAgentColor(agentKey).icon.split(' ')[0]}`
+                                    : isCollabSelected
+                                      ? 'border-amber-500/50 bg-amber-500/20 text-amber-100'
+                                      : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                                    } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                >
+                                  {resolveAgentName(agentKey)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-[var(--color-text-secondary)]">
-                      Effective capabilities: {(botEntitySummary?.effectiveCapabilities || []).length}
-                    </div>
-                    <div className="grid grid-cols-[1fr_auto] gap-2">
-                      <select
-                        value={attachRoleId}
-                        onChange={(event) => setAttachRoleId(event.target.value)}
-                        disabled={!attachableBotRoles.length || rolesBusy}
-                        className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
-                      >
-                        <option value="">{attachableBotRoles.length ? 'Attach role…' : 'All roles attached'}</option>
-                        {attachableBotRoles.map((role) => (
-                          <option key={role.id} value={role.id}>{role.name}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleAttachBotRole}
-                        disabled={!attachRoleId || rolesBusy}
-                        className="btn-secondary !text-[10px] !px-4 !py-2 disabled:opacity-60"
-                      >
-                        Attach
-                      </button>
-                    </div>
-                    {rolesError ? <div className="text-xs text-red-300">{rolesError}</div> : null}
                   </div>
-                ) : null}
+                  <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col`}>
+                    <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-black`}>
+                      <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Run Core</h4>
+                    </div>
+                    <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+                      <div className="border border-white/10 bg-black rounded p-4 space-y-3">
+                        <div>
+                          <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Status</div>
+                          <div className="mt-1 text-[11px] font-mono text-white">{sessionStatusLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Agent Chain</div>
+                          <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeRunChain || 'Awaiting canonical chain'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Mode</div>
+                          <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{commandModeLabel}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Flow</div>
+                          <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{activeFlowLabel || 'No Flow Bound'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Active Agent</div>
+                          <div className="mt-1 text-sm text-[var(--color-text-primary)] break-words">{contextAgentName || 'No Active Agent'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Timestamps</div>
+                          <div className="mt-1 text-xs font-mono text-[var(--color-text-secondary)]">
+                            {metadata?.created_at ? `Created ${formatRunTimestamp(metadata.created_at)}` : 'Created PENDING'}
+                          </div>
+                          <div className="text-xs font-mono text-[var(--color-text-secondary)]">
+                            {metadata?.updated_at ? `Updated ${formatRunTimestamp(metadata.updated_at)}` : 'Updated PENDING'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Error</div>
+                          <div className={`mt-1 text-sm ${error ? 'text-red-400' : 'text-[var(--color-text-secondary)]'}`}>{error || 'No active error'}</div>
+                        </div>
+                      </div>
 
-                <div className="opacity-60">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Timeline (Coming soon)</h4>
-                    <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
-                  </div>
-                  <div title="Coming soon" className="border border-white/10 rounded p-4 space-y-3 cursor-not-allowed">
-                    <div className="h-8 rounded border border-dashed border-white/10"></div>
-                    <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
-                    <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                      {canManageRoles && activeBotKey ? (
+                        <div className="border border-white/10 bg-black rounded p-4 space-y-3">
+                          <div>
+                            <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Role Authority</div>
+                            <div className="mt-1 text-xs text-[var(--color-text-secondary)]">Attach named authority bundles to this bot. Effective permissions are the union of attached roles.</div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {botAssignedRoles.length ? botAssignedRoles.map((role) => (
+                              <div key={role.id} className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${role.isSystemRole ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]'}`}>
+                                <span>{role.name}</span>
+                                <button type="button" onClick={() => handleDetachBotRole(role.id)} disabled={rolesBusy} className="opacity-80 hover:opacity-100 disabled:opacity-50">
+                                  Remove
+                                </button>
+                              </div>
+                            )) : (
+                              <div className="text-xs text-[var(--color-text-secondary)]">No roles attached.</div>
+                            )}
+                          </div>
+                          <div className="text-xs text-[var(--color-text-secondary)]">
+                            Effective capabilities: {(botEntitySummary?.effectiveCapabilities || []).length}
+                          </div>
+                          <div className="grid grid-cols-[1fr_auto] gap-2">
+                            <select
+                              value={attachRoleId}
+                              onChange={(event) => setAttachRoleId(event.target.value)}
+                              disabled={!attachableBotRoles.length || rolesBusy}
+                              className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                            >
+                              <option value="">{attachableBotRoles.length ? 'Attach role…' : 'All roles attached'}</option>
+                              {attachableBotRoles.map((role) => (
+                                <option key={role.id} value={role.id}>{role.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleAttachBotRole}
+                              disabled={!attachRoleId || rolesBusy}
+                              className="btn-secondary !text-[10px] !px-4 !py-2 disabled:opacity-60"
+                            >
+                              Attach
+                            </button>
+                          </div>
+                          {rolesError ? <div className="text-xs text-red-300">{rolesError}</div> : null}
+                        </div>
+                      ) : null}
+
+                      <div className="opacity-60">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Timeline (Coming soon)</h4>
+                          <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
+                        </div>
+                        <div title="Coming soon" className="border border-white/10 rounded p-4 space-y-3 cursor-not-allowed">
+                          <div className="h-8 rounded border border-dashed border-white/10"></div>
+                          <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                          <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                        </div>
+                      </div>
+
+                      <div className="opacity-60">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Signals (Coming soon)</h4>
+                          <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
+                        </div>
+                        <div title="Coming soon" className="border border-white/10 rounded p-4 space-y-3 cursor-not-allowed">
+                          <div className="h-8 rounded border border-dashed border-white/10"></div>
+                          <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="opacity-60">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-[10px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest">Signals (Coming soon)</h4>
-                    <span title="Coming soon" className="text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-tertiary)] cursor-not-allowed">Coming soon</span>
-                  </div>
-                  <div title="Coming soon" className="border border-white/10 rounded p-4 space-y-3 cursor-not-allowed">
-                    <div className="h-8 rounded border border-dashed border-white/10"></div>
-                    <div className="h-8 rounded border border-dashed border-[var(--color-border)] bg-[var(--color-bg-secondary)]/40"></div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
     </div>
-  );
+      );
 };
 
-export default AIOAgentsModule;
+      export default AIOAgentsModule;
