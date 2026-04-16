@@ -10,6 +10,7 @@ import {
   deleteCommsProviderConfigApi,
   deletePhoneNumberApi,
   endCallSessionApi,
+  getCallSessionApi,
   getCallSessionsApi,
   getCommsIntegrationInfoApi,
   getCommsOverviewApi,
@@ -382,7 +383,7 @@ function DialerTab({
               </div>
               <div className="mt-2 text-[9px] font-semibold text-cyan-400/60 uppercase tracking-widest flex justify-between px-1">
                 <span>{activeCall ? `Time: ${formatDuration(callTime)}` : (dialer.fromNumber ? `From: ${formatPhone(dialer.fromNumber)}` : 'No Line')}</span>
-                {activeCall && <span className="animate-pulse text-emerald-400">Recording</span>}
+                {activeCall && activeCall.status === 'connected' && <span className="animate-pulse text-emerald-400">Live</span>}
               </div>
             </div>
 
@@ -448,7 +449,7 @@ function DialerTab({
                   glow="emerald" 
                   active={dialer.phoneNumber.length >= 10} 
                   onClick={startCall} 
-                  disabled={!dialer.phoneNumber || !dialer.fromNumber || (activeProviderType !== 'stub' && providerConfigs.find(c => c.providerType === activeProviderType)?.status !== 'verified')}
+                  disabled={!dialer.phoneNumber || !dialer.fromNumber || activeProviderType === 'stub' || providerConfigs.find(c => c.providerType === activeProviderType)?.status !== 'verified'}
                 >
                   <div className={`h-16 w-16 rounded-full border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center ${dialer.phoneNumber.length >= 10 ? 'animate-pulse' : 'opacity-25'} shadow-[0_0_15px_rgba(16,185,129,0.2)]`}>
                     <PhoneCall className={dialer.phoneNumber.length >= 10 ? 'text-emerald-400' : 'text-slate-500'} size={28} />
@@ -638,6 +639,8 @@ export default function PhoneModule() {
     }
   };
 
+  const callPollRef = useRef(null);
+
   const startCall = async () => {
     if (!dialer.phoneNumber.trim()) return;
     try {
@@ -649,14 +652,31 @@ export default function PhoneModule() {
         extensionId: dialer.extensionId || null 
       });
       setActiveCall(result);
-      showNotice({ type: 'success', message: 'Call initiated.' });
+      showNotice({ type: 'success', message: `Call initiated. Status: ${result.status || 'unknown'}` });
+
+      if (result.id && result.status !== 'ended' && result.status !== 'failed') {
+        callPollRef.current = setInterval(async () => {
+          try {
+            const session = await getCallSessionApi(result.id);
+            if (session) {
+              setActiveCall(prev => prev ? { ...prev, ...session } : null);
+              if (session.status === 'ended' || session.status === 'failed') {
+                clearInterval(callPollRef.current);
+                callPollRef.current = null;
+              }
+            }
+          } catch { clearInterval(callPollRef.current); callPollRef.current = null; }
+        }, 2000);
+      }
     } catch (error) {
+      setActiveCall(null);
       showNotice({ type: 'error', message: error.message || 'Unable to start outbound call.' });
     }
   };
 
   const endCall = async () => {
     if (!activeCall?.id) return;
+    if (callPollRef.current) { clearInterval(callPollRef.current); callPollRef.current = null; }
     try {
       await endCallSessionApi(activeCall.id, { disposition: 'completed', durationSeconds: callTime });
       setActiveCall(null);

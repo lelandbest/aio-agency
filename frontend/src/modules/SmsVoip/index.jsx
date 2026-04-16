@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Activity, History, MessageSquare, Phone, PhoneCall, PhoneOff, Plus, RefreshCw, Send, X, RadioTower, Smartphone, Hash, Delete, Cpu, ArrowUp } from 'lucide-react';
 import { useNotice } from '../../contexts/NoticeContext';
-import { playDigitTone, playDialTone, playBusySignal, playRinger, stopAudio } from '../../services/audioService';
+import { playDigitTone } from '../../services/audioService';
 import ModuleHeader from '../../components/ModuleHeader';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import {
@@ -11,6 +11,7 @@ import {
     deleteCommsProviderConfigApi,
     deletePhoneNumberApi,
     endCallSessionApi,
+    getCallSessionApi,
     getCallSessionsApi,
     getCommsIntegrationInfoApi,
     getCommsOverviewApi,
@@ -416,14 +417,14 @@ function DialerTab({
                                     <RadioTower size={10} className={integrationInfo?.providerStatus === 'stub' ? 'text-amber-500' : 'text-emerald-500'} />
                                     {integrationInfo?.providerName || 'Stub'}
                                 </span>
-                                <span>{activeCall ? (activeCall.status === 'connected' ? 'Session Live' : 'Establishing...') : 'Ready'}</span>
+                                <span>{activeCall ? activeCall.status || 'Initiated' : 'Ready'}</span>
                             </div>
                             <div className="text-3xl font-bold tracking-[0.15em] min-h-[2.5rem] flex items-center justify-center">
                                 {formatPhone(dialer.phoneNumber) || '--- --- ----'}
                             </div>
                             <div className="mt-2 text-[9px] font-semibold text-cyan-400/60 uppercase tracking-widest flex justify-between px-1">
                                 <span>{activeCall ? `Time: ${formatDuration(callTime)}` : (routingFromNumber ? `From: ${formatPhone(routingFromNumber)}` : 'No Line')}</span>
-                                {activeCall && <span className="animate-pulse text-emerald-400">Recording</span>}
+                                {activeCall && activeCall.status === 'connected' && <span className="animate-pulse text-emerald-400">Live</span>}
                             </div>
                         </div>
 
@@ -503,7 +504,7 @@ function DialerTab({
                                     glow="emerald" 
                                     active={dialer.phoneNumber.length >= 10} 
                                     onClick={startCall} 
-                                    disabled={!dialer.phoneNumber || !routingFromNumber || (activeProviderType !== 'stub' && providerConfigs.find(c => c.providerType === activeProviderType)?.status !== 'verified')}
+                                    disabled={!dialer.phoneNumber || !routingFromNumber || activeProviderType === 'stub' || providerConfigs.find(c => c.providerType === activeProviderType)?.status !== 'verified'}
                                 >
                                     <div className={`h-16 w-16 rounded-full border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center ${dialer.phoneNumber.length >= 10 ? 'animate-pulse' : 'opacity-25'} shadow-[0_0_15px_rgba(16,185,129,0.2)]`}>
                                         <PhoneCall className={dialer.phoneNumber.length >= 10 ? 'text-emerald-400' : 'text-slate-500'} size={28} />
@@ -700,9 +701,10 @@ export default function SmsVoipModule({
         }
     };
 
+    const callPollRef = useRef(null);
+
     const startCall = async () => {
         if (!dialer.phoneNumber.trim()) return;
-        playDialTone();
         try {
             const contact = contacts.find(c => c.phone === dialer.phoneNumber);
             const result = await startOutboundCallApi({
@@ -712,29 +714,31 @@ export default function SmsVoipModule({
                 extensionId: extensionId || null
             });
             setActiveCall(result);
-            setTimeout(() => {
-                playRinger();
-                showNotice({ type: 'success', message: 'Call initiated.' });
-                
-                // For stub/simulated sessions, auto-transition to connected for UX testing
-                if (result.status && (result.status.startsWith('simulated') || result.status === 'initiated')) {
-                    setTimeout(() => {
-                        setActiveCall(prev => prev ? { ...prev, status: 'connected' } : null);
-                        stopAudio(); // Stop the ringing sound once "connected"
-                        showNotice({ type: 'info', message: 'Simulated connection established.' });
-                    }, 4000);
-                }
-            }, 1000);
+            showNotice({ type: 'success', message: `Call initiated. Status: ${result.status || 'unknown'}` });
+
+            if (result.id && result.status !== 'ended' && result.status !== 'failed') {
+                callPollRef.current = setInterval(async () => {
+                    try {
+                        const session = await getCallSessionApi(result.id);
+                        if (session) {
+                            setActiveCall(prev => prev ? { ...prev, ...session } : null);
+                            if (session.status === 'ended' || session.status === 'failed') {
+                                clearInterval(callPollRef.current);
+                                callPollRef.current = null;
+                            }
+                        }
+                    } catch { clearInterval(callPollRef.current); callPollRef.current = null; }
+                }, 2000);
+            }
         } catch (error) {
-            playBusySignal();
+            setActiveCall(null);
             showNotice({ type: 'error', message: error.message || 'Unable to start outbound call.' });
         }
     };
 
     const endCall = async () => {
         if (!activeCall?.id) return;
-        stopAudio();
-        playDigitTone('1', 'retro');
+        if (callPollRef.current) { clearInterval(callPollRef.current); callPollRef.current = null; }
         try {
             await endCallSessionApi(activeCall.id, { disposition: 'completed', durationSeconds: callTime });
             setActiveCall(null);
@@ -787,6 +791,10 @@ export default function SmsVoipModule({
     const telnyxState = providerState('telnyx', activeProviderType, providerConfigs);
     const twilioState = providerState('twilio', activeProviderType, providerConfigs);
 
+    const isModuleReady = activeProviderType !== 'stub' && providerConfigs.some(
+        (c) => c.providerType === activeProviderType && c.status === 'verified' && c.healthStatus === 'healthy'
+    );
+
     return (
         <div className={shellClass}>
             <ModuleHeader
@@ -794,10 +802,11 @@ export default function SmsVoipModule({
                 leftActions={[
                     { label: 'Comms', onClick: () => navigate({ module: 'comms' }), variant: 'secondary' }
                 ]}
-                actions={[
-                    { label: 'Integrations', onClick: () => navigate({ module: 'integrations', integrationCategory: 'communications' }), variant: 'primary' }
-                ]}
-                toolbarCenterSlot={(
+                actions={isModuleReady
+                    ? [{ label: 'Integrations', onClick: () => navigate({ module: 'integrations', integrationCategory: 'communications' }), variant: 'primary' }]
+                    : [{ label: 'ACTIVATE SMS-VOIP', onClick: () => navigate({ module: 'integrations', integrationCategory: 'communications' }), variant: 'primary' }]
+                }
+                toolbarCenterSlot={isModuleReady ? (
                     <div className="flex items-center gap-6">
                         <div className="flex items-center justify-center gap-1.5">
                             {tabs.map((entry) => {
@@ -838,7 +847,7 @@ export default function SmsVoipModule({
                             </button>
                         </div>
                     </div>
-                )}
+                ) : null}
             />
 
             <style>{`
@@ -846,6 +855,7 @@ export default function SmsVoipModule({
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `}</style>
             <div className="flex-1 xl:overflow-hidden overflow-y-auto p-2 custom-scrollbar">
+                {isModuleReady ? (
                 <DialerTab
                     routes={routes}
                     integrationInfo={integrationInfo}
@@ -883,6 +893,48 @@ export default function SmsVoipModule({
                     activeProviderType={activeProviderType}
                     providerConfigs={providerConfigs}
                 />
+                ) : (
+                <div className="flex h-full items-center justify-center">
+                    <div className="max-w-md text-center space-y-6 px-6">
+                        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.02]">
+                            <RadioTower size={32} className="text-slate-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-slate-300">SMS &amp; VoIP Not Activated</h2>
+                            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+                                SMS and VoIP have not been provisioned for this installation yet.
+                                A verified communications provider with a valid configuration is required.
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4 text-left space-y-2">
+                            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-600 font-bold">Requirements</div>
+                            <ul className="space-y-1.5 text-sm text-slate-500">
+                                <li className="flex items-start gap-2">
+                                    <span className={providerConfigs.length > 0 ? 'text-emerald-500' : 'text-slate-600'}>{providerConfigs.length > 0 ? '✓' : '○'}</span>
+                                    Select and configure a communications provider
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className={providerConfigs.some(c => c.status === 'verified') ? 'text-emerald-500' : 'text-slate-600'}>{providerConfigs.some(c => c.status === 'verified') ? '✓' : '○'}</span>
+                                    Verify provider credentials with a real API check
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className={activeProviderType !== 'stub' ? 'text-emerald-500' : 'text-slate-600'}>{activeProviderType !== 'stub' ? '✓' : '○'}</span>
+                                    Activate provider as the active transport
+                                </li>
+                            </ul>
+                        </div>
+                        <button
+                            onClick={() => navigate({ module: 'integrations', integrationCategory: 'communications' })}
+                            className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-6 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-cyan-400 transition-all hover:bg-cyan-500/20 active:scale-95"
+                        >
+                            Begin Setup
+                        </button>
+                        <p className="text-[10px] text-slate-600">
+                            Setup is optional. The rest of the application remains fully usable.
+                        </p>
+                    </div>
+                </div>
+                )}
             </div>
         </div>
     );

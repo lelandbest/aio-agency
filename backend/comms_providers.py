@@ -241,14 +241,10 @@ class StubProviderAdapter(CommsProviderAdapter):
         )
 
     def start_call(self, request: CallStartRequest) -> CallStartResult:
-        import uuid
-        call_id = f"stub-call-{uuid.uuid4().hex[:12]}"
         return CallStartResult(
-            success=True,
-            call_id=call_id,
-            provider_call_id=call_id,
-            status="simulated_ringing",
-            raw_response={"stub": True},
+            success=False,
+            error="No real telephony provider configured. Outbound calls require a verified provider.",
+            status="failed",
         )
 
     def end_call(self, call_id: str) -> CallEndResult:
@@ -429,6 +425,9 @@ class TelnyxProviderAdapter(CommsProviderAdapter):
             }
             
             body = json.dumps(payload).encode()
+            masked_key = f"****{self.config.api_key[-4:]}" if len(self.config.api_key) >= 4 else "****"
+            print(f"TELNYX VOICE CALL: POST {self._base_url}/calls")
+            print(f"  from={request.from_number} to={request.to_number} key={masked_key}")
             
             req = urllib.request.Request(
                 f"{self._base_url}/calls",
@@ -442,6 +441,7 @@ class TelnyxProviderAdapter(CommsProviderAdapter):
             
             with urllib.request.urlopen(req, timeout=30) as response:
                 data = json.loads(response.read().decode())
+                print(f"TELNYX VOICE CALL: status={response.status} call_id={data.get('call_id')}")
                 return CallStartResult(
                     success=True,
                     call_id=data.get("call_id"),
@@ -451,6 +451,7 @@ class TelnyxProviderAdapter(CommsProviderAdapter):
                 )
         except urllib.error.HTTPError as e:
             error_body = e.read().decode() if e.fp else "{}"
+            print(f"TELNYX VOICE CALL FAIL: HTTP {e.code} {error_body[:300]}")
             try:
                 error_data = json.loads(error_body)
                 error_msg = error_data.get("errors", [{}])[0].get("detail", str(e))
@@ -458,6 +459,7 @@ class TelnyxProviderAdapter(CommsProviderAdapter):
                 error_msg = str(e)
             return CallStartResult(success=False, error=error_msg, status="provider_error")
         except Exception as e:
+            print(f"TELNYX VOICE CALL FAIL: {str(e)}")
             return CallStartResult(success=False, error=str(e), status="provider_error")
 
     def end_call(self, call_id: str) -> CallEndResult:

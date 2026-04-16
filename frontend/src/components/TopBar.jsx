@@ -6,21 +6,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useBrand, DEFAULT_BRAND_CONFIG } from '../contexts/BrandContext';
 import { Phone, Bell, Users, User, FileText, Lock, Rocket, Search, Menu, ChevronDown, AlertOctagon, AlertTriangle, CheckCircle2, PhoneCall, PhoneOff, X, AlertCircle } from 'lucide-react';
 import { normalizeDisplayText } from '../utils/text';
-import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi, getPhoneNumbersApi, getContactsWithPhoneApi, startOutboundCallApi, endCallSessionApi, getCommsRoutesApi } from '../services/backendApi';
+import { getNotificationsApi, markNotificationReadApi, markAllNotificationsReadApi, updateCanonicalTenantSettingsApi, getSystemHealthApi, getPhoneNumbersApi, getContactsWithPhoneApi, startOutboundCallApi, endCallSessionApi, getCommsRoutesApi, getCallSessionApi } from '../services/backendApi';
 
-import { playDigitTone, playDialTone, playBusySignal, playRinger, stopAudio } from '../services/audioService';
+import { playDigitTone } from '../services/audioService';
 
 const playTone = (type, digitOrStyle = '1', style = 'military') => {
   if (type === 'button') {
     playDigitTone(digitOrStyle, style);
-  } else if (type === 'dial') {
-    playDialTone();
-  } else if (type === 'ring') {
-    playRinger();
-  } else if (type === 'busy') {
-    playBusySignal();
-  } else if (type === 'stop') {
-    stopAudio();
   }
 };
 
@@ -30,6 +22,7 @@ const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromN
   const [outgoingRoutes, setOutgoingRoutes] = useState({ phoneNumbers: [], extensions: [] });
   const [contacts, setContacts] = useState([]);
   const [activeCall, setActiveCall] = useState(null);
+  const callPollRef = useRef(null);
   
   const toneStyles = [
     { value: 'military', label: 'Military' },
@@ -75,25 +68,39 @@ const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromN
   
   const handleDial = async () => {
     if (!phoneNumber || callState !== 'idle') return;
-    playTone('dial');
-    setCallState('simulated_ringing');
+    setCallState('sending');
     try {
       const result = await startOutboundCallApi({ phoneNumber, fromNumber, extensionId });
       setActiveCall(result);
-      setTimeout(() => { playTone('ring'); setCallState('simulated_connected'); }, 2000);
+      setCallState(result.status || 'initiated');
+      if (result.id && result.status !== 'ended' && result.status !== 'failed') {
+        callPollRef.current = setInterval(async () => {
+          try {
+            const session = await getCallSessionApi(result.id);
+            if (session) {
+              setActiveCall(prev => prev ? { ...prev, ...session } : null);
+              setCallState(session.status || 'initiated');
+              if (session.status === 'ended' || session.status === 'failed') {
+                clearInterval(callPollRef.current);
+                callPollRef.current = null;
+              }
+            }
+          } catch { clearInterval(callPollRef.current); callPollRef.current = null; }
+        }, 2000);
+      }
     } catch (e) {
-      playTone('busy');
-      setCallState('failed_stub');
+      setCallState('failed');
+      setActiveCall(null);
     }
   };
   
   const handleEnd = async () => {
+    if (callPollRef.current) { clearInterval(callPollRef.current); callPollRef.current = null; }
     if (activeCall) {
       try {
-        await endCallSessionApi(activeCall.id, { disposition: callState === 'simulated_connected' ? 'completed' : 'no_answer', durationSeconds: 30 });
+        await endCallSessionApi(activeCall.id, { disposition: 'completed' });
       } catch (e) {}
     }
-    playTone('stop');
     playTone('button', '1', 'retro');
     setCallState('ended');
     setTimeout(() => { setCallState('idle'); setActiveCall(null); }, 1000);
@@ -186,7 +193,7 @@ const DialerModal = ({ onClose, toneStyle = 'military', onToneStyleChange, fromN
       
       {callState !== 'idle' && (
         <div className="text-[10px] text-center text-amber-300">
-          {callState === 'simulated_ringing' ? 'Ringing...' : callState === 'simulated_connected' ? 'Connected' : 'Failed'}
+          {callState === 'sending' ? 'Sending...' : callState === 'initiated' ? 'Initiated' : callState === 'ringing' ? 'Ringing...' : callState === 'connected' || callState === 'answered' ? 'Connected' : callState === 'ended' ? 'Ended' : callState === 'failed' ? 'Failed' : callState}
         </div>
       )}
     </div>

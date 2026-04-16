@@ -8056,15 +8056,20 @@ async def update_call_session(session_id: str, request: Request, payload: dict):
 
 @app.post("/api/comms/calls/start")
 async def start_outbound_call(request: Request, payload: dict):
-    """Start an outbound call (simulated)."""
+    """Start an outbound call through active provider."""
     session = require_capability(request, "system.manage", "Only editors can initiate calls.")
-    from backend.comms_service import start_outbound_call
-    return {"data": start_outbound_call(
-        phone_number=payload.get("phoneNumber"),
-        from_number=payload.get("fromNumber"),
-        contact_id=payload.get("contactId"),
-        extension_id=payload.get("extensionId")
-    )}
+    try:
+        from backend.comms_service import start_outbound_call
+        return {"data": start_outbound_call(
+            phone_number=payload.get("phoneNumber"),
+            from_number=payload.get("fromNumber"),
+            contact_id=payload.get("contactId"),
+            extension_id=payload.get("extensionId")
+        )}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/comms/calls/{call_id}/end")
@@ -8279,6 +8284,8 @@ async def comms_webhook_ingest(request: Request, provider: str, payload: dict[st
             provider_data = create_provider()
             event_type = event.normalized.get("event_type", "")
             
+            print(f"COMMS WEBHOOK: provider={provider} event_type={event_type}")
+
             if event_type == "sms_status_update":
                 msg_id = event.normalized.get("message_id")
                 status = event.normalized.get("status")
@@ -8303,12 +8310,14 @@ async def comms_webhook_ingest(request: Request, provider: str, payload: dict[st
             elif event_type == "call_update" or event_type == "call_answered":
                 call_id = event.normalized.get("call_id")
                 status = event.normalized.get("status")
+                print(f"COMMS WEBHOOK CALL: call_id={call_id} status={status}")
                 if call_id:
                     provider_data.update_call_session(call_id, status=status)
             
             elif event_type == "call_ended":
                 call_id = event.normalized.get("call_id")
                 duration = event.normalized.get("duration")
+                print(f"COMMS WEBHOOK CALL ENDED: call_id={call_id} duration={duration}")
                 if call_id:
                     provider_data.update_call_session(
                         call_id,

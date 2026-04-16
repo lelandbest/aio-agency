@@ -468,7 +468,9 @@ def start_outbound_call(phone_number: str, from_number: str | None = None, conta
     provider = create_provider()
     adapter = _get_active_adapter()
     tenant_id = provider._tenantId()
-    
+
+    print(f"CALL START: adapter={adapter.provider_type} to={phone_number} from={from_number or ''}")
+
     call_request = CallStartRequest(
         to_number=phone_number,
         from_number=from_number or "",
@@ -478,11 +480,15 @@ def start_outbound_call(phone_number: str, from_number: str | None = None, conta
     )
     
     result = adapter.start_call(call_request)
-    
+
+    print(f"CALL START: provider_result success={result.success} status={result.status} error={result.error}")
+
+    if not result.success:
+        raise ValueError(result.error or "Call initiation failed")
+
     now = datetime.now(timezone.utc).isoformat()
     call_id = result.call_id or f"call-{unique_suffix()}"
-    
-    status = result.status if result.success else "failed"
+    status = result.status or "initiated"
     
     with provider._connect() as conn:
         conn.execute(
@@ -492,8 +498,10 @@ def start_outbound_call(phone_number: str, from_number: str | None = None, conta
             (call_id, tenant_id, contact_id, None, extension_id, "outbound", status, now, now, now)
         )
         conn.commit()
+        row = conn.execute("SELECT * FROM call_sessions WHERE id = ?", (call_id,)).fetchone()
     
-    return dict(conn.execute("SELECT * FROM call_sessions WHERE id = ?", (call_id,)).fetchone())
+    print(f"CALL START: session_id={call_id} status={status}")
+    return dict(row)
 
 
 def end_call_session(call_id: str, disposition: str | None = None, duration_seconds: int | None = None) -> dict[str, Any]:
