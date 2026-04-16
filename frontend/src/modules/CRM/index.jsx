@@ -1215,12 +1215,12 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const renderedPhoneRows = editMode && !showDeleted ? [...editPhoneValues, ''].slice(0, Math.max(editPhoneValues.length + 1, 5)) : selectedMethods.phones;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#050505]">
+    <div className="module-root-standard">
       <ModuleHeader
         title="CRM Operator Index"
         showTitle={false}
         showActions={true}
-        className="mx-2 mt-2"
+        className=""
         leftActions={[
           {
             label: 'Create',
@@ -1296,7 +1296,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
         onModuleAi={openCrmAssist}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-3">
+      <div className="module-content-stage px-2 pb-2">
         <div className="mb-1.5 grid gap-1.5 md:grid-cols-4">
           {[
             { label: 'Active Contacts', value: activeContactCount },

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, FolderOpen, Layers, Plus, Search, Tag, Workflow, Trash2, FolderPlus } from 'lucide-react';
+import { FolderOpen, Layers, Plus, Search, Tag, Workflow, Trash2, FolderPlus } from 'lucide-react';
 import FolderTable from '../../components/FolderTable';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
@@ -8,7 +8,7 @@ import { useNotice } from '../../contexts/NoticeContext';
 import TemplateLibraryModal from './components/TemplateLibraryModal';
 import flowRepository from './utils/flowRepository';
 import { getStoredCustomTemplates } from './utils/templateLibraryStore';
-import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi } from '../../services/backendApi';
+import { deleteFlowApi, bulkDeleteFlowsApi, createFlowFolderApi, listFlowFoldersApi, renameFlowFolderApi, deleteFlowFolderApi, saveFlowApi } from '../../services/backendApi';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
@@ -277,7 +277,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
   const tableColumns = [
     {
-      header: 'Flow Name',
+      header: 'Name',
       key: 'name',
       render: (flow) => {
         if (renameFlowId === flow.id) {
@@ -334,7 +334,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
     {
       header: 'Source',
       key: 'source',
-      width: '220px',
+      width: '180px',
       render: (flow) => {
         const source = getFlowSourceMeta(flow);
         return (
@@ -349,29 +349,53 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       },
     },
     {
+      header: 'Forms',
+      key: 'forms',
+      width: '100px',
+      render: (flow) => {
+        const formCount = flow.formIds?.length || 0;
+        return (
+          <span className="text-sm text-[var(--color-text-secondary)]">
+            {formCount} {formCount === 1 ? 'Form' : 'Forms'}
+          </span>
+        );
+      },
+    },
+    {
       header: 'Status',
       key: 'status',
       width: '120px',
-      render: (flow) => (
-        <span
-          className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${flow.status === 'Active'
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-              : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)]'
-            }`}
-        >
-          {flow.status || 'Draft'}
-        </span>
-      ),
-    },
-    {
-      header: 'Nodes',
-      key: 'nodes',
-      width: '100px',
-      render: (flow) => (
-        <span className="text-sm text-[var(--color-text-secondary)]">
-          {flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0}
-        </span>
-      ),
+      render: (flow) => {
+        const isActive = flow.status === 'Active';
+        return (
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+              {isActive ? 'Active' : 'Inactive'}
+            </span>
+            <button
+              id={`flow-status-${flow.id}`}
+              type="button"
+              onClick={() => {
+                const newStatus = isActive ? 'Draft' : 'Active';
+                const previousStatus = flow.status;
+                setFlows(prev => prev.map(f => f.id === flow.id ? { ...f, status: newStatus } : f));
+                saveFlowApi(flow.id, { ...flow, status: newStatus, updatedAt: new Date().toISOString() })
+                  .then(() => loadFlows())
+                  .catch(() => {
+                    setFlows(prev => prev.map(f => f.id === flow.id ? { ...f, status: previousStatus } : f));
+                  });
+              }}
+              className={`w-12 h-6 rounded-full relative transition-colors ${isActive ? 'bg-emerald-500' : 'bg-[var(--color-bg-tertiary)]'}`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                  isActive ? 'left-7' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+        );
+      },
     },
     {
       header: 'Last Updated',
@@ -382,6 +406,16 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
           <div>{formatRelativeDate(flow.updatedAt || flow.updated_at)}</div>
           <div className="mt-1 text-[var(--color-text-tertiary)]">By {flow.lastEditedBy || 'Current User'}</div>
         </div>
+      ),
+    },
+    {
+      header: 'Nodes',
+      key: 'nodes',
+      width: '100px',
+      render: (flow) => (
+        <span className="text-sm text-[var(--color-text-secondary)]">
+          {flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0}
+        </span>
       ),
     },
     {
@@ -429,10 +463,9 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               <button
                 type="button"
                 onClick={() => onOpenFlow?.(flow)}
-                className="btn-toolbar-lead !px-3 !py-2 !text-xs inline-flex items-center gap-2"
+                className="btn-toolbar-lead !px-3 !py-2 !text-xs"
               >
                 Open
-                <ArrowRight size={14} />
               </button>
             </>
           )}
@@ -498,8 +531,8 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       <ModuleHeader
         titleIcon={Workflow}
         title="Flows"
-        actions={[
-          { label: 'Create Flow', icon: Plus, onClick: handleCreateBlank, variant: 'primary', disabled: Boolean(busyAction) },
+        leftActions={[
+          { label: 'Create Flow', icon: Plus, onClick: handleCreateBlank, variant: 'secondary', disabled: Boolean(busyAction) },
           { label: 'New Folder', icon: FolderPlus, onClick: handleCreateFolder },
           { label: 'Browse', icon: Layers, onClick: () => setShowTemplateGallery(true) },
         ]}
@@ -532,7 +565,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'flows' } })}
       />
 
-      <div className="module-surface-shell px-3 py-3">
+      <div className="px-2">
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
           <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
             <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Flows</div>
@@ -568,7 +601,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
         </div>
       ) : null}
 
-      <div className="module-content-stage">
+      <div className="module-content-stage px-2 pb-2">
         <FolderTable
           title="Flows"
           description="Open, rename, or launch your saved flows."

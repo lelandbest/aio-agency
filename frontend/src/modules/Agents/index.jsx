@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock } from 'lucide-react';
+import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock, Mail, Database, Box, Shield } from 'lucide-react';
 import { attachWorkspaceRoleApi, detachWorkspaceRoleApi, getAiAgentsApi, getAiRunApi, getAiRunsApi, getWorkspaceRolesApi, runAiCommandApi } from '../../services/backendApi';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -1057,7 +1057,7 @@ const AIOAgentsModule = () => {
   };
 
   return (
-    <div className="module-root-standard relative selection:bg-purple-900/50 bg-black text-white">
+    <div className="module-root-standard selection:bg-purple-900/50">
       <ModuleHeader
         showTitle={false}
         leftActions={[
@@ -1080,7 +1080,7 @@ const AIOAgentsModule = () => {
       />
 
       {/* Main Workspace */}
-      <div className="module-content-stage flex overflow-hidden relative bg-black">
+      <div className="module-content-stage flex overflow-hidden relative px-2 pb-2">
 
         {/* BARRACKS VIEW */}
         {view === 'barracks' && (() => {
@@ -1192,7 +1192,7 @@ const AIOAgentsModule = () => {
           })();
 
           return (
-            <div className="flex-1 min-h-0 flex gap-1.5 p-1.5 overflow-hidden relative">
+            <div className="flex-1 min-h-0 flex gap-1.5 p-0 overflow-hidden relative">
               <style>{`
                 @keyframes route-flow {
                   0% { transform: translateX(-10%); opacity: 0.25; }
@@ -1200,10 +1200,137 @@ const AIOAgentsModule = () => {
                   100% { transform: translateX(110%); opacity: 0.2; }
                 }
                 .route-flow { animation: route-flow linear infinite; }
+                
+                @keyframes pulse-trail-horizontal {
+                  0% { transform: translateX(-100%); opacity: 0; }
+                  20% { opacity: 1; }
+                  80% { opacity: 1; }
+                  100% { transform: translateX(100%); opacity: 0; }
+                }
+
+                @keyframes pulse-trail-vertical {
+                  0% { transform: translateY(-100%); opacity: 0; }
+                  20% { opacity: 1; }
+                  80% { opacity: 1; }
+                  100% { transform: translateY(100%); opacity: 0; }
+                }
+
+                @keyframes pulse-dot-horizontal {
+                  0% { left: 0%; transform: translateY(-50%) translateX(-100%); opacity: 0; }
+                  10% { opacity: 1; }
+                  90% { opacity: 1; }
+                  100% { left: 100%; transform: translateY(-50%) translateX(0%); opacity: 0; }
+                }
+
+                @keyframes pulse-dot-vertical {
+                  0% { top: 0%; transform: translateX(-50%) translateY(-100%); opacity: 0; }
+                  10% { opacity: 1; }
+                  90% { opacity: 1; }
+                  100% { top: 100%; transform: translateX(-50%) translateY(0%); opacity: 0; }
+                }
+
+                @keyframes pulse-heartbeat {
+                  0%, 100% { opacity: 0.3; }
+                  50% { opacity: 0.7; }
+                }
+
+                .flow-active-line {
+                  position: relative;
+                  overflow: hidden;
+                  background: rgba(255,255,255,0.02) !important;
+                  animation: pulse-heartbeat 1.5s ease-in-out infinite;
+                }
+
+                .flow-active-line.horizontal::before {
+                  content: "";
+                  position: absolute;
+                  inset: 0;
+                  background: linear-gradient(90deg, transparent, currentColor 85%, transparent);
+                  width: 100%;
+                  animation: pulse-trail-horizontal 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                }
+
+                .flow-active-line.horizontal::after {
+                  content: "";
+                  position: absolute;
+                  top: 50%;
+                  width: 4px;
+                  height: 4px;
+                  background: #fff;
+                  border-radius: 50%;
+                  box-shadow: 0 0 10px 2px #fff, 0 0 5px 1px currentColor;
+                  animation: pulse-dot-horizontal 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                  z-index: 2;
+                }
+
+                .flow-active-line.vertical::before {
+                  content: "";
+                  position: absolute;
+                  inset: 0;
+                  background: linear-gradient(180deg, transparent, currentColor 85%, transparent);
+                  height: 100%;
+                  width: 100%;
+                  animation: pulse-trail-vertical 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                }
+
+                .flow-active-line.vertical::after {
+                  content: "";
+                  position: absolute;
+                  left: 50%;
+                  width: 4px;
+                  height: 4px;
+                  background: #fff;
+                  border-radius: 50%;
+                  box-shadow: 0 0 10px 2px #fff, 0 0 5px 1px currentColor;
+                  animation: pulse-dot-vertical 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                  z-index: 2;
+                }
+
+
+
+                
+                .pipeline-node {
+                  background: linear-gradient(145deg, #101014, #000);
+                  border: 1px solid rgba(255,255,255,0.08);
+                  box-shadow: 2px 2px 5px rgba(0,0,0,0.8), inset 1px 1px 1px rgba(255,255,255,0.03);
+                  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .pipeline-node.active {
+                  box-shadow: 0 0 20px -5px currentColor, inset 0 0 10px -5px currentColor;
+                  border-color: currentColor;
+                  transform: scale(1.02) translateY(-1px);
+                }
+                .pipeline-node.completed {
+                  opacity: 0.7;
+                  border-color: rgba(255,255,255,0.2);
+                }
+                
+                .agent-monitor {
+                  position: relative;
+                  overflow: hidden;
+                  background: #000;
+                  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.9);
+                }
+                .agent-monitor::after {
+                  content: " ";
+                  display: block;
+                  position: absolute;
+                  top: 0; left: 0; bottom: 0; right: 0;
+                  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), 
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
+                  z-index: 2;
+                  background-size: 100% 3px, 3px 100%;
+                  pointer-events: none;
+                  opacity: 0.4;
+                }
+                .agent-monitor-glow-white { box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.04), 0 0 15px -8px rgba(255,255,255,0.2); }
+                .agent-monitor-glow-blue { box-shadow: inset 0 0 30px rgba(59, 130, 246, 0.06), 0 0 15px -8px rgba(59,130,246,0.3); }
+                .agent-monitor-glow-green { box-shadow: inset 0 0 30px rgba(34, 197, 94, 0.06), 0 0 15px -8px rgba(34,197,94,0.3); }
+                .agent-screen-depth { position: relative; z-index: 10; }
               `}</style>
 
               {/* LEFT - Command Islands */}
-              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-4 flex flex-col gap-6 overflow-hidden">
+              <div className="flex-1 min-h-0 min-w-0 w-1/2 p-0 flex flex-col gap-6 overflow-hidden">
 
                 {/* ISLAND 1 — ALPHA */}
                 {alpha && (
@@ -1271,7 +1398,7 @@ const AIOAgentsModule = () => {
                           <div
                             key={agentKey || agent.id || idx}
                             onClick={() => { setActiveAgent(agent); setSelectedAgent(agentKey || 'CHARLIE'); setSelectionMode('talk'); setActiveRun(null); setView('command'); }}
-                            className="group bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
+                            className="group bg-transparent border border-[var(--color-border)] hover:border-[var(--color-primary)]/50 rounded-[var(--radius-card)] p-0.5 cursor-pointer transition-all hover:shadow-[0_0_12px_rgba(147,51,234,0.1)] flex flex-col"
                           >
                             <div className="bg-[var(--color-bg-secondary)] rounded-t-lg px-2 py-1.5 border-b border-[var(--color-border)] group-hover:bg-[var(--color-hover)] transition-colors">
                               <div className="flex items-start justify-between">
@@ -1357,17 +1484,21 @@ const AIOAgentsModule = () => {
               <div className="flex-1 min-h-0 min-w-0 w-1/2 flex flex-col gap-6 overflow-hidden">
 
                 {/* TOP: COMMAND MONITORS */}
-                <div className="h-[42%] flex gap-4 overflow-hidden">
-
+                <div className="h-[42%] flex flex-col gap-2 overflow-hidden">
+                  <div className="relative z-10 flex items-center justify-between mb-1 shrink-0">
+                    <h3 className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] font-bold flex items-center gap-2">
+                      <Terminal size={10} className="text-blue-500" /> Command Monitors
+                    </h3>
+                  </div>
+                  <div className="flex-1 flex gap-4 overflow-hidden">
                   {/* USER MONITOR */}
-                  <div className="flex-1 flex flex-col bg-black rounded-[var(--radius-panel)] border border-white/10 overflow-hidden relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.08) 1px, rgba(255,255,255,0.08) 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-black/40 border-b border-white/10 p-2 flex items-center justify-center gap-2 text-white/80 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.4)] animate-pulse"></div>
-                      ADMIN
+                  <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-white rounded-[var(--radius-panel)] border border-white/20 overflow-hidden">
+                    <div className="agent-screen-depth bg-white/5 border-b border-white/10 p-2 flex items-center justify-center gap-2 text-white/90 font-mono text-[9px] uppercase tracking-[0.2em]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.6)] animate-pulse"></div>
+                      ADMIN COMMAND MONITOR
                     </div>
-                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-1">
-                      <div className="grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[8px] font-mono text-white/40 uppercase tracking-[0.22em] px-1 pb-1">
+                    <div className="agent-screen-depth flex-1 overflow-y-auto no-scrollbar p-2 space-y-1">
+                      <div className="grid grid-cols-[52px_1fr_1fr_1fr_58px] gap-2 text-[8px] font-mono text-white/50 uppercase tracking-[0.26em] px-1 pb-1">
                         <span>TIME</span>
                         <span>SOURCE</span>
                         <span>ACTION</span>
@@ -1390,13 +1521,13 @@ const AIOAgentsModule = () => {
                   </div>
 
                   {/* CHARLIE MONITOR */}
-                  <div className="flex-1 flex flex-col bg-black rounded-[var(--radius-panel)] border border-blue-500/50 overflow-hidden relative">
-                    <div className="relative z-10 bg-blue-950/40 border-b border-blue-500/20 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
-                      CHARLIE INTAKE
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                  <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-blue rounded-[var(--radius-panel)] border border-blue-500/40 overflow-hidden">
+                    <div className="agent-screen-depth bg-blue-950/40 border-b border-blue-500/30 p-2 flex items-center justify-center gap-2 text-blue-400 font-mono text-[9px] uppercase tracking-[0.2em]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                      CHARLIE INTAKE MONITOR
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse" style={{ animationDelay: '0.3s' }}></div>
                     </div>
-                    <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                    <div className="agent-screen-depth flex-1 p-2 space-y-2 overflow-y-auto">
                       {activeRun ? (
                         <>
                           <div className="border border-blue-500/20 bg-blue-900/10 p-2 rounded text-[8px] font-mono text-blue-300 uppercase tracking-widest">
@@ -1431,13 +1562,12 @@ const AIOAgentsModule = () => {
                   </div>
 
                   {/* ALPHA MONITOR */}
-                  <div className="flex-1 flex flex-col bg-black rounded-[var(--radius-panel)] border border-green-500/50 overflow-hidden relative">
-                    <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, #166534 1px, #166534 2px)', backgroundSize: '100% 2px' }}></div>
-                    <div className="relative z-10 bg-green-950/40 border-b border-green-500/20 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-widest">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
-                      ALPHA
+                  <div className="flex-1 flex flex-col agent-monitor agent-monitor-glow-green rounded-[var(--radius-panel)] border border-green-500/40 overflow-hidden">
+                    <div className="agent-screen-depth bg-green-950/40 border-b border-green-500/30 p-2 flex items-center justify-center gap-2 text-green-400 font-mono text-[9px] uppercase tracking-[0.2em]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)] animate-pulse" style={{ animationDelay: '0.7s' }}></div>
+                      ALPHA COMMAND MONITOR
                     </div>
-                    <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+                    <div className="agent-screen-depth flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
                       {activeRun ? (
                         <>
                           <div className="border border-green-500/20 bg-green-900/10 p-2 rounded text-[8px] font-mono text-green-300 uppercase tracking-widest">
@@ -1468,80 +1598,150 @@ const AIOAgentsModule = () => {
                       ) : (
                         <div className="text-[8px] font-mono text-green-500/40 p-2 text-center">No active execution</div>
                       )}
-                    </div>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* BOTTOM: SPECIALIST LIGHTBARS */}
+                {/* BOTTOM: EXECUTION STREAM */}
                 <div className="h-[58%] flex flex-col relative px-5 py-4 border border-white/10 rounded-[var(--radius-panel)] bg-black overflow-hidden">
-
                   <div className="relative z-10 flex items-center justify-between mb-4 shrink-0">
                     <h3 className="text-[9px] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)] font-bold flex items-center gap-2">
                       <Activity size={10} className="text-blue-500" /> Execution Stream
                     </h3>
                   </div>
+                <div className="relative z-10 flex-1 flex flex-col justify-center overflow-hidden">
+                  {activeRun ? (
+                    <div className="flex flex-col gap-6">
+                      {(() => {
+                        const PIPELINE = [
+                          { id: 'charlie_in', label: 'Intake', icon: Mail, color: 'text-amber-500', bg: 'rgba(245,158,11,0.1)' },
+                          { id: 'cortex_r', label: 'Cortex Read', icon: Database, color: 'text-slate-400', bg: 'rgba(148,163,184,0.1)', cortex: true },
+                          { id: 'alpha_orch', label: 'Alpha Dispatch', icon: Layers, color: 'text-blue-500', bg: 'rgba(59,130,246,0.1)' },
+                          { id: 'agent', label: activeRun.executingAgent || 'Specialist', icon: Bot, color: 'text-teal-400', bg: 'rgba(45,212,191,0.1)' },
+                          { id: 'alpha_qc', label: 'Alpha QC', icon: Shield, color: 'text-blue-500', bg: 'rgba(59,130,246,0.1)' },
+                          { id: 'cortex_w', label: 'Cortex Write', icon: Database, color: 'text-slate-400', bg: 'rgba(148,163,184,0.1)', cortex: true },
+                          { id: 'charlie_out', label: 'Charlie Response', icon: MessageSquare, color: 'text-amber-500', bg: 'rgba(245,158,11,0.1)' },
+                          { id: 'admin_final', label: 'Admin Finalized', icon: Terminal, color: 'text-white', bg: 'rgba(255,255,255,0.05)' },
+                        ];
 
-                  <div className="relative z-10 flex-1 flex flex-col justify-center overflow-hidden">
-                    {executionNodes.length > 0 ? (
-                      <div className="grid grid-cols-1 gap-3">
-                        <div className="flex flex-wrap items-center justify-center gap-3">
-                          {executionNodes.map((node, index) => {
-                            const tone =
-                              node.state === 'failed'
-                                ? 'border-red-500/40 bg-red-950/30 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.2)]'
-                                : node.state === 'active'
-                                  ? 'border-blue-400/50 bg-blue-950/30 text-blue-200 shadow-[0_0_22px_rgba(59,130,246,0.25)]'
-                                  : node.state === 'completed'
-                                    ? 'border-emerald-500/40 bg-emerald-950/25 text-emerald-200 shadow-[0_0_16px_rgba(16,185,129,0.18)]'
-                                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/60 text-[var(--color-text-secondary)]';
-                            const activeClass = node.state === 'active' ? 'node-active' : '';
-                            return (
-                              <React.Fragment key={node.id}>
-                                <div className={`min-w-[120px] px-4 py-4 rounded-[var(--radius-card)] border text-center ${tone} ${activeClass}`}>
-                                  <div className="text-[8px] uppercase tracking-[0.28em] font-black">{node.label}</div>
-                                  <div className="mt-2 text-[9px] font-mono uppercase tracking-widest">{node.state}</div>
-                                </div>
-                                {index < executionNodes.length - 1 ? (
-                                  <div className="text-[var(--color-text-tertiary)] text-lg font-black uppercase tracking-widest">→</div>
-                                ) : null}
-                              </React.Fragment>
-                            );
-                          })}
+                        const status = (activeRun.status || '').toLowerCase();
+                        const isComplete = ['completed', 'success'].includes(status);
+
+                        // Refined active stage mapping based on priority chain
+                        let activeIdx = 0;
+                        if (isComplete) {
+                          activeIdx = 8;
+                        } else if (activeRun.status === 'finalizing') {
+                          activeIdx = 7;
+                        } else if (activeRun.status === 'writing') {
+                          activeIdx = 6;
+                        } else if (activeRun.status === 'qc' || (activeRun.status === 'running' && activeRun.executingAgent && activeRun.steps?.some(s => s.type === 'qc'))) {
+                          activeIdx = 4;
+                        } else if (activeRun.executingAgent) {
+                          activeIdx = 3;
+                        } else if (activeRun.dispatcherAgent) {
+                          activeIdx = 2;
+                        } else if (activeRun.status === 'reading' || activeRun.status === 'routing') {
+                          activeIdx = 1;
+                        }
+
+                         return (
+                          <div className="flex flex-col gap-0 w-full max-w-xl mx-auto py-1 px-4 overflow-hidden flex-1 active-pipeline-container">
+                            {PIPELINE.map((node, idx) => {
+                              const isActive = idx === activeIdx;
+                              const isCompleted = idx < activeIdx;
+                              const stateClass = isActive ? 'active' : isCompleted ? 'completed' : 'idle';
+                              const Icon = node.icon || Box;
+                              const isRight = idx % 2 !== 0;
+
+                              return (
+                                <React.Fragment key={node.id}>
+                                  {/* NODE ROW */}
+                                  <div className={`flex w-full ${isRight ? 'justify-end' : 'justify-start'}`}>
+                                    <div
+                                      className={`
+                                        pipeline-node px-3 py-1.5 rounded-full flex items-center gap-2 min-w-[130px] shadow-md transition-all duration-300
+                                        ${stateClass} ${node.color} scale-[0.85] origin-center
+                                      `}
+                                    >
+                                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${node.bg} border border-white/5`}>
+                                        <Icon size={10} className={node.color} />
+                                      </div>
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="text-[8px] font-black uppercase tracking-widest leading-none mb-0.5 truncate">{node.label}</span>
+                                        <span className="text-[6px] font-mono opacity-40 uppercase tracking-tighter truncate">{idx === 3 ? (activeRun.executingAgent || 'SPEC') : node.id.split('_')[0]}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* TIGHT STEPPED CONNECTOR */}
+                                  {idx < PIPELINE.length - 1 && (
+                                    <div className={`relative w-full h-4 ${isActive || isCompleted ? 'opacity-100' : 'opacity-10'}`}>
+                                      {/* Vertical drop from current node */}
+                                      <div 
+                                        className={`absolute w-[1px] h-1/2 ${isRight ? 'right-16' : 'left-16'} ${isActive || isCompleted ? 'bg-white/30' : 'bg-white/5'} ${isActive ? 'flow-active-line vertical' : ''}`}
+                                        style={{ top: '0', color: isActive ? 'white' : 'currentColor' }}
+                                      ></div>
+                                      
+                                      {/* Horizontal bridge - dynamic span */}
+                                      <div 
+                                        className={`absolute h-[1px] top-1/2 ${isActive || isCompleted ? 'bg-white/30' : 'bg-white/5'} ${isActive ? 'flow-active-line horizontal' : ''}`}
+                                        style={{ 
+                                          left: '64px', 
+                                          right: '64px',
+                                          color: isActive ? 'white' : 'currentColor' 
+                                        }}
+                                      ></div>
+                                      
+                                      {/* Vertical entry to next node */}
+                                      <div 
+                                        className={`absolute w-[1px] h-1/2 ${isRight ? 'left-16' : 'right-16'} ${isActive || isCompleted ? 'bg-white/30' : 'bg-white/5'} ${isActive ? 'flow-active-line vertical' : ''}`}
+                                        style={{ bottom: '0', color: isActive ? 'white' : 'currentColor' }}
+                                      ></div>
+                                    </div>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+
+
+
+                      <div className="grid grid-cols-4 gap-2 text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-secondary)]">
+                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
+                          Source: {selectedRoute?.source || 'OPERATOR'}
                         </div>
-                        <div className="grid grid-cols-4 gap-2 text-[9px] font-mono uppercase tracking-widest text-[var(--color-text-secondary)]">
-                          <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
-                            Source: {selectedRoute?.source || 'OPERATOR'}
-                          </div>
-                          <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
-                            Intake: {activeRun?.intakeAgent || 'CHARLIE'}
-                          </div>
-                          <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
-                            Dispatch: {activeRun?.dispatcherAgent || 'ALPHA'}
-                          </div>
-                          <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-[var(--color-bg-primary)]/50">
-                            Result: {formatStatus(activeRun?.status || 'idle')}
-                          </div>
+                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
+                          Intake: {activeRun?.intakeAgent || 'CHARLIE'}
+                        </div>
+                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
+                          Dispatch: {activeRun?.dispatcherAgent || 'ALPHA'}
+                        </div>
+                        <div className="border border-[var(--color-border)] rounded px-3 py-2 bg-black/40 text-center">
+                          Result: {formatStatus(activeRun?.status || 'idle')}
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-[9px] uppercase tracking-[0.3em] text-[var(--color-text-tertiary)] font-bold">
-                        No active routes
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-[10px] uppercase tracking-[0.4em] text-[var(--color-text-tertiary)] font-black opacity-30">
+                      Awaiting Canonical Intent Stream
+                    </div>
+                  )}
                 </div>
-
               </div>
             </div>
+          </div>
           );
         })()}
-
         {/* COMMAND VIEW (Session) */}
         {view === 'command' && (
-          <div className="flex-1 min-h-0 flex gap-[6px] p-[6px] overflow-hidden bg-black">
+          <div className="flex-1 min-h-0 flex gap-[6px] px-0 pb-[6px] pt-0 overflow-hidden bg-black">
             {/* Left: Command Context */}
             <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col relative`}>
-              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
+              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-black`}>
                 <h3 className="text-2xl font-bold text-white uppercase tracking-tight flex items-baseline gap-3">
                   {activeAgentDisplayName || mainAgentName}
                   {mainAgentId && (
@@ -1751,8 +1951,8 @@ const AIOAgentsModule = () => {
                           ) : null}
                         </div>
                         <div className={`py-1 text-[11px] font-mono leading-relaxed tracking-wider ${msg.role === 'user'
-                            ? 'text-emerald-400'
-                            : getAgentColor(preferredRank).icon.split(' ')[0] || 'text-[var(--color-text-primary)]'
+                          ? 'text-emerald-400'
+                          : getAgentColor(preferredRank).icon.split(' ')[0] || 'text-[var(--color-text-primary)]'
                           }`}>
                           <div className="break-words">
                             {msg.role === 'assistant' ? (
@@ -1847,8 +2047,8 @@ const AIOAgentsModule = () => {
                             type="button"
                             onClick={() => setSelectionMode('talk')}
                             className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'talk'
-                                ? 'bg-blue-500/20 text-blue-200'
-                                : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                              ? 'bg-blue-500/20 text-blue-200'
+                              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                               }`}
                           >
                             Talk
@@ -1857,8 +2057,8 @@ const AIOAgentsModule = () => {
                             type="button"
                             onClick={() => setSelectionMode('collab')}
                             className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'collab'
-                                ? 'bg-amber-500/20 text-amber-200'
-                                : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                              ? 'bg-amber-500/20 text-amber-200'
+                              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                               }`}
                           >
                             Collab
@@ -1929,10 +2129,10 @@ const AIOAgentsModule = () => {
                             disabled={isRunPending}
                             onClick={() => handleToggleSelectedAgent(agentKey)}
                             className={`rounded-[var(--radius-card)] border px-2 py-2 text-[9px] font-black uppercase tracking-[0.18em] transition-colors ${isTalkSelected
-                                ? `${getAgentColor(agentKey).border} ${getAgentColor(agentKey).bg} ${getAgentColor(agentKey).icon.split(' ')[0]}`
-                                : isCollabSelected
-                                  ? 'border-amber-500/50 bg-amber-500/20 text-amber-100'
-                                  : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                              ? `${getAgentColor(agentKey).border} ${getAgentColor(agentKey).bg} ${getAgentColor(agentKey).icon.split(' ')[0]}`
+                              : isCollabSelected
+                                ? 'border-amber-500/50 bg-amber-500/20 text-amber-100'
+                                : 'border-[var(--color-border)] bg-[var(--color-bg-primary)]/70 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                               } ${isRunPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                           >
                             {resolveAgentName(agentKey)}
@@ -1945,7 +2145,7 @@ const AIOAgentsModule = () => {
               </div>
             </div>
             <div className={`w-80 min-h-0 shrink-0 border ${getAgentColor(activeBotKey).border} rounded-[var(--radius-panel)] overflow-hidden bg-black flex flex-col`}>
-              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-[#050505]`}>
+              <div className={`p-4 border-b ${getAgentColor(activeBotKey).border} bg-black`}>
                 <h4 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Run Core</h4>
               </div>
               <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">

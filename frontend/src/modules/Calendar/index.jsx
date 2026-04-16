@@ -513,9 +513,9 @@ const CalendarModule = ({ clientMode = false }) => {
     if (view === 'month') {
       const days = getDaysInMonth(currentDate);
       return (
-        <div className="grid grid-cols-7 gap-px bg-white/5 border border-white/5 rounded-[var(--radius-panel)] overflow-hidden">
+        <div className="grid grid-cols-7 gap-px rounded-xl overflow-hidden border border-[#1E2024] bg-[#1E2024]">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="bg-black p-2 text-center text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+            <div key={day} className="bg-[#0A0A0C] py-2 text-center text-[8px] text-slate-500 font-black uppercase tracking-[0.2em]">
               {day}
             </div>
           ))}
@@ -526,9 +526,9 @@ const CalendarModule = ({ clientMode = false }) => {
               <div
                 key={i}
                 onClick={() => setCurrentDate(day.fullDate)}
-                className={`calendar-cell min-h-[100px] p-2 transition bg-black relative ${!day.isCurrentMonth ? 'opacity-20' : ''}`}
+                className={`calendar-cell min-h-[110px] p-2 transition bg-[#0A0A0C] relative hover:bg-[#111318] cursor-pointer ${!day.isCurrentMonth ? 'opacity-25' : ''}`}
               >
-                <div className={`text-xs mb-1 ${isToday ? 'bg-[var(--color-primary)] text-white w-6 h-6 rounded-full flex items-center justify-center font-bold' : 'text-zinc-500'}`}>
+                <div className={`text-[10px] font-bold mb-1.5 ${isToday ? 'text-cyan-400' : 'text-slate-600'}`}>
                   {day.date}
                 </div>
                 <div className="space-y-1">
@@ -538,8 +538,8 @@ const CalendarModule = ({ clientMode = false }) => {
                       <div
                         key={evt.id}
                         onClick={() => handleEditEvent(evt)}
-                        className="text-[10px] p-1 rounded cursor-pointer hover:opacity-80 truncate"
-                        style={{ backgroundColor: cal?.color + '20', borderLeft: `2px solid ${cal?.color}`, color: 'white' }}
+                        className="text-[9px] font-bold px-1.5 py-1 rounded-sm cursor-pointer hover:brightness-125 transition truncate border-l-2"
+                        style={{ backgroundColor: cal?.color + '15', borderLeftColor: cal?.color, color: cal?.color }}
                       >
                         {evt.title}
                       </div>
@@ -568,14 +568,14 @@ const CalendarModule = ({ clientMode = false }) => {
         <div className="overflow-x-auto no-scrollbar">
           <div className="min-w-[800px]">
             {/* Week header */}
-            <div className="grid grid-cols-8 gap-px bg-white/5 border border-white/5 rounded-t-[var(--radius-panel)] overflow-hidden">
-              <div className="bg-black p-2"></div>
+            <div className="grid grid-cols-8 gap-px border border-[#1E2024] bg-[#1E2024] rounded-t-xl overflow-hidden">
+              <div className="bg-[#0A0A0C] p-2"></div>
               {weekDays.map((day, i) => {
                 const isToday = day.toDateString() === new Date().toDateString();
                 return (
-                  <div key={i} className={`bg-black p-2 text-center ${isToday ? 'bg-[var(--color-primary)]/10' : ''}`}>
-                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                    <div className={`text-sm font-bold ${isToday ? 'text-[var(--color-accent)]' : 'text-zinc-200'}`}>
+                  <div key={i} className={`bg-[#0A0A0C] p-2 text-center ${isToday ? 'bg-cyan-500/5' : ''}`}>
+                    <div className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em]">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    <div className={`text-xs font-black ${isToday ? 'text-cyan-400' : 'text-slate-200'}`}>
                       {day.getDate()}
                     </div>
                   </div>
@@ -584,10 +584,10 @@ const CalendarModule = ({ clientMode = false }) => {
             </div>
 
             {/* Time slots */}
-            <div className="border border-t-0 border-white/5 rounded-b-[var(--radius-panel)] overflow-hidden">
+            <div className="border border-t-0 border-[#1E2024] bg-[#1E2024] rounded-b-xl overflow-hidden">
               {hours.map(hour => (
-                <div key={hour} className="grid grid-cols-8 gap-px bg-white/5">
-                  <div className="bg-black p-2 text-[10px] text-zinc-500 font-bold text-right pr-3">
+                <div key={hour} className="grid grid-cols-8 gap-px bg-[#1E2024]">
+                  <div className="bg-[#0A0A0C] p-2 text-[8px] text-slate-600 font-black text-right pr-3 uppercase">
                     {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
                   </div>
                   {weekDays.map((day, i) => {
@@ -596,7 +596,7 @@ const CalendarModule = ({ clientMode = false }) => {
                       return evtHour === hour;
                     });
                     return (
-                      <div key={i} className="calendar-cell min-h-[50px] p-1 transition bg-black relative">
+                      <div key={i} className="calendar-cell min-h-[50px] p-1 transition bg-[#0A0A0C] relative hover:bg-[#111318]">
                         {dayEvents.map(evt => {
                           const cal = calendars.find(c => c.id === evt.calendarId);
                           return (
@@ -627,16 +627,16 @@ const CalendarModule = ({ clientMode = false }) => {
 
       return (
         <div className="overflow-hidden">
-          <div className="p-4 text-center">
-            <div className="text-sm text-[var(--color-text-tertiary)]">
+          <div className="p-3 text-center bg-[#0A0A0C] border-b border-[#1E2024]">
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
               {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
             </div>
-            <div className="text-2xl font-bold text-[var(--color-text-primary)]">
+            <div className="text-lg font-black text-white uppercase tracking-tighter">
               {currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </div>
           </div>
 
-          <div>
+          <div className="bg-[#0A0A0C]">
             {hours.map(hour => {
               const hourEvents = dayEvents.filter(evt => {
                 const evtHour = new Date(evt.startTime).getHours();
@@ -644,9 +644,9 @@ const CalendarModule = ({ clientMode = false }) => {
               });
 
               return (
-                <div key={hour} className="flex border-b border-[var(--color-border)] calendar-cell-hover transition">
-                  <div className="w-24 p-3 text-xs text-[var(--color-text-tertiary)] text-right border-r border-[var(--color-border)]">
-                    {hour === 0 ? '12:00 AM' : hour < 12 ? `${hour}:00 AM` : hour === 12 ? '12:00 PM' : `${hour - 12}:00 PM`}
+                <div key={hour} className="flex border-b border-[#1E2024] hover:bg-[#111318] transition group">
+                  <div className="w-20 p-3 text-[9px] text-slate-600 font-black text-right border-r border-[#1E2024] uppercase">
+                    {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
                   </div>
                   <div className="flex-1 p-2 min-h-[80px]">
                     {hourEvents.map(evt => {
@@ -697,17 +697,17 @@ const CalendarModule = ({ clientMode = false }) => {
   const renderContent = () => {
     if (activeTab === 'calendar') {
       return (
-        <div className="flex h-full min-h-0 gap-4 p-4 bg-black overflow-hidden">
+        <div className="flex h-full min-h-0 gap-2 px-2 pb-2 overflow-hidden relative">
           {/* Column 1: Source Control Islands */}
           {!clientMode ? (
-            <aside className="hidden lg:flex w-72 shrink-0 flex-col gap-4">
-              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">Active Source</div>
-                <div className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">{selectedCalendarSource?.name || 'No source selected'}</div>
+            <aside className="hidden lg:flex w-72 shrink-0 flex-col gap-2">
+              <div className="rounded-xl border border-[#1E2024] bg-[#0A0A0C] p-3 shadow-2xl">
+                <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5">ACTIVE SOURCE</div>
+                <div className="text-[11px] font-bold text-white mb-2 truncate opacity-90">{selectedCalendarSource?.name || 'No source selected'}</div>
                 <select
                   value={selectedCalendarSourceId || ''}
                   onChange={(e) => setSelectedCalendarSourceId(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  className="w-full rounded bg-black/40 border border-[#2A2D35] px-2.5 py-1.5 text-[11px] text-white focus:border-cyan-500/40 focus:outline-none transition"
                 >
                   {calendarSources.map((source) => (
                     <option key={source.id} value={source.id}>{source.name}</option>
@@ -715,19 +715,19 @@ const CalendarModule = ({ clientMode = false }) => {
                 </select>
               </div>
 
-              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
-                <div className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-[0.2em] mb-3">Visible Layers</div>
-                <div className="space-y-3">
+              <div className="rounded-xl border border-[#1E2024] bg-[#0A0A0C] p-3 shadow-2xl">
+                <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2.5">VISIBLE LAYERS</div>
+                <div className="space-y-2">
                   {calendars.map(cal => (
-                    <label key={cal.id} className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)] cursor-pointer hover:text-white transition-colors">
+                    <label key={cal.id} className="flex items-center gap-2.5 text-[11px] text-slate-400 cursor-pointer hover:text-white transition-colors">
                       <input
                         type="checkbox"
                         checked={cal.isVisible}
                         onChange={() => toggleCalendar(cal.id)}
-                        className="rounded bg-black border-white/10"
+                        className="w-3.5 h-3.5 rounded bg-black border-[#2A2D35]"
                         style={{ accentColor: cal.color }}
                       />
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cal.color }}></div>
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cal.color }}></div>
                       <span className="truncate">{cal.name}</span>
                     </label>
                   ))}
@@ -737,25 +737,25 @@ const CalendarModule = ({ clientMode = false }) => {
           ) : null}
 
           {/* Island 2: Main Calendar (Scale 90) */}
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-[var(--radius-panel)] bg-black border border-white/10 overflow-hidden shadow-2xl">
-            <div className="px-4 py-3 bg-black">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl bg-[#08080A] border border-[#1E2024] overflow-hidden shadow-2xl">
+            <div className="px-3 py-1.5 border-b border-white/5 bg-[#0A0A0C]">
+              <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-sm font-black tracking-widest text-slate-200 uppercase">
                     {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                   </h2>
-                  <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
-                    <button onClick={() => navigateMonth(-1)} className="p-1.5 hover:bg-white/5 rounded-md transition text-zinc-400 hover:text-white"><ChevronLeft size={16} /></button>
-                    <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-[10px] uppercase font-bold tracking-widest text-zinc-400 hover:text-white">Today</button>
-                    <button onClick={() => navigateMonth(1)} className="p-1.5 hover:bg-white/5 rounded-md transition text-zinc-400 hover:text-white"><ChevronRight size={16} /></button>
+                  <div className="flex items-center gap-0.5 bg-black/40 p-0.5 rounded border border-white/5">
+                    <button onClick={() => navigateMonth(-1)} className="p-1 hover:bg-white/5 rounded transition text-zinc-500 hover:text-white"><ChevronLeft size={14} /></button>
+                    <button onClick={() => setCurrentDate(new Date())} className="px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition">Today</button>
+                    <button onClick={() => navigateMonth(1)} className="p-1 hover:bg-white/5 rounded transition text-zinc-500 hover:text-white"><ChevronRight size={14} /></button>
                   </div>
                 </div>
-                <div className="flex gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
+                <div className="flex gap-0.5 bg-black/40 p-0.5 rounded border border-white/5">
                   {['day', 'week', 'month'].map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setView(mode)}
-                      className={`px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded-md transition-all ${view === mode ? 'bg-[var(--color-primary)] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded transition-all ${view === mode ? 'bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30' : 'text-zinc-600 hover:text-zinc-300'}`}
                     >
                       {mode}
                     </button>
@@ -773,45 +773,48 @@ const CalendarModule = ({ clientMode = false }) => {
 
           {/* Column 3: Independent Floating Islands */}
           {(!clientMode || selectedDayEvents.length > 0 || upcomingBookings.length > 0) ? (
-            <aside className="hidden xl:flex w-80 shrink-0 flex-col gap-4">
-              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-3">Agenda Detail</div>
-                <div className="text-sm font-bold text-white mb-4">
+            <aside className="hidden xl:flex w-80 shrink-0 flex-col gap-2">
+              <div className="rounded-xl border border-[#1E2024] bg-[#0A0A0C] p-3 shadow-2xl">
+                <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">AGENDA MONITOR</div>
+                <div className="text-[10px] font-black text-white/40 mb-2 tracking-widest uppercase">
                   {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {selectedDayEvents.length > 0 ? selectedDayEvents.map((evt) => (
                     <button
                       key={evt.id}
                       onClick={() => handleEditEvent(evt)}
-                      className="w-full rounded-xl border border-white/5 bg-black/20 p-3 text-left hover:border-zinc-500 transition-all group"
+                      className="w-full rounded border border-white/5 bg-black/40 p-2.5 text-left hover:border-cyan-500/40 transition-all group"
                     >
-                      <div className="text-sm font-medium text-zinc-200 group-hover:text-white">{evt.title}</div>
-                      <div className="mt-1 text-[10px] text-zinc-500 font-mono">
+                      <div className="text-[11px] font-bold text-slate-300 group-hover:text-white transition-colors">{evt.title}</div>
+                      <div className="mt-0.5 text-[9px] text-slate-600 font-mono tracking-tighter">
                         {new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                       </div>
                     </button>
                   )) : (
-                    <div className="text-xs text-zinc-500 italic py-2">No bookings.</div>
+                    <div className="text-[10px] text-slate-600 italic py-2 tracking-tight">System state: NO_EVENTS_FOUND</div>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-[var(--radius-panel)] border border-white/10 bg-[var(--color-bg-primary)] p-4 shadow-xl">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-3">Upcoming</div>
-                <div className="space-y-2">
-                  {upcomingBookings.slice(0, 3).map((evt) => (
+              <div className="rounded-xl border border-[#1E2024] bg-[#0A0A0C] p-3 shadow-2xl">
+                <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2.5">UPCOMING QUEUE</div>
+                <div className="space-y-1.5">
+                  {upcomingBookings.length > 0 ? upcomingBookings.map((evt) => (
                     <button
                       key={evt.id}
-                      onClick={() => { setCurrentDate(new Date(evt.startTime)); handleEditEvent(evt); }}
-                      className="w-full rounded-xl border border-white/5 bg-black/10 p-3 text-left hover:bg-white/5 transition-colors"
+                      onClick={() => handleEditEvent(evt)}
+                      className="w-full rounded border border-white/5 bg-black/40 p-2.5 text-left hover:border-cyan-500/40 transition-all group"
                     >
-                      <div className="text-sm font-medium text-zinc-300">{evt.title}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1">
-                        {new Date(evt.startTime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      <div className="text-[11px] font-bold text-slate-300 group-hover:text-white transition-colors">{evt.title}</div>
+                      <div className="mt-0.5 text-[9px] text-slate-600 font-mono flex items-center justify-between">
+                        <span>{new Date(evt.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        <span>{new Date(evt.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
                       </div>
                     </button>
-                  ))}
+                  )) : (
+                    <div className="text-[10px] text-slate-600 italic py-2 tracking-tight">System state: QUEUE_EMPTY</div>
+                  )}
                 </div>
               </div>
             </aside>
@@ -1253,11 +1256,10 @@ const CalendarModule = ({ clientMode = false }) => {
   };
 
   return (
-    <div className="flex h-full flex-col bg-black overflow-hidden relative">
+    <div className="module-root-standard">
       <ModuleHeader
         showTitle={false}
         showActions={true}
-        className="mx-2 mt-2"
         leftActions={[
           ...visibleTabs.map(tab => ({
             label: tab.charAt(0).toUpperCase() + tab.slice(1),
@@ -1312,7 +1314,7 @@ const CalendarModule = ({ clientMode = false }) => {
         onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'calendar', activeTab } })}
       />
 
-      <div className="flex-1 min-h-0 bg-black relative px-2 pb-2 pt-3">
+      <div className="module-content-stage relative overflow-hidden px-2 pb-2">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-[var(--color-text-secondary)]">Loading...</div>

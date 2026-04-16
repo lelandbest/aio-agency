@@ -1288,7 +1288,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
             </div>
           </div>
         </div>
-        <div className="module-content-stage bg-[#050505] p-2 relative flex gap-2">
+        <div className="module-content-stage px-2 pb-2 relative flex gap-2">
           <div ref={layoutRef} className="h-full min-h-0 grid flex-1 gap-2" style={workspaceLayoutStyle}>
             <aside style={hiddenScrollbarStyle} className={`comms-scroll-hidden min-w-0 bg-[#111318] border border-[#1E2024] rounded-xl shadow-2xl flex flex-col min-h-0 overflow-y-auto ${isThreeColumnComms ? 'col-start-1 row-start-1' : isDesktopComms ? 'col-start-1 row-start-1 row-span-2' : ''}`}>
               <div className={`${isCompactComms ? 'p-2.5' : 'p-3'} border-b border-[var(--color-border)] space-y-2.5 ${COMMS_SECTION_BG}`}>

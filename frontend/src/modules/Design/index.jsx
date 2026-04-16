@@ -120,11 +120,11 @@ const DesignModule = () => {
   }
 
   return (
-    <div className="module-root-standard bg-[#050505] flex flex-col h-full w-full overflow-hidden">
+    <div className="module-root-standard">
       <ModuleHeader
         title="Design Surface"
         showTitle={false}
-        className="mx-2 mt-2"
+        className=""
         leftActions={[
           {
             label: 'New',
@@ -150,7 +150,7 @@ const DesignModule = () => {
         onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'design' } })}
       />
 
-      <div className="module-surface-shell flex-1 mx-2 mb-2 relative overflow-hidden">
+      <div className="module-content-stage">
         <Excalidraw
           ref={excalidrawRef}
           initialData={initialData}

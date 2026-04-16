@@ -478,8 +478,8 @@ const PipelineModule = () => {
         </div>
       </div>
 
-      <div className="module-content-stage module-surface-shell p-1.5">
-        <div className="h-full flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-4">
+      <div className="module-content-stage px-2 pb-2">
+        <div className="h-full flex-1 overflow-y-auto overflow-x-hidden">
           {loading ? (
             <div className={shellPanelClass + ' flex h-full items-center justify-center text-[var(--color-text-secondary)]'}>
               Loading pipeline...

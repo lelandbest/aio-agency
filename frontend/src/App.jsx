@@ -892,7 +892,7 @@ const App = () => {
                               />
                             )}
 
-                            <div className="flex-1 min-h-0 overflow-hidden bg-[var(--color-bg-primary)] p-2">
+                            <div className="flex-1 min-h-0 overflow-hidden bg-black p-2">
                               <Suspense key={effectiveActiveModule} fallback={
                                 <div className="h-full flex items-center justify-center">
                                   <LoadingSpinner size="lg" message="Loading module..." />

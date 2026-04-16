@@ -4096,7 +4096,7 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
   };
 
   return (
-    <div className="module-root-standard relative bg-[var(--color-bg-primary)]">
+    <div className="module-root-standard">
       <ModuleHeader
         title="Settings"
         showTitle={false}
@@ -4119,8 +4119,8 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
         onModuleAi={() => toggleAIAssist?.({ mode: 'help', context: { module: 'settings', category: selection.categoryId, item: selection.itemId } })}
       />
 
-      <div className="module-content-stage module-surface-shell p-2">
-        <div className="h-full flex-1 overflow-y-auto p-2">
+      <div className="module-content-stage px-2 pb-2">
+        <div className="h-full flex-1 overflow-y-auto">
           <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
             <div className="min-h-0 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
               <div className="flex h-full min-h-0 flex-col">

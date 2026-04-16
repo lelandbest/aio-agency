@@ -16,6 +16,7 @@ import {
   CheckCircle,
   Anvil,
   Camera,
+  Download,
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useNotice } from '../../contexts/NoticeContext';
@@ -178,6 +179,14 @@ const Forge = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+
+  const [expandedAnalysis, setExpandedAnalysis] = useState({
+    executiveSummary: false,
+    keyDecisions: false,
+    actionItems: false,
+    discussionHighlights: false,
+    notesAndObservations: false,
+  });
 
   // --- Load vault + cortex rail data ---
   const loadForgeContext = useCallback(async () => {
@@ -679,13 +688,49 @@ const Forge = () => {
   // ─── RENDER ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="module-root-standard bg-[#070708] text-slate-300 select-none font-sans">
+    <div className="module-root-standard text-slate-300 select-none font-sans">
       <ModuleHeader
         showTitle={false}
         leftActions={[
           { label: 'UPLINK REFRESH', icon: RefreshCw, onClick: loadForgeContext, variant: 'secondary' },
         ]}
-        /* onModuleAi={handleModuleAiAssist} */
+        toolbarRightSlot={
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">STATUS:</span>
+              <span className={`text-[9px] font-mono ${forgeState.status === 'Pushed' ? 'text-cyan-500' : 'text-amber-500/80'}`}>{forgeState.status}</span>
+            </div>
+            
+            {/* EXPORT DROPDOWN (TOOLBAR) */}
+            <div className="relative">
+              <button
+                onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+                className="h-8 px-3 rounded border border-white/5 bg-white/5 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
+              >
+                <Download size={12} /> EXPORT <span className="text-[8px] opacity-40">▼</span>
+              </button>
+              {exportDropdownOpen && (
+                <div className="absolute top-full right-0 mt-2 z-[200] w-48 bg-[#111318] border border-[#2A2D35] rounded-xl shadow-2xl overflow-hidden ring-1 ring-white/5">
+                  {[
+                    { label: '.HTML DOCUMENT', action: handleExportHtml },
+                    { label: '.MD DOCUMENT', action: handleExportMd },
+                    { label: '.JSON DOCUMENT', action: handleExportJson },
+                    { label: '.TXT DOCUMENT', action: handleExportTxt },
+                  ].map(({ label, action }) => (
+                    <button
+                      key={label}
+                      onClick={() => { setExportDropdownOpen(false); action(); }}
+                      className="w-full text-left px-4 py-2.5 text-[9px] font-bold text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 border-b border-white/5 last:border-0 transition-colors uppercase tracking-[0.15em]"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        }
+        onModuleAi={handleModuleAiAssist}
       />
 
       <div className="module-content-stage flex gap-1.5 px-1.5 pb-1.5">
@@ -754,12 +799,20 @@ const Forge = () => {
           )}
 
           {/* Editor status bar */}
-          <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded border border-white/5 mx-2 mt-2 mb-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
-            <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
-              {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
-            </span>
-            {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
+          <div className="flex items-center justify-between bg-black/40 px-3 py-1 rounded border border-white/5 mx-2 mt-2 mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">
+                {activeAsset ? `ASSEMBLY // ${(activeAsset.title || '').slice(0, 28)}` : 'FORGE CORE // LIVE EDITOR'}
+              </span>
+              {isDirty && <span className="text-[7px] font-mono text-amber-500/60 uppercase">• UNSAVED</span>}
+            </div>
+            <button
+              onClick={() => setIsEditorFullscreen(!isEditorFullscreen)}
+              className="text-[7px] font-black text-slate-600 hover:text-cyan-400 uppercase tracking-widest transition"
+            >
+              {isEditorFullscreen ? 'COLLAPSE' : 'EXPAND EDITOR'}
+            </button>
           </div>
 
           {/* Editor - static height, no flex shrinking/growing */}
@@ -814,14 +867,14 @@ const Forge = () => {
 
         {/* RIGHT RAIL — BRAIN / METADATA */}
         <div className="w-[350px] flex-shrink-0 flex flex-col bg-[#0A0A0C] border border-[#1E2024] rounded-xl overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar">
+          <div className="flex-1 overflow-y-auto p-2.5 space-y-2 no-scrollbar">
 
             {/* METADATA */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center gap-2 border-b border-white/5 pb-2">
                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">PROP // METADATA</span>
               </div>
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 <div>
                   <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">DOCUMENT TITLE</label>
                   <input
@@ -895,66 +948,115 @@ const Forge = () => {
             </div>
 
             {/* ANALYSIS */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
                 <span className="text-[9px] font-black text-cyan-500 uppercase tracking-widest">PROP // ANALYSIS</span>
-                <button
-                  onClick={() => setIsEditorFullscreen(!isEditorFullscreen)}
-                  className="text-[7px] font-black text-slate-600 hover:text-cyan-400 uppercase tracking-widest transition"
-                >
-                  {isEditorFullscreen ? 'COLLAPSE' : 'EXPAND EDITOR'}
-                </button>
               </div>
 
-              <div className="space-y-2.5">
-                <div>
-                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">EXECUTIVE SUMMARY</label>
-                  <textarea
-                    value={forgeState.executiveSummary}
-                    onChange={e => setForgeState(s => ({ ...s, executiveSummary: e.target.value, status: 'Draft' }))}
-                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[11px] leading-relaxed text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[80px]"
-                    placeholder="Synthesized brief..."
-                  />
+              <div className="space-y-2">
+                {/* EXECUTIVE SUMMARY */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setExpandedAnalysis(s => ({ ...s, executiveSummary: !s.executiveSummary }))}
+                    className="w-full rounded bg-black/40 border border-[#2A2D35] px-3 py-2 flex items-center justify-between hover:bg-black/60 transition"
+                  >
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">EXECUTIVE SUMMARY</span>
+                    <span className="text-[10px] text-slate-600">{expandedAnalysis.executiveSummary ? '▾' : '▸'}</span>
+                  </button>
+                  {expandedAnalysis.executiveSummary && (
+                    <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <textarea
+                        value={forgeState.executiveSummary}
+                        onChange={e => setForgeState(s => ({ ...s, executiveSummary: e.target.value, status: 'Draft' }))}
+                        className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[11px] leading-relaxed text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[80px]"
+                        placeholder="Synthesized brief..."
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">KEY DECISIONS</label>
-                  <textarea
-                    value={forgeState.keyDecisions.join('\n')}
-                    onChange={e => setForgeState(s => ({ ...s, keyDecisions: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
-                    placeholder="One per line..."
-                  />
+                {/* KEY DECISIONS */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setExpandedAnalysis(s => ({ ...s, keyDecisions: !s.keyDecisions }))}
+                    className="w-full rounded bg-black/40 border border-[#2A2D35] px-3 py-2 flex items-center justify-between hover:bg-black/60 transition"
+                  >
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">KEY DECISIONS</span>
+                    <span className="text-[10px] text-slate-600">{expandedAnalysis.keyDecisions ? '▾' : '▸'}</span>
+                  </button>
+                  {expandedAnalysis.keyDecisions && (
+                    <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <textarea
+                        value={forgeState.keyDecisions.join('\n')}
+                        onChange={e => setForgeState(s => ({ ...s, keyDecisions: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                        className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                        placeholder="One per line..."
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">ACTION ITEMS</label>
-                  <textarea
-                    value={forgeState.actionItems.join('\n')}
-                    onChange={e => setForgeState(s => ({ ...s, actionItems: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
-                    placeholder="One per line..."
-                  />
+                {/* ACTION ITEMS */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setExpandedAnalysis(s => ({ ...s, actionItems: !s.actionItems }))}
+                    className="w-full rounded bg-black/40 border border-[#2A2D35] px-3 py-2 flex items-center justify-between hover:bg-black/60 transition"
+                  >
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">ACTION ITEMS</span>
+                    <span className="text-[10px] text-slate-600">{expandedAnalysis.actionItems ? '▾' : '▸'}</span>
+                  </button>
+                  {expandedAnalysis.actionItems && (
+                    <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <textarea
+                        value={forgeState.actionItems.join('\n')}
+                        onChange={e => setForgeState(s => ({ ...s, actionItems: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                        className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                        placeholder="One per line..."
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">DISCUSSION HIGHLIGHTS</label>
-                  <textarea
-                    value={forgeState.discussionHighlights.join('\n')}
-                    onChange={e => setForgeState(s => ({ ...s, discussionHighlights: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
-                    placeholder="Key takeaways..."
-                  />
+                {/* DISCUSSION HIGHLIGHTS */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setExpandedAnalysis(s => ({ ...s, discussionHighlights: !s.discussionHighlights }))}
+                    className="w-full rounded bg-black/40 border border-[#2A2D35] px-3 py-2 flex items-center justify-between hover:bg-black/60 transition"
+                  >
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">DISCUSSION HIGHLIGHTS</span>
+                    <span className="text-[10px] text-slate-600">{expandedAnalysis.discussionHighlights ? '▾' : '▸'}</span>
+                  </button>
+                  {expandedAnalysis.discussionHighlights && (
+                    <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <textarea
+                        value={forgeState.discussionHighlights.join('\n')}
+                        onChange={e => setForgeState(s => ({ ...s, discussionHighlights: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                        className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                        placeholder="Key takeaways..."
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">NOTES & OBSERVATIONS</label>
-                  <textarea
-                    value={forgeState.notesAndObservations.join('\n')}
-                    onChange={e => setForgeState(s => ({ ...s, notesAndObservations: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
-                    className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
-                    placeholder="Add mission logs..."
-                  />
+                {/* NOTES & OBSERVATIONS */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setExpandedAnalysis(s => ({ ...s, notesAndObservations: !s.notesAndObservations }))}
+                    className="w-full rounded bg-black/40 border border-[#2A2D35] px-3 py-2 flex items-center justify-between hover:bg-black/60 transition"
+                  >
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">NOTES & OBSERVATIONS</span>
+                    <span className="text-[10px] text-slate-600">{expandedAnalysis.notesAndObservations ? '▾' : '▸'}</span>
+                  </button>
+                  {expandedAnalysis.notesAndObservations && (
+                    <div className="mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <textarea
+                        value={forgeState.notesAndObservations.join('\n')}
+                        onChange={e => setForgeState(s => ({ ...s, notesAndObservations: e.target.value.split('\n').filter(Boolean), status: 'Draft' }))}
+                        className="w-full rounded bg-black/60 border border-[#2A2D35] px-3 py-2 text-[10px] text-white focus:border-cyan-500/40 focus:outline-none transition resize-y min-h-[60px] font-mono"
+                        placeholder="Add mission logs..."
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -996,34 +1098,7 @@ const Forge = () => {
               </button>
             </div>
 
-            {/* EXPORT DROPDOWN */}
-            <div className="relative" onMouseLeave={() => setExportDropdownOpen(false)}>
-              <button
-                onMouseEnter={() => setExportDropdownOpen(true)}
-                onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-                className="h-10 w-full rounded border border-white/5 bg-[#1A1C21] text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] hover:text-white transition-all flex items-center justify-center gap-2"
-              >
-                EXPORT <span className="text-[8px] opacity-40">▼</span>
-              </button>
-              {exportDropdownOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#111318] border border-[#2A2D35] rounded-xl shadow-2xl overflow-hidden z-[110]">
-                  {[
-                    { label: '.HTML DOCUMENT', action: handleExportHtml },
-                    { label: '.MD DOCUMENT', action: handleExportMd },
-                    { label: '.JSON DOCUMENT', action: handleExportJson },
-                    { label: '.TXT DOCUMENT', action: handleExportTxt },
-                  ].map(({ label, action }) => (
-                    <button
-                      key={label}
-                      onClick={() => { setExportDropdownOpen(false); action(); }}
-                      className="w-full text-left px-4 py-2 text-[9px] font-bold text-slate-400 hover:bg-white/5 hover:text-white border-b border-white/5 last:border-0 transition-colors uppercase tracking-[0.2em]"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <div className="h-1" />
           </div>
         </div>
 

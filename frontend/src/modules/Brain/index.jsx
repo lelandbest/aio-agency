@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { BrainIcon } from '../../components/ui/icons';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
-import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 
 const CATEGORIES = [
@@ -78,8 +77,8 @@ const EMPTY_PROFILE = {
   brandUsageRules: '',
 };
 
-const SubPanelHeader = ({ title, icon: Icon }) => (
-  <div className="flex items-center gap-3 mb-6">
+const SubPanelHeader = ({ title, icon: Icon, marginBottom = 'mb-6' }) => (
+  <div className={`flex items-center gap-3 ${marginBottom}`}>
     {Icon && <Icon size={18} className="text-sky-400/80" />}
     <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-500 leading-none">{title}</div>
   </div>
@@ -167,8 +166,8 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
   const provider = providers.find(p => p.providerKey === activeProviderId) || { models: [] };
   
   return (
-    <div className={COMMS_SUBPANEL + " p-5 flex flex-col gap-4 relative z-[200]"}>
-      <SubPanelHeader title="Neural Engine" icon={BrainIcon} />
+    <div className={COMMS_SUBPANEL + " p-4 flex flex-col gap-3 relative z-[200] bg-[#0d0d0f]"}>
+      <SubPanelHeader title="Neural Engine" icon={BrainIcon} marginBottom="mb-3" />
       <div className="space-y-4">
         <div className="relative">
           <div className="text-[11px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mb-1.5 ml-1">Provider</div>
@@ -233,7 +232,7 @@ const EditAssetModal = ({ item, isOpen, onClose, onUpdate }) => {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] ml-1">Cortex Bucket (Category)</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)] ml-1">Vault Bucket (Category)</label>
             <select 
               value={category} 
               onChange={(e) => setCategory(e.target.value)}
@@ -378,7 +377,7 @@ const CortexCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpd
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {renderTableRows(uploads, uploads.length > 0 && internal.length > 0 ? "Operational Uploads" : null)}
-                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Cortex" : null)}
+                {renderTableRows(internal, uploads.length > 0 && internal.length > 0 ? "Internal Vault" : null)}
                 
                 {allFiltered.length === 0 && (
                   <tr>
@@ -558,7 +557,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
   };
 
   return (
-    <div className={COMMS_SUBPANEL + " flex flex-col h-[400px] overflow-hidden relative z-40"}>
+    <div className={COMMS_SUBPANEL + " flex flex-col h-[380px] overflow-hidden relative z-40 bg-[#0d0d0f]"}>
       <div className="p-1 border-b border-white/5 bg-black/20 flex gap-1.5 justify-center">
         {['files', 'web', 'mcp'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`${activeTab === tab ? COMMS_TOOLBAR_PRIMARY : COMMS_TOOLBAR_GHOST} h-9 px-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center whitespace-nowrap min-w-[80px]`}>
@@ -683,23 +682,49 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
     const cat = CATEGORIES.find(c => c.id === catId);
     if (!cat) return 0;
     
-    return items.filter(i => {
+    const brainCount = items.filter(i => {
       const itemCat = i.category?.toLowerCase();
       const targetCat = cat.dbCategory?.toLowerCase();
-      // Combine Help docs with DOC bin count
-      if (catId === 'b-doc') {
-        return itemCat === 'document' || itemCat === 'help';
-      }
+      if (catId === 'b-doc') return itemCat === 'document' || itemCat === 'help';
       return itemCat === targetCat;
     }).length;
+
+    const vaultCount = vaultItems.filter(v => {
+      const mType = (v.mediaType || v.media_type || v.type || '').toLowerCase();
+      const aType = (v.artifactType || v.artifact_type || '').toLowerCase();
+      const id = (v.assetId || v.id || '').toLowerCase();
+
+      if (catId === 'b-doc') return mType === 'document' || aType === 'document';
+      if (catId === 'b-dig') return mType === 'image';
+      if (catId === 'b-dat') return mType === 'data';
+      if (catId === 'b-ttv') return ['audio', 'video', 'transcript', 'scribe'].includes(mType) || 
+                                    ['audio', 'video', 'transcript', 'scribe'].includes(aType) ||
+                                    id.includes('transcript');
+      return false;
+    }).length;
+
+    return brainCount + vaultCount;
   };
 
   const getVaultCount = (type) => {
+    if (!vaultItems || !Array.isArray(vaultItems)) return 0;
     if (type === 'media') {
-      return vaultItems.filter(v => v.mediaType === 'audio' || v.mediaType === 'video').length;
+      return vaultItems.filter(v => {
+        const mType = (v.mediaType || v.media_type || v.type || '').toLowerCase();
+        const id = (v.assetId || v.id || '').toLowerCase();
+        return ['audio', 'video', 'image'].includes(mType) || 
+               id.startsWith('media-') || 
+               id.startsWith('asset-');
+      }).length;
     }
     if (type === 'transcript') {
-      return vaultItems.filter(v => v.artifactType === 'transcript' || v.type === 'transcript').length;
+      return vaultItems.filter(v => {
+        const aType = (v.artifactType || v.artifact_type || v.type || v.category || '').toLowerCase();
+        const id = (v.assetId || v.id || '').toLowerCase();
+        return aType === 'transcript' || 
+               id.startsWith('transcript-') || 
+               id.includes('transcript');
+      }).length;
     }
     return 0;
   };
@@ -717,10 +742,10 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
   const statusColor = total === 0 ? 'text-slate-600' : total > 50 ? 'text-magenta-500' : 'text-sky-400';
 
   return (
-    <div className={COMMS_SUBPANEL + " p-5 flex-1 flex flex-col min-h-0 relative z-30 overflow-hidden"}>
-      <SubPanelHeader title="Cortex" icon={Lock} />
+    <div className={COMMS_SUBPANEL + " p-4 flex-1 flex flex-col min-h-0 relative z-30 overflow-hidden bg-[#0d0d0f]"}>
+      <SubPanelHeader title="VAULT" icon={Lock} marginBottom="mb-3" />
       
-      <div className="grid grid-cols-2 gap-2 flex-none mt-2">
+      <div className="grid grid-cols-2 gap-2 flex-none mt-1">
         {CATEGORIES.filter(c => c.id !== 'b-hlp').map(cat => {
           const count = getCount(cat.id);
           const isGhost = count === 0;
@@ -729,38 +754,38 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
               key={cat.id}
               onClick={() => onSelectCategory(cat)}
               className={`
-                flex flex-col items-center justify-center p-3 rounded-2xl border transition-all group
+                flex flex-col items-center justify-center p-2 rounded-xl border transition-all group
                 ${isGhost 
-                  ? 'bg-slate-900/10 border-slate-800/30 opacity-30 grayscale' 
-                  : 'bg-white/[0.03] border-white/5 hover:border-sky-500/40 hover:bg-sky-500/5 shadow-lg'}
+                   ? 'bg-slate-900/10 border-slate-800/30 opacity-30 grayscale' 
+                   : 'bg-white/[0.02] border-white/5 hover:border-sky-500/40 hover:bg-sky-500/5 shadow-md'}
               `}
             >
-              <cat.icon size={20} className={isGhost ? 'text-slate-500' : 'text-sky-300 group-hover:scale-110 transition-transform'} />
-              <div className="mt-2 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-200 transition-colors uppercase">{cat.label}</div>
-              <div className="mt-0.5 text-[12px] font-black text-slate-200">{count}</div>
+              <cat.icon size={16} className={isGhost ? 'text-slate-500' : 'text-sky-300 group-hover:scale-110 transition-transform'} />
+              <div className="mt-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-slate-300 transition-colors">{cat.label}</div>
+              <div className="mt-0.5 text-[11px] font-black text-slate-200">{count}</div>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-white/5 space-y-3">
-         <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Vault Statistics (Studio)</div>
+      <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
+         <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1 opacity-60">Vault Statistics (Studio)</div>
          <div className="grid grid-cols-2 gap-2">
-            <div className="surface-tertiary p-3 rounded-xl border border-white/5 flex flex-col items-center">
-              <Video size={14} className="text-magenta-400 mb-1" />
-              <div className="text-[14px] font-black text-slate-200">{getVaultCount('media')}</div>
-              <div className="text-[7px] font-black uppercase tracking-widest text-slate-500">Media Assets</div>
+            <div className="surface-tertiary p-2 rounded-lg border border-white/5 flex flex-col items-center bg-black/20">
+              <Video size={12} className="text-magenta-400 mb-0.5" />
+              <div className="text-[12px] font-black text-slate-200">{getVaultCount('media')}</div>
+              <div className="text-[6px] font-black uppercase tracking-widest text-slate-600">Media Assets</div>
             </div>
-            <div className="surface-tertiary p-3 rounded-xl border border-white/5 flex flex-col items-center">
-              <FileText size={14} className="text-sky-400 mb-1" />
-              <div className="text-[14px] font-black text-slate-200">{getVaultCount('transcript')}</div>
-              <div className="text-[7px] font-black uppercase tracking-widest text-slate-500">Transcripts</div>
+            <div className="surface-tertiary p-2 rounded-lg border border-white/5 flex flex-col items-center bg-black/20">
+              <FileText size={12} className="text-sky-400 mb-0.5" />
+              <div className="text-[12px] font-black text-slate-200">{getVaultCount('transcript')}</div>
+              <div className="text-[6px] font-black uppercase tracking-widest text-slate-600">Transcripts</div>
             </div>
          </div>
       </div>
 
-      <div className="mt-auto pt-4 border-t border-white/5 flex justify-center">
-        <div className={`text-[9px] font-black uppercase tracking-[0.3em] ${statusColor} animate-pulse`}>{status}</div>
+      <div className="mt-auto pt-3 border-t border-white/5 flex justify-center">
+        <div className={`text-[8px] font-black uppercase tracking-[0.3em] ${statusColor} animate-pulse`}>{status}</div>
       </div>
     </div>
   );
@@ -947,13 +972,13 @@ const AIInsights = ({ onRunReport, activeReportId, output, setOutput, onSave }) 
   };
 
   return (
-    <div className={COMMS_PANEL + " flex-1 flex flex-col h-full overflow-hidden"}>
-      <div className="p-5 border-b border-slate-800/60 bg-black/10">
+    <div className={COMMS_PANEL + " flex-1 flex flex-col h-full overflow-hidden bg-[#0a0a0c]"}>
+      <div className="p-4 border-b border-slate-800/60 bg-black/20">
         <div className="flex items-center gap-3">
-          <Cpu size={20} className="text-sky-400" />
-          <div className="text-[16px] font-black uppercase tracking-[0.5em] text-slate-100 leading-none">AI Insights</div>
+          <Cpu size={16} className="text-sky-400" />
+          <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-100 leading-none">AI Insights</div>
         </div>
-        <div className="text-[10px] font-black text-sky-500/60 uppercase tracking-[0.3em] mt-2 ml-8">Operational Insights</div>
+        <div className="text-[9px] font-black text-sky-500/60 uppercase tracking-[0.3em] mt-2 ml-7">Operational Insights</div>
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 bg-black/5 flex-none min-h-0 border-b border-slate-800/40">
@@ -963,11 +988,17 @@ const AIInsights = ({ onRunReport, activeReportId, output, setOutput, onSave }) 
                 key={report.id} 
                 onClick={() => onRunReport(report)} 
                 disabled={activeReportId === report.id} 
-                className={`w-full aspect-square text-center transition-all flex flex-col items-center justify-center p-4 rounded-[var(--radius-panel)] border ${activeReportId === report.id ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] shadow-island-sm' : 'bg-white/[0.01] border-white/5 hover:border-[var(--color-primary)]/30 hover:bg-white/[0.03] shadow-sm'} group/card overflow-hidden`}
+                title={report.description}
+                className={`w-full aspect-square text-center transition-all flex flex-col items-center justify-center p-3 rounded-xl border transition-all active:scale-[0.98]
+                  ${activeReportId === report.id 
+                    ? 'bg-sky-500/20 border-sky-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_15px_rgba(56,189,248,0.2)]' 
+                    : 'bg-[#1a1a1e] border-slate-800 border-t-slate-700/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_6px_-1px_rgba(0,0,0,0.5)] hover:border-slate-700 hover:bg-[#1e1e22] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_8px_-1px_rgba(0,0,0,0.6)]'} 
+                  group/card overflow-hidden`}
               >
-                <div className="text-[14px] font-black uppercase tracking-tight leading-none text-[var(--color-text-tertiary)] group-hover/card:text-[var(--color-primary)] transition-colors mb-3 px-2">{report.label}</div>
-                <div className="text-[11px] font-medium text-[var(--color-text-secondary)] leading-tight tracking-tight transition-opacity px-2">{report.description}</div>
-                {activeReportId === report.id && <Loader2 size={16} className="text-[var(--color-primary)] animate-spin mt-2" />}
+                <div className="text-[10px] font-black uppercase tracking-widest leading-none text-slate-400 group-hover/card:text-sky-400 transition-colors text-center px-1">
+                  {report.label}
+                </div>
+                {activeReportId === report.id && <Loader2 size={12} className="text-sky-400 animate-spin mt-2" />}
               </button>
             ))}
           </div>
@@ -981,7 +1012,7 @@ const AIInsights = ({ onRunReport, activeReportId, output, setOutput, onSave }) 
           />
           
           {/* Bottom Center Controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-[var(--radius-panel)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] shadow-island backdrop-blur-md z-[100] transition-all">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800 shadow-island z-[100] transition-all">
             <button onClick={handleCopy} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-all border border-transparent hover:border-[var(--color-border)]" title="Copy Content"><Code size={18} /></button>
             <button onClick={handleDownload} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-magenta-400 transition-all border border-transparent hover:border-[var(--color-border)]" title="Download (.txt)"><Save size={18} /></button>
             <button onClick={() => setOutput('')} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all border border-transparent hover:border-[var(--color-border)]" title="Clear Output"><RefreshCcw size={18} /></button>
@@ -1129,25 +1160,18 @@ const Cortex = () => {
       };
 
   return (
-    <div className="module-root-standard bg-black">
-      <ModuleHeader 
-        title="Cortex™" 
-        subtitle="Structured Knowledge // Operational DNA // CRM Synthesis"
-        /* onModuleAi={handleModuleAiAssist} */
-        actions={[
-          { label: 'UPLINK REFRESH', icon: RefreshCcw, onClick: fetchOverview, variant: 'secondary' }
-        ]}
-      />
-      <div className="module-content-stage module-surface-shell relative bg-black">
-        <div 
-          className={`bg-slate-900/50 border border-[var(--color-border)] flex flex-col overflow-hidden transition-opacity`} 
-          style={cortexWindowStyle}
-        >
-          <div className="flex flex-1 overflow-hidden relative min-h-0">
+    <div className="module-root-standard bg-black overflow-hidden relative p-6">
+      <div 
+        className="flex flex-1 gap-6 w-full h-full relative z-10"
+        style={cortexWindowStyle}
+      >
+        {/* Island 1: Hardware & Source Controls */}
         <aside 
-          className={`w-[300px] flex flex-col gap-[25px] p-4 border-r border-slate-800/60 ${COMMS_COLUMN_BG} z-30 h-full shadow-[20px_0_60px_rgba(0,0,0,0.5)] transition-all`}
+          className={`w-[320px] shrink-0 flex flex-col gap-6 rounded-[2.5rem] border border-slate-800/60 bg-[#0d0d0f] p-6 z-30 h-full shadow-2xl no-scrollbar overflow-y-auto relative`}
           onClick={() => setInteractionArmed(false)}
         >
+          {/* Edge Highlight Effect */}
+          <div className="absolute inset-x-0 top-0 h-px bg-white/5 pointer-events-none" />
           <NeuralEngine 
             activeProviderId={activeProviderId} 
             activeModelId={activeModelId} 
@@ -1157,11 +1181,9 @@ const Cortex = () => {
               const p = providers.find(p => p.providerKey === id);
               if (p) {
                 try {
-                  // Global activation
                   await upsertAiProviderConfigApi(id, { ...p, providerKey: id, isDefault: true, enabled: true });
-                  // Brain specific update
                   await updateBrainProfileApi({ ...profile, activeProvider: id });
-                  fetchProviders(); // Refresh to get updated is_default status
+                  fetchProviders();
                 } catch (err) { console.error(err); }
               }
             }}
@@ -1170,10 +1192,8 @@ const Cortex = () => {
               const p = providers.find(p => p.providerKey === activeProviderId);
               try {
                 if (p) {
-                  // Update default model for this provider globally
                   await upsertAiProviderConfigApi(activeProviderId, { ...p, providerKey: activeProviderId, model });
                 }
-                // Brain specific update
                 await updateBrainProfileApi({ ...profile, activeModel: model });
                 fetchProviders();
               } catch (err) { console.error(err); }
@@ -1202,7 +1222,8 @@ const Cortex = () => {
           />
         </aside>
 
-        <main className="flex-1 relative flex flex-col bg-black overflow-hidden h-full">
+        {/* Island 2: Neural Canvas */}
+        <main className="flex-1 min-w-0 relative flex flex-col rounded-[2.5rem] border border-slate-800/60 bg-black shadow-2xl overflow-hidden h-full">
           <BrainGraphPanel 
             profile={profile} 
             sources={sources} 
@@ -1214,10 +1235,13 @@ const Cortex = () => {
           />
         </main>
 
+        {/* Island 3: Synthesis & Insights */}
         <aside 
-          className={`w-[540px] flex flex-col border-l border-slate-800/60 z-20 ${COMMS_COLUMN_BG} h-full shadow-[-20px_0_60px_rgba(0,0,0,0.5)] transition-all`}
+          className={`w-[480px] shrink-0 flex flex-col rounded-[2.5rem] border border-slate-800/60 bg-[#0d0d0f] p-6 z-20 h-full shadow-2xl relative`}
           onClick={() => setInteractionArmed(false)}
         >
+          {/* Edge Highlight Effect */}
+          <div className="absolute inset-x-0 top-0 h-px bg-white/5 pointer-events-none" />
           <AIInsights 
             activeReportId={activeReportId} 
             onRunReport={async (r) => { 
@@ -1333,19 +1357,22 @@ const Cortex = () => {
           />
         </aside>
 
-        <aside className={`fixed top-0 right-0 bottom-0 w-[420px] z-[100] border-l border-[var(--color-border)] bg-[var(--color-bg-primary)] transition-transform duration-500 shadow-island ${showProfileDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="h-full flex flex-col relative">
-            <button onClick={() => setShowProfileDrawer(!showProfileDrawer)} className="absolute -left-8 top-[75%] -translate-y-1/2 h-16 w-8 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-l-[var(--radius-panel)] flex items-center justify-center text-[var(--color-text-tertiary)] z-50 shadow-island-sm transition"><ChevronRight size={18} className={showProfileDrawer ? '' : 'rotate-180'} /></button>
-            <div className="p-5 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm"><Shield size={18} /></div><div><div className="text-sm font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Business DNA Profile</div><div className="text-[10px] font-medium text-[var(--color-text-tertiary)] mt-0.5">Operational Registry</div></div></div>
-            <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
-              <section className="space-y-2"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-bold text-[var(--color-text-secondary)] leading-snug">{profile.companyName || 'Unidentified'}</div></section>
-              <section className="space-y-2"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Mission DNA</div><div className="p-4 rounded-[var(--radius-card)] bg-white/[0.01] border border-white/5 italic text-sm text-[var(--color-text-secondary)] leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
-              <section className="space-y-3"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-3"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)] mb-1">Target Audience (ICP)</div><div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{profile.idealCustomer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-xs font-semibold uppercase tracking-wide text-magenta-400 mb-1">Voice & Tone</div><div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{profile.brandVoice || 'Not defined'}</div></div></div></section>
-            </div>
-            <div className="p-6 border-t border-[var(--color-border)] bg-black/40"><button onClick={() => setShowBrandForm(true)} className={COMMS_TOOLBAR_PRIMARY + " w-full !h-12 !rounded-[var(--radius-card)] !text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 shadow-island-sm"}><PenTool size={14} /> Update Operations DNA</button></div>
-          </div>
-        </aside>
+        {/* Floating Profile Drawer Trigger handled by specific Aside component if needed, 
+            but here we maintain the original fixed drawer logic below */}
       </div>
+
+      <aside className={`fixed top-0 right-0 bottom-0 w-[420px] z-[100] border-l border-[var(--color-border)] bg-[var(--color-bg-primary)] transition-transform duration-500 shadow-island ${showProfileDrawer ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="h-full flex flex-col relative">
+          <button onClick={() => setShowProfileDrawer(!showProfileDrawer)} className="absolute -left-8 top-[75%] -translate-y-1/2 h-16 w-8 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-l-[var(--radius-panel)] flex items-center justify-center text-[var(--color-text-tertiary)] z-50 shadow-island-sm transition"><ChevronRight size={18} className={showProfileDrawer ? '' : 'rotate-180'} /></button>
+          <div className="p-5 border-b border-white/5 flex items-center gap-4"><div className="h-9 w-9 rounded-[var(--radius-card)] bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-island-sm"><Shield size={18} /></div><div><div className="text-sm font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Business DNA Profile</div><div className="text-[10px] font-medium text-[var(--color-text-tertiary)] mt-0.5">Operational Registry</div></div></div>
+          <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
+            <section className="space-y-2"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Core Identity</div><div className="text-lg font-bold text-[var(--color-text-secondary)] leading-snug">{profile.companyName || 'Unidentified'}</div></section>
+            <section className="space-y-2"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Mission DNA</div><div className="p-4 rounded-[var(--radius-card)] bg-white/[0.01] border border-white/5 italic text-sm text-[var(--color-text-secondary)] leading-relaxed font-medium">"{profile.mission || 'No mission statement synthesized.'}"</div></section>
+            <section className="space-y-3"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]/80">Synthesis Details</div><div className="grid gap-3"><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)] mb-1">Target Audience (ICP)</div><div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{profile.idealCustomer || 'Not defined'}</div></div><div className="p-3 rounded-[var(--radius-card)] bg-black/40 border border-[var(--color-border)]"><div className="text-xs font-semibold uppercase tracking-wide text-magenta-400 mb-1">Voice & Tone</div><div className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{profile.brandVoice || 'Not defined'}</div></div></div></section>
+          </div>
+          <div className="p-6 border-t border-[var(--color-border)] bg-black/40"><button onClick={() => setShowBrandForm(true)} className={COMMS_TOOLBAR_PRIMARY + " w-full !h-12 !rounded-[var(--radius-card)] !text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 shadow-island-sm"}><PenTool size={14} /> Update Operations DNA</button></div>
+        </div>
+      </aside>
 
       {showBrandForm && (
         <TabbedBrainFormModal 
@@ -1379,8 +1406,6 @@ const Cortex = () => {
           }}
         />
       )}
-    </div>
-    </div>
     </div>
   );
 };

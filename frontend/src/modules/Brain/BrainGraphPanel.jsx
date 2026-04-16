@@ -320,7 +320,7 @@ export default function BrainGraphPanel({
 
       {/* Header Overlay */}
       <div className="absolute top-8 left-8 z-40 space-y-1 pointer-events-none">
-        <div className="text-[13px] font-black uppercase tracking-[0.3em] text-cyan-500/60">Cortex v4</div>
+        <div className="text-[13px] font-black uppercase tracking-[0.3em] text-cyan-500/60">Cortex V1</div>
         <div className="text-[22px] font-black uppercase text-slate-500 font-ethnocentric">AIO CORTEX</div>
       </div>
 

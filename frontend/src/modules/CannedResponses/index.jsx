@@ -297,7 +297,7 @@ const CannedResponsesModule = ({ onNavigate }) => {
         )}
       />
 
-      <div className="module-content-stage module-surface-shell">
+      <div className="module-content-stage px-2 pb-2">
       <div className="flex-1 overflow-y-auto">
         <table className="w-full">
           <thead className="sticky top-0 bg-[var(--color-bg-secondary)] z-10">

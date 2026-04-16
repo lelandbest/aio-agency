@@ -25,8 +25,8 @@ import {
   UploadCloud, ShoppingCart, Image, MapPin, PenTool, ListChecks,
   Code, Columns, Layers, Table, GripVertical, Trash2, ExternalLink, Save,
   Bot, Settings, Bold, Italic, Underline, AlignCenter, AlignRight, GitMerge,
-  Database, Download, Search, Filter, Folder, FolderOpen, ChevronRight,
-  Eye, ArrowLeft, Tag
+  Database, Download, Search, Filter, Folder, FolderOpen, ChevronRight, ChevronUp,
+  Eye, ArrowLeft, Tag, Layout, FolderPlus
 } from 'lucide-react';
 import { useSystemConfirm } from '../../hooks/useSystemConfirm';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
@@ -231,6 +231,8 @@ const FormBuilderModule = () => {
   
   // Prompt modal state for folder name input
   const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
+
+  const [allFoldersExpanded, setAllFoldersExpanded] = useState(true);
 
   // Sidebar Category State
   const [expandedCategories, setExpandedCategories] = useState({ 0: true });
@@ -642,16 +644,6 @@ const FormBuilderModule = () => {
     }
   };
 
-  const handleCopyFolder = async (folder) => {
-    try {
-      await createFormFolderApi({ name: `${folder.name} (Copy)` });
-      await fetchFolders();
-    } catch (error) {
-      setAlertMessage('Failed to copy folder: ' + error.message);
-      setTimeout(() => setAlertMessage(null), 3000);
-    }
-  };
-
   const bulkDeleteSelectedForms = async () => {
     const totalSelected = selectedForms.length + selectedFolders.length;
     if (totalSelected === 0) return;
@@ -692,14 +684,8 @@ const FormBuilderModule = () => {
     window.open(`/form/${form.slug || form.id}`, '_blank');
   };
 
-  const toggleFolder = (folderId) => {
-    setFolders(prev => prev.map(f =>
-      f.id === folderId ? { ...f, expanded: !f.expanded } : f
-    ));
-    const currentFolder = folders.find((folder) => folder.id === folderId);
-    updateFormFolderApi(folderId, { expanded: !(currentFolder?.expanded) }).catch((error) => {
-      console.error('Error updating folder visibility:', error);
-    });
+  const toggleFolder = () => {
+    setAllFoldersExpanded(prev => !prev);
   };
 
   const toggleFormSelection = (formId) => {
@@ -891,21 +877,7 @@ const FormBuilderModule = () => {
 
     const tableColumns = [
       {
-        header: "",
-        key: "share",
-        width: "40px",
-        render: (form) => (
-          <button
-            onClick={() => { setShareForm(form); setShowShareModal(true); }}
-            className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
-            title="Share Form"
-          >
-            <Link size={16} />
-          </button>
-        )
-      },
-      {
-        header: "Form Name",
+        header: "Name",
         key: "name",
         render: (form) => (
           <button
@@ -944,14 +916,14 @@ const FormBuilderModule = () => {
         }
       },
       {
-        header: "Automation",
-        key: "automation",
+        header: "Flows",
+        key: "flows",
         width: "100px",
         render: (form) => {
           const flowCount = form.flowIds?.length || 0;
           return (
-            <span className="text-xs text-[var(--color-text-secondary)]">
-              {flowCount} {flowCount === 1 ? 'flow' : 'flows'}
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {flowCount} {flowCount === 1 ? 'Flow' : 'Flows'}
             </span>
           );
         }
@@ -959,58 +931,60 @@ const FormBuilderModule = () => {
       {
         header: "Status",
         key: "status",
-        width: "100px",
+        width: "120px",
         render: (form) => (
-          <button
-            onClick={() => {
-              const newActive = !form.isActive;
-              const newStatus = newActive ? 'Live' : 'Draft';
-              setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: newActive, status: newStatus } : f));
-              updateFormApi(form.id, { status: newStatus, isActive: newActive }).then(() => {
-                fetchForms();
-              }).catch((err) => {
-                console.error('Toggle failed, reverting:', err);
-                setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: !newActive, status: !newActive ? 'Live' : 'Draft' } : f));
-              });
-            }}
-            className={`w-12 h-6 rounded-full relative transition-colors ${
-              form.isActive
-                ? 'bg-green-500'
-                : 'bg-gray-600'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                form.isActive ? 'left-7' : 'left-1'
-              }`}
-            />
-          </button>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+              {form.isActive ? 'Active' : 'Inactive'}
+            </span>
+            <button
+              id={`form-status-${form.id}`}
+              type="button"
+              onClick={() => {
+                const newActive = !form.isActive;
+                const newStatus = newActive ? 'Active' : 'Inactive';
+                setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: newActive, status: newStatus } : f));
+                updateFormApi(form.id, { status: newStatus, isActive: newActive }).then(() => {
+                  fetchForms();
+                }).catch(() => {
+                  setForms(prev => prev.map(f => f.id === form.id ? { ...f, isActive: !newActive, status: !newActive ? 'Active' : 'Inactive' } : f));
+                });
+              }}
+              className={`w-12 h-6 rounded-full relative transition-colors ${form.isActive ? 'bg-emerald-500' : 'bg-[var(--color-bg-tertiary)]'}`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                  form.isActive ? 'left-7' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
         )
       },
       {
-        header: "Last Modified",
-        key: "lastModifiedAt",
-        width: "160px",
+        header: "Last Updated",
+        key: "lastUpdated",
+        width: "180px",
         render: (form) => (
           <div className="text-xs text-[var(--color-text-secondary)]">
-            <div>By {form.lastModifiedBy || '-'}</div>
-            <div className="text-[var(--color-text-tertiary)]">
-              {form.lastModifiedAt ? new Date(form.lastModifiedAt).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-              }) : '-'}
-            </div>
+            <div>{form.lastModifiedAt ? new Date(form.lastModifiedAt).toLocaleString('en-US', {
+              month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            }) : (form.updatedAt ? new Date(form.updatedAt).toLocaleString('en-US', {
+              month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            }) : '-')}</div>
+            <div className="mt-1 text-[var(--color-text-tertiary)]">By {form.lastModifiedBy || form.creator || 'Current User'}</div>
           </div>
         )
       },
       {
         header: "",
         key: "actions",
-        width: "220px",
+        width: "200px",
         render: (form) => (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-end gap-2">
             <button
               onClick={() => deleteForm(form.id)}
-              className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-[var(--color-hover)] transition"
+              className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
               title="Delete"
             >
               <Trash2 size={14} />
@@ -1022,7 +996,7 @@ const FormBuilderModule = () => {
                   updateFormApi(form.id, { name: newName.trim() }).then(() => fetchForms());
                 }
               }}
-              className="px-2 py-0.5 text-[10px] font-medium text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-hover)] rounded transition"
+              className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
               title="Rename"
             >
               Rename
@@ -1032,7 +1006,7 @@ const FormBuilderModule = () => {
                 setCurrentForm(normalizeFormRecord(form));
                 setView('editor');
               }}
-              className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition"
+              className="btn-toolbar-lead !px-3 !py-2 !text-xs"
               title="Open"
             >
               Open
@@ -1054,50 +1028,38 @@ const FormBuilderModule = () => {
                 label: 'Create Form',
                 icon: Plus,
                 onClick: createNewForm,
+                variant: 'primary'
+              },
+              {
+                label: 'Templates',
+                icon: Layout,
+                onClick: () => setShowTemplateGallery(true),
+                variant: 'secondary'
+              },
+              {
+                label: 'CMS Data',
+                icon: Database,
+                onClick: () => setView('cms'),
+                variant: 'secondary'
+              }
+            ]}
+            actions={[
+              {
+                label: allFoldersExpanded ? 'Collapse All' : 'Expand All',
+                icon: allFoldersExpanded ? ChevronUp : ChevronDown,
+                onClick: () => setAllFoldersExpanded(!allFoldersExpanded),
                 variant: 'secondary'
               },
               {
                 label: 'New Folder',
-                icon: Folder,
+                icon: FolderPlus,
                 onClick: handleCreateFolder,
                 variant: 'secondary'
               }
             ]}
-            toolbarCenterSlot={(
-              <div className="relative w-full max-w-sm">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-                <input
-                  type="text"
-                  value={tableSearch}
-                  onChange={(event) => setTableSearch(event.target.value)}
-                  placeholder="Search forms"
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                />
-              </div>
-            )}
-            toolbarRightSlot={(
-              <div className="flex items-center gap-2 font-bold">
-                <button
-                  type="button"
-                  onClick={() => setView('cms')}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8"
-                >
-                  <Database size={14} />
-                  <span className="uppercase text-[10px] font-bold tracking-widest">CMS Data</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateGallery(true)}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-hover)] hover:border-[var(--color-primary)]/40 h-8"
-                >
-                  <Layers size={14} />
-                  <span className="uppercase text-[10px] font-bold tracking-widest">Browse Gallery</span>
-                </button>
-              </div>
-            )}
           />
 
-          <div className="module-surface-shell px-1.5 py-1.5">
+          <div className="px-2">
             <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
               <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
                 <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">Recent Forms</div>
@@ -1123,29 +1085,29 @@ const FormBuilderModule = () => {
                       </div>
                     </button>
                   ))
-                ) : (
-                  <div className="shrink-0 text-sm text-[var(--color-text-secondary)]">Create a form or browse templates to populate this workspace.</div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1">
+          <div className="module-content-stage px-2 pb-2">
             <FolderTable
               title="Saved Forms"
               description="Browse folders, search forms, and open the full builder."
-              folders={folders}
+              folders={folders.map(f => ({ ...f, expanded: allFoldersExpanded }))}
               items={forms}
               columns={tableColumns}
+              folderProperty="folderId"
               onFolderToggle={toggleFolder}
               onFolderRename={handleRenameFolder}
               onFolderDelete={handleDeleteFolder}
-              onFolderCopy={handleCopyFolder}
               onItemSelect={toggleFormSelection}
               onSelectAll={toggleSelectAllForms}
               selectedItems={selectedForms}
               selectedFolders={selectedFolders}
               onFolderSelect={toggleFolderSelection}
+              onCreateItem={createNewForm}
+              createItemLabel="Create Form"
               actions={
                 (selectedForms.length + selectedFolders.length) > 0 && (
                   <button
@@ -1196,7 +1158,6 @@ const FormBuilderModule = () => {
               onClose={() => setShowFormEntry(false)}
               onSuccess={() => {
                 // Optional: refresh CMS data if visible
-                // alert('Form submitted successfully!');
               }}
             />
           )
@@ -1214,7 +1175,6 @@ const FormBuilderModule = () => {
     );
   }
 
-  // CMS Data View
   if (view === 'cms') {
     return <CMSView onBack={() => setView('list')} />;
   }
@@ -1304,7 +1264,7 @@ const FormBuilderModule = () => {
         promptPlaceholder={promptModal.defaultValue || 'Enter name...'}
         variant="info"
       />
-      <div className="module-content-stage flex bg-transparent gap-1.5">
+      <div className="module-content-stage px-2 pb-2 flex bg-transparent gap-1.5">
       {/* Left Sidebar - Field Tools */}
       <div className="w-56 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">
         <div className="p-1.5 space-y-0.5">
