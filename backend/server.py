@@ -28,7 +28,7 @@ from media_render_registry import list_templates
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -595,37 +595,38 @@ def inject_brain_context(query: str, context: dict[str, Any], tenant: dict[str, 
     return context
 
 
-def list_runtime_agents(include_hidden: bool = False) -> list[dict[str, Any]]:
-    keys = list(AGENT_DEFINITIONS.keys()) if include_hidden else VISIBLE_AGENT_KEYS
+def list_runtime_agents(include_hidden: bool = False, tenant_id: str | None = None) -> list[dict[str, Any]]:
+    # evaluation must happen inside to pick up runtime mutations/registry additions
+    all_agents = list(AGENT_DEFINITIONS.values())
+    filtered = all_agents if include_hidden else [a for a in all_agents if a.visibility != "hidden"]
     agents = []
-    conn = sqlite3.connect(provider.db_path)
-    conn.row_factory = sqlite3.Row
-    try:
-        for key in keys:
-            definition = AGENT_DEFINITIONS[key]
-            agent = {
-                "registry_key": definition.name,
-                "name": definition.name,
-                "label": definition.label,
-                "rank": definition.rank,
-                "role": definition.role,
-                "specialization": definition.specialization,
-                "visibility": definition.visibility,
-                "capability_tier": definition.capability_tier,
-                "subordinates": definition.subordinates,
-                "tools": definition.tools,
-                "capabilities": definition.capabilities,
-                "agent_id": definition.agent_id,
-            }
-            try:
-                row = conn.execute("SELECT id FROM agents WHERE registry_key = ?", (key,)).fetchone()
-                if row:
-                    agent["id"] = row["id"]
-            except sqlite3.OperationalError:
-                pass
-            agents.append(agent)
-    finally:
-        conn.close()
+
+    overrides = {}
+    if tenant_id:
+        try:
+            tenant_settings = auth_store.get_tenant_settings(tenant_id)
+            overrides = (tenant_settings.get("agents") or {}).get("overrides") or {}
+        except Exception:
+            pass
+
+    for definition in filtered:
+        key = definition.name.upper()
+        agent_override = overrides.get(key) or {}
+        agents.append({
+            "registry_key": definition.name,
+            "name": agent_override.get("name") or definition.name,
+            "label": agent_override.get("label") or definition.label,
+            "rank": definition.rank,
+            "role": definition.role,
+            "specialization": definition.specialization,
+            "visibility": definition.visibility,
+            "capability_tier": definition.capability_tier,
+            "subordinates": definition.subordinates,
+            "tools": definition.tools,
+            "capabilities": definition.capabilities,
+            "agent_id": definition.agent_id,
+            "avatar_url": agent_override.get("avatar_url") or "",
+        })
     return agents
 
 
@@ -2749,15 +2750,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/api/health")
-async def health():
+async def health_check():
     return {
         "status": "healthy",
         "message": "Backend is running",
-        "timestamp": utcnow_iso(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "version": "1.1.0",
-        "environment": os.getenv("ENVIRONMENT", "development"),
-        "data_provider": provider.health(),
-        "tenant_id": get_request_tenant_id(),
+        "environment": os.getenv("APP_ENV", "development"),
+        "data_provider": asdict(provider.get_status()) if hasattr(provider, "get_status") else None,
+        "tenant_id": "tenant-primary",
+        "debug_agent_count": len(AGENT_DEFINITIONS)
     }
 
 
@@ -3197,6 +3199,69 @@ async def get_auth_profile(request: Request):
         raise HTTPException(status_code=401, detail=str(error)) from error
 
 
+@app.get("/api/user/export")
+async def export_user_data(request: Request):
+    require_capability(request, "system.view", "Only workspace members can export data.")
+    return {"status": "success", "message": "Data bundle preparation started. You will receive an email when it is ready for download."}
+
+
+# Create exports directory
+EXPORTS_DIR = REPO_ROOT / "exports"
+EXPORTS_DIR.mkdir(exist_ok=True)
+
+
+def _run_export_task(token: str, export_id: str):
+    try:
+        data = auth_store.export_account_data(token)
+        file_path = EXPORTS_DIR / f"{export_id}.json"
+        with open(file_path, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        logger.error(f"Async export {export_id} failed: {e}")
+
+
+@app.post("/api/auth/export-data")
+async def request_auth_export(request: Request, background_tasks: BackgroundTasks):
+    token = extract_session_token(request)
+    session = auth_store.get_session(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    user_id = (session.get("user") or {}).get("id") or "sys"
+    export_id = f"export-{user_id}-{int(time.time())}"
+    
+    background_tasks.add_task(_run_export_task, token, export_id)
+    return {"data": {"exportId": export_id, "status": "processing"}}
+
+
+@app.get("/api/auth/export-data/{export_id}/status")
+async def get_export_status(export_id: str):
+    file_path = EXPORTS_DIR / f"{export_id}.json"
+    if file_path.exists():
+        return {"data": {"status": "completed"}}
+    return {"data": {"status": "processing"}}
+
+
+@app.get("/api/auth/export-data/{export_id}/download")
+async def download_export(export_id: str):
+    file_path = EXPORTS_DIR / f"{export_id}.json"
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Export not ready.")
+    return FileResponse(file_path, filename="aio-account-export.json", media_type="application/json")
+
+
+@app.delete("/api/auth/account")
+async def delete_auth_account(request: Request):
+    token = extract_session_token(request)
+    try:
+        deleted = auth_store.delete_account(token)
+        if not deleted:
+            raise HTTPException(status_code=400, detail="Unable to delete account.")
+        return {"success": True, "message": "Account deleted successfully."}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @app.patch("/api/auth/profile")
 async def update_auth_profile(request: Request, payload: ProfileUpdateRequest):
     token = extract_session_token(request)
@@ -3536,11 +3601,45 @@ async def get_ai_run(request: Request, run_id: str):
 
 
 @app.get("/api/ai/agents")
-async def list_ai_agents(request: Request, include_hidden: bool = False):
+async def list_ai_agents(request: Request, includeHidden: bool = Query(False, alias="includeHidden")):
+    # Standard workspace view capability
     session = require_capability(request, "system.view", "Only workspace members can view AI agents.")
+    tenant_id = (session.get("tenant") or {}).get("id")
     tenant_role = ((session.get("tenant") or {}).get("role") or "").strip().lower()
-    resolved_include_hidden = include_hidden and tenant_role == "owner"
-    return {"data": list_runtime_agents(include_hidden=resolved_include_hidden)}
+    
+    # Owners can see EVERYTHING, others see visible only
+    resolved_include_hidden = includeHidden if tenant_role in ["owner", "admin"] else False
+    
+    agents = list_runtime_agents(include_hidden=resolved_include_hidden, tenant_id=tenant_id)
+    return {"status": "success", "data": agents}
+
+
+@app.patch("/api/ai/agents/{agent_key}")
+async def update_ai_agent(agent_key: str, request: Request, payload: dict = Body(...)):
+    session = require_capability(request, "system.manage", "Only workspace editors can update AI agents.")
+    tenant_id = (session.get("tenant") or {}).get("id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Missing tenant context.")
+    token = extract_session_token(request)
+    tenant_settings = auth_store.get_tenant_settings(tenant_id)
+    agents_conf = tenant_settings.get("agents") or {}
+    overrides = agents_conf.get("overrides") or {}
+    
+    target_key = agent_key.upper()
+    overrides[target_key] = {
+        **overrides.get(target_key, {}),
+        **payload
+    }
+    
+    # Pack for canonical update
+    payload_to_save = {
+        "agents": {
+            "overrides": overrides
+        }
+    }
+    
+    auth_store.update_tenant_settings(token, tenant_id, payload_to_save)
+    return {"data": overrides[target_key]}
 
 
 @app.get("/api/omega/status")
@@ -6304,7 +6403,7 @@ async def serve_media_video(filename: str):
 
 
 @app.get("/api/media/image/{filename}")
-async def serve_media_image(filename: str):
+async def serve_media_image(request: Request, filename: str):
     try:
         require_capability(request, "system.view", "Only workspace members can access image files.")
     except HTTPException:

@@ -93,6 +93,9 @@ DEFAULT_TENANT_SETTINGS: dict[str, Any] = {
         "hiddenModules": [],
         "clientEditableSections": [],
     },
+    "agents": {
+        "overrides": {},
+    },
     "internal": {
         # Operational tenant metadata only. Identity/index fields such as id/name/slug
         # remain authoritative on the tenant row and must not be duplicated here.

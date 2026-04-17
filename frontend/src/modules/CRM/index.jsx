@@ -629,7 +629,7 @@ function CRMContactList({
 
 function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const { tenant, tenants = [] } = useAuth();
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const { showNotice } = useNotice();
 
   const [loading, setLoading] = useState(true);
@@ -1339,8 +1339,8 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
               <div className={`${shellPanelClass} flex min-h-0 flex-1 flex-col overflow-hidden`}>
                 <div className="h-10 border-b border-slate-900 bg-[#090909]/70" />
                 <div className="flex flex-1 p-2 gap-2">
-                  <div className="w-[340px] rounded-[22px] border border-slate-900/80 bg-[#050505]" />
-                  <div className="flex-1 rounded-[28px] border border-slate-900/80 bg-transparent" />
+                  <div className="w-[340px] rounded-xl border border-slate-900/80 bg-[#050505]" />
+                  <div className="flex-1 rounded-xl border border-slate-900/80 bg-transparent" />
                 </div>
               </div>
               <div className={`${shellPanelClass} w-[300px] h-full bg-[#090909]/70`} />
@@ -1643,7 +1643,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                     </div>
                   </div>
 
-                  <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-slate-900/80 bg-transparent shadow-[0_18px_36px_rgba(0,0,0,0.28)]">
+                  <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-900/80 bg-transparent shadow-[0_18px_36px_rgba(0,0,0,0.28)]">
                     <div className="flex items-center justify-center gap-1 overflow-x-auto border-b border-slate-900/40 px-2 py-1 bg-transparent no-scrollbar">
                       {feedTabs.map((tab) => (
                         <button
@@ -1657,7 +1657,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                       ))}
                     </div>
 
-                    <div className="border-b border-slate-900/40 bg-transparent px-4 py-1.5">
+                    <div className="border-b border-slate-900/40 bg-transparent px-4 py-1">
                       <div className="flex items-center gap-3 rounded-sm border border-slate-800/60 bg-transparent px-3 py-1 focus-within:border-emerald-500/30 transition-all">
                         <Plus size={12} className="text-emerald-500/40" />
                         <input
@@ -1689,7 +1689,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                           {filteredFeedItems.map((item) => {
                             const Icon = item.icon;
                             return (
-                              <div key={item.id} className="group flex items-start gap-3 border-b border-slate-900/30 px-4 py-1.5 transition-colors hover:bg-emerald-500/[0.04]">
+                              <div key={item.id} className="group flex items-start gap-3 border-b border-slate-900/30 px-4 py-1.25 transition-colors hover:bg-emerald-500/[0.04]">
                                 <div className="mt-1 flex-shrink-0">
                                   <Icon size={12} className={item.iconClassName} />
                                 </div>

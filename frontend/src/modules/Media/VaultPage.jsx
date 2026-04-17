@@ -5,11 +5,8 @@ import { getVaultApi } from '../../services/backendApi';
 
 const VAULT_CATEGORIES = [
   { id: 'audio', label: 'Audio', icon: Music },
-  { id: 'documents', label: 'DOCUMENTS', icon: FileText },
   { id: 'images', label: 'IMAGES / INFOGRAPHICS', icon: ImageIcon },
-  { id: 'transcripts', label: 'TRANSCRIPTS', icon: Mic },
   { id: 'videos', label: 'VIDEOS', icon: Video },
-  { id: 'website', label: 'WEBSITE .ZIP', icon: Globe },
 ];
 
 const VaultPage = ({ onBack }) => {
@@ -24,7 +21,15 @@ const VaultPage = ({ onBack }) => {
     const fetchVaultItems = async () => {
       try {
         const items = await getVaultApi();
-        setMediaItems(items);
+        // Strict Filter: Allow ONLY media types based on normalized TYPE tag/property
+        const mediaOnly = items.filter(item => {
+          const type = (item.type || '').toUpperCase();
+          const tags = item.tags || [];
+          const typeTag = tags.find(t => t.startsWith('TYPE:'))?.replace('TYPE:', '').toUpperCase();
+          
+          return ['IMAGE', 'VIDEO', 'AUDIO'].includes(type) || ['IMAGE', 'VIDEO', 'AUDIO'].includes(typeTag);
+        });
+        setMediaItems(mediaOnly);
       } catch (error) {
         console.error('Failed to fetch vault items:', error);
         setMediaItems([]);
@@ -37,35 +42,21 @@ const VaultPage = ({ onBack }) => {
 
   const _categorizeItem = (item) => {
     const mediaType = (item.mediaType || '').toLowerCase();
-    const recordKind = item.recordKind || '';
-    const artifactType = (item.artifactType || '').toLowerCase();
-    const itemType = (item.type || '').toLowerCase();
-    const sourceUrl = item.sourceUrl || '';
+    const type = (item.type || '').toLowerCase();
+    const tags = item.tags || [];
+    const typeTag = tags.find(t => t.startsWith('TYPE:'))?.replace('TYPE:', '').toLowerCase();
 
-    if (recordKind === 'artifact') {
-      if (artifactType === 'transcript') return 'transcripts';
-      if (itemType === 'script') return 'documents';
-      if (artifactType === 'runOfShow') return 'documents';
-      if (artifactType === 'publish') return 'website';
-    }
-
-    if (mediaType === 'audio') return 'audio';
-    if (mediaType === 'image') return 'images';
-    if (mediaType === 'video') return 'videos';
-
-    if (itemType.includes('pdf') || itemType.includes('document') || itemType.includes('doc')) return 'documents';
-    if (sourceUrl.toLowerCase().includes('.zip')) return 'website';
+    if (mediaType === 'audio' || type === 'audio' || typeTag === 'audio') return 'audio';
+    if (mediaType === 'image' || type === 'image' || typeTag === 'image') return 'images';
+    if (mediaType === 'video' || type === 'video' || typeTag === 'video' || type === 'render') return 'videos';
 
     return null;
   };
 
   const categorizedItems = {
     audio: [],
-    documents: [],
     images: [],
-    transcripts: [],
     videos: [],
-    website: [],
   };
 
   mediaItems.forEach(item => {

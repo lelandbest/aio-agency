@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Activity, History, MessageSquare, Phone, PhoneCall, PhoneOff, Plus, RefreshCw, Send, X, RadioTower, Smartphone, Hash, Delete, Cpu, ArrowUp } from 'lucide-react';
+import {
+    Cpu, RadioTower, Phone, PhoneOff, MicOff, Mic, Settings,
+    Search, Mail, Calendar, MessageSquare, Plus, Clock, History,
+    PieChart, Zap, ChevronRight, ChevronDown, Check, X, ArrowRight,
+    Play, Pause, Trash2, Edit2, Save, Filter, Download, ExternalLink,
+    Activity, Globe, Shield, User, Users, Bell, Command, Volume2,
+    VolumeX, Share2, Copy, MoreVertical, LogOut, CheckCircle2,
+    AlertCircle, Info, ChevronLeft, Delete, PhoneCall, Radio,
+    Keypad, ArrowUp, Smartphone, Hash
+} from 'lucide-react';
 import { useNotice } from '../../contexts/NoticeContext';
 import { playDigitTone } from '../../services/audioService';
 import ModuleHeader from '../../components/ModuleHeader';
@@ -44,7 +53,7 @@ const MachinedButton = ({ children, onClick, active, disabled, variant = 'number
             onClick={onClick}
             disabled={disabled}
             className={`relative flex items-center justify-center transition-all duration-75 active:scale-95 active:translate-y-0.5
-        ${variant === 'action' ? 'h-14 w-14 rounded-full' : 'h-16 w-16 rounded-[1.2rem]'}
+        ${variant === 'action' ? 'rounded-full h-14 w-14' : 'h-16 w-16 rounded-2xl'}
         ${disabled ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:brightness-110'}
       `}
             style={{
@@ -144,12 +153,12 @@ function normalizeProvider(record) {
 function providerState(providerType, activeProviderType, configs) {
     const config = configs.find((item) => item.providerType === providerType);
     if (!config) return { label: 'Not Connected', tone: 'neutral', detail: 'No saved config record exists.' };
-    
+
     // Explicit error or unauthorized states
     if (config.healthStatus === 'unhealthy' || config.healthStatus === 'error' || config.status === 'error') {
         return { label: 'Not Verified', tone: 'warning', detail: 'Credentials provided failed verification check.' };
     }
-    
+
     // Config absence
     if (!config.hasConfig || config.status === 'needs_config') {
         return { label: 'Needs Config', tone: 'warning', detail: 'Credentials were not detected on the saved record.' };
@@ -164,7 +173,7 @@ function providerState(providerType, activeProviderType, configs) {
     if (config.status === 'verified') {
         return { label: 'Verified', tone: 'neutral', detail: 'Credentials verified, but this provider is not currently active.' };
     }
-    
+
     return { label: 'Configured', tone: 'neutral', detail: 'Credentials saved, but verification status is uncertain.' };
 }
 
@@ -290,7 +299,7 @@ function DialerTab({
             if (activeCall || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             const key = e.key;
-            
+
             // Map standard keys and Numpad keys
             if (/^[0-9]$/.test(key)) {
                 handlePress(key);
@@ -429,43 +438,88 @@ function DialerTab({
                         </div>
 
                         <div className="grid grid-cols-2 gap-x-2.5 gap-y-2">
-                            <div className="space-y-1 col-span-2">
+                            <div className="space-y-1 col-span-2 relative">
                                 <label className="text-[8px] uppercase tracking-widest text-slate-500 ml-1 font-bold">Line Selection</label>
-                                <select
-                                    value={routingFromNumber}
-                                    onChange={e => onRoutingFromNumberChange(e.target.value)}
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] text-cyan-100/80 outline-none focus:border-cyan-500/40"
+                                <button
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] text-cyan-100/80 flex items-center justify-between group hover:border-cyan-500/30 transition-colors"
+                                    onClick={() => !activeCall && setShowLineSelect(!showLineSelect)}
                                     disabled={Boolean(activeCall)}
                                 >
-                                    <option value="">No Line Selected</option>
-                                    {voiceNumbers.map(n => <option key={n.id} value={n.number}>{formatPhone(n.number)}</option>)}
-                                </select>
+                                    <span>{routingFromNumber ? formatPhone(routingFromNumber) : 'No Line Selected'}</span>
+                                    <ChevronDown size={10} className={`text-slate-500 transition-transform ${showLineSelect ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showLineSelect && !activeCall && (
+                                    <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-[#0A0C10] border border-[#2A2D35] rounded-xl overflow-hidden shadow-2xl max-h-40 overflow-y-auto">
+                                        <button 
+                                            className="w-full px-3 py-2 text-left text-[10px] text-slate-400 hover:bg-white/5 transition-colors border-b border-white/5"
+                                            onClick={() => { onRoutingFromNumberChange(''); setShowLineSelect(false); }}
+                                        >
+                                            No Line Selected
+                                        </button>
+                                        {voiceNumbers.map(n => (
+                                            <button 
+                                                key={n.id} 
+                                                className={`w-full px-3 py-2 text-left text-[10px] transition-colors hover:bg-white/5 ${routingFromNumber === n.number ? 'text-cyan-400 bg-cyan-500/5' : 'text-slate-300'}`}
+                                                onClick={() => { onRoutingFromNumberChange(n.number); setShowLineSelect(false); }}
+                                            >
+                                                {formatPhone(n.number)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            <div className="space-y-1">
+                            <div className="space-y-1 relative">
                                 <label className="text-[8px] uppercase tracking-widest text-slate-500 ml-1 font-bold">Extension</label>
-                                <select
-                                    value={routingExtensionId}
-                                    onChange={e => onRoutingExtensionIdChange(e.target.value)}
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] text-cyan-100/80 outline-none focus:border-cyan-500/40"
+                                <button
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] text-cyan-100/80 flex items-center justify-between group hover:border-cyan-500/30 transition-colors"
+                                    onClick={() => !activeCall && setShowExtSelect(!showExtSelect)}
                                     disabled={Boolean(activeCall)}
                                 >
-                                    <option value="">Local Only</option>
-                                    {(routes?.extensions || []).map(e => <option key={e.id} value={e.id}>{e.extensionNumber}</option>)}
-                                </select>
+                                    <span>{(routes?.extensions || []).find(e => e.id === routingExtensionId)?.extensionNumber || 'Local Only'}</span>
+                                    <ChevronDown size={10} className={`text-slate-500 transition-transform ${showExtSelect ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showExtSelect && !activeCall && (
+                                    <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-[#0A0C10] border border-[#2A2D35] rounded-xl overflow-hidden shadow-2xl max-h-40 overflow-y-auto">
+                                        <button 
+                                            className="w-full px-3 py-2 text-left text-[10px] text-slate-400 hover:bg-white/5 transition-colors border-b border-white/5"
+                                            onClick={() => { onRoutingExtensionIdChange(''); setShowExtSelect(false); }}
+                                        >
+                                            Local Only
+                                        </button>
+                                        {(routes?.extensions || []).map(e => (
+                                            <button 
+                                                key={e.id} 
+                                                className={`w-full px-3 py-2 text-left text-[10px] transition-colors hover:bg-white/5 ${routingExtensionId === e.id ? 'text-cyan-400 bg-cyan-500/5' : 'text-slate-300'}`}
+                                                onClick={() => { onRoutingExtensionIdChange(e.id); setShowExtSelect(false); }}
+                                            >
+                                                {e.extensionNumber}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            <div className="space-y-1">
+                            <div className="space-y-1 relative">
                                 <label className="text-[8px] uppercase tracking-widest text-slate-500 ml-1 font-bold">Tone Style</label>
-                                <select
-                                    value={buttonToneStyle}
-                                    onChange={e => onButtonToneStyleChange(e.target.value)}
-                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] text-cyan-100/80 outline-none focus:border-cyan-500/40"
+                                <button
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] text-cyan-100/80 flex items-center justify-between group hover:border-cyan-500/30 transition-colors"
+                                    onClick={() => setShowToneSelect(!showToneSelect)}
                                 >
-                                    <option value="military">Military</option>
-                                    <option value="morse">Morse</option>
-                                    <option value="click">Click</option>
-                                    <option value="retro">Retro</option>
-                                    <option value="soft">Soft</option>
-                                </select>
+                                    <span className="capitalize">{buttonToneStyle}</span>
+                                    <ChevronDown size={10} className={`text-slate-500 transition-transform ${showToneSelect ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showToneSelect && (
+                                    <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-[#0A0C10] border border-[#2A2D35] rounded-xl overflow-hidden shadow-2xl">
+                                        {['military', 'morse', 'click', 'retro', 'soft'].map(style => (
+                                            <button 
+                                                key={style} 
+                                                className={`w-full px-3 py-2 text-left text-[10px] transition-colors hover:bg-white/5 capitalize ${buttonToneStyle === style ? 'text-cyan-400 bg-cyan-500/5' : 'text-slate-300'}`}
+                                                onClick={() => { onButtonToneStyleChange(style); setShowToneSelect(false); }}
+                                            >
+                                                {style}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -500,10 +554,10 @@ function DialerTab({
                                     </div>
                                 </MachinedButton>
                             ) : (
-                                <MachinedButton 
-                                    glow="emerald" 
-                                    active={dialer.phoneNumber.length >= 10} 
-                                    onClick={startCall} 
+                                <MachinedButton
+                                    glow="emerald"
+                                    active={dialer.phoneNumber.length >= 10}
+                                    onClick={startCall}
                                     disabled={!dialer.phoneNumber || !routingFromNumber || activeProviderType === 'stub' || providerConfigs.find(c => c.providerType === activeProviderType)?.status !== 'verified'}
                                 >
                                     <div className={`h-16 w-16 rounded-full border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center ${dialer.phoneNumber.length >= 10 ? 'animate-pulse' : 'opacity-25'} shadow-[0_0_15px_rgba(16,185,129,0.2)]`}>
@@ -603,8 +657,8 @@ const tabs = [
     { id: 'dialer', label: 'Operator', icon: Cpu },
 ];
 
-export default function SmsVoipModule({ 
-    buttonToneStyle, 
+export default function SmsVoipModule({
+    buttonToneStyle,
     onButtonToneStyleChange,
     fromNumber,
     onFromNumberChange,
@@ -634,6 +688,11 @@ export default function SmsVoipModule({
     const [callTime, setCallTime] = useState(0);
     const [numForm, setNumForm] = useState({ number: '', displayLabel: '', owner: '' });
     const [savingNum, setSavingNum] = useState(false);
+    
+    // Custom Select Toggles (Rule 12)
+    const [showLineSelect, setShowLineSelect] = useState(false);
+    const [showExtSelect, setShowExtSelect] = useState(false);
+    const [showToneSelect, setShowToneSelect] = useState(false);
     const timerRef = useRef(null);
 
     const loadAll = async () => {
@@ -773,7 +832,7 @@ export default function SmsVoipModule({
         try {
             const result = await saveCommsProviderConfigApi(providerType, config.config || {}, true);
             await loadAll();
-            
+
             if (result.status === 'verified') {
                 showNotice({ type: 'success', message: `${providerType.charAt(0).toUpperCase() + providerType.slice(1)} activated and verified.` });
             } else {
@@ -856,84 +915,84 @@ export default function SmsVoipModule({
 `}</style>
             <div className="flex-1 xl:overflow-hidden overflow-y-auto p-2 custom-scrollbar">
                 {isModuleReady ? (
-                <DialerTab
-                    routes={routes}
-                    integrationInfo={integrationInfo}
-                    contacts={contacts}
-                    threads={threads}
-                    messages={messages}
-                    calls={calls}
-                    overview={overview}
-                    selectedThreadId={selectedThreadId}
-                    setSelectedThreadId={setSelectedThreadId}
-                    selectedCallId={selectedCallId}
-                    setSelectedCallId={setSelectedCallId}
-                    replyBody={replyBody}
-                    setReplyBody={setReplyBody}
-                    sendSms={sendSms}
-                    sendingSms={sendingSms}
-                    dialer={dialer}
-                    setDialer={setDialer}
-                    activeCall={activeCall}
-                    setActiveCall={setActiveCall}
-                    callTime={callTime}
-                    startCall={startCall}
-                    endCall={endCall}
-                    numForm={numForm}
-                    setNumForm={setNumForm}
-                    savingNum={savingNum}
-                    attachNumber={attachNumber}
-                    refreshData={loadAll}
-                    buttonToneStyle={buttonToneStyle}
-                    onButtonToneStyleChange={onButtonToneStyleChange}
-                    routingFromNumber={fromNumber}
-                    onRoutingFromNumberChange={onFromNumberChange}
-                    routingExtensionId={extensionId}
-                    onRoutingExtensionIdChange={onExtensionIdChange}
-                    activeProviderType={activeProviderType}
-                    providerConfigs={providerConfigs}
-                />
+                    <DialerTab
+                        routes={routes}
+                        integrationInfo={integrationInfo}
+                        contacts={contacts}
+                        threads={threads}
+                        messages={messages}
+                        calls={calls}
+                        overview={overview}
+                        selectedThreadId={selectedThreadId}
+                        setSelectedThreadId={setSelectedThreadId}
+                        selectedCallId={selectedCallId}
+                        setSelectedCallId={setSelectedCallId}
+                        replyBody={replyBody}
+                        setReplyBody={setReplyBody}
+                        sendSms={sendSms}
+                        sendingSms={sendingSms}
+                        dialer={dialer}
+                        setDialer={setDialer}
+                        activeCall={activeCall}
+                        setActiveCall={setActiveCall}
+                        callTime={callTime}
+                        startCall={startCall}
+                        endCall={endCall}
+                        numForm={numForm}
+                        setNumForm={setNumForm}
+                        savingNum={savingNum}
+                        attachNumber={attachNumber}
+                        refreshData={loadAll}
+                        buttonToneStyle={buttonToneStyle}
+                        onButtonToneStyleChange={onButtonToneStyleChange}
+                        routingFromNumber={fromNumber}
+                        onRoutingFromNumberChange={onFromNumberChange}
+                        routingExtensionId={extensionId}
+                        onRoutingExtensionIdChange={onExtensionIdChange}
+                        activeProviderType={activeProviderType}
+                        providerConfigs={providerConfigs}
+                    />
                 ) : (
-                <div className="flex h-full items-center justify-center">
-                    <div className="max-w-md text-center space-y-6 px-6">
-                        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.02]">
-                            <RadioTower size={32} className="text-slate-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-300">SMS &amp; VoIP Not Activated</h2>
-                            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
-                                SMS and VoIP have not been provisioned for this installation yet.
-                                A verified communications provider with a valid configuration is required.
+                    <div className="flex h-full items-center justify-center">
+                        <div className="max-w-md text-center space-y-6 px-6">
+                            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.02]">
+                                <RadioTower size={32} className="text-slate-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-300">SMS &amp; VoIP Not Activated</h2>
+                                <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+                                    SMS and VoIP have not been provisioned for this installation yet.
+                                    A verified communications provider with a valid configuration is required.
+                                </p>
+                            </div>
+                            <div className="rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4 text-left space-y-2">
+                                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-600 font-bold">Requirements</div>
+                                <ul className="space-y-1.5 text-sm text-slate-500">
+                                    <li className="flex items-start gap-2">
+                                        <span className={providerConfigs.length > 0 ? 'text-emerald-500' : 'text-slate-600'}>{providerConfigs.length > 0 ? '✓' : '○'}</span>
+                                        Select and configure a communications provider
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className={providerConfigs.some(c => c.status === 'verified') ? 'text-emerald-500' : 'text-slate-600'}>{providerConfigs.some(c => c.status === 'verified') ? '✓' : '○'}</span>
+                                        Verify provider credentials with a real API check
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className={activeProviderType !== 'stub' ? 'text-emerald-500' : 'text-slate-600'}>{activeProviderType !== 'stub' ? '✓' : '○'}</span>
+                                        Activate provider as the active transport
+                                    </li>
+                                </ul>
+                            </div>
+                            <button
+                                onClick={() => navigate({ module: 'integrations', integrationCategory: 'communications' })}
+                                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-6 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-cyan-400 transition-all hover:bg-cyan-500/20 active:scale-95"
+                            >
+                                Begin Setup
+                            </button>
+                            <p className="text-[10px] text-slate-600">
+                                Setup is optional. The rest of the application remains fully usable.
                             </p>
                         </div>
-                        <div className="rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4 text-left space-y-2">
-                            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-600 font-bold">Requirements</div>
-                            <ul className="space-y-1.5 text-sm text-slate-500">
-                                <li className="flex items-start gap-2">
-                                    <span className={providerConfigs.length > 0 ? 'text-emerald-500' : 'text-slate-600'}>{providerConfigs.length > 0 ? '✓' : '○'}</span>
-                                    Select and configure a communications provider
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className={providerConfigs.some(c => c.status === 'verified') ? 'text-emerald-500' : 'text-slate-600'}>{providerConfigs.some(c => c.status === 'verified') ? '✓' : '○'}</span>
-                                    Verify provider credentials with a real API check
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className={activeProviderType !== 'stub' ? 'text-emerald-500' : 'text-slate-600'}>{activeProviderType !== 'stub' ? '✓' : '○'}</span>
-                                    Activate provider as the active transport
-                                </li>
-                            </ul>
-                        </div>
-                        <button
-                            onClick={() => navigate({ module: 'integrations', integrationCategory: 'communications' })}
-                            className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-6 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-cyan-400 transition-all hover:bg-cyan-500/20 active:scale-95"
-                        >
-                            Begin Setup
-                        </button>
-                        <p className="text-[10px] text-slate-600">
-                            Setup is optional. The rest of the application remains fully usable.
-                        </p>
                     </div>
-                </div>
                 )}
             </div>
         </div>

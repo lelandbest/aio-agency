@@ -490,7 +490,7 @@ const buildAssistantMessageFromRun = (run, overrides = {}) => ({
 // 8. AIO AGENTS MODULE
 const AIOAgentsModule = () => {
   const { tenant, user } = useAuth();
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([

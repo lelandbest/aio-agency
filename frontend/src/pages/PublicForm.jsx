@@ -18,6 +18,7 @@ const normalizePublicFormSettings = (settings = {}) => {
     redirectUrl: source.redirectUrl || source.redirect_url || '',
     thankYouMessage: source.thankYouMessage || source.thank_you_message || 'Your submission has been received. We will get back to you soon.',
     headerImage: normalizeSourceUrl(rawHeaderImage),
+    headerImageFit: source.headerImageFit || source.header_image_fit || 'cover',
   };
 };
 
@@ -110,7 +111,8 @@ const PublicForm = ({ formSlug }) => {
               <img
                 src={settings.headerImage}
                 alt={`${form.name} header`}
-                className="h-48 w-full object-cover"
+                className="h-48 w-full"
+                style={{ objectFit: settings.headerImageFit || 'cover' }}
               />
             </div>
           ) : null}

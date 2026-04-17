@@ -18,6 +18,7 @@ const normalizeFormEntrySettings = (settings = {}) => {
     }
     return {
         headerImage: normalizeSourceUrl(rawHeaderImage),
+        headerImageFit: source.headerImageFit || source.header_image_fit || 'cover',
     };
 };
 
@@ -133,7 +134,8 @@ const FormEntryModal = ({ form, onClose, onSuccess }) => {
                             <img
                                 src={settings.headerImage}
                                 alt={`${form.name} header`}
-                                className="h-40 w-full object-cover"
+                                className="h-40 w-full"
+                                style={{ objectFit: settings.headerImageFit || 'cover' }}
                             />
                         </div>
                     ) : null}

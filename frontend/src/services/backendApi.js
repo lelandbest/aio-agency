@@ -137,7 +137,7 @@ export async function request(path, options = {}) {
     let parsed = null;
     try {
       parsed = JSON.parse(text);
-    } catch {}
+    } catch { }
     const detail = parsed?.detail || parsed?.message || parsed?.error || text;
     throw new Error(detail || `Request failed: ${response.status}`);
   }
@@ -234,6 +234,24 @@ export async function revokeAuthSessionApi(sessionId) {
   });
 }
 
+export async function exportUserDataApi() {
+  return request('/api/user/export');
+}
+
+export async function getExportStatusApi(exportId) {
+  return request(`/api/auth/export-data/${encodeURIComponent(exportId)}/status`);
+}
+
+export function getExportDownloadUrl(exportId) {
+  return `${API_BASE_URL}/api/auth/export-data/${encodeURIComponent(exportId)}/download`;
+}
+
+export async function deleteUserAccountApi() {
+  return request('/api/auth/account', {
+    method: 'DELETE'
+  });
+}
+
 export async function logoutOtherSessionsApi() {
   return request('/api/auth/sessions/logout-others', {
     method: 'POST'
@@ -303,6 +321,13 @@ export async function getAiAgentsApi(includeHidden = false) {
   const suffix = includeHidden ? '?includeHidden=true' : '';
   const response = await request(`/api/ai/agents${suffix}`);
   return response.data || [];
+}
+
+export async function updateAiAgentApi(agentKey, payload) {
+  return request(`/api/ai/agents/${encodeURIComponent(agentKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function getSystemHealthApi() {
@@ -771,10 +796,10 @@ export async function getMediaRenderTemplatesApi() {
   const data = toCamelCase(response.data || null);
   const templates = Array.isArray(data?.templates)
     ? data.templates.map((template) => ({
-        ...template,
-        id: template?.templateId || '',
-        label: template?.humanLabel || template?.templateId || '',
-      }))
+      ...template,
+      id: template?.templateId || '',
+      label: template?.humanLabel || template?.templateId || '',
+    }))
     : [];
   return {
     ...(data || {}),
@@ -798,9 +823,12 @@ export async function ingestMeetingMediaApi(payload) {
   return toCamelCase(response.data || null);
 }
 
-export async function uploadMediaFileApi(file) {
+export async function uploadMediaFileApi(file, tags = null) {
   const formData = new FormData();
   formData.append('file', file);
+  if (tags) {
+    formData.append('tags', tags);
+  }
   const response = await request('/api/media/upload', {
     method: 'POST',
     body: formData,

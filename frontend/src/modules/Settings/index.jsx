@@ -7,20 +7,25 @@ import { useAIAssist } from '../../contexts/AIAssistContext';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import { clearStoredSessionToken } from '../../services/authStorage';
 import ModuleHeader from '../../components/ModuleHeader';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import {
   addWorkspaceMemberApi,
-  armOmegaApi,
   attachWorkspaceRoleApi,
-  cancelOmegaApi,
   changePasswordApi,
-  createWorkspaceRoleApi,
   createWorkspaceApi,
-  deleteWorkspaceApi,
+  createWorkspaceRoleApi,
+  deleteAvatarApi,
   deleteGlobalVariableApi,
+  deleteUserAccountApi,
+  deleteWorkspaceApi,
   detachWorkspaceRoleApi,
   executeOmegaApi,
+  exportUserDataApi,
+  getAiAgentsApi,
   getAuthSessionsApi,
   getCanonicalSettingsApi,
+  getExportDownloadUrl,
+  getExportStatusApi,
   getOmegaStatusApi,
   getProfileApi,
   getWorkspaceMembershipsApi,
@@ -28,15 +33,17 @@ import {
   logoutOtherSessionsApi,
   removeWorkspaceMemberApi,
   revokeAuthSessionApi,
+  updateAiAgentApi,
   updateCanonicalTenantSettingsApi,
   updateProfileApi,
   updateSystemEmailTemplateApi,
   updateWorkspaceApi,
   updateWorkspaceMemberApi,
   updateWorkspaceRoleApi,
-  upsertGlobalVariableApi,
   uploadAvatarApi,
-  deleteAvatarApi
+  upsertGlobalVariableApi,
+  armOmegaApi,
+  cancelOmegaApi
 } from '../../services/backendApi';
 import { useTransientSaveFeedback, saveButtonClassName } from '../../hooks/useTransientSaveFeedback';
 
@@ -173,11 +180,10 @@ const EntityRolePills = ({ roles = [], onDetach = null, disabled = false, emptyL
     {roles.length ? roles.map((role) => (
       <div
         key={role.id}
-        className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-          role.isSystemRole
-            ? 'border-cyan-500/30 bg-cyan-500/12 text-cyan-200'
-            : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]'
-        }`}
+        className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${role.isSystemRole
+          ? 'border-cyan-500/30 bg-cyan-500/12 text-cyan-200'
+          : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]'
+          }`}
       >
         <span>{role.name}</span>
         {role.isLocked && <span className="text-[8px] opacity-70">LOCKED</span>}
@@ -428,11 +434,10 @@ const RolesAuthoritySurface = ({ focus = 'roles' }) => {
                     key={role.id}
                     type="button"
                     onClick={() => setSelectedRoleId(role.id)}
-                    className={`w-full rounded-[var(--radius-card)] border px-3 py-3 text-left transition ${
-                      isActive
-                        ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
-                        : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'
-                    }`}
+                    className={`w-full rounded-[var(--radius-card)] border px-3 py-3 text-left transition ${isActive
+                      ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
+                      : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'
+                      }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -521,11 +526,10 @@ const RolesAuthoritySurface = ({ focus = 'roles' }) => {
                                 type="button"
                                 onClick={() => handleToggleCapability(capability.id)}
                                 disabled={!canManage || selectedRole.isLocked}
-                                className={`rounded-[var(--radius-card)] border px-3 py-3 text-left transition disabled:opacity-60 ${
-                                  enabled
-                                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12'
-                                    : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'
-                                }`}
+                                className={`rounded-[var(--radius-card)] border px-3 py-3 text-left transition disabled:opacity-60 ${enabled
+                                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12'
+                                  : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:border-[var(--color-primary)]/40'
+                                  }`}
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="text-sm font-semibold text-[var(--color-text-primary)]">{capability.label}</div>
@@ -886,11 +890,13 @@ const useWhiteLabelControlPlane = ({ menuStructure, onMenuUpdate, handlersRef })
     }
   });
 
-  const toggleItemVisibility = (categoryIdx, itemIdx) => {
+  const toggleItemVisibility = async (categoryIdx, itemIdx) => {
     const updated = cloneMenuStructure(menuItems);
     updated[categoryIdx].items[itemIdx].visible = !updated[categoryIdx].items[itemIdx].visible;
     setMenuItems(updated);
     setMenuDraftDirty(true);
+    // Autosave for Navigation persistence
+    await persistWhiteLabel(brandingData, updated, mobileItems);
   };
 
   const updateBrandingColor = (colorType, value) => {
@@ -945,7 +951,7 @@ const useWhiteLabelControlPlane = ({ menuStructure, onMenuUpdate, handlersRef })
     setIconSearch('');
   };
 
-  const saveMenuItemChanges = () => {
+  const saveMenuItemChanges = async () => {
     const updated = cloneMenuStructure(menuItems);
     const nextItem = {
       label: modalFormData.title,
@@ -976,6 +982,8 @@ const useWhiteLabelControlPlane = ({ menuStructure, onMenuUpdate, handlersRef })
     setMenuItems(updated);
     setMenuDraftDirty(true);
     closeMenuModal();
+    // Autosave for Navigation persistence
+    await persistWhiteLabel(brandingData, updated, mobileItems);
   };
 
   const filteredIcons = WHITE_LABEL_AVAILABLE_ICONS.filter((icon) =>
@@ -1135,7 +1143,7 @@ const WhiteLabelMenuItemModal = ({
             <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Link</label>
             <input
               type="url"
-              placeholder="https://data.maverickcrm.net"
+              placeholder="https://example.com"
               value={modalFormData.link}
               onChange={(e) => setModalFormData({ ...modalFormData, link: e.target.value })}
               className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-blue-500 focus:outline-none"
@@ -1366,7 +1374,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
             {/* Report Branding */}
             <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4 space-y-4">
               <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Report Branding</h3>
-              
+
               {/* Brand Name */}
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Brand Name</label>
@@ -1925,7 +1933,7 @@ const WhiteLabelSettings = ({ menuStructure, onMenuUpdate, handlersRef }) => {
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Link</label>
                 <input
                   type="url"
-                  placeholder="https://data.maverickcrm.net"
+                  placeholder="https://example.com"
                   value={modalFormData.link}
                   onChange={(e) => setModalFormData({ ...modalFormData, link: e.target.value })}
                   className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-blue-500 focus:outline-none"
@@ -2067,7 +2075,6 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
                 <th className="text-left px-5 py-4 w-[180px]">Email Type</th>
                 <th className="text-left px-5 py-4 w-[240px]">Subject</th>
                 <th className="text-left px-5 py-4 w-[140px]">Send To</th>
-                <th className="text-left px-5 py-4 w-[100px]">Enabled</th>
                 <th className="text-left px-5 py-4 w-[120px]">Edited By</th>
                 <th className="text-left px-5 py-4 w-[120px]">Edited At</th>
                 <th className="text-left px-5 py-4 w-[80px]">Action</th>
@@ -2076,7 +2083,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
             <tbody className="divide-y divide-[var(--color-border)]">
               {loading && templates.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">Loading templates...</td>
+                  <td colSpan="6" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">Loading templates...</td>
                 </tr>
               )}
               {templates.map(template => (
@@ -2084,15 +2091,6 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
                   <td className="px-5 py-4 text-[var(--color-text-primary)] font-medium truncate">{template.emailType}</td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.subject}</td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.sendTo}</td>
-                  <td className="px-5 py-4">
-                    <button 
-                      disabled
-                      title="Mail transport integration coming soon."
-                      className={`w-12 h-6 rounded-full border transition relative opacity-50 cursor-not-allowed ${template.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}
-                    >
-                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${template.enabled ? 'left-6' : 'left-0.5'}`} />
-                    </button>
-                  </td>
                   <td className="px-5 py-4 text-[var(--color-text-primary)] truncate">{template.editedByName || 'AIO Flow\u2122'}</td>
                   <td className="px-5 py-4 text-[var(--color-text-secondary)] truncate">{template.editedAt || template.updatedAt}</td>
                   <td className="px-5 py-4">
@@ -2104,7 +2102,7 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
               ))}
               {!loading && templates.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">No system emails matched that search.</td>
+                  <td colSpan="6" className="px-5 py-8 text-center text-[var(--color-text-secondary)]">No system emails matched that search.</td>
                 </tr>
               )}
             </tbody>
@@ -2132,15 +2130,6 @@ const SystemEmailsSettings = ({ search = '', onSearchChange }) => {
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Send To</label>
                 <input value={draft.sendTo} onChange={(event) => setDraft(current => ({ ...current, sendTo: event.target.value }))} className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-3">
-                <div>
-                  <div className="text-sm font-medium text-[var(--color-text-primary)]">Template Enabled</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">Disable the notice without deleting its content.</div>
-                </div>
-                <button onClick={() => setDraft(current => ({ ...current, enabled: !current.enabled }))} className={`w-12 h-6 rounded-full border transition relative ${draft.enabled ? 'bg-[var(--color-primary)]/25 border-[var(--color-primary)]/40' : 'bg-[var(--color-bg-primary)] border-[var(--color-border)]'}`}>
-                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${draft.enabled ? 'left-6' : 'left-0.5'}`} />
-                </button>
               </div>
               <div>
                 <label className="block text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Default Message Copy</label>
@@ -2181,6 +2170,8 @@ const ProfileSettings = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [hasLocalPassword, setHasLocalPassword] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -2214,7 +2205,7 @@ const ProfileSettings = () => {
       try {
         const data = await getAuthSessionsApi();
         setSessions(data || []);
-      } catch {}
+      } catch { }
       setLoadingSessions(false);
     };
     loadSessions();
@@ -2318,13 +2309,38 @@ const ProfileSettings = () => {
         try {
           const data = await getAuthSessionsApi();
           setSessions(data || []);
-        } catch {}
+        } catch { }
         setLoadingSessions(false);
       };
       await loadSessions();
       setStatus('All other sessions were logged out.');
     } catch (logoutError) {
       setError(logoutError?.message || logoutError?.detail || String(logoutError) || 'Unable to log out other sessions.');
+    }
+  };
+
+  const handleExportData = async () => {
+    setError('');
+    setStatus('Requesting data archive...');
+    try {
+      const resp = await exportUserDataApi();
+      setStatus(resp.message || 'Data bundle preparation started. You will receive an email shortly.');
+    } catch (err) {
+      setError(err?.message || 'Verification of privacy service failed.');
+    }
+  };
+
+  const handleDeleteAccountExecution = async () => {
+    setDeletingAccount(true);
+    setError('');
+    try {
+      await deleteUserAccountApi();
+      clearStoredSessionToken();
+      window.location.reload();
+    } catch (err) {
+      setError(err?.message || 'Failed to delete account.');
+      setDeletingAccount(false);
+      setShowDeleteAccountConfirm(false);
     }
   };
 
@@ -2341,7 +2357,7 @@ const ProfileSettings = () => {
           {/* LEFT COLUMN - Personal */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Personal</h3>
-            
+
             {/* Profile Card */}
             <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-4">
               <div className="grid grid-cols-[auto_1fr] gap-6">
@@ -2379,20 +2395,20 @@ const ProfileSettings = () => {
                       <input autoComplete="off" type="email" value={form.email} disabled className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] opacity-80" />
                     </div>
                   </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Phone</label>
-                      <input 
-                        id="aio-personal-tel" 
-                        name="aio-tel" 
-                        type="tel" 
-                        value={form.phone || ''} 
-                        onChange={(e) => setForm(c => ({ ...c, phone: e.target.value }))} 
-                        autoComplete="one-time-code" 
-                        inputMode="tel" 
-                        pattern="[0-9+ \-\(\)]*"
-                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]" 
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Phone</label>
+                    <input
+                      id="aio-personal-tel"
+                      name="aio-tel"
+                      type="tel"
+                      value={form.phone || ''}
+                      onChange={(e) => setForm(c => ({ ...c, phone: e.target.value }))}
+                      autoComplete="one-time-code"
+                      inputMode="tel"
+                      pattern="[0-9+ \-\(\)]*"
+                      className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                    />
+                  </div>
                   <div className="col-span-2 grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-[var(--color-text-secondary)] uppercase mb-1">Language</label>
@@ -2533,33 +2549,36 @@ const ProfileSettings = () => {
               )}
             </div>
 
-            {/* Data & Privacy + 2FA side by side */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-3 space-y-2">
-                <div className="text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Data & Privacy</div>
-                <div className="flex gap-2">
-                  <button onClick={() => setStatus('Data export staged for later pass.')} className="flex-1 px-2 py-1.5 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-[10px] font-medium transition">
-                    Download
-                  </button>
-                  <button className="flex-1 px-2 py-1.5 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-red-400 text-[10px] font-medium opacity-50 cursor-not-allowed">
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-3">
-                <div className="text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">2FA -FUTURE</div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-[var(--color-text-secondary)]">Extra security layer</span>
-                  <div className="relative opacity-40 cursor-not-allowed">
-                    <div className="w-9 h-5 rounded-full border bg-[var(--color-bg-primary)] border-[var(--color-border)]">
-                      <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white" />
-                    </div>
-                  </div>
-                </div>
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-3 space-y-2">
+              <div className="text-xs font-bold text-[var(--color-text-secondary)] uppercase mb-2">Data & Privacy</div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleExportData}
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-blue-500/50 text-blue-400 text-[10px] font-medium transition"
+                >
+                  Download
+                </button>
+                <button 
+                  onClick={() => setShowDeleteAccountConfirm(true)}
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-[var(--color-bg-primary)] border border-[var(--color-border)] hover:border-red-500/50 text-red-400 text-[10px] font-medium transition"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
         </div>
+
+        <SystemConfirmModal
+          isOpen={showDeleteAccountConfirm}
+          onClose={() => setShowDeleteAccountConfirm(false)}
+          onConfirm={handleDeleteAccountExecution}
+          title="Delete Account"
+          message="Are you sure you want to delete your account? This will revoke all active sessions, remove you from all workspaces, and permanently delete your user profile. This action cannot be undone."
+          confirmText={deletingAccount ? "Deleting..." : "Permanently Delete"}
+          cancelText="Cancel"
+          variant="danger"
+        />
       </div>
     </div>
   );
@@ -2870,8 +2889,8 @@ const WorkspaceSettings = ({ view = 'all' }) => {
   const archiveBlockedReason = !canArchiveWorkspace
     ? 'Only workspace owners can archive a workspace.'
     : !alternateWorkspace
-    ? 'You cannot archive your only remaining accessible workspace.'
-    : '';
+      ? 'You cannot archive your only remaining accessible workspace.'
+      : '';
   const availableRoleOptions = hasCapability('system.omega')
     ? ['owner', 'admin', 'staff', 'viewer']
     : ['admin', 'staff', 'viewer'];
@@ -3013,279 +3032,272 @@ const WorkspaceSettings = ({ view = 'all' }) => {
   return (
     <div className="h-full min-h-0 overflow-y-auto p-6 space-y-6">
       {showPreferences && (
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Control</h3>
-              <p className="text-sm text-[var(--color-text-secondary)]">Manage the workspace shown in the top-right switcher and keep ownership clean as Phase 9 hardens.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Current Workspace</label>
-                <select
-                  value={selectedWorkspaceId}
-                  onChange={(event) => handleWorkspaceSelect(event.target.value)}
-                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                >
-                  {(tenants || []).map(workspace => (
-                    <option key={workspace.id} value={workspace.id}>
-                      {workspace.name} ({workspace.role})
-                    </option>
-                  ))}
-                </select>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-6">
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Control</h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">Manage the workspace shown in the top-right switcher and keep ownership clean as Phase 9 hardens.</p>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Your Role</label>
-                <div className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-primary)]">
-                  {selectedWorkspace?.role || 'viewer'}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Current Workspace</label>
+                  <select
+                    value={selectedWorkspaceId}
+                    onChange={(event) => handleWorkspaceSelect(event.target.value)}
+                    className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  >
+                    {(tenants || []).map(workspace => (
+                      <option key={workspace.id} value={workspace.id}>
+                        {workspace.name} ({workspace.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Your Role</label>
+                  <div className="px-3 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-primary)]">
+                    {selectedWorkspace?.role || 'viewer'}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-              <input
-                value={workspaceName}
-                onChange={(event) => setWorkspaceName(event.target.value)}
-                placeholder="Workspace name"
-                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-              />
-              <button
-                onClick={handleRenameWorkspace}
-                disabled={!canManageWorkspace}
-                className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'save-workspace-name')}
-              >
-                {savedAction === 'save-workspace-name' ? 'Saved' : 'Save Name'}
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Create Workspace</h3>
-              <p className="text-sm text-[var(--color-text-secondary)]">Spin up a new workspace and move into it immediately. This is the first real admin surface for multi-tenant operation.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-              <input
-                value={newWorkspaceName}
-                onChange={(event) => setNewWorkspaceName(event.target.value)}
-                placeholder="New workspace name"
-                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-              />
-              <button
-                onClick={handleCreateWorkspace}
-                disabled={!canCreateWorkspace}
-                className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed", savedAction === 'create-workspace')}
-              >
-                {savedAction === 'create-workspace' ? 'Created' : 'Create Workspace'}
-              </button>
-            </div>
-            {!canCreateWorkspace && (
-              <div className="text-xs text-[var(--color-text-secondary)]">
-                Workspace creation is limited to owners and admins.
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+                <input
+                  value={workspaceName}
+                  onChange={(event) => setWorkspaceName(event.target.value)}
+                  placeholder="Workspace name"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                />
+                <button
+                  onClick={handleRenameWorkspace}
+                  disabled={!canManageWorkspace}
+                  className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'save-workspace-name')}
+                >
+                  {savedAction === 'save-workspace-name' ? 'Saved' : 'Save Name'}
+                </button>
               </div>
-            )}
-          </div>
-
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Transcription Provider</h3>
-              <p className="text-sm text-[var(--color-text-secondary)]">Locks transcription to one provider. No fallback.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'ffmpeg_transcribe', label: 'FFMPEG' },
-                { value: 'elevenlabs_scribe', label: 'ELEVENLABS' },
-                { value: 'disabled', label: 'DISABLED' },
-              ].map((option) => {
-                const active = transcriptionProvider === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleTranscriptionProviderChange(option.value)}
-                    disabled={!canManageWorkspace}
-                    className={`px-4 py-2 rounded-[var(--radius-card)] border text-xs font-semibold tracking-[0.16em] transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                      active
+
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Create Workspace</h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">Spin up a new workspace and move into it immediately. This is the first real admin surface for multi-tenant operation.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+                <input
+                  value={newWorkspaceName}
+                  onChange={(event) => setNewWorkspaceName(event.target.value)}
+                  placeholder="New workspace name"
+                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                />
+                <button
+                  onClick={handleCreateWorkspace}
+                  disabled={!canCreateWorkspace}
+                  className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed", savedAction === 'create-workspace')}
+                >
+                  {savedAction === 'create-workspace' ? 'Created' : 'Create Workspace'}
+                </button>
+              </div>
+              {!canCreateWorkspace && (
+                <div className="text-xs text-[var(--color-text-secondary)]">
+                  Workspace creation is limited to owners and admins.
+                </div>
+              )}
+            </div>
+
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Transcription Provider</h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">Locks transcription to one provider. No fallback.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'ffmpeg_transcribe', label: 'FFMPEG' },
+                  { value: 'elevenlabs_scribe', label: 'ELEVENLABS' },
+                  { value: 'disabled', label: 'DISABLED' },
+                ].map((option) => {
+                  const active = transcriptionProvider === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleTranscriptionProviderChange(option.value)}
+                      disabled={!canManageWorkspace}
+                      className={`px-4 py-2 rounded-[var(--radius-card)] border text-xs font-semibold tracking-[0.16em] transition disabled:opacity-50 disabled:cursor-not-allowed ${active
                         ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
                         : 'border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/30'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
+                        }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {!canManageWorkspace && (
+                <div className="text-xs text-[var(--color-text-secondary)]">
+                  Workspace admins control the locked transcription provider.
+                </div>
+              )}
+              {savedAction === 'save-transcription-provider' && (
+                <div className="text-xs text-emerald-300">Provider lock saved.</div>
+              )}
             </div>
-            {!canManageWorkspace && (
-              <div className="text-xs text-[var(--color-text-secondary)]">
-                Workspace admins control the locked transcription provider.
+          </div>
+
+          <div className="space-y-4">
+            {(statusMessage || error) && (
+              <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+                {error || statusMessage}
               </div>
             )}
-            {savedAction === 'save-transcription-provider' && (
-              <div className="text-xs text-emerald-300">Provider lock saved.</div>
-            )}
           </div>
         </div>
-
-        <div className="space-y-4">
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-5 space-y-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-secondary)]">Phase 9</div>
-            <div className="text-sm text-[var(--color-text-primary)]">Workspace switching in the shell now reflects real session membership, not placeholders.</div>
-            <div className="text-xs text-[var(--color-text-secondary)]">Current workspace: {tenant?.name || 'Unassigned'}</div>
-            <div className="text-xs text-[var(--color-text-secondary)]">Accessible workspaces: {(tenants || []).length}</div>
-          </div>
-          {(statusMessage || error) && (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
-              {error || statusMessage}
-            </div>
-          )}
-        </div>
-      </div>
       )}
 
       {showMembers && (
-      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Members</h3>
-            <p className="text-sm text-[var(--color-text-secondary)]">Add existing app users, keep the legacy workspace role bridge explicit, and attach real role bundles to each member.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {loadingMembers && <div className="text-xs text-[var(--color-text-secondary)]">Members loading…</div>}
-            {loadingRoles && <div className="text-xs text-[var(--color-text-secondary)]">Roles loading…</div>}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-3">
-          <input
-            value={newMemberEmail}
-            onChange={(event) => setNewMemberEmail(event.target.value)}
-            placeholder="existing.user@example.com"
-            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-          />
-          <select
-            value={newMemberRole}
-            onChange={(event) => setNewMemberRole(event.target.value)}
-            disabled={!canManageWorkspace}
-            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-          >
-            {availableRoleOptions.filter(role => role !== 'owner').map(role => (
-              <option key={role} value={role}>{role}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleAddMember}
-            disabled={!canManageWorkspace}
-            className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'add-member')}
-          >
-            {savedAction === 'add-member' ? 'Added' : 'Add Member'}
-          </button>
-        </div>
-
-        <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
-          {(memberships || []).map(member => (
-            <div key={member.id} className="space-y-3 px-4 py-4 bg-[var(--color-bg-secondary)]">
-              <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_180px_auto] gap-3 items-center">
-                <div>
-                  <div className="text-sm font-semibold text-[var(--color-text-primary)]">{member.user_name}</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">{member.user_email}</div>
-                </div>
-                <div className="text-xs text-[var(--color-text-secondary)]">{member.provider}</div>
-                <select
-                  value={member.role}
-                  disabled={!canManageWorkspace}
-                  onChange={(event) => handleRoleChange(member.id, event.target.value)}
-                  className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
-                >
-                  {availableRoleOptions.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => handleRemoveMember(member.id)}
-                  disabled={!canManageWorkspace || member.user_email === user?.email}
-                  className="px-3 py-2 rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Remove
-                </button>
-              </div>
-
-              <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Attached Roles</div>
-                  <div className="text-xs text-[var(--color-text-secondary)]">
-                    Effective capabilities: {(roleIndex[`user:${member.userId}`]?.effectiveCapabilities || []).length}
-                  </div>
-                </div>
-                <RoleAssignmentEditor
-                  workspaceId={selectedWorkspaceId}
-                  entityType="user"
-                  entityId={member.userId}
-                  availableRoles={authorityRoles}
-                  assignedRoles={authorityRoles.filter((role) => (roleIndex[`user:${member.userId}`]?.roleIds || []).includes(role.id))}
-                  onRoleBundleUpdate={setRoleBundle}
-                  canManage={canManageWorkspace}
-                  compact
-                />
-              </div>
-            </div>
-          ))}
-          {memberships.length === 0 && !loadingMembers && (
-            <div className="px-4 py-6 text-sm text-[var(--color-text-secondary)]">No members found for this workspace yet.</div>
-          )}
-        </div>
-
-        {rolesError && (
-          <div className="rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-            {rolesError}
-          </div>
-        )}
-
-        {canArchiveWorkspace && (
-          <div className="rounded-[var(--radius-panel)] border border-red-500/25 bg-red-500/8 p-6 space-y-3">
+        <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-panel)] p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-red-300">Danger Zone</div>
-              <div className="mt-1 text-sm text-[var(--color-text-primary)]">Archive workspace '{selectedWorkspace?.name || 'Workspace'}'?</div>
-              <div className="mt-1 text-xs text-[var(--color-text-secondary)]">This removes the workspace from normal access and selection, but does not permanently delete its data.</div>
+              <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Workspace Members</h3>
+              <p className="text-sm text-[var(--color-text-secondary)]">Add existing app users, keep the legacy workspace role bridge explicit, and attach real role bundles to each member.</p>
             </div>
-            {showArchiveConfirm ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={handleArchiveWorkspace}
-                  disabled={Boolean(archiveBlockedReason) || archivingWorkspace}
-                  className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/40 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {archivingWorkspace ? 'Archiving...' : 'Confirm Archive'}
-                </button>
-                <button
-                  onClick={() => setShowArchiveConfirm(false)}
-                  disabled={archivingWorkspace}
-                  className="px-4 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-sm"
-                >
-                  Cancel
-                </button>
+            <div className="flex items-center gap-3">
+              {loadingMembers && <div className="text-xs text-[var(--color-text-secondary)]">Members loading…</div>}
+              {loadingRoles && <div className="text-xs text-[var(--color-text-secondary)]">Roles loading…</div>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-3">
+            <input
+              value={newMemberEmail}
+              onChange={(event) => setNewMemberEmail(event.target.value)}
+              placeholder="existing.user@example.com"
+              className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+            />
+            <select
+              value={newMemberRole}
+              onChange={(event) => setNewMemberRole(event.target.value)}
+              disabled={!canManageWorkspace}
+              className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+            >
+              {availableRoleOptions.filter(role => role !== 'owner').map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleAddMember}
+              disabled={!canManageWorkspace}
+              className={saveButtonClassName("px-4 py-2 rounded-[var(--radius-card)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--color-text-primary)] text-sm font-medium transition", savedAction === 'add-member')}
+            >
+              {savedAction === 'add-member' ? 'Added' : 'Add Member'}
+            </button>
+          </div>
+
+          <div className="divide-y divide-[var(--color-border)] border border-[var(--color-border)] rounded-[var(--radius-panel)] overflow-hidden">
+            {(memberships || []).map(member => (
+              <div key={member.id} className="space-y-3 px-4 py-4 bg-[var(--color-bg-secondary)]">
+                <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_180px_auto] gap-3 items-center">
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--color-text-primary)]">{member.user_name}</div>
+                    <div className="text-xs text-[var(--color-text-secondary)]">{member.user_email}</div>
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)]">{member.provider}</div>
+                  <select
+                    value={member.role}
+                    disabled={!canManageWorkspace}
+                    onChange={(event) => handleRoleChange(member.id, event.target.value)}
+                    className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none disabled:opacity-60"
+                  >
+                    {availableRoleOptions.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => handleRemoveMember(member.id)}
+                    disabled={!canManageWorkspace || member.user_email === user?.email}
+                    className="px-3 py-2 rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">Attached Roles</div>
+                    <div className="text-xs text-[var(--color-text-secondary)]">
+                      Effective capabilities: {(roleIndex[`user:${member.userId}`]?.effectiveCapabilities || []).length}
+                    </div>
+                  </div>
+                  <RoleAssignmentEditor
+                    workspaceId={selectedWorkspaceId}
+                    entityType="user"
+                    entityId={member.userId}
+                    availableRoles={authorityRoles}
+                    assignedRoles={authorityRoles.filter((role) => (roleIndex[`user:${member.userId}`]?.roleIds || []).includes(role.id))}
+                    onRoleBundleUpdate={setRoleBundle}
+                    canManage={canManageWorkspace}
+                    compact
+                  />
+                </div>
               </div>
-            ) : (
-              <button
-                onClick={() => setShowArchiveConfirm(true)}
-                disabled={Boolean(archiveBlockedReason)}
-                className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/35 bg-red-500/10 text-red-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Archive Workspace
-              </button>
-            )}
-            {archiveBlockedReason && (
-              <div className="text-xs text-[var(--color-text-secondary)]">{archiveBlockedReason}</div>
-            )}
-            {!archiveBlockedReason && alternateWorkspace && (
-              <div className="text-xs text-[var(--color-text-secondary)]">After archive, the session will switch to '{alternateWorkspace.name}'.</div>
+            ))}
+            {memberships.length === 0 && !loadingMembers && (
+              <div className="px-4 py-6 text-sm text-[var(--color-text-secondary)]">No members found for this workspace yet.</div>
             )}
           </div>
-        )}
 
-      </div>
+          {rolesError && (
+            <div className="rounded-[var(--radius-card)] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {rolesError}
+            </div>
+          )}
+
+          {canArchiveWorkspace && (
+            <div className="rounded-[var(--radius-panel)] border border-red-500/25 bg-red-500/8 p-6 space-y-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-red-300">Danger Zone</div>
+                <div className="mt-1 text-sm text-[var(--color-text-primary)]">Archive workspace '{selectedWorkspace?.name || 'Workspace'}'?</div>
+                <div className="mt-1 text-xs text-[var(--color-text-secondary)]">This removes the workspace from normal access and selection, but does not permanently delete its data.</div>
+              </div>
+              {showArchiveConfirm ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={handleArchiveWorkspace}
+                    disabled={Boolean(archiveBlockedReason) || archivingWorkspace}
+                    className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/40 bg-red-500/15 text-red-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {archivingWorkspace ? 'Archiving...' : 'Confirm Archive'}
+                  </button>
+                  <button
+                    onClick={() => setShowArchiveConfirm(false)}
+                    disabled={archivingWorkspace}
+                    className="px-4 py-2 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)] text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowArchiveConfirm(true)}
+                  disabled={Boolean(archiveBlockedReason)}
+                  className="px-4 py-2 rounded-[var(--radius-card)] border border-red-500/35 bg-red-500/10 text-red-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Archive Workspace
+                </button>
+              )}
+              {archiveBlockedReason && (
+                <div className="text-xs text-[var(--color-text-secondary)]">{archiveBlockedReason}</div>
+              )}
+              {!archiveBlockedReason && alternateWorkspace && (
+                <div className="text-xs text-[var(--color-text-secondary)]">After archive, the session will switch to '{alternateWorkspace.name}'.</div>
+              )}
+            </div>
+          )}
+
+        </div>
       )}
     </div>
   );
@@ -3304,7 +3316,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
       if (saved && ['account', 'billing', 'workspace', 'whitelabel', 'variables', 'omega'].includes(saved)) {
         return saved;
       }
-    } catch {}
+    } catch { }
     return 'account';
   });
   const isOwner = hasCapability('system.omega');
@@ -3320,7 +3332,7 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
     setActiveTab(tabId);
     try {
       localStorage.setItem(SETTINGS_TAB_KEY, tabId);
-    } catch {}
+    } catch { }
   };
 
   const mainTabs = [
@@ -3373,11 +3385,10 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`px-2.5 py-1 flex items-center gap-1 text-[10px] font-medium rounded-md border transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10'
-                    : 'text-[var(--color-text-secondary)] border-transparent bg-transparent hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
-                }`}
+                className={`px-2.5 py-1 flex items-center gap-1 text-[10px] font-medium rounded-md border transition whitespace-nowrap ${activeTab === tab.id
+                  ? 'text-[var(--color-text-primary)] border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10'
+                  : 'text-[var(--color-text-secondary)] border-transparent bg-transparent hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
+                  }`}
               >
                 <TabIcon size={11} />
                 {tab.label}
@@ -3389,11 +3400,10 @@ const SettingsModule = ({ menuStructure, onMenuUpdate, activeSettingsTab }) => {
               <div className="w-px h-5 bg-[var(--color-border)] mx-1" />
               <button
                 onClick={() => handleTabChange('omega')}
-                className={`px-2.5 py-1 flex items-center gap-1 text-[10px] font-medium rounded-md border transition whitespace-nowrap ${
-                  activeTab === 'omega'
-                    ? 'text-red-300 border-red-500/40 bg-red-500/10'
-                    : 'text-red-300/60 border-transparent bg-transparent hover:text-red-300 hover:bg-red-500/10'
-                }`}
+                className={`px-2.5 py-1 flex items-center gap-1 text-[10px] font-medium rounded-md border transition whitespace-nowrap ${activeTab === 'omega'
+                  ? 'text-red-300 border-red-500/40 bg-red-500/10'
+                  : 'text-red-300/60 border-transparent bg-transparent hover:text-red-300 hover:bg-red-500/10'
+                  }`}
               >
                 <Lock size={11} />
                 Omega
@@ -3465,7 +3475,7 @@ const BrandingSection = ({ brandingData, setBrandingData, updateBrandingColor, u
             className={`rounded-[var(--radius-card)] border px-4 py-3 text-left transition ${brandingData.layout === layout.id
               ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/12 text-[var(--color-text-primary)]'
               : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-            }`}
+              }`}
           >
             <div className="text-sm font-semibold">{layout.label}</div>
             <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{layout.note}</div>
@@ -3507,7 +3517,7 @@ const NavigationSection = ({ menuItems, openMenuModal, toggleItemVisibility }) =
           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Navigation Menu</h3>
           <p className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">Customize the order and appearance of sidebar modules.</p>
         </div>
-        <button 
+        <button
           onClick={() => openMenuModal()}
           className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90 transition shadow-lg"
         >
@@ -3517,99 +3527,203 @@ const NavigationSection = ({ menuItems, openMenuModal, toggleItemVisibility }) =
       </div>
       <div className="flex-1 overflow-y-auto p-4 no-scrollbar">
         {menuItems?.map((cat, catIdx) => (
-        <div key={cat.category || cat.id} className="border border-[var(--color-border)] rounded-2xl overflow-hidden mb-4 bg-[var(--color-bg-primary)] shadow-sm">
-          <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] border-b border-[var(--color-border)]">{cat.category}</div>
-          <div className="divide-y divide-[var(--color-border)]">
-            {cat.items?.map((item, itemIdx) => (
-              <div key={itemIdx} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-tertiary)] transition-colors group">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-sm">
-                  <LucideIcon name={item.icon} size={14} color={item.iconColor || 'var(--color-text-primary)'} />
+          <div key={cat.category || cat.id} className="border border-[var(--color-border)] rounded-2xl overflow-hidden mb-4 bg-[var(--color-bg-primary)] shadow-sm">
+            <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)] border-b border-[var(--color-border)]">{cat.category}</div>
+            <div className="divide-y divide-[var(--color-border)]">
+              {cat.items?.map((item, itemIdx) => (
+                <div key={itemIdx} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-tertiary)] transition-colors group">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] shadow-sm">
+                    <LucideIcon name={item.icon} size={14} color={item.iconColor || 'var(--color-text-primary)'} />
+                  </div>
+                  <div className="flex flex-1 flex-col">
+                    <span className="text-sm font-semibold text-[var(--color-text-primary)]">{item.label}</span>
+                    <span className="text-[10px] text-[var(--color-text-tertiary)] font-medium font-mono opacity-50">{item.id}</span>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => toggleItemVisibility(catIdx, itemIdx)}
+                      className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all shadow-sm"
+                      title={item.visible ? 'Hide Item' : 'Show Item'}
+                    >
+                      {item.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMenuModal(catIdx, itemIdx)}
+                      className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all shadow-sm"
+                      title="Edit Item"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-1 flex-col">
-                  <span className="text-sm font-semibold text-[var(--color-text-primary)]">{item.label}</span>
-                  <span className="text-[10px] text-[var(--color-text-tertiary)] font-medium font-mono opacity-50">{item.id}</span>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    type="button"
-                    onClick={() => toggleItemVisibility(catIdx, itemIdx)} 
-                    className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all shadow-sm"
-                    title={item.visible ? 'Hide Item' : 'Show Item'}
-                  >
-                    {item.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => openMenuModal(catIdx, itemIdx)} 
-                    className="p-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition-all shadow-sm"
-                    title="Edit Item"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                </div>
-              </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const AgentCard = ({ agent, styles, onSave, loadingList }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [localName, setLocalName] = useState(agent.name || agent.label || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!localName.trim()) return;
+    setSaving(true);
+    try {
+      await updateAiAgentApi(agent.registryKey, { name: localName.trim() });
+      setIsEditing(false);
+      if (loadingList) await loadingList();
+    } catch (err) {
+      console.error('Save failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4 shadow-sm group hover:border-[var(--color-primary)]/50 transition-all">
+      <div className="flex items-center gap-4">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${styles.border} ${styles.bg} ${styles.text} shadow-inner`}>
+          {agent.avatarUrl ? (
+            <img src={agent.avatarUrl} className="h-8 w-8 rounded-lg object-cover" alt={agent.name} />
+          ) : (
+            <Lucide.Bot size={22} className="group-hover:scale-110 transition-transform" />
+          )}
+        </div>
+        <div className="flex flex-col">
+          <div className="text-sm font-bold text-[var(--color-text-primary)]">
+            {isEditing ? localName : (agent.name || agent.label || 'Unknown Agent')}
+          </div>
+          <div className="text-[10px] font-mono font-medium text-[var(--color-text-tertiary)] tracking-wider uppercase">{agent.registryKey}</div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] opacity-60">Display Name</div>
+          {isEditing ? (
+            <div className="flex gap-2">
+               <button onClick={() => { setIsEditing(false); setLocalName(agent.name || agent.label || ''); }} className="text-[9px] font-bold text-red-400 uppercase hover:underline">Cancel</button>
+               <button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="text-[9px] font-bold text-emerald-400 uppercase hover:underline disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setIsEditing(true)} className="text-[9px] font-bold text-[var(--color-primary)] uppercase hover:underline">Edit Name</button>
+          )}
+        </div>
+        {isEditing ? (
+          <input
+            autoFocus
+            value={localName}
+            onChange={(e) => setLocalName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') { setIsEditing(false); setLocalName(agent.name || agent.label || ''); }
+            }}
+            className="w-full rounded-xl border border-[var(--color-primary)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none ring-1 ring-[var(--color-primary)]/30"
+            placeholder="Agent Name"
+          />
+        ) : (
+          <div className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)]/30 px-3 py-2 text-sm text-[var(--color-text-primary)] opacity-80">
+            {agent.name || agent.label || ''}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2 pt-1 text-[var(--color-text-tertiary)] opacity-40">
+        <div className="flex-1 h-[1px] bg-current" />
+        <span className="text-[8px] font-black uppercase tracking-[0.3em]">System Subordinate</span>
+        <div className="flex-1 h-[1px] bg-current" />
+      </div>
+    </div>
+  );
+};
+
+const AgentsSection = () => {
+  const [agents, setAgents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAgentsList = async () => {
+    setLoading(true);
+    try {
+      const data = await getAiAgentsApi(true);
+      const normalized = Array.isArray(data) ? data.map(a => ({
+        ...a,
+        registryKey: a.registryKey || a.registry_key || a.agent_id || a.agentId,
+        avatarUrl: a.avatarUrl || a.avatar_url
+      })) : [];
+      setAgents(normalized);
+    } catch (err) {
+      console.error('Failed to load agents:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAgentsList();
+  }, []);
+
+  const getAgentStyles = (key) => {
+    const k = String(key || '').toUpperCase();
+    const map = {
+      ALPHA: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' },
+      CHARLIE: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' },
+      ECHO: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400' },
+      STRIKER: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400' },
+      OMEGA: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400' },
+    };
+    return map[k] || { bg: 'bg-[var(--color-bg-tertiary)]', border: 'border-[var(--color-border)]', text: 'text-[var(--color-primary)]' };
+  };
+
+  return (
+    <div className="h-full min-h-0 overflow-y-auto p-6 space-y-5">
+      <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
+        <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Packaging Scope</div>
+          <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Agents</h3>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Manage identity and display settings for workspace subordinates.</p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+          </div>
+        ) : agents.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {agents.map((agent) => (
+              <AgentCard 
+                key={agent.registryKey} 
+                agent={agent} 
+                styles={getAgentStyles(agent.registryKey)} 
+                loadingList={loadAgentsList}
+              />
             ))}
           </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-12 border border-dashed border-[var(--color-border)] rounded-2xl bg-[var(--color-bg-primary)]">
+            <Lucide.Bot size={32} className="text-[var(--color-text-tertiary)] opacity-20 mb-3" />
+            <div className="text-sm text-[var(--color-text-secondary)] font-medium">No agents found in directory.</div>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4 text-[10px] text-[var(--color-text-secondary)] flex items-center gap-3">
+          <Lucide.Shield size={14} className="text-[var(--color-primary)]" />
+          <span>Agent avatars are currently managed by system theme. Cross-tenant identity overrides are fully persistent to the backend.</span>
         </div>
-      ))}
       </div>
     </div>
-  </div>
-);
-
-const AgentsSection = ({ agents = [] }) => (
-  <div className="h-full min-h-0 overflow-y-auto p-6 space-y-5">
-    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
-      <div>
-        <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Packaging Scope</div>
-        <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Agents</h3>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Manage identity and display settings for workspace subordinates.</p>
-      </div>
-      
-      {agents.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {agents.map((agent) => (
-            <div key={agent.id} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 space-y-4 shadow-sm group hover:border-[var(--color-primary)]/50 transition-all">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] text-[var(--color-primary)] shadow-inner">
-                  <Bot size={22} className="group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="flex flex-col">
-                  <div className="text-sm font-bold text-[var(--color-text-primary)]">{agent.name || agent.label || 'Unknown Agent'}</div>
-                  <div className="text-[10px] font-mono font-medium text-[var(--color-text-tertiary)] tracking-wider">CANONICAL: {agent.registry_key || agent.id}</div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] opacity-60">Display Name</div>
-                <input 
-                  readOnly 
-                  value={agent.name || agent.label || ''} 
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none" 
-                  placeholder="Agent Name"
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <div className="flex-1 h-[1px] bg-[var(--color-border)] opacity-50" />
-                <span className="text-[8px] font-black text-[var(--color-text-tertiary)] uppercase tracking-[0.3em]">Locked System Entity</span>
-                <div className="flex-1 h-[1px] bg-[var(--color-border)] opacity-50" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center p-12 border border-dashed border-[var(--color-border)] rounded-2xl bg-[var(--color-bg-primary)]">
-          <Bot size={32} className="text-[var(--color-text-tertiary)] opacity-20 mb-3" />
-          <div className="text-sm text-[var(--color-text-secondary)] font-medium">No agents found in directory.</div>
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-5 py-4 text-xs text-[var(--color-text-secondary)] flex items-center gap-3">
-        <Bot size={14} className="text-[var(--color-primary)]" />
-        <span>Avatar and icon customization for system subordinates is restricted.</span>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 const InjectionSection = ({ brandingData, setBrandingData }) => (
   <div className="h-full min-h-0 overflow-y-auto p-6 space-y-5">
@@ -3715,30 +3829,8 @@ const LocalizationSection = ({ brandingData, setBrandingData }) => (
   </div>
 );
 
-const PlanCancelUrlSection = ({ brandingData, setBrandingData }) => (
-  <div className="h-full min-h-0 overflow-y-auto p-6 space-y-5">
-    <div className="rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5 space-y-4">
-      <div>
-        <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Appearance</div>
-        <h3 className="mt-1 text-lg font-semibold text-[var(--color-text-primary)]">Plan Cancel URL</h3>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">White-label cancellation redirect target.</p>
-      </div>
-      <div className="space-y-2">
-        <label className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Plan Cancel URL</label>
-        <input
-          type="url"
-          value={brandingData.planCancelUrl || ''}
-          onChange={(event) => setBrandingData?.((current) => ({ ...current, planCancelUrl: event.target.value }))}
-          placeholder="https://example.com/cancel"
-          className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
-        />
-        <div className="text-xs text-[var(--color-text-tertiary)]">Stored under tenant branding settings for downstream shells to consume.</div>
-      </div>
-    </div>
-  </div>
-);
 
-const SystemEmailsSection = ({ search = '', onSearchChange = () => {} }) => (
+const SystemEmailsSection = ({ search = '', onSearchChange = () => { } }) => (
   <div className="h-full min-h-0 overflow-y-auto p-6">
     <SystemEmailsSettings search={search} onSearchChange={onSearchChange} />
   </div>
@@ -3836,7 +3928,6 @@ const buildSettingsCategories = (isAdmin) => {
         { id: 'agents', label: 'Agents', description: 'Packaging-scope presentation controls.' },
         { id: 'injection', label: 'Injection', description: 'JavaScript/HTML for pixels, analytics, and chat embeds.' },
         { id: 'localization', label: 'Localization', description: 'Language, country, and currency defaults.' },
-        { id: 'planCancel', label: 'Plan Cancel URL', description: 'White-label cancellation redirect target.' },
         { id: 'systemEmails', label: 'System Emails', description: 'Tenant-scoped system notice templates.' },
       ],
     },
@@ -3910,20 +4001,18 @@ const SettingsSelectorPanel = ({
         return (
           <div key={category.id} className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
             <button
-              className={`flex w-full items-center justify-between px-3 py-2 transition-all cursor-pointer font-medium text-[12px] ${
-                isOpen
-                  ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]/70'
-              }`}
+              className={`flex w-full items-center justify-between px-3 py-2 transition-all cursor-pointer font-medium text-[12px] ${isOpen
+                ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-primary)]'
+                : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]/70'
+                }`}
               onClick={() => onToggleCategory(category.id)}
             >
               <span className="flex-1 text-left">{category.label}</span>
               <div className="flex items-center gap-2">
-                <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                  activeCategoryId === category.id
-                    ? 'bg-[var(--color-primary)]/20 text-[var(--color-text-primary)]'
-                    : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'
-                }`}>{category.items.length}</span>
+                <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${activeCategoryId === category.id
+                  ? 'bg-[var(--color-primary)]/20 text-[var(--color-text-primary)]'
+                  : 'bg-[var(--color-hover)] text-[var(--color-text-secondary)]'
+                  }`}>{category.items.length}</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
                   <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
@@ -3941,11 +4030,10 @@ const SettingsSelectorPanel = ({
                   {category.items.map((item) => (
                     <button
                       key={item.id}
-                      className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition-all text-left ${
-                        activeCategoryId === category.id && activeItemId === item.id
-                          ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
-                          : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-tertiary)]'
-                      }`}
+                      className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer transition-all text-left ${activeCategoryId === category.id && activeItemId === item.id
+                        ? 'border-[var(--color-primary)] bg-[var(--color-bg-tertiary)]'
+                        : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:border-[var(--color-primary)] hover:bg-[var(--color-bg-tertiary)]'
+                        }`}
                       onClick={() => onSelectItem(category.id, item.id)}
                     >
                       <div className="min-w-0 flex-1">
@@ -3998,7 +4086,7 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
   const activeItem = activeCategory?.items?.find((item) => item.id === selection.itemId) || null;
   const showLanding = !selection.itemId;
   const showWhiteLabelActions = selection.categoryId === 'appearance'
-    && ['branding', 'navigation', 'injection', 'localization', 'planCancel'].includes(selection.itemId);
+    && ['branding', 'injection', 'localization'].includes(selection.itemId);
   useEffect(() => {
     if (selection.categoryId && !activeCategory) {
       setSelection({ categoryId: null, itemId: null });
@@ -4050,8 +4138,6 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
         return <InjectionSection brandingData={whiteLabel.brandingData} setBrandingData={whiteLabel.setBrandingData} />;
       case 'appearance:localization':
         return <LocalizationSection brandingData={whiteLabel.brandingData} setBrandingData={whiteLabel.setBrandingData} />;
-      case 'appearance:planCancel':
-        return <PlanCancelUrlSection brandingData={whiteLabel.brandingData} setBrandingData={whiteLabel.setBrandingData} />;
       case 'appearance:systemEmails':
         return <SystemEmailsSection search={emailSearch} onSearchChange={setEmailSearch} />;
       case 'roles:roles':
@@ -4144,47 +4230,47 @@ const SettingsShellModule = ({ menuStructure, onMenuUpdate, activeSettingsTab })
             <div className="min-h-0 overflow-hidden relative">
               {renderControlPlane()}
               {showLanding && (
-              <div className="absolute inset-0 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md rounded-[var(--radius-outer)] border border-[var(--color-border)] flex items-center justify-center overflow-y-auto">
-                <div className="max-w-5xl w-full text-center space-y-8 px-8 py-10">
-                  <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-white/10">
-                    <Settings size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Settings</h2>
-                    <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-                      Configure workspace presentation, access scaffolding, system controls, and workspace administration from one unified control plane.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-left p-1">
-                    {categories.map((category) => {
-                      const tone = getSettingsCategoryTone(category.id);
-                      const IconComp = tone.icon;
-                      return (
-                        <button
-                          key={category.id}
-                          onClick={() => selectCategoryFromSplash(category.id)}
-                          className="text-left w-full h-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-strong)] transition-all p-2.5 space-y-1.5 cursor-pointer shadow-sm shadow-black/5 group min-w-0 flex flex-col min-h-[90px]"
-                        >
-                          <div className="flex items-start gap-2" style={{ color: tone.colorVar }}>
-                            <IconComp size={15} className="mt-0.5 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_currentColor] transition-all flex-shrink-0" />
-                            <span className="text-[13px] font-extrabold text-[var(--color-text-primary)] leading-tight">{category.label}</span>
-                          </div>
-                          <p className="m-0 text-[10px] text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)] leading-[1.2] flex-1 overflow-hidden">{category.description}</p>
-                          <div className="flex items-center justify-between pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-[8px] uppercase tracking-wider font-bold text-[var(--color-text-tertiary)]">Configure</span>
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="text-[var(--color-text-tertiary)]"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="pt-2">
-                    <p className="text-xs text-[var(--color-text-tertiary)]">
-                      Select a settings category from the left panel, then choose a surface from its dropdown to configure.
-                    </p>
+                <div className="absolute inset-0 bg-[var(--color-bg-secondary)]/95 backdrop-blur-md rounded-[var(--radius-outer)] border border-[var(--color-border)] flex items-center justify-center overflow-y-auto">
+                  <div className="max-w-5xl w-full text-center space-y-8 px-8 py-10">
+                    <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-white/10">
+                      <Settings size={24} className="text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Settings</h2>
+                      <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+                        Configure workspace presentation, access scaffolding, system controls, and workspace administration from one unified control plane.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-left p-1">
+                      {categories.map((category) => {
+                        const tone = getSettingsCategoryTone(category.id);
+                        const IconComp = tone.icon;
+                        return (
+                          <button
+                            key={category.id}
+                            onClick={() => selectCategoryFromSplash(category.id)}
+                            className="text-left w-full h-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] hover:bg-[var(--color-bg-tertiary)] hover:border-[var(--color-border-strong)] transition-all p-2.5 space-y-1.5 cursor-pointer shadow-sm shadow-black/5 group min-w-0 flex flex-col min-h-[90px]"
+                          >
+                            <div className="flex items-start gap-2" style={{ color: tone.colorVar }}>
+                              <IconComp size={15} className="mt-0.5 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_currentColor] transition-all flex-shrink-0" />
+                              <span className="text-[13px] font-extrabold text-[var(--color-text-primary)] leading-tight">{category.label}</span>
+                            </div>
+                            <p className="m-0 text-[10px] text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)] leading-[1.2] flex-1 overflow-hidden">{category.description}</p>
+                            <div className="flex items-center justify-between pt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[8px] uppercase tracking-wider font-bold text-[var(--color-text-tertiary)]">Configure</span>
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="text-[var(--color-text-tertiary)]"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="pt-2">
+                      <p className="text-xs text-[var(--color-text-tertiary)]">
+                        Select a settings category from the left panel, then choose a surface from its dropdown to configure.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
             </div>
           </div>

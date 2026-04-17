@@ -85,9 +85,16 @@ const upgradeMenuStructureModuleIds = (structure) => {
     const nextItems = Array.isArray(category?.items)
       ? category.items.map((item) => {
         const nextItem = { ...item };
-        if (nextItem.id === 'chat' || nextItem.id === 'dispatch') {
+        if (nextItem.id === 'chat' || nextItem.id === 'dispatch' || (nextItem.id === 'comms' && nextItem.label === 'Dispatch')) {
           nextItem.id = 'comms';
           nextItem.label = 'Comms';
+          nextItem.type = 'internal';
+          nextItem.url = '';
+          upgraded = true;
+        }
+        if (nextItem.id === 'aio-hide' && (nextItem.type !== 'iframe' || !nextItem.url)) {
+          nextItem.type = 'iframe';
+          nextItem.url = 'https://data.maverickcrm.net';
           upgraded = true;
         }
         if (nextItem.id === 'sms_voip') {
@@ -164,19 +171,21 @@ const ICON_MAP = {
 };
 
 const MODULE_SUBTITLE_MAP = {
-  'aio-brain': 'Direct the Cortex layer for reasoning, planning, and system-level AI coordination.',
-  signals: 'Operator feed for bookings, comms, pipeline, and automation heuristics.',
-  'aio-agents': 'Coordinate specialist agents, live command runs, and system execution posture.',
-  calendar: 'Coordinate sources, booking types, and scheduled meetings from one workspace.',
-  crm: 'Search, segment, and operate on contact records from one workspace.',
-  flows: 'Manage and launch your automation flows.',
-  forms: 'Create, organize, and deploy workspace forms.',
-  comms: 'Thread-first Comms for triage, actions, and audit logs.',
-  integrations: 'Admin control plane for mailbox accounts, calendar sources, and all external systems connected to AIO.',
-  studio: 'Create scripts, voice, renders, transcripts, and ingest workflows from one workspace.',
-  orders: 'Review order records, payment state, and fulfillment posture from one workspace.',
-  pipelines: 'Operate deal stages, next moves, and relationship records from one workspace.',
-  settings: 'Manage account, workspace, security, branding, and automation settings.',
+  'aio-brain': 'Neural Core Orchestration',
+  signals: 'Real-time Signal Analysis & System Logs',
+  'aio-agents': 'Specialist Agent Execution Posture',
+  calendar: 'Workforce Temporal Coordination',
+  crm: 'Central Dossier Intelligence',
+  flows: 'Workflow Logic Orchestration',
+  forms: 'Input Schema & Deployment Control',
+  comms: 'Unified Thread-First Comms Dispatch',
+  integrations: 'External Transport & System Management',
+  studio: 'Multimedia Asset & Job Synthesis',
+  orders: 'Transaction Lifecycle Management',
+  pipelines: 'Business Development Stage Control',
+  settings: 'Global Configuration & Security Posture',
+  'sms_voip': 'Unified Voice & Signal Control',
+  design: 'Visual Architectural Engine',
 };
 
 const SPECIAL_MODULE_META = {
@@ -291,6 +300,18 @@ const App = () => {
   const [dialerFromNumber, setDialerFromNumber] = useState('');
   const [dialerExtensionId, setDialerExtensionId] = useState('');
 
+  const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
+  const activeTenantSettings = session?.tenant?.tenant_settings || session?.tenant?.settings || {};
+  const preferredTenantTheme = activeTenantSettings?.branding?.theme || null;
+  const adminEmails = ['support@aiocrm.org', 'admin@aio.com', 'admin@aio.local'];
+  const isSystemOwner = adminEmails.includes(session?.user?.email?.toLowerCase());
+  const userRole = normalizeUserRole(session?.user?.role);
+  const clientMode = !isSystemOwner && isClientRole(userRole);
+  const operatorMode = isOperatorRole(userRole);
+  const renderedMenuStructure = clientMode ? filterMenuForClient(menuStructure) : menuStructure;
+  const normalizedActiveModule = activeModule === 'system-health' ? 'signals' : activeModule;
+  const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(normalizedActiveModule) ? DEFAULT_CLIENT_MODULE : normalizedActiveModule;
+
   const moduleLabels = {
     'aio-brain': 'Brain',
     'crm': 'AIO',
@@ -308,17 +329,6 @@ const App = () => {
     'forge': 'Forge',
   };
   const activeModuleLabel = moduleLabels[activeModule] || activeModule;
-  const [menuStructure, setMenuStructure] = useState(INITIAL_MENU_STRUCTURE);
-  const activeTenantSettings = session?.tenant?.tenant_settings || session?.tenant?.settings || {};
-  const preferredTenantTheme = activeTenantSettings?.branding?.theme || null;
-  const adminEmails = ['support@aiocrm.org', 'admin@aio.com', 'admin@aio.local'];
-  const isSystemOwner = adminEmails.includes(session?.user?.email?.toLowerCase());
-  const userRole = normalizeUserRole(session?.user?.role);
-  const clientMode = !isSystemOwner && isClientRole(userRole);
-  const operatorMode = isOperatorRole(userRole);
-  const renderedMenuStructure = clientMode ? filterMenuForClient(menuStructure) : menuStructure;
-  const normalizedActiveModule = activeModule === 'system-health' ? 'signals' : activeModule;
-  const effectiveActiveModule = clientMode && !CLIENT_ALLOWED_MODULES.has(normalizedActiveModule) ? DEFAULT_CLIENT_MODULE : normalizedActiveModule;
 
   const navigateToModule = useCallback((moduleId) => {
     const resolvedModuleId = moduleId === 'system-health' ? 'signals' : moduleId;
@@ -908,7 +918,7 @@ const App = () => {
                     </DbContext.Provider>
                     <OperatorAssistDock
                       activeModule={activeModule}
-                      activeModuleLabel={activeModuleLabel}
+                      activeModuleLabel={currentModuleMeta.label}
                     />
                     <GlobalOverlay activeModule={activeModule} />
                   </AuthContext.Provider>

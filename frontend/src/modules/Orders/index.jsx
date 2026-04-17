@@ -7,13 +7,14 @@ import { draftAiApi, getOrdersApi, createOrderApi, updateOrderApi, deleteOrderAp
 import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 
 const OrdersModule = () => {
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const { showNotice } = useNotice();
   const [activeTab, setActiveTab] = useState('orders');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
   const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
+  
   const runOrdersAssist = async () => {
     try {
       const response = await draftAiApi({
@@ -83,8 +84,8 @@ const OrdersModule = () => {
       const formatted = response.map(o => ({
         id: o.id.split('-').pop() || o.id,
         contact: o.contact_id || 'Unknown',
-        paymentStatus: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
-        fulfillmentStatus: o.status === 'active' ? 'Processing' : 'Shipped',
+        payment_status: o.payment_status === 'pending' ? 'Pending' : (o.payment_status || 'Paid'),
+        fulfillment_status: o.status === 'active' ? 'Processing' : 'Shipped',
         items: o.items?.length || 1,
         total: o.total_amount || 0,
         date: new Date(o.created_at).toLocaleDateString()
@@ -233,7 +234,7 @@ const OrdersModule = () => {
                       </button>
                     </td>
                   </tr>
-                )) : <tr><td colSpan="7" className="p-4 text-center text-gray-500">No orders found.</td></tr>}
+                )) : <tr><td colSpan="8" className="p-4 text-center text-gray-500">No orders found.</td></tr>}
               </tbody>
             </table>
           </div>

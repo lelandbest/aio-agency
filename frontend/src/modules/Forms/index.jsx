@@ -12,7 +12,8 @@ import {
   uploadMediaFileApi,
   updateFormApi,
   updateFormFolderApi,
-  normalizeSourceUrl
+  normalizeSourceUrl,
+  deleteMediaAssetApi
 } from '../../services/backendApi';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
@@ -35,6 +36,7 @@ import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import CMSView from '../../components/CMS/CMSView';
 import FormEntryModal from '../../components/Modals/FormEntryModal';
 import ShareFormModal from '../../components/Modals/ShareFormModal';
+import MediaLibraryModal from '../../components/Modals/MediaLibraryModal';
 import AIAssistButton from '../../components/AIAssistButton';
 import FormTemplateGallery from './FormTemplateGallery';
 import { useAIAssist } from '../../contexts/AIAssistContext';
@@ -166,6 +168,7 @@ const defaultFormSettings = {
   redirectUrl: '',
   thankYouMessage: 'Thanks, we received your submission.',
   headerImage: '',
+  headerImageFit: 'cover', // cover=Fill, contain=Fit, fill=Stretch
 };
 
 const normalizeFormSettings = (settings = {}) => {
@@ -189,6 +192,7 @@ const normalizeFormSettings = (settings = {}) => {
     ...defaultFormSettings,
     ...source,
     headerImage: normalizeSourceUrl(rawHeaderImage),
+    headerImageFit: source.headerImageFit || source.header_image_fit || 'cover',
   };
 };
 
@@ -209,7 +213,7 @@ const resolveFormHeaderImage = (form) => normalizeFormSettings(form?.settings).h
  * Comprehensive form builder with folder organization and drag-and-drop field management
  */
 const FormBuilderModule = () => {
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const [view, setView] = useState('list');
   const [forms, setForms] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -235,6 +239,7 @@ const FormBuilderModule = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareForm, setShareForm] = useState(null);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showMediaLibraryModal, setShowMediaLibraryModal] = useState(false);
   const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
   const [saveAction, triggerSaveAction] = useTransientSaveFeedback(2000);
   const [isSaving, setIsSaving] = useState(false);
@@ -333,7 +338,10 @@ const FormBuilderModule = () => {
         if (!active) {
           return;
         }
-        setHeaderImageAssets((media || []).filter((asset) => asset?.mediaType === 'image' && asset?.sourceUrl));
+        setHeaderImageAssets((media || []).filter((asset) => asset?.mediaType === 'image' && asset?.sourceUrl).map(asset => ({
+          ...asset,
+          sourceUrl: normalizeSourceUrl(asset.sourceUrl)
+        })));
       } catch (error) {
         console.error('Error loading header image assets:', error);
         if (active) {
@@ -587,10 +595,11 @@ const FormBuilderModule = () => {
       const uploaded = await uploadMediaFileApi(file);
       const asset = uploaded?.asset || null;
       if (asset?.sourceUrl) {
-        updateCurrentFormSettings({ headerImage: asset.sourceUrl });
+        const absoluteUrl = normalizeSourceUrl(asset.sourceUrl);
+        updateCurrentFormSettings({ headerImage: absoluteUrl });
         setHeaderImageAssets((previous) => {
-          const next = previous.filter((item) => item.assetId !== asset.assetId);
-          return [asset, ...next];
+          const next = previous.filter((item) => (item.id || item.assetId) !== (asset.id || asset.assetId));
+          return [{ ...asset, sourceUrl: absoluteUrl }, ...next];
         });
       }
     } catch (error) {
@@ -602,6 +611,33 @@ const FormBuilderModule = () => {
       if (headerImageInputRef.current) {
         headerImageInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleDeleteMediaAsset = async (assetId) => {
+    if (!assetId) return;
+    const confirmed = await systemConfirm({
+      title: 'Delete Image Asset?',
+      message: 'This will permanently remove the image from the media library. Are you sure?',
+      confirmText: 'Delete Permanently',
+      variant: 'danger'
+    });
+    if (!confirmed) return;
+
+    try {
+      await deleteMediaAssetApi(assetId);
+      setHeaderImageAssets(prev => prev.filter(a => (a.id || a.assetId) !== assetId));
+      
+      // If the currently selected image was this one, clear it from settings
+      const currentUrl = resolveFormHeaderImage(currentForm);
+      const deletedAsset = headerImageAssets.find(a => (a.id || a.assetId) === assetId);
+      if (deletedAsset && (deletedAsset.sourceUrl === currentUrl)) {
+        updateCurrentFormSettings({ headerImage: '' });
+      }
+    } catch (error) {
+      console.error('Error deleting media asset:', error);
+      setAlertMessage('Failed to delete asset: ' + error.message);
+      setTimeout(() => setAlertMessage(null), 3000);
     }
   };
 
@@ -1324,7 +1360,8 @@ const FormBuilderModule = () => {
                   <img
                     src={resolveFormHeaderImage(currentForm)}
                     alt={`${currentForm?.name || 'Form'} header`}
-                    className="h-44 w-full object-cover"
+                    className="h-44 w-full"
+                    style={{ objectFit: currentForm.settings?.headerImageFit || 'cover' }}
                   />
                 </div>
               ) : null}
@@ -1712,18 +1749,33 @@ const FormBuilderModule = () => {
               </div>
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Use Existing Image</label>
-                <select
-                  value={resolveFormHeaderImage(currentForm)}
-                  onChange={(e) => updateCurrentFormSettings({ headerImage: e.target.value })}
-                  className="w-full rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-                >
-                  <option value="">{headerImageLoading ? 'Loading images...' : 'Select image asset'}</option>
-                  {headerImageAssets.map((asset) => (
-                    <option key={asset.assetId || asset.sourceUrl} value={asset.sourceUrl}>
-                      {asset.title || asset.assetId || asset.sourceUrl}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={resolveFormHeaderImage(currentForm)}
+                    onChange={(e) => updateCurrentFormSettings({ headerImage: e.target.value })}
+                    className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  >
+                    <option value="">{headerImageLoading ? 'Loading images...' : 'Select image asset'}</option>
+                    {headerImageAssets.map((asset) => (
+                      <option key={asset.assetId || asset.id || asset.sourceUrl} value={asset.sourceUrl}>
+                        {asset.title || asset.filename || asset.assetId || asset.sourceUrl}
+                      </option>
+                    ))}
+                  </select>
+                  {resolveFormHeaderImage(currentForm) && headerImageAssets.some(a => a.sourceUrl === resolveFormHeaderImage(currentForm)) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const asset = headerImageAssets.find(a => a.sourceUrl === resolveFormHeaderImage(currentForm));
+                        if (asset) handleDeleteMediaAsset(asset.id || asset.assetId);
+                      }}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] transition hover:border-red-500 hover:text-red-500"
+                      title="Delete asset from library"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -1753,12 +1805,82 @@ const FormBuilderModule = () => {
                   </button>
                 ) : null}
               </div>
+
+              {resolveFormHeaderImage(currentForm) && (
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Image Sizing</label>
+                  <div className="flex rounded-md bg-[var(--color-bg-primary)] p-0.5 shadow-sm ring-1 ring-inset ring-[var(--color-border)]">
+                    {[
+                      { value: 'contain', label: 'Fit' },
+                      { value: 'cover', label: 'Fill' },
+                      { value: 'fill', label: 'Stretch' },
+                    ].map((mode) => (
+                      <button
+                        key={mode.value}
+                        type="button"
+                        onClick={() => updateCurrentFormSettings({ headerImageFit: mode.value })}
+                        className={`flex-1 rounded py-1.5 text-[10px] font-black uppercase tracking-widest transition ${
+                          (currentForm.settings?.headerImageFit || 'cover') === mode.value
+                            ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                            : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {headerImageAssets.length > 0 && (
+                <div className="mt-2 pt-4 border-t border-[var(--color-border)]/40">
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-tertiary)]">Recent Assets</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowMediaLibraryModal(true)}
+                      className="text-[10px] font-bold text-[var(--color-primary)] hover:underline"
+                    >
+                      View All
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {headerImageAssets.slice(0, 8).map((asset) => (
+                      <div 
+                        key={asset.id || asset.assetId} 
+                        className={`relative group aspect-square rounded-lg border overflow-hidden bg-[var(--color-bg-primary)] transition ring-offset-2 ring-offset-[var(--color-bg-tertiary)] ${
+                          resolveFormHeaderImage(currentForm) === asset.sourceUrl 
+                            ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]' 
+                            : 'border-[var(--color-border)] hover:border-[var(--color-text-tertiary)]'
+                        }`}
+                      >
+                        <img 
+                          src={asset.sourceUrl} 
+                          className="w-full h-full object-cover cursor-pointer"
+                          onClick={() => updateCurrentFormSettings({ headerImage: asset.sourceUrl })}
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMediaAsset(asset.id || asset.assetId);
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-black/80 text-white rounded opacity-0 group-hover:opacity-100 transition hover:bg-red-600"
+                        >
+                          <Trash2 size={8} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {resolveFormHeaderImage(currentForm) ? (
                 <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)]">
                   <img
                     src={resolveFormHeaderImage(currentForm)}
                     alt={`${currentForm?.name || 'Form'} header preview`}
-                    className="h-28 w-full object-cover"
+                    className="h-28 w-full"
+                    style={{ objectFit: currentForm.settings?.headerImageFit || 'cover' }}
                   />
                 </div>
               ) : (
@@ -1770,8 +1892,26 @@ const FormBuilderModule = () => {
           </div>
         )}
       </div>
-      </div>
     </div>
+        <MediaLibraryModal 
+          isOpen={showMediaLibraryModal}
+          onClose={() => setShowMediaLibraryModal(false)}
+          assets={headerImageAssets}
+          onSelect={(url) => {
+            updateCurrentFormSettings({ headerImage: url });
+            setShowMediaLibraryModal(false);
+          }}
+          onDelete={handleDeleteMediaAsset}
+          currentSelection={resolveFormHeaderImage(currentForm)}
+          isLoading={headerImageLoading}
+        />
+        <SystemConfirmModal 
+          {...modalState} 
+          onClose={modalState.onClose} 
+          onConfirm={() => modalState.onConfirm(modalState.promptValue)}
+          onPromptChange={setPromptValue}
+        />
+  </div>
   );
 };
 

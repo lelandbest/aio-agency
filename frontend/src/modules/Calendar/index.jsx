@@ -127,7 +127,7 @@ const isCalendarOauthProvider = (providerId) => ['google-calendar-oauth', 'micro
 const openCalendarAdmin = () => window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: 'integrations', integrationCategory: 'calendar' } }));
 
 const CalendarModule = ({ clientMode = false }) => {
-  const { openAIAssist } = useAIAssist();
+  const { openAIAssist, toggleAIAssist } = useAIAssist();
   const [activeTab, setActiveTab] = useState('calendar');
   const [view, setView] = useState('month'); // 'month', 'week', 'day'
   const [currentDate, setCurrentDate] = useState(new Date());

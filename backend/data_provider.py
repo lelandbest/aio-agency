@@ -5764,6 +5764,7 @@ class SQLiteProvider(BaseProvider):
             "redirectUrl": source.get("redirectUrl", source.get("redirect_url", "")) or "",
             "thankYouMessage": source.get("thankYouMessage", source.get("thank_you_message", "Thank you.")) or "Thank you.",
             "headerImage": header_image,
+            "headerImageFit": source.get("headerImageFit", source.get("header_image_fit", "cover")),
         }
         reserved = {
             "createContact", "create_contact",
@@ -5773,6 +5774,7 @@ class SQLiteProvider(BaseProvider):
             "redirectUrl", "redirect_url",
             "thankYouMessage", "thank_you_message",
             "headerImage", "header_image",
+            "headerImageFit", "header_image_fit",
             "heroImage", "hero_image",
         }
         for key, value in source.items():

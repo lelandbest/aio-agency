@@ -131,9 +131,16 @@ const ModuleHeader = ({
         {toolbarLeftSlot}
         {TitleIcon && <TitleIcon size={16} className="text-[var(--color-primary)] flex-shrink-0" />}
         {(title && showTitle) && (
-          <h1 className="text-[10px] font-black text-[var(--color-text-primary)] truncate uppercase tracking-[0.24em] leading-none">
-            {normalizeDisplayText(title)}
-          </h1>
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-[10px] font-black text-[var(--color-text-primary)] truncate uppercase tracking-[0.24em] leading-none">
+              {normalizeDisplayText(title)}
+            </h1>
+            {subtitle && (
+              <div className="text-[8px] font-medium text-[var(--color-text-tertiary)] truncate uppercase tracking-[0.16em] mt-0.5 leading-none opacity-60">
+                {normalizeDisplayText(subtitle)}
+              </div>
+            )}
+          </div>
         )}
         <Breadcrumbs breadcrumbs={breadcrumbs} />
       </div>

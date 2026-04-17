@@ -3299,6 +3299,29 @@ class AuthStore:
             raise ValueError("Session not found or expired.")
         return session.get("user") or {}
 
+    def export_account_data(self, token: str) -> dict[str, Any]:
+        profile = self.get_profile(token)
+        sessions = self.list_sessions(token)
+        return {
+            "profile": profile,
+            "sessions": sessions,
+            "exportedAt": utcnow_iso(),
+            "notice": "This export contains your primary account metadata.",
+        }
+
+    def delete_account(self, token: str) -> bool:
+        session = self.get_session(token)
+        if not session:
+            return False
+        user_id = session["userId"]
+        with self._connect() as conn:
+            conn.execute("DELETE FROM app_sessions WHERE userId = ?", (user_id,))
+            conn.execute("DELETE FROM memberships WHERE userId = ?", (user_id,))
+            conn.execute("DELETE FROM role_assignments WHERE entityType = 'user' AND entityId = ?", (user_id,))
+            conn.execute("DELETE FROM app_users WHERE id = ?", (user_id,))
+            conn.commit()
+        return True
+
     def update_profile(self, token: str | None, payload: dict[str, Any]) -> dict[str, Any]:
         if not token:
             raise ValueError("Session token is required.")

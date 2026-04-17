@@ -180,32 +180,34 @@ const InlineEditor = ({
   }
 
   return (
-    <div
-      ref={editorRef}
-      onDoubleClick={handleDoubleClick}
-      className="cursor-text min-h-[40px] px-2 py-1 rounded-[var(--radius-card)] hover:bg-[var(--color-hover)] transition-colors"
-      style={{ fontFamily: 'inherit' }}
-    >
-      {localValue || <span className="text-[var(--color-text-tertiary)] italic">{placeholder}</span>}
-    </div>
+    <>
+      <div
+        ref={editorRef}
+        onDoubleClick={handleDoubleClick}
+        className="cursor-text min-h-[40px] px-2 py-1 rounded-[var(--radius-card)] hover:bg-[var(--color-hover)] transition-colors"
+        style={{ fontFamily: 'inherit' }}
+      >
+        {localValue || <span className="text-[var(--color-text-tertiary)] italic">{placeholder}</span>}
+      </div>
 
-    <SystemConfirmModal
-      isOpen={promptModal.isOpen}
-      onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
-      onConfirm={() => {
-        if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
-        setPromptModal({ ...promptModal, isOpen: false });
-      }}
-      title={promptModal.title}
-      message={promptModal.message}
-      confirmText="Add"
-      cancelText="Cancel"
-      showPrompt={true}
-      promptValue={promptModal.promptValue || ''}
-      onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
-      promptPlaceholder={promptModal.defaultValue || 'Enter URL...'}
-      variant="info"
-    />
+      <SystemConfirmModal
+        isOpen={promptModal.isOpen}
+        onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
+        onConfirm={() => {
+          if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
+          setPromptModal({ ...promptModal, isOpen: false });
+        }}
+        title={promptModal.title}
+        message={promptModal.message}
+        confirmText="Add"
+        cancelText="Cancel"
+        showPrompt={true}
+        promptValue={promptModal.promptValue || ''}
+        onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
+        promptPlaceholder={promptModal.defaultValue || 'Enter URL...'}
+        variant="info"
+      />
+    </>
   );
 };
 

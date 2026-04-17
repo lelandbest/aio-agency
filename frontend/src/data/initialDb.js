@@ -134,7 +134,7 @@ export const INITIAL_MENU_STRUCTURE = [
       { id: "aio-academy", label: "Academy", icon: "GraduationCap", type: "iframe", url: "https://aiocrm.org/academy", visible: true, iconColor: "#9ca3af" },
       { id: "aio-bots", label: "Bots", icon: "Bot", type: "iframe", url: "https://go.aiobots.us", visible: true, iconColor: "#9ca3af" },
       { id: "aio-livebots", label: "LiveBots", icon: "Radio", type: "iframe", url: "https://go.aiolivebots.com", visible: true, iconColor: "#9ca3af" },
-      { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net/", visible: true, iconColor: "#9ca3af" },
+      { id: "aio-hide", label: "H.I.D.E.", icon: "EyeOff", type: "iframe", url: "https://data.maverickcrm.net", visible: true, iconColor: "#9ca3af" },
       { id: "aio-sniper", label: "Sniper", icon: "Crosshair", type: "iframe", url: "https://sniper.aioflow.com", visible: true, iconColor: "#9ca3af" },
       { id: "postly-ai", label: "Postly", icon: "FileText", type: "iframe", url: "https://postly.ai", visible: true, iconColor: "#9ca3af" }
     ]

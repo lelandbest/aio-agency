@@ -130,16 +130,16 @@ const COMMS_COLUMN_BG = 'bg-[var(--color-bg-secondary)]/95';
 const COMMS_SECTION_BG = 'bg-[var(--color-bg-secondary)]/60';
 const COMMS_MAIN_BG = 'bg-[var(--color-bg-primary)]/40';
 const COMMS_HEADER_BG = 'bg-[var(--color-bg-secondary)]/90';
-const COMMS_PILL_BASE = 'inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]';
+const COMMS_PILL_BASE = 'inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] transition-all shadow-sm';
 const COMMS_ACTION_TILE = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50';
 const COMMS_COMPOSE_OPTION = 'h-8 rounded-[0.8rem] border px-3 py-1.5 text-xs flex items-center gap-2 transition';
 const COMMS_INLINE_STAT = 'inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)] shadow-sm';
 
 const statusTone = {
-  new: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  waiting_on_us: 'bg-red-500/15 text-red-300 border-red-500/30',
-  waiting_on_them: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-  scheduled: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  new: 'bg-amber-500/15 text-amber-300 border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.1)]',
+  waiting_on_us: 'bg-red-500/15 text-red-300 border-red-500/30 shadow-[0_0_8px_rgba(239,68,68,0.1)]',
+  waiting_on_them: 'bg-blue-500/15 text-blue-300 border-blue-500/30 shadow-[0_0_8px_rgba(59,130,246,0.1)]',
+  scheduled: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.1)]',
   closed: 'bg-slate-500/15 text-slate-300 border-slate-500/30'
 };
 
@@ -1476,14 +1476,14 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                           style={isCompactComms ? hiddenScrollbarStyle : undefined}
                           className={isCompactComms ? 'comms-scroll-hidden -mx-1 overflow-x-auto px-1' : 'flex flex-wrap gap-2'}
                         >
-                          <div className="flex min-w-max gap-1">
+                          <div className="flex min-w-max gap-2">
                             {THREAD_VIEW_MODES.map((mode) => (
                               <button
                                 key={mode.id}
                                 onClick={() => setThreadViewMode(mode.id)}
-                                className={`shrink-0 whitespace-nowrap rounded-full border ${isCompactComms ? 'px-2 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[9px]'} ${threadViewMode === mode.id
-                                  ? 'border-sky-400/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.24),rgba(12,22,38,0.34))] text-sky-100'
-                                  : 'border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.08))] text-[var(--color-text-secondary)] hover:border-slate-500/70 hover:text-[var(--color-text-primary)]'
+                                className={`${COMMS_PILL_BASE} shrink-0 whitespace-nowrap ${threadViewMode === mode.id
+                                  ? 'border-sky-400/50 bg-sky-500/10 text-sky-100 ring-1 ring-sky-400/20'
+                                  : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)] hover:border-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
                                   }`}
                               >
                                 {mode.label}
@@ -1496,15 +1496,20 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         style={isCompactComms ? hiddenScrollbarStyle : undefined}
                         className={isCompactComms ? 'comms-scroll-hidden -mx-1 overflow-x-auto px-1' : 'flex flex-wrap gap-2'}
                       >
-                        <div className="flex min-w-max gap-1">
+                        <div className="flex min-w-max gap-2">
                           {visibleQueueCards.map((queue) => (
                             <button
                               key={queue.id}
                               onClick={() => setQueueId(queue.id)}
                               disabled={queue.count === 0}
-                              className={`shrink-0 whitespace-nowrap rounded-full border ${isCompactComms ? 'px-2 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[9px]'} ${queueId === queue.id ? 'border-sky-400/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.24),rgba(12,22,38,0.34))] text-sky-100 shadow-[inset_0_1px_0_rgba(191,219,254,0.1),0_10px_24px_rgba(37,99,235,0.1)]' : 'border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.08))] text-[var(--color-text-secondary)] hover:border-slate-500/70 hover:text-[var(--color-text-primary)]'} ${queue.count === 0 ? 'cursor-not-allowed opacity-40 hover:text-[var(--color-text-secondary)]' : ''}`}
+                              className={`${COMMS_PILL_BASE} shrink-0 whitespace-nowrap ${queueId === queue.id 
+                                ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-text-primary)] ring-1 ring-[var(--color-primary)]/20 shadow-md' 
+                                : 'border-[var(--color-border)] bg-[var(--color-bg-primary)] text-[var(--color-text-tertiary)] hover:border-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'} ${queue.count === 0 ? 'cursor-not-allowed opacity-40' : ''}`}
                             >
-                              {queue.label} {queue.count || 0}
+                              {queue.label}
+                              <span className={`ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-black ${queueId === queue.id ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-tertiary)]'}`}>
+                                {queue.count || 0}
+                              </span>
                             </button>
                           ))}
                         </div>
