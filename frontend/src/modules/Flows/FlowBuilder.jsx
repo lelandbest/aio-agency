@@ -877,12 +877,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         payload: { connection: params }
       });
 
-      if (result.validation.blockers.length === 0) {
-        setEdges(normalizeEdges(result.edges));
-        setIsDirty(true);
-      } else {
-        console.error('Connection blocked by validation:', result.validation.blockers);
-      }
+      setEdges(normalizeEdges(result.edges));
+      setIsDirty(true);
     },
     [setEdges, nodes, edges, mutateBuilderFlowGraph]
   );
@@ -904,11 +900,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }, isSystemManaged);
 
     if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-    if (result.validation.blockers.length === 0) {
-      setNodes(result.nodes);
-      setLastAddedPosition(position);
-      setIsDirty(true);
-    }
+    setNodes(result.nodes);
+    setLastAddedPosition(position);
+    setIsDirty(true);
   }, [lastAddedPosition, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
 
@@ -929,11 +923,9 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }, isSystemManaged);
 
     if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-    if (result.validation.blockers.length === 0) {
-      setNodes(result.nodes);
-      setLastAddedPosition(position);
-      setIsDirty(true);
-    }
+    setNodes(result.nodes);
+    setLastAddedPosition(position);
+    setIsDirty(true);
   }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
 
@@ -948,12 +940,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }, isSystemManaged);
 
     if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-    if (result.validation.blockers.length === 0) {
-      setNodes(result.nodes);
-      setEdges(normalizeEdges(result.edges));
-      setSelectedNode(null);
-      setIsDirty(true);
-    }
+    setNodes(result.nodes);
+    setEdges(normalizeEdges(result.edges));
+    setSelectedNode(null);
+    setIsDirty(true);
   }, [selectedNode, nodes, edges, setNodes, setEdges, isSystemManaged, mutateBuilderFlowGraph]);
 
   // Handle drag over canvas
@@ -996,12 +986,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           return; 
         }
         
-        if (result.validation.blockers.length === 0) {
-          setNodes(result.nodes);
-          setIsDirty(true);
-        } else {
-          console.log('Add node blocked:', result.validation.blockers);
-        }
+        setNodes(result.nodes);
+        setIsDirty(true);
       } catch (error) {
         console.error('Failed to drop node:', error);
       }
@@ -1084,14 +1070,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       }, isSystemManaged);
 
       if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-      if (result.validation.blockers.length === 0) {
-        setNodes(result.nodes);
-        setIsDirty(true);
-        setShowNodeConfig(false);
-        setShowNodeModal(false);
-      } else {
-        console.error('Config save blocked by validation:', result.validation.blockers);
-      }
+      setNodes(result.nodes);
+      setIsDirty(true);
+      setShowNodeConfig(false);
+      setShowNodeModal(false);
     },
     [nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]
   );
@@ -1149,12 +1131,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     }, isSystemManaged);
 
     if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-    if (result.validation.blockers.length === 0) {
-      setNodes(result.nodes);
-      setIsDirty(true);
-    } else {
-      console.error('Form trigger insertion blocked by validation:', result.validation.blockers);
-    }
+    setNodes(result.nodes);
+    setIsDirty(true);
   }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
   const applyTemplate = useCallback((template) => {

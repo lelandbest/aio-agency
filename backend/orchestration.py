@@ -943,7 +943,6 @@ class StepExecutor:
             "rss_ingest": self._rss_ingest,
             "generate_image": self._generate_image,
             "INPUT_REQUIRED": self._input_required,
-            "INPUT_REQUIRED",
         }
 
     def _merged_step_config(self, step: dict[str, Any]) -> dict[str, Any]:
