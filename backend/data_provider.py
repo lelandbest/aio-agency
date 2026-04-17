@@ -5742,6 +5742,20 @@ class SQLiteProvider(BaseProvider):
 
     def _normalize_form_settings(self, settings: dict[str, Any] | None) -> dict[str, Any]:
         source = settings or {}
+
+        # Robust resolution of header image across known drift keys
+        header_image = (
+            source.get("headerImage") or
+            source.get("header_image") or
+            source.get("heroImage") or
+            source.get("hero_image") or
+            ""
+        )
+
+        # If it's an asset object, extract the URL
+        if isinstance(header_image, dict):
+            header_image = header_image.get("sourceUrl") or header_image.get("url") or ""
+
         normalized = {
             "createContact": bool(source.get("createContact", source.get("create_contact", True))),
             "updateContact": bool(source.get("updateContact", source.get("update_contact", True))),
@@ -5749,7 +5763,7 @@ class SQLiteProvider(BaseProvider):
             "notificationEmail": source.get("notificationEmail", source.get("notification_email", "")) or "",
             "redirectUrl": source.get("redirectUrl", source.get("redirect_url", "")) or "",
             "thankYouMessage": source.get("thankYouMessage", source.get("thank_you_message", "Thank you.")) or "Thank you.",
-            "headerImage": source.get("headerImage", source.get("header_image", "")) or "",
+            "headerImage": header_image,
         }
         reserved = {
             "createContact", "create_contact",
@@ -5759,6 +5773,7 @@ class SQLiteProvider(BaseProvider):
             "redirectUrl", "redirect_url",
             "thankYouMessage", "thank_you_message",
             "headerImage", "header_image",
+            "heroImage", "hero_image",
         }
         for key, value in source.items():
             if key in reserved or value is None:

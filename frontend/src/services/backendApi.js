@@ -18,6 +18,14 @@ export function getApiBaseUrl() {
   return API_BASE_URL;
 }
 
+export function normalizeSourceUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (url.startsWith('/api/') || url.startsWith('/media/')) {
+    return `${API_BASE_URL}${url}`;
+  }
+  return url;
+}
+
 const DATA_STORE_PROVIDER_ALLOWED_KEYS = new Set([
   'providerKey',
   'baseUrl',

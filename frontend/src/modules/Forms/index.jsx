@@ -11,7 +11,8 @@ import {
   getVaultApi,
   uploadMediaFileApi,
   updateFormApi,
-  updateFormFolderApi
+  updateFormFolderApi,
+  normalizeSourceUrl
 } from '../../services/backendApi';
 import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
@@ -167,11 +168,29 @@ const defaultFormSettings = {
   headerImage: '',
 };
 
-const normalizeFormSettings = (settings = {}) => ({
-  ...defaultFormSettings,
-  ...(settings || {}),
-  headerImage: settings?.headerImage || '',
-});
+const normalizeFormSettings = (settings = {}) => {
+  const source = settings || {};
+  
+  // Robust resolution of header image across known drift keys (headerImage, header_image, heroImage)
+  let rawHeaderImage = (
+    source.headerImage || 
+    source.header_image || 
+    source.heroImage || 
+    source.hero_image || 
+    ''
+  );
+  
+  // Handle potential asset object vs URL string mismatch
+  if (rawHeaderImage && typeof rawHeaderImage === 'object') {
+    rawHeaderImage = rawHeaderImage.sourceUrl || rawHeaderImage.url || '';
+  }
+
+  return {
+    ...defaultFormSettings,
+    ...source,
+    headerImage: normalizeSourceUrl(rawHeaderImage),
+  };
+};
 
 const normalizeFormRecord = (form) => (
   form

@@ -1,12 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { getFormBySlugApi } from '../services/backendApi';
+import { getFormBySlugApi, normalizeSourceUrl } from '../services/backendApi';
 import { processFormSubmission } from '../services/formProcessor';
 
-const normalizePublicFormSettings = (settings = {}) => ({
-  redirectUrl: settings?.redirectUrl || '',
-  thankYouMessage: settings?.thankYouMessage || 'Your submission has been received. We will get back to you soon.',
-  headerImage: settings?.headerImage || '',
-});
+const normalizePublicFormSettings = (settings = {}) => {
+  const source = settings || {};
+  let rawHeaderImage = (
+    source.headerImage || 
+    source.header_image || 
+    source.heroImage || 
+    source.hero_image || 
+    ''
+  );
+  if (rawHeaderImage && typeof rawHeaderImage === 'object') {
+    rawHeaderImage = rawHeaderImage.sourceUrl || rawHeaderImage.url || '';
+  }
+  return {
+    redirectUrl: source.redirectUrl || source.redirect_url || '',
+    thankYouMessage: source.thankYouMessage || source.thank_you_message || 'Your submission has been received. We will get back to you soon.',
+    headerImage: normalizeSourceUrl(rawHeaderImage),
+  };
+};
 
 const PublicForm = ({ formSlug }) => {
   const [form, setForm] = useState(null);

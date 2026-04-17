@@ -2,10 +2,24 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, Save } from 'lucide-react';
 import { processFormSubmission } from '../../services/formProcessor';
+import { normalizeSourceUrl } from '../../services/backendApi';
 
-const normalizeFormEntrySettings = (settings = {}) => ({
-    headerImage: settings?.headerImage || '',
-});
+const normalizeFormEntrySettings = (settings = {}) => {
+    const source = settings || {};
+    let rawHeaderImage = (
+        source.headerImage || 
+        source.header_image || 
+        source.heroImage || 
+        source.hero_image || 
+        ''
+    );
+    if (rawHeaderImage && typeof rawHeaderImage === 'object') {
+        rawHeaderImage = rawHeaderImage.sourceUrl || rawHeaderImage.url || '';
+    }
+    return {
+        headerImage: normalizeSourceUrl(rawHeaderImage),
+    };
+};
 
 const FormEntryModal = ({ form, onClose, onSuccess }) => {
     const [formData, setFormData] = useState({});
