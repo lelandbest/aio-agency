@@ -3,6 +3,8 @@ import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, 
 import { attachWorkspaceRoleApi, detachWorkspaceRoleApi, getAiAgentsApi, getAiRunApi, getAiRunsApi, getWorkspaceRolesApi, runAiCommandApi } from '../../services/backendApi';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
+import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
 
 
@@ -1099,7 +1101,7 @@ const AIOAgentsModule = () => {
             className="btn-toolbar-lead h-8 px-4 flex items-center gap-2"
           >
             {view === 'command' ? <Users size={14} /> : <Terminal size={14} />}
-            <span className="text-[11px] font-black">{view === 'command' ? 'OPEN BARRACKS' : 'OPEN COMMAND'}</span>
+            <span className="text-[11px] font-bold tracking-wider">{view === 'command' ? 'OPEN BARRACKS' : 'OPEN COMMAND'}</span>
           </button>
         </div>
 
@@ -1116,19 +1118,27 @@ const AIOAgentsModule = () => {
         {/* ZONE: RIGHT (Global Utilities) */}
         <div className="flex items-center gap-2">
           {/* GLOBAL UTILITY SUITE */}
-          <div className="flex items-center gap-1">
+          <div className="module-toolbar-utility">
             <button
-              onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'agents', view } })}
-              className="p-1.5 rounded-full hover:bg-white/5 text-slate-400 transition-colors"
-              title="AIO Brain"
+              onClick={() => toggleAIAssist({ mode: 'brain' })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Brain (Global KB)"
             >
               <BrainIcon size={14} />
             </button>
             <button
-              className="p-1.5 rounded-full hover:bg-white/5 text-slate-400 transition-colors"
-              title="Identity Focus"
+              onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'agents', view } })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Crosshair (Module AI)"
             >
               <Crosshair size={14} />
+            </button>
+            <button
+              onClick={() => openGlobalOverlay()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Composer"
+            >
+              <CommandSurfaceIcon size={14} />
             </button>
           </div>
         </div>

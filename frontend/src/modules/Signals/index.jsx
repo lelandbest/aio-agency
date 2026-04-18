@@ -761,16 +761,16 @@ export default function SignalsModule() {
     <div className="module-root-standard relative">
       {HEARTBEAT_PULSE && <style>{HEARTBEAT_PULSE}</style>}
       {/* Toolbar */}
+      {/* --- NORMALIZED 3-ZONE TOOLBAR --- */}
       <div className="module-toolbar">
-        <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className="heartbeat-active w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Signals Interface</span>
-          <div className="h-4 w-px bg-white/10" />
+        {/* ZONE: LEFT (Lead Actions) */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => reloadSignals(true)}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="btn-toolbar-lead h-8 px-4 flex items-center gap-2"
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <span className="text-[11px] font-bold tracking-wider uppercase">REFRESH SIGNALS</span>
           </button>
         </div>
 
@@ -808,9 +808,38 @@ export default function SignalsModule() {
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center h-full gap-2 shrink-0">
+        {/* ZONE: RIGHT (Global Utilities) */}
+        <div className="flex items-center gap-2">
+          {/* ACTIONABLE PILL (Secondary Status) */}
           <div className="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-400">
             {signals.length} Actionable
+          </div>
+
+          <div className="h-4 w-px bg-white/10 shrink-0" />
+
+          {/* GLOBAL UTILITY SUITE */}
+          <div className="module-toolbar-utility">
+            <button
+              onClick={() => toggleAIAssist({ mode: 'brain' })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Brain (Global KB)"
+            >
+              <BrainIcon size={14} />
+            </button>
+            <button
+              onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'signals' } })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Crosshair (Module AI)"
+            >
+              <Crosshair size={14} />
+            </button>
+            <button
+              onClick={() => openGlobalOverlay()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Composer"
+            >
+              <CommandSurfaceIcon size={14} />
+            </button>
           </div>
         </div>
       </div>

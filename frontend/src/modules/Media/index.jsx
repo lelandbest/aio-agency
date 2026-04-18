@@ -2811,7 +2811,7 @@ else if (selectedAction === 'transcribeMedia') {
                 <label className="text-[7px] font-black text-slate-500 uppercase tracking-widest block ml-0.5">DESTINATION ID</label>
                 <input value={formState.publishTarget} onChange={e => updateField('publishTarget', e.target.value)} className="w-full rounded bg-black border border-[#2A2D35] px-3 py-2 text-[11px] text-white focus:outline-none font-mono" placeholder="GOOGLE DRIVE" />
               </div>
-              <button onClick={async () => { const selectedAssetId = formState.assetId || (activeOutput?.recordKind === 'asset' ? activeOutput.assetId : ''); setLaunchingAction('publish'); try { await createMediaPublishJobApi({ assetIds: selectedAssetId ? [selectedAssetId] : [], publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-black tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
+              <button onClick={async () => { const selectedAssetId = formState.assetId || (activeOutput?.recordKind === 'asset' ? activeOutput.assetId : ''); setLaunchingAction('publish'); try { await createMediaPublishJobApi({ assetIds: selectedAssetId ? [selectedAssetId] : [], publishTarget: formState.publishTarget || 'GOOGLE_DRIVE' }); setIsPublishModalOpen(false); await loadWorkspace('refresh'); } catch (e) { setError(e.message); } finally { setLaunchingAction(''); } }} disabled={!formState.publishTarget || Boolean(launchingAction)} className="w-full h-11 rounded bg-sky-900 border border-sky-500 text-white text-[11px] font-bold tracking-widest uppercase active:translate-y-0.5 shadow-xl transition-all disabled:opacity-40">INITIATE UPLINK</button>
             </div>
           </div>
         </div>
@@ -2828,8 +2828,8 @@ else if (selectedAction === 'transcribeMedia') {
               Delete {pendingDelete.isJob ? 'job' : 'output'}?
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setPendingDelete(null)} className="flex-1 h-10 rounded bg-black border border-[#2A2D35] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-[#1A1C21] transition-all">CANCEL</button>
-              <button onClick={() => pendingDelete.isJob ? confirmDeleteJob() : confirmDeleteOutput()} className="flex-1 h-10 rounded bg-red-900/50 border border-red-500/50 text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-900/70 transition-all">DELETE</button>
+              <button onClick={() => setPendingDelete(null)} className="flex-1 h-10 rounded bg-black border border-[#2A2D35] text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:bg-[#1A1C21] transition-all">CANCEL</button>
+              <button onClick={() => pendingDelete.isJob ? confirmDeleteJob() : confirmDeleteOutput()} className="flex-1 h-10 rounded bg-red-900/50 border border-red-500/50 text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-900/70 transition-all">DELETE</button>
             </div>
           </div>
         </div>

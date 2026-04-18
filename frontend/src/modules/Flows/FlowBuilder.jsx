@@ -2030,13 +2030,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
             <button
               onClick={() => setLeftPanelTab('nodes')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${leftPanelTab === 'nodes' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Nodes
             </button>
             <button
               onClick={() => setLeftPanelTab('templates')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${leftPanelTab === 'templates' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Templates
             </button>
@@ -2045,7 +2045,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="p-2 border-b border-[var(--color-border)] px-3">
             <button
               onClick={() => setShowAiModal(true)}
-              className="btn-secondary w-full flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest"
+              className="btn-secondary w-full flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[10px] font-bold uppercase tracking-widest"
             >
               <Target className="w-3.5 h-3.5 text-sky-400" />
               AI Generate Flow
@@ -2134,13 +2134,13 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           <div className="flex items-center gap-1 p-2 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] shrink-0">
             <button
               onClick={() => setRightPanelTab('details')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${rightPanelTab === 'details' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               Details
             </button>
             <button
               onClick={() => setRightPanelTab('history')}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${rightPanelTab === 'history' ? 'bg-[#1a1d21] text-white shadow-sm border border-white/10' : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-hover)]'}`}
             >
               History
             </button>
@@ -2159,7 +2159,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
               <div className="p-3 border-t border-[var(--color-border)] bg-[var(--color-bg-secondary)]/50 mt-auto shrink-0 flex flex-col gap-2">
                 <div className="rounded-xl border border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.6))] px-4 py-4 text-center shadow-[0_14px_32px_rgba(2,6,23,0.28)]">
                   <div
-                    className="text-[16px] font-black uppercase tracking-[0.28em] text-slate-100/90"
+                    className="text-[16px] font-bold uppercase tracking-[0.28em] text-slate-100/90"
                     style={{ fontFamily: '"Ethnocentric", "Inter", sans-serif' }}
                   >
                     {`AIO Flows${TM}`}
@@ -2199,7 +2199,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       {/* TOP OVERLAY: Stable Floating Controls (Moved out so it won't shift with panel) */}
       <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none w-full max-w-lg flex justify-center mt-2">
         <div className="pointer-events-auto flex items-center gap-3 bg-[var(--color-bg-secondary)]/80 backdrop-blur-md border border-[var(--color-border)] rounded-full px-4 py-1.5 shadow-2xl">
-          <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-400 uppercase tracking-widest">
+          <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[9px] font-bold text-amber-400 uppercase tracking-widest">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Builder Only
           </div>
@@ -2209,12 +2209,12 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             Alpha Dispatch
           </div>
           <div className="h-4 w-[1px] bg-[var(--color-border)]" />
-          <div className="px-2 py-1 rounded-full bg-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest border border-white/5">
+          <div className="px-2 py-1 rounded-full bg-slate-800 text-[9px] font-bold text-slate-400 uppercase tracking-widest border border-white/5">
             v1.1.1 COMMS
           </div>
           <div className="h-4 w-[1px] bg-[var(--color-border)]" />
           <div
-            className={`px-3 py-1 rounded-[var(--radius-pill)] text-[9px] font-black uppercase tracking-widest flex-shrink-0 border ${flow?.status === 'Active'
+            className={`px-3 py-1 rounded-[var(--radius-pill)] text-[9px] font-bold uppercase tracking-widest flex-shrink-0 border ${flow?.status === 'Active'
               ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
               : 'bg-[var(--color-primary)]/15 text-[var(--color-text-secondary)] border-[var(--color-border)]'
               }`}

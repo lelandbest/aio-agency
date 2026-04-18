@@ -525,7 +525,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             className="btn-toolbar-lead px-3 py-1.5 text-[10px]"
           >
             <Plus size={12} />
-            <span className="font-black uppercase tracking-[0.14em]">New Flow</span>
+            <span className="font-bold uppercase tracking-[0.14em]">NEW FLOW</span>
           </button>
 
           <button

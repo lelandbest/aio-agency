@@ -179,7 +179,7 @@ const DesignModule = () => {
     return (
       <div className="module-root-standard flex items-center justify-center bg-[#070708]">
         <div className="text-center animate-pulse">
-          <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Design Surface</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500 mb-2">Design Surface</div>
           <div className="text-xs text-slate-600">Initializing canvas engine...</div>
         </div>
       </div>
@@ -193,7 +193,7 @@ const DesignModule = () => {
         showTitle={false}
         leftActions={[
           {
-            label: 'New Canvas',
+            label: '+ NEW CANVAS',
             icon: null,
             onClick: handleClearCanvas,
             variant: 'primary'
@@ -230,7 +230,7 @@ const DesignModule = () => {
             <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Box size={16} className="text-cyan-400" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-200">Export Assets</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-200">Export Assets</span>
               </div>
               <button onClick={() => setShowExportModal(false)} className="text-slate-500 hover:text-white transition-colors">
                 <X size={18} />
@@ -279,7 +279,7 @@ const DesignModule = () => {
               <button
                 disabled={!isValid || exporting}
                 onClick={handleExportExecute}
-                className={`mt-4 w-full rounded-2xl py-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${isValid && !exporting ? 'bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white/5 text-slate-600 grayscale cursor-not-allowed'}`}
+                className={`mt-4 w-full rounded-2xl py-3 text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${isValid && !exporting ? 'bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white/5 text-slate-600 grayscale cursor-not-allowed'}`}
               >
                 {exporting ? 'Executing...' : 'Start Export'}
               </button>

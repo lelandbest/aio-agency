@@ -531,10 +531,10 @@ function CRMContactList({
           <div className="shrink-0 text-[10px] font-black uppercase tracking-tighter text-emerald-400">{selectedIds.length} Selected</div>
           <div className="h-3 w-px bg-emerald-500/20" />
           <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
-            <button type="button" onClick={onBulkTag} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Tag size={10} />Tag</button>
-            <button type="button" onClick={onBulkDelete} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Trash2 size={10} />Delete</button>
-            <button type="button" onClick={onBulkVerify} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Shield size={10} />Verify</button>
-            <button type="button" onClick={onBulkAddToFlow} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Play size={10} />Add to Flow</button>
+            <button type="button" onClick={onBulkTag} className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Tag size={10} />Tag</button>
+            <button type="button" onClick={onBulkDelete} className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Trash2 size={10} />Delete</button>
+            <button type="button" onClick={onBulkVerify} className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Shield size={10} />Verify</button>
+            <button type="button" onClick={onBulkAddToFlow} className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.05em] text-emerald-400/80 hover:text-emerald-300"><Play size={10} />Add to Flow</button>
           </div>
         </div>
       ) : null}
@@ -621,7 +621,7 @@ function CRMContactList({
         <div className="text-[9px] font-medium italic text-slate-600">{showDeleted ? 'Soft-deleted records only' : 'Live CRM dossiers only'}</div>
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-          <span className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-400">{showDeleted ? 'Archive View' : 'Live Index'}</span>
+          <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">{showDeleted ? 'Archive View' : 'Live Index'}</span>
         </div>
       </div>
     </div>
@@ -1279,8 +1279,8 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
         className=""
         leftActions={[
           {
-            label: 'Create',
-            icon: Plus,
+            label: '+ NEW CONTACT',
+            icon: null,
             onClick: () => setShowCreateModal(true),
             variant: 'primary'
           }
@@ -1409,10 +1409,10 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                     <div className="shrink-0 text-[9px] font-black uppercase tracking-[0.25em] text-slate-500 opacity-60 italic">Operator Surface</div>
                     <div className="h-4 w-px bg-slate-900" />
                     <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => openThreadForSelectedContact('email')} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-cyan-500/10 hover:text-cyan-400 disabled:opacity-40"><Mail size={10} /><span>Email</span></button>
-                      <button type="button" onClick={() => openThreadForSelectedContact('sms')} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-blue-500/10 hover:text-blue-400 disabled:opacity-40"><MessageSquareText size={10} /><span>SMS</span></button>
-                      <button type="button" onClick={handleOpenBookingModal} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40"><CalendarDays size={10} /><span>Meet</span></button>
-                      <button type="button" onClick={handleOpenForm} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400 disabled:opacity-40"><FileText size={10} /><span>Form</span></button>
+                      <button type="button" onClick={() => openThreadForSelectedContact('email')} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-500 transition-all hover:bg-cyan-500/10 hover:text-cyan-400 disabled:opacity-40"><Mail size={10} /><span>Email</span></button>
+                      <button type="button" onClick={() => openThreadForSelectedContact('sms')} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-500 transition-all hover:bg-blue-500/10 hover:text-blue-400 disabled:opacity-40"><MessageSquareText size={10} /><span>SMS</span></button>
+                      <button type="button" onClick={handleOpenBookingModal} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-500 transition-all hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40"><CalendarDays size={10} /><span>Meet</span></button>
+                      <button type="button" onClick={handleOpenForm} disabled={showDeleted} className="flex items-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400 disabled:opacity-40"><FileText size={10} /><span>Form</span></button>
                     </div>
                   </div>
 
@@ -1436,7 +1436,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                         </button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => handleRestoreContact(selectedContact.id)} disabled={restoring} className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50">{restoring ? 'Restoring...' : 'Restore'}</button>
+                      <button type="button" onClick={() => handleRestoreContact(selectedContact.id)} disabled={restoring} className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50">{restoring ? 'Restoring...' : 'Restore'}</button>
                     )}
                   </div>
                 </div>
@@ -1984,7 +1984,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                     {detailPanels.related && (
                       <div className="mt-3 space-y-2">
                         <div className="rounded border border-slate-900/40 border-dashed bg-[#050505] px-2 py-4 text-center text-[10px] italic text-slate-600">No active tracking segments</div>
-                        <button type="button" className="flex w-full items-center justify-center gap-2 rounded border border-slate-800 py-1.5 text-[9px] font-black uppercase text-slate-400 transition-all hover:bg-[#111] hover:text-slate-200">
+                        <button type="button" className="flex w-full items-center justify-center gap-2 rounded border border-slate-800 py-1.5 text-[9px] font-bold uppercase text-slate-400 transition-all hover:bg-[#111] hover:text-slate-200">
                           <Plus size={10} /> Link Contact
                         </button>
                       </div>

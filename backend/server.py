@@ -121,10 +121,10 @@ def strip_markdown(text: str) -> str:
     if not text:
         return text
     # Character class containing: * _ # ~ > ` [ ] { }
-    import re as _re
-    text = _re.sub(r'[*_#~>`\[\]{}]+', '', text)
+
+    text = re.sub(r'[*_#~>`\[\]{}]+', '', text)
     # Whitespace normalization
-    text = _re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
 from oauth_connect import (
@@ -2696,48 +2696,6 @@ async def enforce_camelcase_response(request: Request, call_next):
 # This ensures it handles preflight before custom HTTP midleware runs its full logic.
 app.add_middleware(CORSMiddleware, **CORS_CONFIG)
 
-# TEMPORARILY DISABLED FOR TESTING
-# class RequestCasingMiddleware(BaseHTTPMiddleware):
-#     async def dispatch(self, request: Request, call_next):
-#         if request.method in ("POST", "PUT", "PATCH"):
-#             body = await request.body()
-#             if body:
-#                 try:
-#                     import json
-#                     data = json.loads(body)
-#                     if isinstance(data, dict):
-#                         converted = convert_to_snakecase(data)
-#                         from starlette.datastructures import MutableHeaders
-#                         from starlette.requests import _receive
-#                         async def receive() -> dict:
-#                             return {"type": "http.request", "body": json.dumps(converted).encode()}
-#                         request._receive = receive
-#                 except Exception:
-#                     pass
-#         response = await call_next(request)
-#         return response
-
-
-# class ResponseCasingMiddleware(BaseHTTPMiddleware):
-#     async def dispatch(self, request: Request, call_next):
-#         response = await call_next(request)
-#         if response.status_code < 400:
-#             if response.headers.get("content-type", "").startswith("application/json"):
-#                 body = b""
-#                 async for chunk in response.body_iterator:
-#                     body += chunk
-#                 try:
-#                     data = json.loads(body)
-#                     converted = convert_to_camelcase(data)
-#                     from fastapi.responses import JSONResponse
-#                     return JSONResponse(content=converted, status_code=response.status_code, headers=dict(response.headers))
-#                 except Exception:
-#                     pass
-#         return response
-
-
-# app.add_middleware(RequestCasingMiddleware)
-# app.add_middleware(ResponseCasingMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -4635,7 +4593,7 @@ async def list_ollama_provider_models_post(request: Request, payload: OllamaMode
     try:
         # Pass explicit base_url if provided, otherwise let list_ollama_models resolve from config
         if payload.baseUrl:
-            print(f"[OllamaModels] POST Using explicit base_url: {payload.baseUrl}")
+            logger.info(f"[OllamaModels] POST Using explicit base_url: {payload.baseUrl}")
             models = list_ollama_models(
                 base_url=payload.baseUrl,
                 api_key=payload.apiKey,
@@ -4643,7 +4601,7 @@ async def list_ollama_provider_models_post(request: Request, payload: OllamaMode
                 password=payload.password,
             )
         else:
-            print(f"[OllamaModels] POST Resolving from config for tenant: {tenant_id}")
+            logger.info(f"[OllamaModels] POST Resolving from config for tenant: {tenant_id}")
             models = list_ollama_models(
                 tenant_id=tenant_id,
                 api_key=payload.apiKey,
@@ -4652,7 +4610,7 @@ async def list_ollama_provider_models_post(request: Request, payload: OllamaMode
             )
         return {"data": models}
     except ValueError as error:
-        print(f"[OllamaModels] POST ERROR: {error}")
+        logger.error(f"[OllamaModels] POST ERROR: {error}")
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
@@ -5647,7 +5605,7 @@ async def delete_contact(contact_id: str, request: Request):
     require_capability(request, "crm.edit", "Only workspace staff or higher can delete contacts.")
     try:
         provider.delete_contact(contact_id)
-        print(f"[DELETE] Contact deleted: {contact_id}")
+        logger.info(f"[DELETE] Contact deleted: {contact_id}")
         return {"success": True}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -5658,7 +5616,7 @@ async def restore_contact(contact_id: str, request: Request):
     require_capability(request, "system.manage", "Only workspace staff or higher can restore contacts.")
     try:
         provider.restore_contact(contact_id)
-        print(f"[RESTORE] Contact restored: {contact_id}")
+        logger.info(f"[RESTORE] Contact restored: {contact_id}")
         return {"success": True}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -8407,7 +8365,7 @@ async def comms_webhook_ingest(request: Request, provider: str, payload: dict[st
             provider_data = create_provider()
             event_type = event.normalized.get("event_type", "")
             
-            print(f"COMMS WEBHOOK: provider={provider} event_type={event_type}")
+            logger.info(f"COMMS WEBHOOK: provider={provider} event_type={event_type}")
 
             if event_type == "sms_status_update":
                 msg_id = event.normalized.get("message_id")
@@ -8433,14 +8391,14 @@ async def comms_webhook_ingest(request: Request, provider: str, payload: dict[st
             elif event_type == "call_update" or event_type == "call_answered":
                 call_id = event.normalized.get("call_id")
                 status = event.normalized.get("status")
-                print(f"COMMS WEBHOOK CALL: call_id={call_id} status={status}")
+                logger.info(f"COMMS WEBHOOK CALL: call_id={call_id} status={status}")
                 if call_id:
                     provider_data.update_call_session(call_id, status=status)
             
             elif event_type == "call_ended":
                 call_id = event.normalized.get("call_id")
                 duration = event.normalized.get("duration")
-                print(f"COMMS WEBHOOK CALL ENDED: call_id={call_id} duration={duration}")
+                logger.info(f"COMMS WEBHOOK CALL ENDED: call_id={call_id} duration={duration}")
                 if call_id:
                     provider_data.update_call_session(
                         call_id,
@@ -8631,9 +8589,7 @@ async def generate_cortex_report(request: Request, payload: CortexReportRequest)
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
 
-    print(f"[CortexReportAPI] START {payload.reportId}")
-    print(f"[CortexReportAPI] USER {user.get('id', 'none')}")
-    print(f"[CortexReportAPI] TENANT {tenant.get('id', 'none')}")
+
 
     try:
         tenant_id = tenant.get("id")
@@ -8651,7 +8607,7 @@ async def generate_cortex_report(request: Request, payload: CortexReportRequest)
                 auth_store=auth_store,
             )
         except ValueError as error:
-            print(f"[CortexReportAPI] ERROR {str(error)}")
+
             return {"success": False, "error": str(error), "data": None}
         log_ai_route(route)
         active_config = route.get("provider_config")
@@ -8680,7 +8636,7 @@ SYSTEM DATA:
 
 Generate a comprehensive, actionable report following the output structure specified above. Use the provided data to inform your analysis."""
 
-        print("[CortexReportAPI] CALL_AI provider lookup triggered")
+
 
         result = ai_assist_service.generate_report(
             prompt=full_prompt,
@@ -8693,11 +8649,11 @@ Generate a comprehensive, actionable report following the output structure speci
             provider_config=active_config,
         )
 
-        print("[CortexReportAPI] SUCCESS")
+
         return {"success": True, "data": result}
 
     except Exception as e:
-        print(f"[CortexReportAPI] ERROR {str(e)}")
+
         logger.error(f"Report generation failed: {e}")
         return {"success": False, "error": str(e), "data": None}
 
