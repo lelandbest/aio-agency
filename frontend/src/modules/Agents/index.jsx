@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Play, Pause, Edit2, Trash2, Plus, Settings, MessageSquare, Bot, Users, ArrowRight, Terminal, Layers, Cpu, ShieldCheck, Workflow, Activity, Radiation, Lock, Mail, Database, Box, Shield, Brain, Headset } from 'lucide-react';
 import { attachWorkspaceRoleApi, detachWorkspaceRoleApi, getAiAgentsApi, getAiRunApi, getAiRunsApi, getWorkspaceRolesApi, runAiCommandApi } from '../../services/backendApi';
-import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { SPECIALIST_REGISTRY, ROW_COLOR_LANES, HQ_AGENT_STYLE, OMEGA_AGENT_STYLE } from './data/agentRegistry';
@@ -1091,26 +1090,49 @@ const AIOAgentsModule = () => {
 
   return (
     <div className="module-root-standard selection:bg-purple-900/50">
-      <ModuleHeader
-        showTitle={false}
-        leftActions={[
-          view === 'command'
-            ? {
-              label: 'OPEN BARRACKS',
-              icon: Users,
-              onClick: () => setView('barracks'),
-              variant: 'primary'
-            }
-            : {
-              label: 'OPEN COMMAND',
-              icon: Terminal,
-              onClick: () => setView('command'),
-              variant: 'primary'
-            }
-        ]}
-        showActions={true}
-        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'agents', view } })}
-      />
+      {/* --- NORMALIZED 3-ZONE TOOLBAR --- */}
+      <div className="module-toolbar">
+        {/* ZONE: LEFT (Lead Actions) */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setView(view === 'command' ? 'barracks' : 'command')}
+            className="btn-toolbar-lead h-8 px-4 flex items-center gap-2"
+          >
+            {view === 'command' ? <Users size={14} /> : <Terminal size={14} />}
+            <span className="text-[11px] font-black">{view === 'command' ? 'OPEN BARRACKS' : 'OPEN COMMAND'}</span>
+          </button>
+        </div>
+
+        {/* ZONE: CENTER (Status Pills) */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="flex items-center gap-2 bg-black/40 p-1 rounded-full border border-white/5 shadow-island-sm">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] transition-all ${hasActiveRun ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.2)]' : 'bg-black/20 text-slate-500 border border-white/5'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${hasActiveRun ? 'bg-amber-400 animate-pulse' : 'bg-slate-700'}`} />
+              <span>{hasActiveRun ? `EXECUTION: ${activeRunStatus}` : 'SYSTEM IDLE'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ZONE: RIGHT (Global Utilities) */}
+        <div className="flex items-center gap-2">
+          {/* GLOBAL UTILITY SUITE */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'agents', view } })}
+              className="p-1.5 rounded-full hover:bg-white/5 text-slate-400 transition-colors"
+              title="AIO Brain"
+            >
+              <BrainIcon size={14} />
+            </button>
+            <button
+              className="p-1.5 rounded-full hover:bg-white/5 text-slate-400 transition-colors"
+              title="Identity Focus"
+            >
+              <Crosshair size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Main Workspace */}
       <div className="module-content-stage flex overflow-hidden relative px-2 pb-2">

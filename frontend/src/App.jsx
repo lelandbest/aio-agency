@@ -177,7 +177,7 @@ const MODULE_SUBTITLE_MAP = {
   crm: 'Central Dossier Intelligence',
   flows: 'Workflow Logic Orchestration',
   forms: 'Input Schema & Deployment Control',
-  comms: 'Unified Thread-First Comms Dispatch',
+  comms: 'Unified Thread-First Comms Orchestration',
   integrations: 'External Transport & System Management',
   studio: 'Multimedia Asset & Job Synthesis',
   orders: 'Transaction Lifecycle Management',

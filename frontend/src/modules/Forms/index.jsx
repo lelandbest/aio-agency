@@ -19,7 +19,6 @@ import { requestAiSuggestion } from '../../services/aiAssist';
 import { getCMSTableData, exportCMSToCSV } from '../../services/formProcessor';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FolderTable from '../../components/FolderTable';
-import ModuleHeader from '../../components/ModuleHeader';
 import {
   FileText, Plus, ArrowRight, User, Box, Briefcase, Mail, Phone,
   Type, AlignLeft, CheckSquare, Hash, Lock, AtSign, ChevronDown, Radio,
@@ -256,9 +255,6 @@ const FormBuilderModule = () => {
 
   const [alertMessage, setAlertMessage] = useState(null);
   
-  // Prompt modal state for folder name input
-  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
-
   const [allFoldersExpanded, setAllFoldersExpanded] = useState(true);
 
   // Sidebar Category State
@@ -645,31 +641,31 @@ const FormBuilderModule = () => {
   };
 
   const handleCreateFolder = async () => {
-    setPromptModal({
-      isOpen: true,
+    const name = await systemConfirm({
       title: 'Create Folder',
       message: 'Enter a name for the new folder:',
-      defaultValue: 'New Folder',
-      onConfirm: async (name) => {
-        if (name) {
-          try {
-            const data = await createFormFolderApi({
-              name,
-              userId: '1',
-              createdAt: new Date().toISOString(),
-              expanded: true
-            });
-            if (data) {
-              setFolders(prev => [...prev, data]);
-            }
-          } catch (error) {
-            console.error('Error creating folder:', error);
-            setAlertMessage('Failed to create folder: ' + error.message);
-            setTimeout(() => setAlertMessage(null), 3000);
-          }
-        }
-      }
+      showPrompt: true,
+      promptValue: 'New Folder',
+      confirmText: 'Create Folder'
     });
+
+    if (name) {
+      try {
+        const data = await createFormFolderApi({
+          name,
+          userId: '1',
+          createdAt: new Date().toISOString(),
+          expanded: true
+        });
+        if (data) {
+          setFolders(prev => [...prev, data]);
+        }
+      } catch (error) {
+        console.error('Error creating folder:', error);
+        setAlertMessage('Failed to create folder: ' + error.message);
+        setTimeout(() => setAlertMessage(null), 3000);
+      }
+    }
   };
 
   const handleRenameFolder = async (folderId, newName) => {
@@ -1293,43 +1289,36 @@ const FormBuilderModule = () => {
   // Editor View
   return (
       <div className="module-root-standard bg-transparent">
-      <ModuleHeader
-        title="Forms"
-        showTitle={false}
-        onModuleAi={() => toggleAIAssist?.({
-          mode: 'help',
-          context: {
-            module: 'forms',
-            surface: 'builder',
-            formId: currentForm?.id,
-            formName: currentForm?.name,
-            selectedFieldId: selectedField?.id || null,
-            selectedFieldName: selectedField?.name || null,
-          }
-        })}
-        leftActions={[
-          {
-            label: 'Back to List',
-            icon: ArrowLeft,
-            onClick: () => {
-              setCurrentForm(null);
-              setSelectedField(null);
-              setView('list');
-            },
-            variant: 'secondary'
-          }
-        ]}
-        toolbarCenterSlot={(
-          <div className="w-full max-w-md">
-            <input
-              value={currentForm?.name || ''}
-              onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
-              className="h-9 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-4 text-sm font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
-              placeholder="Enter form name..."
-            />
+        {/* ABSOLUTE TOOLBAR CONTRACT — ZONE RECONSTRUCTION */}
+        <div className="module-toolbar">
+          {/* LEFT ZONE: MODULE ACTIONS ONLY */}
+          <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+            <button
+              onClick={() => {
+                setCurrentForm(null);
+                setSelectedField(null);
+                setView('list');
+              }}
+              className="btn-toolbar-lead px-3 py-1.5 text-[10px]"
+            >
+              <ArrowLeft size={12} />
+              <span className="font-black uppercase tracking-[0.14em]">Back to List</span>
+            </button>
           </div>
-        )}
-        toolbarRightSlot={(
+
+          {/* CENTER ZONE: STATUS ONLY */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+            <div className="w-80 pointer-events-auto">
+              <input
+                value={currentForm?.name || ''}
+                onChange={(e) => setCurrentForm({ ...currentForm, name: e.target.value })}
+                className="h-7 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 text-[11px] font-bold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] placeholder:text-[var(--color-text-tertiary)]"
+                placeholder="Enter form name..."
+              />
+            </div>
+          </div>
+
+          {/* RIGHT ZONE: GLOBAL CONTROLS ONLY */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -1349,32 +1338,49 @@ const FormBuilderModule = () => {
               <Save size={12} />
               <span>{isSaving ? 'Saving' : saveAction === 'form-saved' ? 'Saved' : 'Save Form'}</span>
             </button>
+
+            <div className="module-toolbar-utility">
+              <button
+                onClick={() => toggleAIAssist?.({ mode: 'brain' })}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                title="Brain (Global KB)"
+              >
+                <BrainIcon size={15} />
+              </button>
+              <button
+                onClick={() => toggleAIAssist?.({
+                  mode: 'help',
+                  context: {
+                    module: 'forms',
+                    surface: 'builder',
+                    formId: currentForm?.id,
+                    formName: currentForm?.name,
+                    selectedFieldId: selectedField?.id || null,
+                    selectedFieldName: selectedField?.name || null,
+                  }
+                })}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                title="Crosshair (Module AI)"
+              >
+                <Crosshair size={15} />
+              </button>
+              <button
+                onClick={() => openGlobalOverlay()}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                title="Composer"
+              >
+                <CommandSurfaceIcon size={15} />
+              </button>
+            </div>
           </div>
-        )}
-      />
+        </div>
       {alertMessage && (
         <div className="fixed top-4 right-4 z-50 bg-red-500/20 border border-red-500/30 text-red-200 px-4 py-3 rounded-lg shadow-xl">
           {alertMessage}
         </div>
       )}
       
-      <SystemConfirmModal
-        isOpen={promptModal.isOpen}
-        onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
-        onConfirm={() => {
-          if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
-          setPromptModal({ ...promptModal, isOpen: false });
-        }}
-        title={promptModal.title}
-        message={promptModal.message}
-        confirmText="Create"
-        cancelText="Cancel"
-        showPrompt={true}
-        promptValue={promptModal.promptValue || ''}
-        onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
-        promptPlaceholder={promptModal.defaultValue || 'Enter name...'}
-        variant="info"
-      />
+
       <div className="module-content-stage px-2 pb-2 flex bg-transparent gap-1.5">
       {/* Left Sidebar - Field Tools */}
       <div className="w-56 min-h-0 shrink-0 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-tertiary)] flex flex-col overflow-y-auto no-scrollbar">

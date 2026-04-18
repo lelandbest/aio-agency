@@ -12,7 +12,6 @@ import {
   Building2,
   Trash2
 } from 'lucide-react';
-import ModuleHeader from '../../components/ModuleHeader';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';

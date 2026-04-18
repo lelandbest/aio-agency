@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FolderOpen, Layers, Plus, Search, Tag, Workflow, Trash2, FolderPlus } from 'lucide-react';
 import FolderTable from '../../components/FolderTable';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';

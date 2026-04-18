@@ -8,7 +8,18 @@ import { createMediaTranscriptJobApi } from '../services/backendApi';
 export default function Boom({ isOpen, onClose }) {
   if (!isOpen) return null;
   
+  const stopStream = useCallback(() => {
+    if (boomStreamRef.current) {
+      boomStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+      boomStreamRef.current = null;
+    }
+  }, []);
+
   const handleClose = () => {
+    stopStream();
     setBoomMode('screen');
     setBoomRecording(false);
     setBoomSegments([]);
@@ -44,6 +55,29 @@ export default function Boom({ isOpen, onClose }) {
       setPreviewUrl(null);
     }
   }, [boomCurrentSegment]);
+
+  useEffect(() => {
+    return () => {
+      stopStream();
+      if (recorderPreviewUrl.current) {
+        URL.revokeObjectURL(recorderPreviewUrl.current);
+      }
+    };
+  }, [stopStream]);
+
+  const recorderPreviewUrl = useRef(null);
+  const getSupportedMimeType = () => {
+    const types = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+      'video/mp4'
+    ];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';
+  };
 
   useEffect(() => {
     if (boomRecording && boomPreviewRef.current && boomStreamRef.current) {
@@ -82,10 +116,42 @@ export default function Boom({ isOpen, onClose }) {
     try {
       let stream;
       if (boomMode === 'screen') {
-        stream = await navigator.mediaDevices.getDisplayMedia({ 
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ 
           video: { cursor: 'always' }, 
-          audio: boomSelectedMic ? { deviceId: { exact: boomSelectedMic } } : true 
+          audio: true // Capture system audio if available
         });
+
+        if (boomSelectedMic) {
+          try {
+            const micStream = await navigator.mediaDevices.getUserMedia({
+              audio: { deviceId: { exact: boomSelectedMic } }
+            });
+            
+            const tracks = [...displayStream.getVideoTracks()];
+            // If we have both system audio and mic audio, we only take the mic for "SCREEN + MIC" clarity,
+            // or we could mix them. Standard AIO protocol is Mic priority for narration.
+            if (micStream.getAudioTracks().length > 0) {
+              tracks.push(micStream.getAudioTracks()[0]);
+              // Stop unused system audio tracks from displayStream to prevent hardware leaks
+              displayStream.getAudioTracks().forEach(t => t.stop());
+            } else if (displayStream.getAudioTracks().length > 0) {
+              tracks.push(displayStream.getAudioTracks()[0]);
+            }
+            
+            stream = new MediaStream(tracks);
+            
+            // Ensure displayStream tracks are stopped if the screen recording ends
+            displayStream.getVideoTracks()[0].onended = () => {
+              stopStream();
+              setBoomRecording(false);
+            };
+          } catch (micErr) {
+            console.warn('Mic acquisition failed, falling back to system audio:', micErr);
+            stream = displayStream;
+          }
+        } else {
+          stream = displayStream;
+        }
       } else {
         stream = await navigator.mediaDevices.getUserMedia({
           video: boomSelectedCamera ? { deviceId: { exact: boomSelectedCamera } } : true,
@@ -99,19 +165,23 @@ export default function Boom({ isOpen, onClose }) {
       boomFinalizedSegmentsRef.current = [];
       boomRevertedSegmentRef.current = null;
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
+      const mimeType = getSupportedMimeType();
+      const recorder = new MediaRecorder(stream, { mimeType });
       boomRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) boomCurrentChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) {
+          boomCurrentChunksRef.current.push(e.data);
+        }
       };
 
       recorder.onstop = () => {
         if (boomCurrentChunksRef.current.length > 0) {
           const blob = new Blob(boomCurrentChunksRef.current, { type: 'video/webm' });
-          setBoomCurrentSegment(blob);
+          if (blob.size > 0) {
+            setBoomCurrentSegment(blob);
+          }
         }
-        stream.getTracks().forEach(t => t.stop());
       };
 
       recorder.start(1000);
@@ -119,44 +189,41 @@ export default function Boom({ isOpen, onClose }) {
       setBoomSegments([]);
     } catch (e) {
       console.error('Boom start error:', e);
+      stopStream();
+      setBoomRecording(false);
     }
-  }, [boomMode, boomSelectedMic, boomSelectedCamera]);
+  }, [boomMode, boomSelectedMic, boomSelectedCamera, stopStream]);
 
   const boomMark = useCallback(() => {
-    if (!boomRecording || !boomRecorderRef.current) return;
+    if (!boomRecording || !boomRecorderRef.current || !boomStreamRef.current) return;
     
-    boomRecorderRef.current.stop();
+    // Captured data is handled by ondataavailable and collected on stop
+    const currentRecorder = boomRecorderRef.current;
     
-    setTimeout(() => {
-      if (!boomStreamRef.current) return;
-      
+    currentRecorder.onstop = () => {
       if (boomCurrentChunksRef.current.length > 0) {
         const blob = new Blob(boomCurrentChunksRef.current, { type: 'video/webm' });
         const duration = Date.now() - boomSegmentStartTimeRef.current;
-        boomFinalizedSegmentsRef.current.push({ blob, duration, timestamp: Date.now() });
-        setBoomSegments([...boomFinalizedSegmentsRef.current]);
+        if (blob.size > 0) {
+          boomFinalizedSegmentsRef.current.push({ blob, duration, timestamp: Date.now() });
+          setBoomSegments([...boomFinalizedSegmentsRef.current]);
+        }
       }
       
       boomCurrentChunksRef.current = [];
       boomSegmentStartTimeRef.current = Date.now();
       
-      const newRecorder = new MediaRecorder(boomStreamRef.current, { mimeType: 'video/webm;codecs=vp9,opus' });
-      boomRecorderRef.current = newRecorder;
-      
-      newRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) boomCurrentChunksRef.current.push(e.data);
-      };
-      
-      newRecorder.onstop = () => {
-        if (boomCurrentChunksRef.current.length > 0) {
-          const blob = new Blob(boomCurrentChunksRef.current, { type: 'video/webm' });
-          setBoomCurrentSegment(blob);
-        }
-        boomStreamRef.current?.getTracks().forEach(t => t.stop());
-      };
-      
-      newRecorder.start(1000);
-    }, 100);
+      if (boomRecording && boomStreamRef.current) {
+        const nextRecorder = new MediaRecorder(boomStreamRef.current, { mimeType: getSupportedMimeType() });
+        boomRecorderRef.current = nextRecorder;
+        nextRecorder.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) boomCurrentChunksRef.current.push(ev.data);
+        };
+        nextRecorder.start(1000);
+      }
+    };
+
+    currentRecorder.stop();
   }, [boomRecording]);
 
   const boomRevert = useCallback(() => {
@@ -168,24 +235,25 @@ export default function Boom({ isOpen, onClose }) {
 
   const boomStop = useCallback(() => {
     if (!boomRecorderRef.current) return;
-    boomRecorderRef.current.stop();
-    setBoomRecording(false);
     
-    setTimeout(() => {
+    setBoomRecording(false);
+    const finalRecorder = boomRecorderRef.current;
+    
+    finalRecorder.onstop = () => {
       if (boomCurrentChunksRef.current.length > 0) {
         const blob = new Blob(boomCurrentChunksRef.current, { type: 'video/webm' });
         const duration = Date.now() - boomSegmentStartTimeRef.current;
-        const currentSeg = { blob, duration, timestamp: Date.now(), isCurrent: true };
-        const allSegments = [...boomFinalizedSegmentsRef.current, currentSeg];
-        
-        if (allSegments.length === 1) {
-          setBoomCurrentSegment(allSegments[0].blob);
-        } else {
+        if (blob.size > 0) {
+          const currentSeg = { blob, duration, timestamp: Date.now(), isCurrent: true };
+          const allSegments = [...boomFinalizedSegmentsRef.current, currentSeg];
           setBoomCurrentSegment(allSegments[allSegments.length - 1].blob);
         }
       }
-    }, 200);
-  }, []);
+      stopStream();
+    };
+
+    finalRecorder.stop();
+  }, [stopStream]);
 
   const boomSaveToVault = useCallback(async () => {
     if (!boomCurrentSegment) return;
@@ -237,11 +305,12 @@ export default function Boom({ isOpen, onClose }) {
   }, [boomCurrentSegment, boomAutoTranscribe]);
 
   const boomReset = useCallback(() => {
+    stopStream();
     setBoomMode('screen');
     setBoomRecording(false);
     setBoomSegments([]);
     setBoomCurrentSegment(null);
-  }, []);
+  }, [stopStream]);
 
   return createPortal(
     <div className="fixed inset-0 z-[100001] flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={handleClose}>
