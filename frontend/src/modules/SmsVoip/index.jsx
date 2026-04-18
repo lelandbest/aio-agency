@@ -7,7 +7,7 @@ import {
     Activity, Globe, Shield, User, Users, Bell, Command, Volume2,
     VolumeX, Share2, Copy, MoreVertical, LogOut, CheckCircle2,
     AlertCircle, Info, ChevronLeft, Delete, PhoneCall, Radio,
-    Keypad, ArrowUp, Smartphone, Hash
+    ArrowUp, Smartphone, Hash, RefreshCw
 } from 'lucide-react';
 import { useNotice } from '../../contexts/NoticeContext';
 import { playDigitTone } from '../../services/audioService';
@@ -269,7 +269,13 @@ function DialerTab({
     routingExtensionId,
     onRoutingExtensionIdChange,
     activeProviderType,
-    providerConfigs
+    providerConfigs,
+    showLineSelect,
+    setShowLineSelect,
+    showExtSelect,
+    setShowExtSelect,
+    showToneSelect,
+    setShowToneSelect
 }) {
     const { showNotice } = useNotice();
 
@@ -951,6 +957,12 @@ export default function SmsVoipModule({
                         onRoutingExtensionIdChange={onExtensionIdChange}
                         activeProviderType={activeProviderType}
                         providerConfigs={providerConfigs}
+                        showLineSelect={showLineSelect}
+                        setShowLineSelect={setShowLineSelect}
+                        showExtSelect={showExtSelect}
+                        setShowExtSelect={setShowExtSelect}
+                        showToneSelect={showToneSelect}
+                        setShowToneSelect={setShowToneSelect}
                     />
                 ) : (
                     <div className="flex h-full items-center justify-center">

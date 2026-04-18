@@ -692,7 +692,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
       const saved = window.localStorage.getItem('aio_pipeline_boards_v1');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
-    return [{ id: 'default', name: 'Main Pipeline', stages: [{ id: 'new', title: 'New' }, { id: 'qualified', title: 'Qualified' }, { id: 'discovery', title: 'Discovery' }, { id: 'negotiating', title: 'Negotiating' }, { id: 'closed-won', title: 'Closed Won' }] }];
+    return [{ id: 'default', name: 'Main Pipelines', stages: [{ id: 'new', title: 'New' }, { id: 'qualified', title: 'Qualified' }, { id: 'discovery', title: 'Discovery' }, { id: 'negotiating', title: 'Negotiating' }, { id: 'closed-won', title: 'Closed Won' }] }];
   }, []);
 
   const [membershipDraft, setMembershipDraft] = useState({ boardId: '', stageId: '' });
@@ -940,7 +940,7 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
 
       const updated = await updateContactApi(selectedContact.id, updates);
       setContacts((current) => current.map((c) => (c.id === updated.id ? updated : c)));
-      showNotice({ type: 'success', message: 'Pipeline membership synchronized.' });
+      showNotice({ type: 'success', message: 'Pipelines membership synchronized.' });
     } catch (error) {
       showNotice({ type: 'error', message: 'Failed to sync pipeline membership.' });
     } finally {

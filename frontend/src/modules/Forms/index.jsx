@@ -40,6 +40,8 @@ import MediaLibraryModal from '../../components/Modals/MediaLibraryModal';
 import AIAssistButton from '../../components/AIAssistButton';
 import FormTemplateGallery from './FormTemplateGallery';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
+import { openGlobalOverlay } from '../../components/GlobalOverlay';
 
 const contentFieldTypes = new Set(['textarea', 'content', 'html']);
 
@@ -1046,8 +1048,14 @@ const FormBuilderModule = () => {
               <Trash2 size={14} />
             </button>
             <button
-              onClick={() => {
-                const newName = prompt('Rename form:', form.name);
+              onClick={async () => {
+                const newName = await systemConfirm({
+                  title: 'Rename Form',
+                  message: 'Enter a new identity for this form:',
+                  showPrompt: true,
+                  promptValue: form.name,
+                  confirmText: 'Rename'
+                });
                 if (newName && newName.trim()) {
                   updateFormApi(form.id, { name: newName.trim() }).then(() => fetchForms());
                 }
@@ -1075,45 +1083,92 @@ const FormBuilderModule = () => {
     return (
       <>
         <div className="module-root-standard">
-          <ModuleHeader
-            title="Forms"
-            showTitle={false}
-            onModuleAi={() => toggleAIAssist?.({ mode: 'help', context: { module: 'forms', surface: 'library', formsCount: forms.length } })}
-            leftActions={[
-              {
-                label: 'Create Form',
-                icon: Plus,
-                onClick: createNewForm,
-                variant: 'primary'
-              },
-              {
-                label: 'Templates',
-                icon: Layout,
-                onClick: () => setShowTemplateGallery(true),
-                variant: 'secondary'
-              },
-              {
-                label: 'CMS Data',
-                icon: Database,
-                onClick: () => setView('cms'),
-                variant: 'secondary'
-              }
-            ]}
-            actions={[
-              {
-                label: allFoldersExpanded ? 'Collapse All' : 'Expand All',
-                icon: allFoldersExpanded ? ChevronUp : ChevronDown,
-                onClick: () => setAllFoldersExpanded(!allFoldersExpanded),
-                variant: 'secondary'
-              },
-              {
-                label: 'New Folder',
-                icon: FolderPlus,
-                onClick: handleCreateFolder,
-                variant: 'secondary'
-              }
-            ]}
-          />
+          {/* ABSOLUTE TOOLBAR CONTRACT — ZONE RECONSTRUCTION */}
+          <div className="module-toolbar">
+            {/* LEFT ZONE: MODULE ACTIONS ONLY */}
+            <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+              <button
+                onClick={createNewForm}
+                className="btn-toolbar-lead px-3 py-1.5 text-[10px]"
+              >
+                <Plus size={12} />
+                <span className="font-black uppercase tracking-[0.14em]">NEW FORM</span>
+              </button>
+
+              <button
+                onClick={handleCreateFolder}
+                className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+                title="New Folder"
+              >
+                <FolderPlus size={15} />
+              </button>
+
+              <button
+                onClick={() => setAllFoldersExpanded(!allFoldersExpanded)}
+                className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+                title="Collapse All"
+              >
+                <Layers size={15} className={allFoldersExpanded ? '' : 'rotate-180'} />
+              </button>
+
+              <button
+                onClick={() => setView('cms')}
+                className="btn-secondary px-3 py-1.5 text-[10px]"
+              >
+                <Database size={12} />
+                <span className="font-bold uppercase tracking-[0.14em]">CMS DATA</span>
+              </button>
+            </div>
+
+            {/* CENTER ZONE: STATUS ONLY */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+              <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[9px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-7 pointer-events-auto">
+                <FileText size={12} className="text-[var(--color-text-tertiary)]" />
+                <span>SAVED</span>
+                <span className="text-[var(--color-text-primary)]">{forms.length}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[9px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-7 pointer-events-auto">
+                <Database size={12} className="text-[var(--color-text-tertiary)]" />
+                <span>RESPONSES</span>
+                <span className="text-[var(--color-text-primary)]">{forms.reduce((sum, f) => sum + (f.responsesCount || 0), 0)}</span>
+              </div>
+            </div>
+
+            {/* RIGHT ZONE: GLOBAL CONTROLS ONLY */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTemplateGallery(true)}
+                className="btn-secondary flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em]"
+              >
+                <Search size={14} />
+                <span>BROWSE TEMPLATES</span>
+              </button>
+
+              <div className="module-toolbar-utility">
+                <button
+                  onClick={() => toggleAIAssist?.({ mode: 'brain' })}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                  title="Brain (Global KB)"
+                >
+                  <BrainIcon size={15} />
+                </button>
+                <button
+                  onClick={() => toggleAIAssist?.({ mode: 'help', context: { module: 'forms' } })}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                  title="Crosshair (Module AI)"
+                >
+                  <Crosshair size={15} />
+                </button>
+                <button
+                  onClick={() => openGlobalOverlay()}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                  title="Composer"
+                >
+                  <CommandSurfaceIcon size={15} />
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="px-2">
             <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">

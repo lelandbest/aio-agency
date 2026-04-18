@@ -991,7 +991,15 @@ const StudioModule = () => {
   }, [resetActionForm, selectedAction]);
 
   const activeOutput = useMemo(() => workspace.outputs.find(o => o.assetId === activeOutputId) || workspace.outputs[0], [workspace.outputs, activeOutputId]);
+  const isNonMedia = useMemo(() => {
+    const t = (activeOutput?.type || '').toLowerCase();
+    const mt = (activeOutput?.mediaType || '').toLowerCase();
+    const list = ['document', 'text', 'json', 'pdf', 'csv', 'spreadsheet', 'xlsx', 'code', 'script'];
+    return list.includes(t) || list.includes(mt);
+  }, [activeOutput]);
+
   const activeOutputPlaybackUrl = useMemo(() => {
+    if (isNonMedia) return '';
     const rawUrl = String(activeOutput?.sourceUrl || '').trim();
     if (!rawUrl) return '';
     if (/^https?:\/\//i.test(rawUrl)) {
@@ -1001,7 +1009,7 @@ const StudioModule = () => {
       return withSessionToken(`${getApiBaseUrl()}${rawUrl}`);
     }
     return rawUrl;
-  }, [activeOutput?.sourceUrl]);
+  }, [activeOutput?.sourceUrl, isNonMedia]);
   const activeOutputIsAudio = useMemo(() => {
     const mediaType = String(activeOutput?.mediaType || '').toLowerCase();
     const outputType = String(activeOutput?.type || '').toLowerCase();
@@ -2100,11 +2108,41 @@ else if (selectedAction === 'transcribeMedia') {
                     <Trash2 size={10} /> DELETE
                   </button>
                 </div>
-                {playerState.loadError && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 pointer-events-none">
-                    <div className="bg-rose-950/80 border border-rose-700/50 px-4 py-2 rounded text-[9px] font-mono text-rose-300 uppercase tracking-wider">
-                      LOAD ERROR: {playerState.loadError}
-                    </div>
+                {(playerState.loadError || isNonMedia) && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80">
+                    {isNonMedia ? (
+                      <button 
+                        onClick={() => {
+                          const saved = transcriptSavedStateRef.current;
+                          if (saved) {
+                            setTranscriptState(saved);
+                          } else {
+                            const initialState = {
+                              ...transcriptState,
+                              title: activeOutput?.title || '',
+                              transcript: activeOutput?.content || activeOutput?.transcriptText || '',
+                              status: 'Draft',
+                            };
+                            setTranscriptState(initialState);
+                            transcriptSavedStateRef.current = initialState;
+                          }
+                          setIsTranscriptModalOpen(true);
+                        }}
+                        className="group flex flex-col items-center gap-3 p-8 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 hover:bg-cyan-500/10 transition-all cursor-pointer"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                          <FileText size={24} />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <div className="text-[10px] font-black text-white uppercase tracking-[0.2em]">FILE AVAILABLE IN THE FORGE</div>
+                          <div className="text-[8px] font-bold text-cyan-500/60 uppercase tracking-widest">TAP FOR VIEWING / EDITING</div>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="bg-rose-950/80 border border-rose-700/50 px-4 py-2 rounded text-[9px] font-mono text-rose-300 uppercase tracking-wider pointer-events-none">
+                        LOAD ERROR: {playerState.loadError}
+                      </div>
+                    )}
                   </div>
                 )}
                 {playerState.isLoading && !playerState.loadError && (

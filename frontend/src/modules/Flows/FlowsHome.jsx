@@ -5,6 +5,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import ModuleHeader from '../../components/ModuleHeader';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
+import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import TemplateLibraryModal from './components/TemplateLibraryModal';
 import flowRepository from './utils/flowRepository';
 import { getStoredCustomTemplates } from './utils/templateLibraryStore';
@@ -62,8 +64,6 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
   const [savedFlowsExpanded, setSavedFlowsExpanded] = useState(true);
   const [tableSearch, setTableSearch] = useState('');
-  const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info' });
 
   const loadFlows = useCallback(async () => {
     setLoading(true);
@@ -133,20 +133,21 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
   const handleFolderDelete = async (folderId, e) => {
     e?.stopPropagation();
-    setConfirmModal({
-      isOpen: true,
+    const isConfirmed = await systemConfirm({
       title: 'Delete Folder',
       message: 'Delete this folder? This action cannot be undone.',
       variant: 'danger',
-      onConfirm: async () => {
-        try {
-          await deleteFlowFolderApi(folderId);
-          setBackendFolders(prev => prev.filter(f => f.id !== folderId));
-        } catch (err) {
-          showNotice({ type: 'error', message: 'Delete failed: ' + err.message });
-        }
-      }
+      confirmText: 'Delete Folder'
     });
+
+    if (isConfirmed) {
+      try {
+        await deleteFlowFolderApi(folderId);
+        setBackendFolders(prev => prev.filter(f => f.id !== folderId));
+      } catch (err) {
+        showNotice({ type: 'error', message: 'Delete failed: ' + err.message });
+      }
+    }
   };
 
   const startRename = useCallback((flow) => {
@@ -196,23 +197,23 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
   }, [onCreateFlow]);
 
   const handleCreateFolder = useCallback(async () => {
-    setPromptModal({
-      isOpen: true,
+    const name = await systemConfirm({
       title: 'Create Folder',
-      message: 'Enter folder name:',
-      defaultValue: 'New Folder',
-      onConfirm: async (name) => {
-        if (name) {
-          try {
-            await createFlowFolderApi(name);
-            loadFlows();
-          } catch (err) {
-            showNotice({ type: 'error', message: 'Failed to create folder: ' + err.message });
-          }
-        }
-      }
+      message: 'Enter folder name for flow organization:',
+      showPrompt: true,
+      promptValue: 'New Folder',
+      confirmText: 'Create Folder'
     });
-  }, [loadFlows]);
+
+    if (name) {
+      try {
+        await createFlowFolderApi(name);
+        loadFlows();
+      } catch (err) {
+        showNotice({ type: 'error', message: 'Failed to create folder: ' + err.message });
+      }
+    }
+  }, [loadFlows, systemConfirm]);
 
   const toggleSelectAllFlows = useCallback(() => {
     if (selectedFlowIds.length === flows.length && selectedFolderIds.length === flowFolders.length) {
@@ -436,17 +437,17 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
             <>
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  setConfirmModal({
-                    isOpen: true,
+                  const isConfirmed = await systemConfirm({
                     title: 'Delete Flow',
-                    message: 'Delete this flow? This cannot be undone.',
+                    message: `Permanently delete "${flow.name || 'this flow'}"? Access will be eradicated.`,
                     variant: 'danger',
-                    onConfirm: () => {
-                      deleteFlowApi(flow.id).then(() => loadFlows());
-                    }
+                    confirmText: 'Delete Flow'
                   });
+                  if (isConfirmed) {
+                    deleteFlowApi(flow.id).then(() => loadFlows());
+                  }
                 }}
                 className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20"
                 title="Delete flow"
@@ -455,8 +456,27 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
               </button>
               <button
                 type="button"
-                onClick={() => startRename(flow)}
+                onClick={async () => {
+                  const newName = await systemConfirm({
+                    title: 'Rename Flow',
+                    message: 'Enter a new identity for this flow:',
+                    showPrompt: true,
+                    promptValue: flow.name,
+                    confirmText: 'Rename'
+                  });
+                  if (newName && newName.trim()) {
+                    setRenameValue(newName.trim());
+                    // We need a slightly different approach since saveRename depends on state
+                    // I'll update renameValue and then call saveRename
+                    await flowRepository.saveFlow({
+                      ...flow,
+                      name: newName.trim(),
+                    });
+                    await loadFlows();
+                  }
+                }}
                 className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]"
+                title="Rename"
               >
                 Rename
               </button>
@@ -495,75 +515,86 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
 
   return (
     <div className="module-root-standard">
-      <SystemConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
-        onConfirm={() => {
-          if (confirmModal.onConfirm) confirmModal.onConfirm();
-          setConfirmModal({ ...confirmModal, isOpen: false });
-        }}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        confirmText="Confirm"
-        cancelText="Cancel"
-        variant={confirmModal.variant}
-      />
       
-      <SystemConfirmModal
-        isOpen={promptModal.isOpen}
-        onClose={() => setPromptModal({ ...promptModal, isOpen: false })}
-        onConfirm={() => {
-          if (promptModal.onConfirm) promptModal.onConfirm(promptModal.promptValue);
-          setPromptModal({ ...promptModal, isOpen: false });
-        }}
-        title={promptModal.title}
-        message={promptModal.message}
-        confirmText="Confirm"
-        cancelText="Cancel"
-        showPrompt={true}
-        promptValue={promptModal.promptValue || ''}
-        onPromptChange={(val) => setPromptModal({ ...promptModal, promptValue: val })}
-        promptPlaceholder={promptModal.defaultValue || 'Enter name...'}
-        variant="info"
-      />
-      
-      {/* Toolbar */}
-      <ModuleHeader
-        titleIcon={Workflow}
-        title="Flows"
-        leftActions={[
-          { label: 'Create Flow', icon: Plus, onClick: handleCreateBlank, variant: 'secondary', disabled: Boolean(busyAction) },
-          { label: 'New Folder', icon: FolderPlus, onClick: handleCreateFolder },
-          { label: 'Browse', icon: Layers, onClick: () => setShowTemplateGallery(true) },
-        ]}
-        toolbarCenterSlot={
-          <div className="relative w-full max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-            <input
-              type="text"
-              value={tableSearch}
-              onChange={(event) => setTableSearch(event.target.value)}
-              placeholder="Search flows"
-              className="w-full h-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] py-2 pl-10 pr-3 text-[11px] text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
-            />
+      {/* ABSOLUTE TOOLBAR CONTRACT — ZONE RECONSTRUCTION */}
+      <div className="module-toolbar">
+        {/* LEFT ZONE: MODULE ACTIONS ONLY */}
+        <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+          <button
+            onClick={handleCreateBlank}
+            disabled={Boolean(busyAction)}
+            className="btn-toolbar-lead px-3 py-1.5 text-[10px]"
+          >
+            <Plus size={12} />
+            <span className="font-black uppercase tracking-[0.14em]">New Flow</span>
+          </button>
+
+          <button
+            onClick={handleCreateFolder}
+            className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+            title="New Folder"
+          >
+            <FolderPlus size={15} />
+          </button>
+
+          <button
+            onClick={() => setSavedFlowsExpanded(!savedFlowsExpanded)}
+            className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
+            title="Collapse All"
+          >
+            <Layers size={15} className={savedFlowsExpanded ? '' : 'rotate-180'} />
+          </button>
+        </div>
+
+        {/* CENTER ZONE: STATUS ONLY */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[9px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-7 pointer-events-auto">
+            <Workflow size={12} className="text-[var(--color-text-tertiary)]" />
+            <span>SAVED</span>
+            <span className="text-[var(--color-text-primary)]">{flows.length}</span>
           </div>
-        }
-        toolbarRightSlot={
-          <div className="flex items-center gap-2">
-            <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-8">
-              <FolderOpen size={14} className="text-[var(--color-text-tertiary)]" />
-              <span>SAVED</span>
-              <span className="text-[var(--color-text-primary)]">{flows.length}</span>
-            </div>
-            <div className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-8">
-              <Tag size={14} className="text-[var(--color-text-tertiary)]" />
-              <span>TEMPLATES</span>
-              <span className="text-[var(--color-text-primary)]">{totalTemplatesUsed}</span>
-            </div>
+          <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[9px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-7 pointer-events-auto">
+            <Tag size={12} className="text-[var(--color-text-tertiary)]" />
+            <span>TEMPLATES</span>
+            <span className="text-[var(--color-text-primary)]">{totalTemplatesUsed}</span>
           </div>
-        }
-        onModuleAi={() => toggleAIAssist({ mode: 'help', context: { module: 'flows' } })}
-      />
+        </div>
+
+        {/* RIGHT ZONE: GLOBAL CONTROLS ONLY */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTemplateGallery(true)}
+            className="btn-secondary flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em]"
+          >
+            <Search size={14} />
+            <span>Browse Templates</span>
+          </button>
+
+          <div className="module-toolbar-utility">
+            <button
+              onClick={() => toggleAIAssist({ mode: 'brain' })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Brain (Global KB)"
+            >
+              <BrainIcon size={15} />
+            </button>
+            <button
+              onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'flows' } })}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Crosshair (Module AI)"
+            >
+              <Crosshair size={15} />
+            </button>
+            <button
+              onClick={() => openGlobalOverlay()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
+              title="Composer"
+            >
+              <CommandSurfaceIcon size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="px-2">
         <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">

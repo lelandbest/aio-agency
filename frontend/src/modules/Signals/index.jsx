@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   CircleAlert,
+  ChevronDown,
   Clock3,
   Copy,
   ExternalLink,
@@ -88,16 +89,16 @@ function severityClasses(severity) {
       button: 'border-cyan-500/35 bg-cyan-500/15 hover:bg-cyan-500/20 text-cyan-100',
     },
     low: {
-      shell: 'border-emerald-500/20 bg-emerald-500/[0.04]',
-      pill: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
-      accent: 'text-emerald-300 bg-emerald-500/10',
-      button: 'border-emerald-500/35 bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-100',
+      shell: 'border-slate-500/20 bg-slate-500/[0.04]',
+      pill: 'border-slate-500/25 bg-slate-500/10 text-slate-300',
+      accent: 'text-slate-400 bg-slate-500/10',
+      button: 'border-slate-500/35 bg-slate-500/15 hover:bg-slate-500/20 text-slate-100',
     },
   }[String(severity || '').toLowerCase()] || {
-    shell: 'border-emerald-500/20 bg-emerald-500/[0.04]',
-    pill: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
-    accent: 'text-emerald-300 bg-emerald-500/10',
-    button: 'border-emerald-500/35 bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-100',
+    shell: 'border-slate-500/20 bg-slate-500/[0.04]',
+    pill: 'border-slate-500/25 bg-slate-500/10 text-slate-300',
+    accent: 'text-slate-400 bg-slate-500/10',
+    button: 'border-slate-500/35 bg-slate-500/15 hover:bg-slate-500/20 text-slate-100',
   };
 }
 
@@ -107,8 +108,77 @@ function severityIcon(severity) {
     high: AlertTriangle,
     medium: CircleAlert,
     low: CheckCircle2,
+    healthy: CheckCircle2,
   }[String(severity || '').toLowerCase()] || CircleAlert;
 }
+
+const SIGNALS_PILL_BASE = 'inline-flex items-center rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] transition-all shadow-sm whitespace-nowrap cursor-pointer';
+
+const SignalsDropdown = ({ label, value, options, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const selectedLabel = options.find(o => o.value === value)?.label || value;
+
+  return (
+    <div className="relative flex flex-col gap-1 min-w-[140px]" ref={containerRef}>
+      <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest block ml-0.5">{label}</span>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`h-8 rounded bg-black/60 border px-3 flex items-center justify-between gap-2 text-left transition-all group ${isOpen ? 'border-cyan-500' : 'border-[#2A2D35] hover:border-cyan-500/50'}`}
+      >
+        <span className={`truncate text-[9px] font-black uppercase tracking-widest ${isOpen ? 'text-cyan-400' : 'text-slate-200'}`}>
+          {selectedLabel}
+        </span>
+        <ChevronDown size={10} className={`shrink-0 text-cyan-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-[100] overflow-hidden rounded border border-[#2A2D35] bg-[#0A0C10] shadow-[0_12px_32px_rgba(0,0,0,0.8)]">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`flex w-full items-center px-3 py-2 text-left transition-all border-b border-white/5 last:border-0 ${
+                value === opt.value
+                  ? 'bg-cyan-950/40 text-cyan-200'
+                  : 'text-slate-400 hover:bg-[#11151c] hover:text-white'
+              }`}
+            >
+              <span className="truncate text-[9px] font-bold uppercase tracking-wider">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const HEARTBEAT_PULSE = `
+  @keyframes heartbeat-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .heartbeat-active {
+    animation: heartbeat-pulse 2s infinite ease-in-out;
+  }
+`;
 
 function formatRelativeTime(value) {
   const timestamp = Date.parse(String(value || ''));
@@ -360,98 +430,58 @@ function HealthDetailDrawer({
   );
 }
 
-function SignalCard({ signal, isSelected, onSelect, busyActionType, onAction }) {
+function SignalRow({ signal, onAction, busyActionType }) {
   const tone = severityClasses(signal.severity);
   const Icon = severityIcon(signal.severity);
   const contextSummary = summarizeContext(signal);
   const [primaryAction] = Array.isArray(signal.actions) ? signal.actions : [];
-  const isBusy = busyActionType && busyActionType === primaryAction?.actionType;
-  const [expanded, setExpanded] = useState(false);
-  const isExpanded = expanded || isSelected;
+  const isBusy = busyActionType && busyActionType === (primaryAction?.actionType || 'dismiss');
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(signal.id)}
-      className={`w-full rounded-lg border-[2px] transition-all duration-150 text-left ${
-        isExpanded
-          ? (signal.severity === 'critical' ? 'border-[#ef4444] bg-red-900/30' : signal.severity === 'high' ? 'border-[#f59e0b] bg-amber-900/30' : 'border-[#22d3ee] bg-cyan-900/30')
-          : 'border-[#334155]' + (signal.severity === 'critical' ? ' hover:border-[#ef4444]' : signal.severity === 'high' ? ' hover:border-[#f59e0b]' : ' hover:border-[#22d3ee]') + ' hover:bg-cyan-900/20'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <span className={signal.severity === 'critical' ? 'text-red-400' : signal.severity === 'high' ? 'text-amber-400' : 'text-cyan-400'}>
-            <Icon size={13} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-cyan-100 truncate">{signal.title}</span>
-              <span className={`text-[8px] font-bold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded ${
-                signal.severity === 'critical' ? 'bg-red-500/20 text-red-300' : signal.severity === 'high' ? 'bg-amber-500/20 text-amber-300' : 'bg-cyan-500/20 text-cyan-300'
-              }`}>
-                {signal.severity}
-              </span>
-            </div>
-            <span className="text-[10px] text-cyan-400/70">{contextSummary.moduleLabel} • {contextSummary.detail}</span>
-          </div>
+    <div className={`flex items-center gap-3 px-3 py-2 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors`}>
+      <div className={`shrink-0 w-1.5 h-8 rounded-full ${
+        signal.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 
+        signal.severity === 'high' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]' : 
+        signal.severity === 'medium' ? 'bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.2)]' :
+        'bg-slate-500'
+      }`} />
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-slate-100 truncate">{signal.title}</span>
+          <span className="text-[9px] text-slate-500 font-mono uppercase shrink-0">{signal.source}</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[9px] text-cyan-400/50">{formatRelativeTime(signal.createdAt)}</span>
-          <span className="text-cyan-400/60 text-xs">{isExpanded ? '▼' : '▶'}</span>
+        <div className="flex items-center gap-2 text-[9px] text-slate-400/70">
+          <span className="truncate">{contextSummary.moduleLabel} • {contextSummary.detail}</span>
+          <span className="shrink-0">• {formatRelativeTime(signal.createdAt)}</span>
         </div>
       </div>
-      {isExpanded && (
-        <div className="border-t border-cyan-500/20 px-3 py-2.5 bg-cyan-950/50 space-y-2">
-          <div className="text-xs text-cyan-200/80">{signal.description}</div>
-          <div className="flex flex-wrap gap-1.5">
-            {primaryAction && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onAction(primaryAction, signal); }}
-                disabled={Boolean(busyActionType)}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] transition-colors disabled:cursor-wait disabled:opacity-60 ${tone.button}`}
-              >
-                {busyActionType ? <RefreshCw size={9} className="animate-spin" /> : <BullseyeIcon size={9} />}
-                {isBusy ? 'Working' : primaryAction.label}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setSelectedSignalId(signal.id); }}
-              className="inline-flex items-center gap-1 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-300 transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/10"
-            >
-              Detail
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: signal.context?.module || 'flows' } }));
-              }}
-              className="inline-flex items-center gap-1 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-300 transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/10"
-            >
-              View
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onAction({ actionType: 'dismiss' }, signal); }}
-              disabled={Boolean(busyActionType)}
-              className="inline-flex items-center gap-1 rounded-md border border-red-500/20 bg-red-500/5 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-red-300 transition-colors hover:border-red-500/40 hover:bg-red-500/10 disabled:opacity-60"
-            >
-              Dismiss
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`Signal: ${signal.title}\n${signal.description}`); }}
-              className="inline-flex items-center gap-1 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-300 transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/10"
-            >
-              Copy
-            </button>
-          </div>
-        </div>
-      )}
-    </button>
+
+      <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+        {primaryAction && (
+          <button
+            onClick={() => onAction(primaryAction, signal)}
+            disabled={Boolean(busyActionType)}
+            className={`px-2 py-1 rounded border text-[9px] font-bold uppercase tracking-wider transition-all shadow-sm ${tone.button}`}
+          >
+            {primaryAction.label === 'Fix Config' ? 'Fix' : primaryAction.label}
+          </button>
+        )}
+        <button
+          onClick={() => onAction({ actionType: 'open_comms' }, signal)}
+          className="px-2 py-1 rounded border border-slate-700/50 bg-slate-800/50 text-[9px] font-bold uppercase tracking-wider text-slate-300 hover:bg-slate-700"
+        >
+          Open
+        </button>
+        <button
+          onClick={() => onAction({ actionType: 'dismiss' }, signal)}
+          disabled={Boolean(busyActionType)}
+          className="px-2 py-1 rounded border border-red-500/20 bg-red-500/5 text-[9px] font-bold uppercase tracking-wider text-red-300 hover:bg-red-500/20"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -461,9 +491,6 @@ export default function SignalsModule() {
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedSignalId, setSelectedSignalId] = useState('');
-  const [busySignalId, setBusySignalId] = useState('');
-  const [busyActionType, setBusyActionType] = useState('');
   const [health, setHealth] = useState(null);
   const [healthLoading, setHealthLoading] = useState(true);
   const [dismissedSignals, setDismissedSignals] = useState(() => readDismissedSignals());
@@ -471,10 +498,29 @@ export default function SignalsModule() {
   const hasArchivedSignals = dismissedSignals.length > 0;
   const [openHealthRow, setOpenHealthRow] = useState(null);
 
-  const selectedSignal = useMemo(
-    () => signals.find((signal) => signal.id === selectedSignalId) || signals[0] || null,
-    [selectedSignalId, signals],
-  );
+  const [selectedSignalId, setSelectedSignalId] = useState('');
+  const [busySignalId, setBusySignalId] = useState('');
+  const [busyActionType, setBusyActionType] = useState('');
+
+  // Filters
+  const [filterSeverity, setFilterSeverity] = useState('all');
+  const [filterSource, setFilterSource] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState({ critical: false, high: false, medium: false, low: false });
+
+  const filteredSignals = useMemo(() => {
+    return signals.filter(s => {
+      if (filterSeverity !== 'all' && s.severity !== filterSeverity) return false;
+      if (filterSource !== 'all' && s.source !== filterSource) return false;
+      if (searchQuery && !s.title.toLowerCase().includes(searchQuery.toLowerCase()) && !s.description.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    });
+  }, [signals, filterSeverity, filterSource, searchQuery]);
+
+  const sources = useMemo(() => {
+    const s = new Set(signals.map(sig => sig.source));
+    return ['all', ...Array.from(s)];
+  }, [signals]);
 
   useEffect(() => {
     if (!hasArchivedSignals && showArchived) {
@@ -508,12 +554,6 @@ export default function SignalsModule() {
         const nextSignals = await getSignalsApi();
         if (cancelled) return;
         setSignals(Array.isArray(nextSignals) ? nextSignals : []);
-        setSelectedSignalId((current) => {
-          if (current && nextSignals.some((signal) => signal.id === current)) {
-            return current;
-          }
-          return nextSignals[0]?.id || '';
-        });
       } catch (error) {
         if (cancelled) return;
         showNotice({
@@ -617,12 +657,6 @@ export default function SignalsModule() {
     try {
       const nextSignals = await getSignalsApi();
       setSignals(Array.isArray(nextSignals) ? nextSignals : []);
-      setSelectedSignalId((current) => {
-        if (current && nextSignals.some((signal) => signal.id === current)) {
-          return current;
-        }
-        return nextSignals[0]?.id || '';
-      });
     } catch (error) {
       showNotice({
         type: 'error',
@@ -725,47 +759,58 @@ export default function SignalsModule() {
 
   return (
     <div className="module-root-standard relative">
+      {HEARTBEAT_PULSE && <style>{HEARTBEAT_PULSE}</style>}
       {/* Toolbar */}
       <div className="module-toolbar">
         <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="heartbeat-active w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+          <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Signals Interface</span>
+          <div className="h-4 w-px bg-white/10" />
           <button
             onClick={() => reloadSignals(true)}
-            className="btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
+            className="text-slate-500 hover:text-slate-300 transition-colors"
           >
-            <RefreshCw size={12} />
-            <span className="font-bold uppercase tracking-[0.14em]">Refresh</span>
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
           </button>
         </div>
 
-        <div className="flex flex-1 justify-center items-center h-full min-w-0">
-          <div className="rounded-full border border-cyan-500/20 bg-cyan-500/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300/80">
-            {refreshing ? 'Refreshing signals' : toolbarSummary}
+        <div className="flex flex-1 justify-center items-center h-full min-w-0 gap-4">
+          <SignalsDropdown 
+            label="SEVERITY"
+            value={filterSeverity}
+            onChange={setFilterSeverity}
+            options={[
+              { value: 'all', label: 'ANY SEVERITY' },
+              { value: 'critical', label: 'CRITICAL' },
+              { value: 'high', label: 'HIGH' },
+              { value: 'medium', label: 'MEDIUM' },
+              { value: 'low', label: 'LOW' }
+            ]}
+          />
+
+          <SignalsDropdown 
+            label="SOURCE CHANNEL"
+            value={filterSource}
+            onChange={setFilterSource}
+            options={sources.map(s => ({ value: s, label: s === 'all' ? 'ANY SOURCE' : s.toUpperCase() }))}
+          />
+
+          <div className="h-4 w-px bg-white/10 shrink-0 mt-4" />
+
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest block ml-0.5">SUBJECT FILTER</span>
+            <input 
+              placeholder="Search sequence..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="h-8 rounded bg-black/40 border border-[#2A2D35] px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest text-cyan-300 outline-none w-32 placeholder:text-slate-800 focus:w-48 focus:border-cyan-500/50 transition-all"
+            />
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
-          <div className="module-toolbar-utility">
-            <button
-              onClick={() => toggleAIAssist({ mode: 'brain' })}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Brain (Global KB)"
-            >
-              <BrainIcon size={14} />
-            </button>
-            <button
-              onClick={() => openAIAssist({ context: { module: 'signals', surface: 'action-feed', signalCount: signals.length } })}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Crosshair (Module AI)"
-            >
-              <Crosshair size={14} />
-            </button>
-            <button
-              onClick={() => openGlobalOverlay()}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-              title="Composer"
-            >
-              <CommandSurfaceIcon size={14} />
-            </button>
+        <div className="flex min-w-0 items-center h-full gap-2 shrink-0">
+          <div className="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-400">
+            {signals.length} Actionable
           </div>
         </div>
       </div>
@@ -780,33 +825,100 @@ export default function SignalsModule() {
           </div>
         ) : (
           <div className="grid h-full min-h-0 gap-4 p-2 xl:grid-cols-[1fr_2fr_1fr]">
-            {/* LEFT RAIL: SIGNAL STREAM */}
-            <div className="rounded-lg border border-red-500/30 min-h-0 overflow-y-auto px-2 py-1">
-              <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-red-400/50 mb-2">Signal Stream</div>
-              <div className="space-y-1.5">
-                {signals.length === 0 ? (
-                  <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-cyan-500/20">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400/40">No Signals</span>
-                  </div>
-                ) : (
-                  signals.map((signal) => (
-                    <SignalCard
-                      key={signal.id}
-                      signal={signal}
-                      isSelected={selectedSignalId === signal.id}
-                      onSelect={(id) => setSelectedSignalId(id)}
-                      busyActionType={busySignalId === signal.id ? busyActionType : ''}
-                      onAction={handleAction}
-                    />
-                  ))
-                )}
-              </div>
+            {/* LEFT RAIL: TRIAGE STATS & MODE */}
+            <div className="rounded-lg border border-white/[0.05] bg-black/20 p-4 space-y-6 overflow-y-auto no-scrollbar">
+              <section>
+                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 mb-4">Signal Thresholds</div>
+                <div className="space-y-2">
+                  {['critical', 'high', 'medium', 'low'].map(sev => (
+                    <button 
+                      key={sev}
+                      onClick={() => setFilterSeverity(sev === filterSeverity ? 'all' : sev)}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
+                        filterSeverity === sev 
+                          ? (sev === 'critical' ? 'bg-red-500/10 border-red-500/40' : 
+                             sev === 'high' ? 'bg-amber-500/10 border-amber-500/40' : 
+                             sev === 'medium' ? 'bg-cyan-500/10 border-cyan-500/40' : 
+                             'bg-slate-500/10 border-slate-500/40')
+                          : 'bg-white/[0.03] border-transparent hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          sev === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 
+                          sev === 'high' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]' : 
+                          sev === 'medium' ? 'bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.2)]' : 
+                          'bg-slate-500'
+                        }`} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">{sev}</span>
+                      </div>
+                      <span className={`text-xs font-mono ${filterSeverity === sev ? (sev === 'critical' ? 'text-red-400' : sev === 'high' ? 'text-amber-400' : sev === 'medium' ? 'text-cyan-400' : 'text-slate-400') : 'text-slate-500'}`}>
+                        {signals.filter(s => s.severity === sev).length}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 mb-4">Central Instructions</div>
+                <div className="p-3 rounded-lg border border-dashed border-white/10 bg-white/[0.02] text-[10px] text-slate-500 leading-relaxed italic">
+                  Signals are real-time operational artifacts. Triage items by severity. Acknowledge healthy states to clear the surface. High-severity failures require immediate Fix or Escalation.
+                </div>
+              </section>
             </div>
 
-            {/* CENTER RAIL: INSPECTOR */}
-            <div className="rounded-lg border border-cyan-500/30 self-start pb-1.5 pt-1 px-2">
-              <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-100 mb-2">Inspector</div>
-              <DetailInspector signal={selectedSignal} />
+            {/* CENTER RAIL: UNIFIED CONTROL SURFACE */}
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto no-scrollbar py-2">
+                {['critical', 'high', 'medium', 'low'].map(sev => {
+                  const groupSignals = filteredSignals.filter(s => s.severity === sev);
+                  if (groupSignals.length === 0) return null;
+                  const isCollapsed = collapsedGroups[sev];
+
+                  return (
+                    <div key={sev} className="mb-4">
+                      <button 
+                        onClick={() => setCollapsedGroups(prev => ({ ...prev, [sev]: !isCollapsed }))}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-white/[0.04] border-y border-white/[0.04] hover:bg-white/[0.06] transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${
+                            sev === 'critical' ? 'text-red-400' : 
+                            sev === 'high' ? 'text-amber-400' : 
+                            sev === 'medium' ? 'text-cyan-400' : 
+                            'text-slate-400'
+                          }`}>
+                            {sev} Intensity Signals
+                          </span>
+                          <span className="text-[10px] text-slate-600 font-mono">[{groupSignals.length}]</span>
+                        </div>
+                        <span className="text-slate-600 text-[10px]">{isCollapsed ? 'EXPAND' : 'COLLAPSE'}</span>
+                      </button>
+                      
+                      {!isCollapsed && (
+                        <div className="divide-y divide-white/[0.02]">
+                          {groupSignals.map(sig => (
+                            <SignalRow 
+                              key={sig.id} 
+                              signal={sig} 
+                              onAction={handleAction} 
+                              busyActionType={busySignalId === sig.id ? busyActionType : ''}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {filteredSignals.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center space-y-3 opacity-30">
+                    <CheckCircle2 size={40} className="text-emerald-500" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">System Nominal</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* RIGHT RAIL: HEALTH MONITOR */}

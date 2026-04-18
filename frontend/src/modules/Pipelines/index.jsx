@@ -9,16 +9,19 @@ import {
   Mail,
   MessageCircle,
   ExternalLink,
-  Building2
+  Building2,
+  Trash2
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
+import { useSystemConfirm } from '../../hooks/useSystemConfirm';
+import SystemConfirmModal from '../../components/Modals/SystemConfirmModal';
 import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi, toSnakeCase } from '../../services/backendApi';
 
-const STORAGE_KEY = 'aio_pipeline_layout_v2';
-const BOARDS_STORAGE_KEY = 'aio_pipeline_boards_v1';
+const STORAGE_KEY = 'aio_pipelines_layout_v2';
+const BOARDS_STORAGE_KEY = 'aio_pipelines_boards_v1';
 
 const DEFAULT_COLUMNS = [
   { id: 'new', title: 'New' },
@@ -47,7 +50,7 @@ const ownerInitials = (owner) =>
 const shellPanelClass = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] shadow-island-sm';
 const innerPanelClass = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
 
-const PipelineModule = () => {
+const PipelinesModule = () => {
   const { openAIAssist, toggleAIAssist } = useAIAssist();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +63,7 @@ const PipelineModule = () => {
   const [showCreateBoard, setShowCreateBoard] = useState(false);
   const [newBoardName, setNewBoardName] = useState('');
   const [newBoardType, setNewBoardType] = useState('Sales');
+  const { confirm: systemConfirm, modalState, setPromptValue } = useSystemConfirm();
 
   const loadBoards = () => {
     const savedBoards = window.localStorage.getItem(BOARDS_STORAGE_KEY);
@@ -76,7 +80,7 @@ const PipelineModule = () => {
     }
     return [{
       id: 'default',
-      name: 'Main Pipeline',
+      name: 'Main Pipelines',
       type: 'Sales',
       stages: legacyStages,
       cards: []
@@ -238,6 +242,72 @@ const PipelineModule = () => {
     } : b));
     setEditingColumnId(null);
     setNewColumnName('');
+  };
+
+  const handleDeleteStage = async (columnId) => {
+    const stage = activeBoard.stages.find(s => s.id === columnId);
+    if (!stage) return;
+    
+    const isConfirmed = await systemConfirm({
+      title: 'Delete Stage',
+      message: `Permanently delete stage "${stage.title}"? Records in this stage will be visible in the audit cluster until re-assigned.`,
+      confirmText: 'Delete Stage',
+      variant: 'danger'
+    });
+
+    if (isConfirmed) {
+      setBoards(prev => prev.map(b => b.id === activeBoard.id ? {
+          ...b,
+          stages: b.stages.filter(col => col.id !== columnId)
+        } : b));
+    }
+  };
+
+  const handleDeleteContact = async (contactId) => {
+    const isConfirmed = await systemConfirm({
+      title: 'Remove Record',
+      message: 'Permanently remove this record from the pipeline? This action cannot be undone.',
+      confirmText: 'Remove Record',
+      variant: 'danger'
+    });
+
+    if (isConfirmed) {
+      // Optimistic update
+      setContacts(prev => prev.filter(c => c.id !== contactId));
+      
+      try {
+        await updateContactApi(contactId, { deletedAt: new Date().toISOString() });
+      } catch (error) {
+        console.error('Error deleting contact:', error);
+        await loadContacts(); // Rollback if failed
+      }
+    }
+  };
+  
+  const handleDeleteBoard = async () => {
+    if (activeBoardId === 'default') {
+      await systemConfirm({
+        title: 'System Access Denied',
+        message: 'Main Pipeline is a protected system resource and cannot be eradicated.',
+        confirmText: 'Understood',
+        variant: 'info'
+      });
+      return;
+    }
+
+    const isConfirmed = await systemConfirm({
+      title: 'Delete Pipeline',
+      message: `FORCE DELETE PIPELINE: "${activeBoard.name}"? All stage configurations will be lost. This cannot be undone.`,
+      confirmText: 'Delete Pipeline',
+      variant: 'danger'
+    });
+
+    if (isConfirmed) {
+      const nextBoards = boards.filter(b => b.id !== activeBoardId);
+      setBoards(nextBoards);
+      setActiveBoardId('default');
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   const handleCreateBoard = () => {
@@ -427,21 +497,61 @@ const PipelineModule = () => {
           >
             <MessageCircle size={12} />
           </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteContact(contact.id);
+            }}
+            className="rounded-[var(--radius-card)] border border-red-500/40 bg-red-500/5 px-2.5 py-1.5 text-[11px] font-medium text-red-500 hover:bg-red-500/15 shadow-island-sm transition"
+            title="Delete Record"
+          >
+            <Trash2 size={12} />
+          </button>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="module-root-standard">
-      {/* Toolbar */}
+    <div className="module-root-standard bg-[#000]">
+      {/* ABSOLUTE TOOLBAR CONTRACT — ZONE RECONSTRUCTION */}
       <div className="module-toolbar">
-        <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+        {/* LEFT ZONE: MODULE ACTIONS ONLY */}
+        <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+          <button
+            onClick={() => {
+              setShowCreateStage(true);
+              setEditingColumnId(null);
+              setNewColumnName('');
+            }}
+            className="btn-toolbar-lead px-3 py-1.5 text-[10px]"
+          >
+            <Plus size={12} />
+            <span className="font-black uppercase tracking-[0.14em]">ADD STAGE</span>
+          </button>
+        </div>
+
+        {/* CENTER ZONE: STATUS ONLY */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+          {toolbarStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[9px] font-bold text-[var(--color-text-secondary)] shadow-island-sm h-7 pointer-events-auto"
+            >
+              <div className={`w-1 h-1 rounded-full ${stat.color === 'emerald' ? 'bg-emerald-500' : stat.color === 'amber' ? 'bg-amber-500' : 'bg-[var(--color-text-tertiary)]'}`} />
+              <span>{stat.label.toUpperCase()}</span>
+              <span className="text-[var(--color-text-primary)]">{stat.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* RIGHT ZONE: GLOBAL CONTROLS ONLY */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <select
               value={activeBoardId}
               onChange={(e) => setActiveBoardId(e.target.value)}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] transition"
+              className="aio-select !w-auto min-w-[120px] !h-8 !text-[10px] !font-bold !bg-[var(--color-bg-primary)]"
             >
               {boards.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
@@ -449,61 +559,45 @@ const PipelineModule = () => {
             </select>
             <button
               onClick={() => setShowCreateBoard(true)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] transition"
+              className="p-1.5 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-hover)] text-[var(--color-text-secondary)] transition"
               title="New Board"
             >
               <Plus size={14} />
             </button>
-          </div>
-          <div className="h-4 w-px bg-[var(--color-border)] opacity-30" />
-          <button
-            onClick={() => {
-              setShowCreateStage(true);
-              setEditingColumnId(null);
-              setNewColumnName('');
-            }}
-            className="btn-toolbar-lead shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2"
-          >
-            <Plus size={12} />
-            <span className="font-bold uppercase tracking-[0.14em]">Add Stage</span>
-          </button>
-        </div>
-
-        <div className="flex min-w-0 items-center gap-3 flex-shrink-0 h-full">
-          <div className="flex items-center gap-2">
-            {toolbarStats.map((stat) => (
-              <div
-                key={stat.label}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-2 py-1 text-[10px] font-bold text-[var(--color-text-secondary)] shadow-island-sm"
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${stat.color === 'emerald' ? 'bg-emerald-500' : stat.color === 'amber' ? 'bg-amber-500' : 'bg-[var(--color-text-tertiary)]'}`} />
-                <span>{stat.label.toUpperCase()}</span>
-                <span className="text-[var(--color-text-primary)]">{stat.value}</span>
-              </div>
-            ))}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteBoard();
+              }}
+              disabled={activeBoardId === 'default'}
+              className="p-1.5 rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 hover:border-red-500/40 text-red-500 transition disabled:opacity-20"
+              title="Delete Pipeline"
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
 
           <div className="module-toolbar-utility">
             <button
               onClick={() => toggleAIAssist({ mode: 'brain' })}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
               title="Brain (Global KB)"
             >
-              <BrainIcon size={14} />
+              <BrainIcon size={15} />
             </button>
             <button
               onClick={() => runPipelineAssist()}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
               title="Crosshair (Module AI)"
             >
-              <Crosshair size={14} />
+              <Crosshair size={15} />
             </button>
             <button
               onClick={() => openGlobalOverlay()}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
               title="Composer"
             >
-              <CommandSurfaceIcon size={14} />
+              <CommandSurfaceIcon size={15} />
             </button>
           </div>
         </div>
@@ -524,9 +618,20 @@ const PipelineModule = () => {
                     key={column.id}
                     onDragOver={handleDragOver}
                     onDrop={(event) => handleDrop(event, column)}
-                    className={shellPanelClass + ' min-w-0 p-3'}
+                    className={shellPanelClass + ' min-w-0 p-3 relative'}
                   >
-                    <div className="mb-3 flex items-center justify-between gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleDeleteStage(column.id);
+                      }}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-all z-[100] pointer-events-auto"
+                      title="Delete Stage"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <div className="mb-3 flex items-center justify-between gap-2 pr-8">
                       {editingColumnId === column.id ? (
                         <div className="flex flex-1 items-center gap-2">
                           <input
@@ -700,8 +805,22 @@ const PipelineModule = () => {
           </div>
         </div>
       ) : null}
+
+      <SystemConfirmModal
+        isOpen={modalState.isOpen}
+        onClose={modalState.onClose}
+        onConfirm={() => modalState.onConfirm(modalState.promptValue)}
+        title={modalState.title}
+        message={modalState.message}
+        variant={modalState.variant}
+        confirmText={modalState.confirmText}
+        cancelText={modalState.cancelText}
+        showPrompt={modalState.showPrompt}
+        promptValue={modalState.promptValue}
+        onPromptChange={setPromptValue}
+      />
     </div>
   );
 };
 
-export default PipelineModule;
+export default PipelinesModule;

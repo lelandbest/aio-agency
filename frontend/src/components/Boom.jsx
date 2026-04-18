@@ -31,6 +31,25 @@ export default function Boom({ isOpen, onClose }) {
   const boomSegmentStartTimeRef = useRef(null);
   const boomFinalizedSegmentsRef = useRef([]);
   const boomRevertedSegmentRef = useRef(null);
+  const boomPreviewRef = useRef(null);
+
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  useEffect(() => {
+    if (boomCurrentSegment instanceof Blob) {
+      const url = URL.createObjectURL(boomCurrentSegment);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setPreviewUrl(null);
+    }
+  }, [boomCurrentSegment]);
+
+  useEffect(() => {
+    if (boomRecording && boomPreviewRef.current && boomStreamRef.current) {
+      boomPreviewRef.current.srcObject = boomStreamRef.current;
+    }
+  }, [boomRecording]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -90,8 +109,7 @@ export default function Boom({ isOpen, onClose }) {
       recorder.onstop = () => {
         if (boomCurrentChunksRef.current.length > 0) {
           const blob = new Blob(boomCurrentChunksRef.current, { type: 'video/webm' });
-          const duration = Date.now() - boomSegmentStartTimeRef.current;
-          setBoomCurrentSegment({ blob, duration, timestamp: Date.now() });
+          setBoomCurrentSegment(blob);
         }
         stream.getTracks().forEach(t => t.stop());
       };
@@ -132,8 +150,7 @@ export default function Boom({ isOpen, onClose }) {
       newRecorder.onstop = () => {
         if (boomCurrentChunksRef.current.length > 0) {
           const blob = new Blob(boomCurrentChunksRef.current, { type: 'video/webm' });
-          const duration = Date.now() - boomSegmentStartTimeRef.current;
-          setBoomCurrentSegment({ blob, duration, timestamp: Date.now() });
+          setBoomCurrentSegment(blob);
         }
         boomStreamRef.current?.getTracks().forEach(t => t.stop());
       };
@@ -333,12 +350,17 @@ export default function Boom({ isOpen, onClose }) {
 
           {boomRecording && (
             <div className="space-y-4">
-              <div className="aspect-video bg-black rounded-lg border border-[#1e2024] flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-rose-500/20 flex items-center justify-center">
-                    <div className="w-4 h-4 rounded-full bg-rose-500 animate-pulse" />
-                  </div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase">RECORDING IN PROGRESS</span>
+              <div className="aspect-video bg-black rounded-lg border border-[#1e2024] overflow-hidden relative">
+                <video 
+                  ref={boomPreviewRef} 
+                  autoPlay 
+                  muted 
+                  playsInline 
+                  className="w-full h-full object-contain"
+                />
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/50">
+                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                  <span className="text-[7px] font-black text-rose-400 uppercase tracking-wider">LIVE</span>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -366,11 +388,17 @@ export default function Boom({ isOpen, onClose }) {
 
           {boomCurrentSegment && !boomRecording && (
             <div className="space-y-4">
-              <video 
-                src={URL.createObjectURL(boomCurrentSegment)} 
-                controls 
-                className="w-full aspect-video bg-black rounded-lg border border-[#1e2024]"
-              />
+              {previewUrl ? (
+                <video 
+                  src={previewUrl} 
+                  controls 
+                  className="w-full aspect-video bg-black rounded-lg border border-[#1e2024]"
+                />
+              ) : (
+                <div className="w-full aspect-video bg-black rounded-lg border border-[#1e2024] flex items-center justify-center">
+                  <span className="text-[9px] text-slate-500 uppercase">Processing recorded media...</span>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={boomReset}

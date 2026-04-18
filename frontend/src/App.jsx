@@ -40,7 +40,7 @@ const SignalsModule = lazy(() => import('./modules/Signals'));
 const BrainModule = lazy(() => import('./modules/Brain'));
 const CRMModule = lazy(() => import('./modules/CRM'));
 const FormBuilderModule = lazy(() => import('./modules/Forms'));
-const PipelineModule = lazy(() => import('./modules/Pipeline'));
+const PipelinesModule = lazy(() => import('./modules/Pipelines'));
 const CalendarModule = lazy(() => import('./modules/Calendar'));
 const OrdersModule = lazy(() => import('./modules/Orders'));
 const AIOAgentsModule = lazy(() => import('./modules/Agents'));
@@ -72,7 +72,6 @@ const DEFAULT_INTEGRATION_CATEGORY = null;
 const CLIENT_ALLOWED_MODULES = new Set(['comms', 'calendar']);
 const LEGACY_MODULE_REDIRECTS = {
   chat: 'comms',
-  pipeline: 'flows',
 };
 
 const upgradeMenuStructureModuleIds = (structure) => {
@@ -795,7 +794,7 @@ const App = () => {
       case 'forms':
         return <FormBuilderModule />;
       case 'pipelines':
-        return <PipelineModule />;
+        return <PipelinesModule />;
       case 'calendar':
         return <CalendarModule clientMode={clientMode} />;
       case 'aio-agents':

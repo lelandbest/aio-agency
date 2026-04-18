@@ -1022,7 +1022,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     if (!selectedThread?.id) return;
     await runAction('Advancing stage', async () => {
       await advanceThreadStageApi(selectedThread.id);
-      showNotice({ tone: 'success', message: 'Pipeline stage advanced from Comms.' });
+      showNotice({ tone: 'success', message: 'Pipelines stage advanced from Comms.' });
     });
   };
 
