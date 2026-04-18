@@ -39,9 +39,9 @@ class BaseAgent:
 
         # --- 3. ACT (Retrieval) ---
         if needs_more_context:
-            from backend.cortext_service import cortext_service
+            from backend.cortex_service import cortex_service
             query = runtime.get("command", "workspace info")
-            new_knowledge = cortext_service.retrieve_context(query)
+            new_knowledge = cortex_service.retrieve_context(query)
             
             action_entry = {
                 "type": "autonomous_retrieval",

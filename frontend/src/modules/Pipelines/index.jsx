@@ -585,7 +585,7 @@ const PipelinesModule = () => {
               <BrainIcon size={15} />
             </button>
             <button
-              onClick={() => runPipelineAssist()}
+              onClick={() => toggleAIAssist({ mode: 'help', context: { module: 'pipelines' } })}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all"
               title="Crosshair (Module AI)"
             >

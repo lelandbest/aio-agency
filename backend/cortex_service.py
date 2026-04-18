@@ -4,7 +4,7 @@ from backend.data_provider import create_provider
 
 logger = logging.getLogger(__name__)
 
-class CortextService:
+class CortexService:
     def __init__(self, provider=None):
         self.provider = provider or create_provider()
         self.retrieval_limit_per_step = 2
@@ -87,4 +87,4 @@ class CortextService:
         return "---\nVAULT KNOWLEDGE RETRIEVAL:\n" + "\n\n".join(summary_blocks) + "\n---\n"
 
 # Singleton instance
-cortext_service = CortextService()
+cortex_service = CortexService()

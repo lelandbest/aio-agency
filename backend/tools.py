@@ -1,6 +1,6 @@
 import logging
 from typing import Any, Dict, Optional
-from backend.cortext_service import cortext_service
+from backend.cortex_service import cortex_service
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +19,13 @@ class QueryVaultTool(BaseTool):
         strategy = parameters.get("strategy", "hybrid")
         
         logger.info(f"Tool {self.name} received query: {query}")
-        results = cortext_service.query_vault(query, limit=top_k, strategy=strategy)
+        results = cortex_service.query_vault(query, limit=top_k, strategy=strategy)
         
         return {
             "status": "success",
             "count": len(results),
             "results": results,
-            "summary": cortext_service.get_context_summary(results)
+            "summary": cortex_service.get_context_summary(results)
         }
 
 class DraftEmailTool(BaseTool):

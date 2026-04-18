@@ -60,7 +60,7 @@ try:
     from backend.agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
     from backend.agent_runtime import AgentRegistry
     from backend.canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
-    from backend.cortext_service import cortext_service
+    from backend.cortex_service import cortex_service
     from backend.email_verifier_service import create_bulk_task as create_email_verifier_bulk_task, get_bulk_results as get_email_verifier_bulk_results, verify_single_email as verify_single_email_address
     from backend.operator_assist import generate_assist_response
     from backend.system_health import build_system_health
@@ -91,7 +91,7 @@ except ModuleNotFoundError:
     from agent_definitions import AGENT_DEFINITIONS, expand_agent_action_tokens, validate_agent_action
     from agent_runtime import AgentRegistry
     from canonical_settings import apply_calendar_event_defaults, normalize_tenant_settings_payload
-    from cortext_service import cortext_service
+    from cortex_service import cortex_service
     from email_verifier_service import create_bulk_task as create_email_verifier_bulk_task, get_bulk_results as get_email_verifier_bulk_results, verify_single_email as verify_single_email_address
     from operator_assist import generate_assist_response
     from system_health import build_system_health
@@ -7848,7 +7848,7 @@ async def send_thread_email(thread_id: str, request: Request, payload: MailSendR
     result = send_email_message(
         thread_id=thread_id,
         recipients=payload.recipients,
-        subject="Email from Dispatch", # Fallback subject
+        subject="Email from Comms", # Fallback subject
         body=payload.body,
         mailbox_id=payload.mailbox_id,
         sender_name=payload.sender_name,
