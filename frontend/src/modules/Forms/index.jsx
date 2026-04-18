@@ -249,8 +249,9 @@ const FormBuilderModule = () => {
   const [headerImageUploading, setHeaderImageUploading] = useState(false);
   const headerImageInputRef = useRef(null);
   const selectedFieldSupportsAssist = Boolean(selectedField?.isContent);
-  
+
   // Alert message state for error display
+
   const [alertMessage, setAlertMessage] = useState(null);
   
   // Prompt modal state for folder name input
@@ -1901,6 +1902,7 @@ const FormBuilderModule = () => {
             updateCurrentFormSettings({ headerImage: url });
             setShowMediaLibraryModal(false);
           }}
+
           onDelete={handleDeleteMediaAsset}
           currentSelection={resolveFormHeaderImage(currentForm)}
           isLoading={headerImageLoading}

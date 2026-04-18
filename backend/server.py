@@ -33,7 +33,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 
 from request_validators import convert_to_camelcase, convert_to_snakecase, detect_snake_case_keys
 
@@ -1995,11 +1995,13 @@ class ThreadOpenRequest(BaseModel):
 
 class ThreadMessageRequest(BaseModel):
     body: str
-    channelType: str | None = None
-    senderName: str = "AIO Flow"
-    senderEmail: str = "mission@aiocrm.local"
+    channel_type: str | None = Field(default=None, alias="channelType")
+    sender_name: str = Field(default="AIO Flow", alias="senderName")
+    sender_email: str = Field(default="mission@aiocrm.local", alias="senderEmail")
     recipients: list[str] = []
     direction: str = "outbound"
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ThreadStatusRequest(BaseModel):
@@ -2258,11 +2260,13 @@ class MediaPublishRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 class MailSendRequest(BaseModel):
-    mailbox_id: str
+    mailbox_id: str = Field(..., alias="mailboxId")
     body: str
-    sender_name: str
-    sender_email: str
+    sender_name: str = Field(..., alias="senderName")
+    sender_email: str = Field(..., alias="senderEmail")
     recipients: list[str] = []
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class HelpTicketCreateRequest(BaseModel):

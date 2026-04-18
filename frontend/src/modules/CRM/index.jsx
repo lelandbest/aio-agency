@@ -56,6 +56,7 @@ import {
   restoreContactApi,
   triggerFlowManualApi,
   updateContactApi,
+  toSnakeCase,
 } from '../../services/backendApi';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -686,6 +687,16 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
   const mountRef = React.useRef(false);
   const prevShowDeletedRef = React.useRef(showDeleted);
 
+  const availableBoards = useMemo(() => {
+    try {
+      const saved = window.localStorage.getItem('aio_pipeline_boards_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [{ id: 'default', name: 'Main Pipeline', stages: [{ id: 'new', title: 'New' }, { id: 'qualified', title: 'Qualified' }, { id: 'discovery', title: 'Discovery' }, { id: 'negotiating', title: 'Negotiating' }, { id: 'closed-won', title: 'Closed Won' }] }];
+  }, []);
+
+  const [membershipDraft, setMembershipDraft] = useState({ boardId: '', stageId: '' });
+
   const allAvailableTags = useMemo(() => {
     const set = new Set();
     contacts.forEach((c) => (c.tags || []).forEach((t) => set.add(t)));
@@ -907,6 +918,51 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleUpdateMemberships = async (nextMemberships) => {
+    if (!selectedContact) return;
+    setSaving(true);
+    try {
+      // Contract: snake_case for Backend persistence
+      const membershipsSnake = toSnakeCase(nextMemberships);
+      const customFields = { ...(selectedContact.customFields || {}), pipeline_memberships: membershipsSnake };
+      const updates = { customFields };
+
+      const defaultMembership = nextMemberships.find(m => m.boardId === 'default');
+      if (defaultMembership) {
+        const board = availableBoards.find(b => b.id === 'default');
+        const stage = board?.stages?.find(s => s.id === defaultMembership.stageId);
+        if (stage) updates.pipelineStage = stage.title;
+      } else {
+        updates.pipelineStage = null;
+      }
+
+      const updated = await updateContactApi(selectedContact.id, updates);
+      setContacts((current) => current.map((c) => (c.id === updated.id ? updated : c)));
+      showNotice({ type: 'success', message: 'Pipeline membership synchronized.' });
+    } catch (error) {
+      showNotice({ type: 'error', message: 'Failed to sync pipeline membership.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddMembership = () => {
+    if (!membershipDraft.boardId || !membershipDraft.stageId) return;
+    const current = selectedContact?.customFields?.pipelineMemberships || [];
+    const exists = current.find(m => m.boardId === membershipDraft.boardId);
+    if (exists) {
+      handleUpdateMemberships(current.map(m => m.boardId === membershipDraft.boardId ? membershipDraft : m));
+    } else {
+      handleUpdateMemberships([...current, membershipDraft]);
+    }
+    setMembershipDraft({ boardId: '', stageId: '' });
+  };
+
+  const handleRemoveMembership = (boardId) => {
+    const current = selectedContact?.customFields?.pipelineMemberships || [];
+    handleUpdateMemberships(current.filter(m => m.boardId !== boardId));
   };
 
   const handleSaveContact = async () => {
@@ -1845,18 +1901,75 @@ function CRMModule({ initialContactId = null, onSelectContact = null }) {
                       <ChevronDown size={14} className={`text-slate-500 transition-transform ${detailPanels.pipelines ? 'rotate-180' : ''}`} />
                     </button>
                     {detailPanels.pipelines && (
-                      normalizeText(selectedContact.pipelineStage) ? (
-                        <div className="mt-3 space-y-2">
-                          <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-2">
-                            <div className="text-[8px] font-black uppercase text-cyan-500 opacity-60">Current Stage</div>
-                            <div className="mt-0.5 text-[11px] font-bold text-cyan-300">{selectedContact.pipelineStage}</div>
-                            <div className="mt-1 text-[9px] uppercase tracking-widest text-slate-500">Status: {normalizeText(selectedContact.status)}</div>
+                      <div className="mt-3 space-y-4">
+                        {(selectedContact?.customFields?.pipelineMemberships || []).length > 0 ? (
+                          <div className="space-y-2">
+                            {(selectedContact.customFields.pipelineMemberships).map((membership) => {
+                              const board = availableBoards.find(b => b.id === membership.boardId);
+                              const stage = board?.stages?.find(s => s.id === membership.stageId);
+                              return (
+                                <div key={membership.boardId} className="group rounded border border-cyan-500/20 bg-cyan-500/5 p-2 transition hover:border-cyan-500/40">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="text-[8px] font-black uppercase text-cyan-500 opacity-60">{board?.name || 'Unknown Pipeline'}</div>
+                                    <button
+                                      onClick={() => handleRemoveMembership(membership.boardId)}
+                                      className="opacity-0 transition group-hover:opacity-100 text-slate-500 hover:text-red-400"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] font-bold text-cyan-300">{stage?.title || membership.stageId}</div>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div className="rounded border border-slate-900 bg-[#060606]/60 p-2 text-[10px] text-slate-400">
-                            {selectedContact.lastContactedAt ? `Last contacted ${formatDateTime(selectedContact.lastContactedAt)}` : 'No last-contact timestamp recorded.'}
+                        ) : (
+                          <div className="rounded border border-slate-900 bg-[#060606]/40 px-2 py-4 text-center text-[10px] italic text-slate-600">
+                            No explicit pipeline memberships found.
+                          </div>
+                        )}
+
+                        <div className="space-y-3 rounded-xl border border-slate-900 bg-[#080808] p-3 shadow-inner">
+                          <div className="text-[9px] font-black uppercase tracking-widest text-slate-500">Add to Pipeline</div>
+                          <div className="space-y-2">
+                            <select
+                              value={membershipDraft.boardId}
+                              onChange={(e) => {
+                                const boardId = e.target.value;
+                                const board = availableBoards.find(b => b.id === boardId);
+                                setMembershipDraft({ boardId, stageId: board?.stages?.[0]?.id || '' });
+                              }}
+                              className={selectClass}
+                            >
+                              <option value="">Select Pipeline...</option>
+                              {availableBoards.map(board => (
+                                <option key={board.id} value={board.id}>{board.name}</option>
+                              ))}
+                            </select>
+
+                            {membershipDraft.boardId && (
+                              <select
+                                value={membershipDraft.stageId}
+                                onChange={(e) => setMembershipDraft(prev => ({ ...prev, stageId: e.target.value }))}
+                                className={selectClass}
+                              >
+                                {availableBoards.find(b => b.id === membershipDraft.boardId)?.stages.map(stage => (
+                                  <option key={stage.id} value={stage.id}>{stage.title}</option>
+                                ))}
+                              </select>
+                            )}
+
+                            <button
+                              type="button"
+                              disabled={!membershipDraft.boardId || !membershipDraft.stageId || saving}
+                              onClick={handleAddMembership}
+                              className="flex w-full items-center justify-center gap-2 rounded border border-cyan-500/30 bg-cyan-500/10 py-1.5 text-[9px] font-black uppercase text-cyan-400 transition hover:bg-cyan-500/20 disabled:opacity-40"
+                            >
+                              <Plus size={10} /> {saving ? 'Syncing...' : 'Assign Pipeline'}
+                            </button>
                           </div>
                         </div>
-                      ) : <div className="mt-3 rounded border border-slate-900 bg-[#060606]/40 px-2 py-4 text-center text-[10px] italic text-slate-600">No pipeline linkage on this contact.</div>
+                      </div>
                     )}
                   </div>
 

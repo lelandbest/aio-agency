@@ -1,26 +1,36 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle,
+  Radio,
+  RefreshCw,
+  Search,
+  Send,
+  Smartphone,
+  Trash2,
+  X,
+  Clock,
+  ExternalLink,
+  MessageCircle,
+  Copy,
+  Check,
+  Settings2,
+  Phone,
+  Plus,
+  Workflow,
   Bot,
+  Mail,
+  MessageSquare,
+  FileText,
+  User,
   Building2,
   CalendarDays,
   ChevronDown,
   Ellipsis,
-  FileText,
-  Mail,
-  MessageSquare,
-  Phone,
-  Plus,
-  Radio,
-  Search,
-  Send,
-  Settings2,
-  Smartphone,
-  User,
-  Workflow
+  MessageSquareText,
+  AlertTriangle,
+  Brain
 } from 'lucide-react';
 import ModuleHeader from '../../components/ModuleHeader';
-import { BrainIcon, Crosshair } from '../../components/ui/icons';
+import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import EmptyState from '../../components/EmptyState';
 import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useNotice } from '../../contexts/NoticeContext';
@@ -43,6 +53,7 @@ import {
   openThreadForContactApi,
   pushCalendarEventApi,
   reconcileCalendarEventApi,
+  runAiCommandApi,
   sendThreadEmailApi,
   sendThreadMessageApi,
   scheduleThreadMeetingApi,
@@ -58,20 +69,20 @@ import { openOAuthPopup } from '../../utils/oauthPopup';
 
 const QUEUE_DEFINITIONS = [
   { id: 'now', label: 'Now' },
-  { id: 'needs-reply', label: 'Needs Reply' },
+  { id: 'needs-reply', label: 'Reply' },
   { id: 'waiting', label: 'Waiting' },
-  { id: 'hot-leads', label: 'Hot Leads' },
-  { id: 'at-risk', label: 'At Risk' },
-  { id: 'scheduled', label: 'Scheduled Follow-ups' },
+  { id: 'hot-leads', label: 'Hot' },
+  { id: 'at-risk', label: 'Risk' },
+  { id: 'scheduled', label: 'Follow-Ups' },
   { id: 'automated', label: 'Automated' },
   { id: 'closed', label: 'Closed' },
   { id: 'archived', label: 'Archived' }
 ];
 
 const THREAD_VIEW_MODES = [
-  { id: 'all', label: 'All Threads' },
-  { id: 'latest-contact', label: 'Latest / Contact' },
-  { id: 'latest-contact-channel', label: 'Latest / Contact + Channel' }
+  { id: 'all', label: 'All' },
+  { id: 'latest-contact', label: 'Contact' },
+  { id: 'latest-contact-channel', label: 'Contact + Ch' }
 ];
 
 const EMPTY_SNAPSHOT = {
@@ -127,13 +138,64 @@ const COMMS_PANEL = 'island-panel rounded-[var(--radius-outer)]';
 const COMMS_SUBPANEL = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-sm';
 const COMMS_READING_WIDTH = 'max-w-[72rem]';
 const COMMS_COLUMN_BG = 'bg-[var(--color-bg-secondary)]/95';
-const COMMS_SECTION_BG = 'bg-[var(--color-bg-secondary)]/60';
+const COMMS_SECTION_BG = 'bg-[#0f1118]/80 backdrop-blur-md';
 const COMMS_MAIN_BG = 'bg-[var(--color-bg-primary)]/40';
 const COMMS_HEADER_BG = 'bg-[var(--color-bg-secondary)]/90';
-const COMMS_PILL_BASE = 'inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] transition-all shadow-sm';
+const COMMS_PILL_BASE = 'inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] transition-all shadow-sm whitespace-nowrap';
 const COMMS_ACTION_TILE = 'rounded-[var(--radius-panel)] border border-[var(--color-border)] text-left text-sm text-[var(--color-text-primary)] hover:border-[var(--color-primary)] disabled:opacity-50';
 const COMMS_COMPOSE_OPTION = 'h-8 rounded-[0.8rem] border px-3 py-1.5 text-xs flex items-center gap-2 transition';
-const COMMS_INLINE_STAT = 'inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-[11px] text-[var(--color-text-secondary)] shadow-sm';
+const COMMS_INLINE_STAT = 'inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-1.5 py-0.5 text-[8.5px] text-[var(--color-text-secondary)] shadow-sm whitespace-nowrap';
+
+const CANNED_SEED_DATA = [
+  { id: '1', shortcode: '/stat', content: "Hi, I wanted to provide you with an update on the status of your issue. Unfortunately, our development team has not been able to resolve your problem yet, but please rest assured that we are actively working on finding a solution. We understand that this must be frustrating for you, and we sincerely apologize for any inconvenience this may have caused. We appreciate your patience and understanding while we work to resolve your issue. Our development team is dedicated to finding the root cause of the problem and implementing a fix as soon as possible. We will keep you updated throughout the process and provide you with an estimated timeline for resolution. Thank you for bringing this to our attention, and please don't hesitate to reach out if you have any further questions or concerns." },
+  { id: '2', shortcode: '/det', content: "Thank you for reaching out to us for support. We're here to help and we'll do our best to assist you. Please provide us with a detailed description of the issue you're facing and any relevant information that may help us better understand your situation. This could include: • A description of the problem • Account Email • Any relevant screenshots or other supporting materials The more information you can provide, the better we'll be able to assist you. Thank you for choosing our service." },
+  { id: '3', shortcode: '/dev', content: "Thank you for reaching out to us. I have reviewed your issue and it appears that it falls under the responsibility of our development team. I will forward your case to them for further review and action. Please allow some time for the team to investigate and resolve the issue. I will keep you updated on the progress. If you have any further questions or concerns, please don't hesitate to reach out to us." },
+  { id: '4', shortcode: '/thank', content: "Thank you for sharing details. I have received your request and I am looking into it." },
+  { id: '5', shortcode: '/time', content: "Please allow me some time to gather the necessary information and thoroughly review your case. I will do my best to find a resolution and get back to you as soon as possible with an update." },
+  { id: '6', shortcode: '/update', content: "I wanted to reach out and provide an update on the issue you reported. Our development team is currently working on it and we appreciate your patience while we resolve it. Please know that your satisfaction is our top priority and we are doing everything we can to resolve this as soon as possible. If you need anything further in the meantime, please do not hesitate to reach out. Thank you for your understanding and continued business." },
+  { id: '7', shortcode: '/assure', content: "Rest assured, your issue is important to us, and we will make sure to address it as soon as possible. We appreciate your patience and understanding as we work to provide the best possible service to all our customers." },
+  { id: '8', shortcode: '/apology', content: "Thank you for reaching out to us. We apologize for the delay in addressing your issue. Our development team is currently working on a new feature that requires their full attention and resources. If you have any further concerns or questions, please don't hesitate to let us know." },
+  { id: '9', shortcode: '/hi', content: "Hello there! You've reached Sales & Support. How can I help you today?" },
+  { id: '10', shortcode: '/hrs', content: "Support available from 9am - 5pm ET M-F. Chat will stay open for tech review. If closed, support replies will be emailed to you." }
+];
+
+const CannedResponsesPopup = ({ isOpen, onClose, onCopy }) => {
+  const [search, setSearch] = useState('');
+  if (!isOpen) return null;
+  const filtered = CANNED_SEED_DATA.filter(c => c.shortcode.includes(search) || c.content.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-lg bg-[#0d0d0d] border border-slate-800 rounded-xl shadow-2xl flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={16} className="text-sky-400" />
+            <h3 className="text-xs font-black uppercase tracking-widest text-white">Canned Responses</h3>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded"><X size={16} className="text-slate-400" /></button>
+        </div>
+        <div className="p-3 border-b border-slate-800">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-2.5 text-slate-500" />
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search library..." className="w-full bg-[#151515] border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500/50" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0 p-1.5 space-y-1">
+          {filtered.map(item => (
+            <button key={item.id} onClick={() => onCopy(item.id, item.content)} className="w-full text-left p-2 rounded-lg border border-transparent hover:border-slate-700 hover:bg-white/5 transition-all group">
+
+              <div className="flex items-center justify-between mb-1">
+                <code className="text-[10px] font-mono text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded">{item.shortcode}</code>
+                <Copy size={12} className="text-slate-600 group-hover:text-sky-400" />
+              </div>
+              <p className="text-[11px] text-slate-400 line-clamp-2">{item.content}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const statusTone = {
   new: 'bg-amber-500/15 text-amber-300 border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.1)]',
@@ -510,11 +572,12 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
   const [isMailboxComposerOpen, setIsMailboxComposerOpen] = useState(false);
   const [mailboxDraft, setMailboxDraft] = useState(() => createMailboxDraft());
   const [selectedAgent, setSelectedAgent] = useState('ALPHA');
+  const composerRef = useRef(null);
   const { showNotice } = useNotice();
   const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1600 : window.innerWidth));
-  const [leftPanelWidth, setLeftPanelWidth] = useState(296);
-  const [rightPanelWidth, setRightPanelWidth] = useState(328);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(292);
+  const [rightPanelWidth, setRightPanelWidth] = useState(324);
   const [activeResizeSide, setActiveResizeSide] = useState(null);
   const layoutRef = useRef(null);
   const [promptModal, setPromptModal] = useState({ isOpen: false, title: '', message: '', defaultValue: '', onConfirm: null, promptValue: '' });
@@ -637,9 +700,9 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     ? queueCards.filter((queue) => !['automated', 'closed', 'archived'].includes(queue.id))
     : queueCards;
   const workspaceLayoutStyle = isThreeColumnComms
-    ? { gridTemplateColumns: `${activeLeftPanelWidth}px 10px minmax(0,1fr) 10px ${activeRightPanelWidth}px` }
+    ? { gridTemplateColumns: `${activeLeftPanelWidth}px 6px minmax(0,1fr) 6px ${activeRightPanelWidth}px` }
     : isDesktopComms
-      ? { gridTemplateColumns: `${activeLeftPanelWidth}px 10px minmax(0,1fr)`, gridTemplateRows: 'minmax(0,1.1fr) minmax(18rem,0.9fr)' }
+      ? { gridTemplateColumns: `${activeLeftPanelWidth}px 6px minmax(0,1fr)`, gridTemplateRows: 'minmax(0,1.1fr) minmax(18rem,0.9fr)' }
       : undefined;
 
   useEffect(() => {
@@ -756,18 +819,53 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
   const handleSend = async () => {
     if (!selectedThread || !composer.trim()) return;
+    const text = composer.trim();
+
+    // COMMAND INTERCEPTION: Enforce Charlie-only command authority
+    const COMMAND_REGEX = /^(open|run|create|summarize|start|stop|search|transcribe|test)\b/i;
+    const isCommand = text.startsWith('/') || text.startsWith('!') || COMMAND_REGEX.test(text);
+
+    if (isCommand) {
+      await runAction('Command', async () => {
+        const res = await runAiCommandApi({
+          command: text.replace(/^[\/!]/, ''),
+          agent: 'CHARLIE',
+          intent: 'command',
+          context: { module: 'comms', threadId: selectedThread.id }
+        });
+        
+        if (res?.result?.action === 'navigate' && res.result.module) {
+          window.dispatchEvent(new CustomEvent('aio:navigate', { detail: { module: res.result.module } }));
+        }
+        setComposer('');
+        setTimeout(() => composerRef.current?.focus(), 10);
+      });
+      return;
+    }
+
+    // NORMAL CONVERSATION: Specialist owns the reply
     await runAction('Sending', async () => {
+      const payload = {
+        body: text,
+        senderName: selectedAgent,
+        sender_name: selectedAgent, // Extra safety for backend mapping
+      };
+
       if (composerChannel === 'email') {
         await sendThreadEmailApi(selectedThread.id, {
+          ...payload,
           mailboxId: selectedThread.mailboxId,
-          body: composer.trim(),
-          senderName: 'AIO Flow',
+          senderEmail: 'mission@aiocrm.local',
           recipients: [selectedThread.contact?.email].filter(Boolean)
         });
       } else {
-        await sendThreadMessageApi(selectedThread.id, { body: composer.trim(), channelType: composerChannel });
+        await sendThreadMessageApi(selectedThread.id, { 
+          ...payload,
+          channelType: composerChannel 
+        });
       }
       setComposer('');
+      setTimeout(() => composerRef.current?.focus(), 10);
     });
   };
 
@@ -946,6 +1044,28 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
       });
     });
   };
+  const [isCannedModalOpen, setIsCannedModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false);
+  const [acknowledgedInsights, setAcknowledgedInsights] = useState(new Set());
+  const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopyCanned = async (id, content) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(id);
+      showNotice({ tone: 'success', message: 'Canned response copied to clipboard.' });
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch (e) {}
+  };
+
+  const handleAcknowledgeInsight = () => {
+    if (!selectedThread?.id) return;
+    setAcknowledgedInsights(prev => new Set([...prev, selectedThread.id]));
+    setIsInsightsModalOpen(false);
+    showNotice({ tone: 'success', message: 'Insight acknowledged and cleared.' });
+  };
+
   const handleArchiveThread = async () => {
     if (!selectedThread?.id) return;
     await runAction('Archiving thread', async () => {
@@ -1170,33 +1290,16 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
     </button>
   );
   const primaryHeaderActions = [
-    { label: '+ ADD THREAD', onClick: handleCreateThread, variant: 'primary' },
-    threadCountPill,
-    { label: 'Canned Responses', icon: MessageSquare, onClick: () => onNavigate?.('canned-responses'), variant: 'secondary' }
+    { label: 'Sync Mailbox', icon: RefreshCw, onClick: () => syncMailboxApi(selectedMailbox?.id), variant: 'secondary' },
+    { label: 'Insights', icon: Brain, onClick: () => setIsInsightsModalOpen(true), variant: 'secondary' },
+    { label: 'Canned', icon: MessageSquare, onClick: () => setIsCannedModalOpen(true), variant: 'secondary', groupStart: true },
   ];
-  const secondaryHeaderActions = clientMode
-    ? []
-    : [
-      {
-        label: 'Sync Mailbox', icon: Mail, onClick: () => runAction('Syncing', async () => {
-          if (!selectedMailbox?.id) return;
-          await syncMailboxApi(selectedMailbox.id);
-        }), variant: 'secondary'
-      },
-      { label: 'Draft Reply', icon: MessageSquare, onClick: () => handleAiAction('reply'), disabled: !selectedThread?.id, variant: 'secondary', groupStart: true },
-      { label: 'Extract Tasks', icon: Workflow, onClick: () => handleAiAction('extract'), disabled: !selectedThread?.id, variant: 'secondary' },
-      { label: 'Run Workflow', icon: Bot, onClick: handleWorkflowNote, disabled: !selectedThread?.id, variant: 'secondary' },
-      { label: 'Operator Report', icon: FileText, onClick: () => handleCreateReport('operator'), disabled: !selectedThread?.id, variant: 'secondary', color: 'sky', groupStart: true },
-      { label: 'Executive Report', icon: FileText, onClick: () => handleCreateReport('executive'), disabled: !selectedThread?.id, variant: 'secondary', color: 'sky' },
-    ];
-  const compactPrimaryHeaderActions = clientMode
-    ? secondaryHeaderActions
-    : [
-      secondaryHeaderActions.find((action) => action.label === 'Sync Mailbox'),
-      secondaryHeaderActions.find((action) => action.label === 'Run Workflow'),
-      secondaryHeaderActions.find((action) => action.label === 'Extract Tasks'),
-    ].filter(Boolean);
-  const headerActions = isCompactComms && !clientMode ? compactPrimaryHeaderActions : secondaryHeaderActions;
+
+  const leftHeaderActions = [
+    { label: 'Add Thread', icon: Plus, onClick: handleCreateThread, color: 'primary' },
+    { label: 'Message', icon: MessageCircle, onClick: () => handleAiAction('reply'), color: 'slate' },
+    { label: 'Email', icon: Mail, onClick: () => setIsEmailModalOpen(true), color: 'slate' },
+  ];
 
   return (
     <div className="module-root-standard">
@@ -1227,67 +1330,11 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
         .comms-thread-strip::-webkit-scrollbar-thumb:hover{background:linear-gradient(90deg,rgba(125,183,255,0.82),rgba(79,144,255,0.66));}
       `}</style>
       <div className="module-root-standard">
-        {/* Toolbar */}
-        <div className="module-toolbar">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
-            {primaryHeaderActions.map((action, idx) => {
-              if (React.isValidElement(action)) return <React.Fragment key={idx}>{action}</React.Fragment>;
-              const Icon = action.icon;
-              return (
-                <React.Fragment key={idx}>
-                  {action.groupStart && <div className="mx-1 hidden h-6 w-px bg-[var(--color-border)] opacity-30 xl:block" />}
-                  <button
-                    onClick={action.onClick}
-                    disabled={action.disabled}
-                    className={`${idx === 0 ? 'btn-toolbar-lead' : 'btn-secondary'} shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 disabled:opacity-40`}
-                  >
-                    {Icon && <Icon size={12} />}
-                    <span className="font-bold uppercase tracking-[0.14em]">{action.label}</span>
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </div>
-
-          <div className="flex min-w-0 items-center gap-3 shrink-0">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              {headerActions.map((action, idx) => {
-                const Icon = action.icon;
-                return (
-                  <React.Fragment key={idx}>
-                    {action.groupStart && <div className="mx-1 hidden h-6 w-px bg-[var(--color-border)] opacity-30 xl:block" />}
-                    <button
-                      onClick={action.onClick}
-                      disabled={action.disabled}
-                      className={`btn-secondary shrink-0 whitespace-nowrap text-[10px] py-1.5 px-3 h-8 flex items-center justify-center gap-2 ${action.color === 'sky' ? 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25' : ''} disabled:opacity-40`}
-                    >
-                      {Icon && <Icon size={12} />}
-                      <span className="font-bold uppercase tracking-[0.14em]">{action.label}</span>
-                    </button>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-
-            <div className="module-toolbar-utility">
-              <button
-                onClick={() => openAIAssist()}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group"
-                title="Brain (Global KB)"
-              >
-                <BrainIcon size={14} />
-              </button>
-              <button
-                onClick={() => handleAiAction('reply')}
-                disabled={!selectedThread?.id}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
-                title={`Crosshair (Module AI)${selectedAgent ? ` • ${selectedAgent}` : ''}`}
-              >
-                <Crosshair size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModuleHeader 
+          showTitle={false}
+          leftActions={leftHeaderActions}
+          actions={primaryHeaderActions}
+        />
         <div className="module-content-stage px-2 pb-2 relative flex gap-2">
           <div ref={layoutRef} className="h-full min-h-0 grid flex-1 gap-2" style={workspaceLayoutStyle}>
             <aside style={hiddenScrollbarStyle} className={`comms-scroll-hidden min-w-0 bg-[#111318] border border-[#1E2024] rounded-xl shadow-2xl flex flex-col min-h-0 overflow-y-auto ${isThreeColumnComms ? 'col-start-1 row-start-1' : isDesktopComms ? 'col-start-1 row-start-1 row-span-2' : ''}`}>
@@ -1468,15 +1515,12 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
             <main className={`min-w-0 bg-[#0A0A0C]/40 border border-[#1E2024] rounded-xl shadow-2xl flex flex-col min-h-0 overflow-hidden ${isThreeColumnComms ? 'col-start-3 row-start-1' : isDesktopComms ? 'col-start-3 row-start-1' : ''}`}>
               {selectedThread ? (
                 <>
-                  <div className={`shrink-0 border-b border-[var(--color-border)] ${COMMS_HEADER_BG} shadow-[inset_0_-1px_0_rgba(15,23,42,0.82)] ${isCompactComms ? 'p-2.5' : 'px-3.5 py-3'}`}>
-                    <div className={isCompactComms ? 'space-y-1 min-w-0' : 'flex items-center justify-between gap-2 min-w-0'}>
-                      <div className={isCompactComms ? 'min-w-0 space-y-1' : 'flex min-w-0 items-center gap-2'}>
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Thread Queue</div>
-                        <div
-                          style={isCompactComms ? hiddenScrollbarStyle : undefined}
-                          className={isCompactComms ? 'comms-scroll-hidden -mx-1 overflow-x-auto px-1' : 'flex flex-wrap gap-2'}
-                        >
-                          <div className="flex min-w-max gap-2">
+                    <div className={`shrink-0 border-b border-[var(--color-border)] ${COMMS_HEADER_BG} shadow-[inset_0_-1px_0_rgba(15,23,42,0.82)] ${isCompactComms ? 'p-2' : 'px-3.5 py-3'}`}>
+                      <div className="flex items-center justify-between gap-3 min-w-0">
+                        {/* Label + Modes Row */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)] font-bold shrink-0">Queue</div>
+                          <div className="flex gap-1.5">
                             {THREAD_VIEW_MODES.map((mode) => (
                               <button
                                 key={mode.id}
@@ -1491,14 +1535,12 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                             ))}
                           </div>
                         </div>
-                      </div>
-                      <div
-                        style={isCompactComms ? hiddenScrollbarStyle : undefined}
-                        className={isCompactComms ? 'comms-scroll-hidden -mx-1 overflow-x-auto px-1' : 'flex flex-wrap gap-2'}
-                      >
-                        <div className="flex min-w-max gap-2">
-                          {visibleQueueCards.map((queue) => (
+
+                        {/* Queues Row */}
+                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                          {visibleQueueCards.filter(q => q.count > 0 || q.id === queueId).map((queue) => (
                             <button
+
                               key={queue.id}
                               onClick={() => setQueueId(queue.id)}
                               disabled={queue.count === 0}
@@ -1516,7 +1558,7 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                       </div>
                     </div>
 
-                    <div className={`comms-thread-strip ${isCompactComms ? 'mt-2 gap-1.5 pb-1.5' : 'mt-2.5 gap-2 pb-2'} -mx-1 flex overflow-x-auto px-1`}>
+                    <div className={`comms-thread-strip ${isCompactComms ? 'mt-2 gap-1.5 pb-1.5' : 'mt-2.5 gap-2 pb-2'} flex overflow-x-auto px-3`}>
                       {visibleThreads.map((thread) => {
                         const pulse = getThreadPulse(thread);
                         return (
@@ -1529,16 +1571,28 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                               <span className={`${COMMS_PILL_BASE} shrink-0 ${statusTone[thread.status] || 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>{thread.status.replace(/_/g, ' ')}</span>
                             </div>
                             <div className={`${isCompactComms ? 'mt-1.5' : 'mt-2'} line-clamp-1 text-sm text-[var(--color-text-primary)]`}>{thread.subject}</div>
-                            <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] text-[var(--color-text-tertiary)]">
-                              <span className="min-w-0 truncate">{pulse.chips.slice(0, 3)[0]?.label || `${thread.aiPriority} priority`}</span>
-                              <span className="shrink-0">{formatRelative(thread.lastActivityAt)}</span>
+                            <div className="mt-1 flex min-w-0 items-center justify-between gap-2 overflow-hidden">
+                              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                                {pulse.chips.length ? (
+                                  pulse.chips.map((chip) => (
+                                    <span key={chip.key} className={`${COMMS_PILL_BASE} shrink-0 truncate max-w-[50%] ${pulseTone[chip.tone] || pulseTone.neutral}`}>
+                                      {chip.label}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-[10px] text-[var(--color-text-tertiary)] truncate">
+                                    {thread.aiPriority} priority
+                                  </span>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-[10px] text-[var(--color-text-tertiary)]">{formatRelative(thread.lastActivityAt)}</span>
                             </div>
                           </button>
                         );
                       })}
                     </div>
 
-                    <div className={`${isCompactComms ? 'mt-2' : 'mt-2.5'} mx-auto flex w-full ${COMMS_READING_WIDTH} flex-wrap items-start justify-between ${isCompactComms ? 'gap-2' : 'gap-2.5'} min-w-0`}>
+                    <div className={`${isCompactComms ? 'mt-2.5' : 'mt-3'} mx-auto flex w-full ${COMMS_READING_WIDTH} flex-wrap items-start justify-between ${isCompactComms ? 'gap-2 px-3' : 'gap-2.5 px-3.5'} min-w-0`}>
                       <div className="min-w-0 flex-1">
                         {activeAgentIdentity ? (
                           <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">
@@ -1586,7 +1640,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                       </div>
                       {!clientMode ? <button onClick={() => handleAiAction('summarize')} className={`${isCompactComms ? 'px-2.5 py-1 text-[10px]' : 'px-2.5 py-1.5 text-xs'} rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]`}>Refresh Brief</button> : null}
                     </div>
-                  </div>
+
+
 
                   <div style={hiddenScrollbarStyle} className={`comms-scroll-hidden flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto ${isCompactComms ? 'px-3 py-3' : 'px-4 py-4'}`}>
                     <div className={`mx-auto flex w-full ${COMMS_READING_WIDTH} flex-col space-y-3`}>
@@ -1636,7 +1691,20 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                         ) : null}
                       </div>
                       <div className="flex items-stretch gap-2.5">
-                        <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={3} placeholder="Draft the next move, log an internal note, or send a precise follow-up..." className="min-h-[4.75rem] flex-1 rounded-[var(--radius-panel)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] shadow-[inset_0_1px_0_rgba(148,163,184,0.05)] focus:outline-none focus:border-[var(--color-primary)]" />
+                        <textarea 
+                          ref={composerRef}
+                          value={composer} 
+                          onChange={(event) => setComposer(event.target.value)} 
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSend();
+                            }
+                          }}
+                          rows={3} 
+                          placeholder="Draft the next move, log an internal note, or send a precise follow-up..." 
+                          className="min-h-[4.75rem] flex-1 rounded-[var(--radius-panel)] bg-[var(--color-bg-primary)] border border-[var(--color-border)] px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] shadow-[inset_0_1px_0_rgba(148,163,184,0.05)] focus:outline-none focus:border-[var(--color-primary)]" 
+                        />
                         <div className="flex items-center gap-2.5 self-stretch">
                           <button onClick={handleSend} disabled={!composer.trim()} className="flex h-10 items-center gap-2 self-center rounded-xl bg-[var(--color-primary)] px-4.5 text-sm font-semibold text-[var(--color-text-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50">
                             <Send size={14} />
@@ -1666,6 +1734,8 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
                     </div>
                   </div>
                 </>
+
+
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <EmptyState
@@ -2079,6 +2149,38 @@ const CommsModule = ({ initialChannel = 'all', initialThreadId = null, onNavigat
 
         </div>
       </div>
+
+      <CannedResponsesPopup 
+        isOpen={isCannedModalOpen} 
+        onClose={() => setIsCannedModalOpen(false)} 
+        onCopy={handleCopyCanned} 
+      />
+
+      <SystemConfirmModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        onConfirm={(val) => {
+          showNotice({ tone: 'success', message: 'Email drafted and queued.' });
+        }}
+        title="Compose Email"
+        message="Enter the recipient and message for this outbound thread."
+        confirmText="Send Draft"
+        cancelText="Cancel"
+        showPrompt={true}
+        promptPlaceholder="Recipient email..."
+        variant="info"
+      />
+
+      <SystemConfirmModal
+        isOpen={isInsightsModalOpen}
+        onClose={() => setIsInsightsModalOpen(false)}
+        onConfirm={handleAcknowledgeInsight}
+        title="AI Insights"
+        message={selectedThread?.insights?.summary || "No critical insights available for this thread yet. AI is currently refining the context."}
+        confirmText="Acknowledge"
+        cancelText="Close"
+        variant="info"
+      />
     </div>
   );
 };

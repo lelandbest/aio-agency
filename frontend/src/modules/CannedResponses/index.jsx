@@ -41,6 +41,10 @@ const SEED_DATA = [
   {
     "shortcode": "/hi",
     "content": "Hello there! You've reached Sales & Support. How can I help you today?"
+  },
+  {
+    "shortcode": "/hrs",
+    "content": "Support available from 9am - 5pm ET M-F. Chat will stay open for tech review. If closed, support replies will be emailed to you."
   }
 ];
 

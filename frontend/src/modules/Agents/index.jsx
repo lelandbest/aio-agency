@@ -531,6 +531,7 @@ const AIOAgentsModule = () => {
   }, [stopRunPolling]);
 
   const localFileInputRef = useRef(null);
+  const chatInputRef = useRef(null);
   const [copiedToken, setCopiedToken] = useState('');
   const [localAttachments, setLocalAttachments] = useState([]);
   const [selectedFlow, setSelectedFlow] = useState(null);
@@ -741,19 +742,23 @@ const AIOAgentsModule = () => {
     ]);
     setChatInput('');
     setLocalAttachments([]);
+    // COMMAND INTERCEPTION: Enforce Charlie-only command authority
+    const COMMAND_REGEX = /^(open|run|create|summarize|start|stop|search|transcribe|test)\b/i;
+    const isCommand = nextMessage.startsWith('/') || nextMessage.startsWith('!') || COMMAND_REGEX.test(nextMessage);
+
     try {
       const response = await runAiCommandApi({
-        command: nextMessage,
-        agent: selectedAgent || 'CHARLIE',
-        intent: 'conversation', // Force CONVO contract bypasses Alpha
+        command: isCommand ? nextMessage.replace(/^[\/!]/, '') : nextMessage,
+        agent: isCommand ? 'CHARLIE' : (selectedAgent || 'CHARLIE'),
+        intent: isCommand ? 'command' : 'conversation',
         ...(collabAgents.length ? { collabAgents } : {}),
         ...(selectedFlow ? { flowId: selectedFlow.id } : {}),
         context: {
           module: 'agents',
           surface: 'command',
-          intent: 'conversation',
-          requestedAgent: selectedAgent || 'CHARLIE',
-          activeAgent: selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || 'CHARLIE',
+          intent: isCommand ? 'command' : 'conversation',
+          requestedAgent: isCommand ? 'CHARLIE' : (selectedAgent || 'CHARLIE'),
+          activeAgent: isCommand ? 'CHARLIE' : (selectedAgent || activeRun?.executingAgent || activeRun?.agentRole || 'CHARLIE'),
           collabAgents: collabAgents,
           flowId: selectedFlow?.id || null,
           flowName: selectedFlow?.name || null,
@@ -850,19 +855,21 @@ const AIOAgentsModule = () => {
         prev.map((msg) =>
           msg.clientId === pendingMessageId
             ? {
-              ...msg,
-              content: error.message || 'Unable to run the selected agent command.',
-              timestamp: 'Now',
-              rank: 'SYSTEM',
-              chain: '',
-              status: 'ERROR',
-              error: error.message || 'Unable to run the selected agent command.',
-              pending: false,
-              runId: undefined,
-            }
+                ...msg,
+                content: error.message || 'Unable to reach high-command.',
+                timestamp: 'Now',
+                rank: 'SYSTEM',
+                chain: '',
+                status: 'ERROR',
+                error: error.message || 'Unable to reach high-command.',
+                pending: false,
+                runId: undefined,
+              }
             : msg
         )
       );
+    } finally {
+      setTimeout(() => chatInputRef.current?.focus(), 10);
     }
   };
 
@@ -2022,6 +2029,7 @@ const AIOAgentsModule = () => {
                           <div className="relative flex items-center gap-3">
                             <div className="relative flex-1">
                               <input
+                                ref={chatInputRef}
                                 disabled={isRunPending}
                                 value={chatInput}
                                 onChange={(e) => setChatInput(e.target.value)}

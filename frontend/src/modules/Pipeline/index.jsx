@@ -15,7 +15,7 @@ import ModuleHeader from '../../components/ModuleHeader';
 import { BrainIcon, Crosshair, CommandSurfaceIcon } from '../../components/ui/icons';
 import { openGlobalOverlay } from '../../components/GlobalOverlay';
 import { useAIAssist } from '../../contexts/AIAssistContext';
-import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi } from '../../services/backendApi';
+import { draftAiApi, getContactsApi, openThreadForContactApi, updateContactApi, toSnakeCase } from '../../services/backendApi';
 
 const STORAGE_KEY = 'aio_pipeline_layout_v2';
 const BOARDS_STORAGE_KEY = 'aio_pipeline_boards_v1';
@@ -116,11 +116,24 @@ const PipelineModule = () => {
     const dynamicColumns = [];
 
     contacts.forEach((contact) => {
-      const stageId = normalizeStageId(contact.pipelineStage);
+      const memberships = contact?.customFields?.pipelineMemberships || [];
+      const membership = memberships.find((m) => m.boardId === activeBoard.id);
+
+      let stageId;
+      if (membership) {
+        stageId = normalizeStageId(membership.stageId);
+      } else if (activeBoard.id === 'default' && contact.pipelineStage) {
+        // BACKWARD COMPAT: Existing contacts with a pipelineStage are visible on the Main Pipeline
+        stageId = normalizeStageId(contact.pipelineStage);
+      } else {
+        // ZERO-DRIFT STRICT: If not explicitly assigned, do not show in this pipeline
+        return;
+      }
+
       if (columnMap.has(stageId)) {
         columnMap.get(stageId).push(contact);
-      } else if (activeBoard.id === 'default') {
-        const title = contact.pipelineStage || 'New';
+      } else if (activeBoard.id === 'default' && stageId) {
+        const title = (membership?.stageId || contact.pipelineStage || 'New');
         columnMap.set(stageId, [contact]);
         dynamicColumns.push({ id: stageId, title });
       }
@@ -144,7 +157,12 @@ const PipelineModule = () => {
   const pipelineStats = useMemo(() => {
     const boardCards = Array.from(cardsByColumn.cards.values()).flat();
     const total = boardCards.length;
-    const open = boardCards.filter((contact) => !['Closed Won', 'Closed Lost'].includes(contact.pipelineStage)).length;
+    const open = boardCards.filter((contact) => {
+      const memberships = contact?.customFields?.pipelineMemberships || [];
+      const membership = memberships.find(m => m.boardId === activeBoard.id);
+      const stage = membership?.stageId || (activeBoard.id === 'default' ? contact.pipelineStage : '');
+      return !['Closed Won', 'Closed Lost'].includes(stage || '');
+    }).length;
     const highValue = boardCards.filter((contact) => (contact.leadScore || 0) >= 80).length;
     const noOwner = boardCards.filter((contact) => !contact.owner).length;
     return { total, open, highValue, noOwner };
@@ -172,12 +190,25 @@ const PipelineModule = () => {
     if (!draggedCard) return;
     const contact = contacts.find((entry) => entry.id === draggedCard.contactId);
     if (!contact) return;
-    const nextStage = targetColumn.title;
-    if (contact.pipelineStage === nextStage) {
-      setDraggedCard(null);
-      return;
+
+    const memberships = contact?.customFields?.pipelineMemberships || [];
+    const nextMemberships = memberships.filter(m => m.boardId !== activeBoard.id);
+    nextMemberships.push({ boardId: activeBoard.id, stageId: targetColumn.id });
+
+    const updates = {
+      customFields: {
+        ...(contact.customFields || {}),
+        pipeline_memberships: toSnakeCase(nextMemberships)
+      },
+      updatedAt: new Date().toISOString()
+    };
+
+    // Keep legacy field in sync if it's the default board
+    if (activeBoard.id === 'default') {
+      updates.pipelineStage = targetColumn.title;
     }
-    await updateContactApi(contact.id, { pipelineStage: nextStage, updatedAt: new Date().toISOString() });
+
+    await updateContactApi(contact.id, updates);
     await loadContacts();
     setDraggedCard(null);
   };
