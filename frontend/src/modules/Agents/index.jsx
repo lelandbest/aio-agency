@@ -491,7 +491,12 @@ const buildAssistantMessageFromRun = (run, overrides = {}) => ({
 // 8. AIO AGENTS MODULE
 const AIOAgentsModule = () => {
   const { tenant, user } = useAuth();
-  const { openAIAssist, toggleAIAssist } = useAIAssist();
+  const { 
+    openAIAssist, 
+    toggleAIAssist,
+    setSelectedAgent: setGlobalAgent,
+    setIsCollab: setGlobalCollab
+  } = useAIAssist();
   const [activeAgent, setActiveAgent] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState([
@@ -536,9 +541,17 @@ const AIOAgentsModule = () => {
   const [copiedToken, setCopiedToken] = useState('');
   const [localAttachments, setLocalAttachments] = useState([]);
   const [selectedFlow, setSelectedFlow] = useState(null);
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [selectionMode, setSelectionMode] = useState('talk');
-  const [collabAgents, setCollabAgents] = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState(() => localStorage.getItem('aio_selected_agent') || null);
+  const [selectionMode, setSelectionMode] = useState('talk'); 
+  const [collabAgents, setCollabAgents] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('aio_collab_agents') || '[]');
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('aio_collab_agents', JSON.stringify(collabAgents));
+  }, [collabAgents]);
   const [roleBundle, setRoleBundle] = useState(null);
   const [rolesError, setRolesError] = useState('');
   const [rolesBusy, setRolesBusy] = useState(false);
@@ -546,6 +559,10 @@ const AIOAgentsModule = () => {
   const currentWorkspaceId = tenant?.id || '';
   const { hasCapability } = useAuth();
   const canManageRoles = hasCapability('system.admin');
+  
+  useEffect(() => {
+    setGlobalAgent(selectedAgent);
+  }, [selectedAgent, setGlobalAgent]);
 
   const normalizeAgentRecord = (agent = {}) => ({
     ...agent,
@@ -809,6 +826,8 @@ const AIOAgentsModule = () => {
         }
       } else {
         const immediateText = response?.message || response?.response?.answer || response?.response?.message || '';
+        const orchestration = response?.result?.orchestration || response?.orchestration;
+        
         if (immediateText) {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -817,8 +836,8 @@ const AIOAgentsModule = () => {
                   ...msg,
                   content: immediateText,
                   timestamp: 'Now',
-                  rank: selectedAgent || activeAgent?.registryKey || 'CHARLIE',
-                  chain: '',
+                  rank: orchestration?.target || selectedAgent || activeAgent?.registryKey || 'CHARLIE',
+                  chain: orchestration?.chain?.join(' -> ') || '',
                   status: 'COMPLETED',
                   error: null,
                   pending: false,

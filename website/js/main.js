@@ -1,5 +1,5 @@
 // ========================================
-// AIO CRM Website — Main JavaScript
+// AIO NEXUS Website — Main JavaScript
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -101,22 +101,33 @@ function initScrollAnimations() {
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
+                entry.target.classList.add('revealed');
             }
         });
     }, observerOptions);
     
     cards.forEach(card => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        card.classList.add('reveal-item');
         observer.observe(card);
     });
 }
 
+// Nexus Entrance Logic
+function enterNexus() {
+    const splash = document.getElementById('nexus-splash');
+    if (splash) {
+        splash.classList.add('exited');
+        console.log('%c NEXUS AUTHENTICATED ', 'background: #111; color: var(--accent-brass); font-weight: bold;');
+        
+        // Finalize site reveal
+        setTimeout(() => {
+            splash.style.display = 'none';
+        }, 1200);
+    }
+}
+
 // Console branding
-console.log('%c AIO CRM ', 'background: linear-gradient(135deg, #b87333, #b8860b); color: #0a0e14; font-size: 24px; font-weight: bold; padding: 10px 20px; border-radius: 4px;');
+console.log('%c AIO NEXUS ', 'background: linear-gradient(135deg, #b87333, #b8860b); color: #0a0e14; font-size: 24px; font-weight: bold; padding: 10px 20px; border-radius: 4px;');
 console.log('%c Neural Operations Platform ', 'color: #b8860b; font-size: 12px;');
 
 // Neural Network Canvas

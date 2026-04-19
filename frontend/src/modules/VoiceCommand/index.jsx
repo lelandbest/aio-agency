@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Mic, MicOff, Send, X, ChevronRight, MessageSquare, Lock, Square, Volume2, VolumeX, Play } from 'lucide-react';
 import { useVTT } from '../../contexts/VTTContext';
+import { useAIAssist } from '../../contexts/AIAssistContext';
 import { useVoiceCommand } from '../../hooks/useVoiceCommand';
 import { request } from '../../services/backendApi';
 
@@ -258,6 +259,7 @@ export default function VoiceCommandModule() {
   const [monitorTab, setMonitorTab] = useState('input');
   const [showHistory, setShowHistory] = useState(false);
   const [heldOutput, setHeldOutput] = useState('');
+  const { selectedAgent, isCollab } = useAIAssist();
 
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -463,8 +465,14 @@ export default function VoiceCommandModule() {
           body: JSON.stringify({ 
             command: raw, 
             intent: 'conversation',
-            agent: 'CHARLIE',
-            context: { module: 'vtt', surface: 'voice', intent: 'conversation' }
+            agent: selectedAgent || 'CHARLIE',
+            context: { 
+              module: 'vtt', 
+              surface: 'voice', 
+              intent: 'conversation',
+              targetAgent: selectedAgent,
+              collab: isCollab 
+            }
           }),
         });
         const spokenText =
@@ -472,6 +480,7 @@ export default function VoiceCommandModule() {
           res.result?.response?.answer ||
           res.message ||
           '';
+
         addCharlieMessage(raw, { ...res, response: { message: spokenText } });
         scheduleOutputReset(spokenText);
         if (voiceEnabled && voiceAutoPlay && spokenText) playResponse(res.audioUrl || null, spokenText);

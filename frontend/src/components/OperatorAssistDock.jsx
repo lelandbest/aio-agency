@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
   ArrowUp,
@@ -26,12 +26,27 @@ const SURFACE_TERTIARY_CLASS = 'surface-tertiary rounded-[var(--radius-card)]';
 
 const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
   const { isOperator } = useAuth();
-  const { isOpen: open, closeAIAssist: setOpen, assistMode } = useAIAssist();
+  const { 
+    isOpen: open, 
+    closeAIAssist: setOpen, 
+    assistMode,
+    selectedAgent,
+    isCollab
+  } = useAIAssist();
   const operatorMode = isOperator?.() ?? false;
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [entries, setEntries] = useState([]);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    }
+  }, [open]);
 
   const currentContext = useMemo(
     () => ({
@@ -41,6 +56,29 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
     }),
     [activeModule, activeModuleLabel],
   );
+
+  const lastAgentRef = useRef(selectedAgent);
+
+  useEffect(() => {
+    if (selectedAgent && selectedAgent !== lastAgentRef.current) {
+      const systemMessageId = `system-entry-${Date.now()}`;
+      setEntries((prev) => [
+        {
+          id: systemMessageId,
+          type: 'system',
+          prompt: null,
+          response: {
+            answer: `${selectedAgent} Activated! Standing by for directives.`,
+            insights: [`Identity Persistence Verification: ${selectedAgent} lead.`],
+            suggestedActions: []
+          },
+          pending: false
+        },
+        ...prev
+      ]);
+    }
+    lastAgentRef.current = selectedAgent;
+  }, [selectedAgent]);
 
   if (!operatorMode) {
     return null;
@@ -73,8 +111,14 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
     try {
       const response = await getOperatorAssistResponseApi({
         message,
-        context: { ...currentContext, assistMode },
+        context: { 
+          ...currentContext, 
+          assistMode,
+          targetAgent: selectedAgent,
+          collab: isCollab
+        },
       });
+
       setEntries((prev) =>
         prev.map((entry) =>
           entry.id === pendingId
@@ -110,6 +154,10 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
       );
     } finally {
       setLoading(false);
+      // Phase 6: Input focus must remain in the AGENT COMMAND POST chat/command field after submit
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -126,12 +174,14 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
                 {assistMode === 'help' ? 'Module Assist' : 'Operator Assist'}
               </div>
               <div className="mt-3 text-base font-black text-[var(--color-text-primary)]">
-                {assistMode === 'help' ? 'Contextual guidance' : 'Grounded system guidance'}
+                {assistMode === 'help' ? 'Contextual guidance' : (selectedAgent ? `Routed: ${selectedAgent}` : 'Grounded system guidance')}
               </div>
               <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
                 {assistMode === 'help' 
                   ? 'Uses help articles and module context for guidance.' 
-                  : 'Uses canonical /api/assist responses grounded on live tenant state.'}
+                  : (selectedAgent 
+                      ? (isCollab ? `Alpha orchestrating Specialist Collab with ${selectedAgent} lead.` : `Alpha orchestrating single specialist: ${selectedAgent}.`)
+                      : 'Uses canonical /api/assist responses grounded on live tenant state.')}
               </div>
             </div>
             <button
@@ -181,8 +231,12 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
                     key={entry.id}
                     className={`${SURFACE_CARD_CLASS} p-4`}
                   >
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Prompt</div>
-                    <div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{entry.prompt}</div>
+                    {entry.type !== 'system' && (
+                      <>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Prompt</div>
+                        <div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">{entry.prompt}</div>
+                      </>
+                    )}
 
                     {entry.pending ? (
                       <div className="mt-4 inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
@@ -244,6 +298,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
             <div className="flex items-end gap-3">
               <div className={`flex min-h-[54px] flex-1 items-end px-4 py-3 ${SURFACE_CARD_CLASS}`}>
                 <textarea
+                  ref={textareaRef}
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={(event) => {

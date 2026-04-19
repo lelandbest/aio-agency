@@ -12,9 +12,9 @@ import { useAIAssist } from '../../contexts/AIAssistContext';
 
 const CATEGORIES = [
   { id: 'b-doc', label: 'DOC', bin: 'DOC', dbCategory: 'document', icon: FileText, types: ['.pdf', '.docx', '.doc', '.txt', '.rtf', '.odt'] },
-  { id: 'b-dig', label: 'DIG', bin: 'DIG', dbCategory: 'digital', icon: Image, types: ['.jpg', '.png', '.svg', '.webp'] },
+  { id: 'b-dig', label: 'DIG', bin: 'DIG', dbCategory: 'digital', icon: Image, types: ['.jpg', '.png', '.svg', '.webp', '.mp4', '.mov', '.avi', '.mp3', '.wav'] },
   { id: 'b-dat', label: 'DAT', bin: 'DAT', dbCategory: 'data', icon: Table, types: ['.csv', '.xls', '.xlsx', '.json'] },
-  { id: 'b-ttv', label: 'TTV', bin: 'TTV', dbCategory: 'scribe', icon: Radio, types: ['.mp4', '.mp3', '.wav', '.mov', '.avi'] },
+  { id: 'b-ttv', label: 'TTV', bin: 'TTV', dbCategory: 'scribe', icon: Radio, types: [] },
   { id: 'b-hlp', label: 'HLP', bin: 'HLP', dbCategory: 'help', icon: GraduationCap, types: ['.md', '.txt'] }
 ];
 
@@ -29,7 +29,6 @@ const getBinByCategory = (dbCategory) => {
   return cat ? cat.id : 'b-doc';
 };
 
-const COMMS_WORKSPACE_SCALE = 0.75;
 const COMMS_PANEL = 'modal-surface rounded-[var(--radius-modal)]';
 const COMMS_SUBPANEL = 'surface-elevated rounded-[var(--radius-panel)]';
 const COMMS_COLUMN_BG = 'bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-bg-secondary)_96%,var(--color-bg-primary)_4%),color-mix(in_srgb,var(--color-bg-primary)_94%,black_6%))]';
@@ -251,14 +250,14 @@ const EditAssetModal = ({ item, isOpen, onClose, onUpdate }) => {
   );
 };
 
-const CortexCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpdate }) => {
+const CortexCategoryModal = ({ category, items, vaultItems = [], isOpen, onClose, onDelete, onUpdate }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   
   if (!isOpen) return null;
 
-  // Partition items into Uploads vs Internal Intel (Help Docs)
-  const allFiltered = items.filter(i => {
+  // Consistent partitioning from both Brain Items and Vault Assets
+  const brainFiltered = items.filter(i => {
     const itemCat = i.category?.toLowerCase();
     const targetCat = category.dbCategory?.toLowerCase();
     if (category.id === 'b-doc') {
@@ -266,6 +265,28 @@ const CortexCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpd
     }
     return itemCat === targetCat;
   });
+
+  const vaultFiltered = (vaultItems || []).filter(v => {
+    const mType = (v.mediaType || v.media_type || v.type || '').toLowerCase();
+    const aType = (v.artifactType || v.artifact_type || '').toLowerCase();
+    const id = (v.assetId || v.id || '').toLowerCase();
+
+    if (category.id === 'b-doc') return mType === 'document' || aType === 'document';
+    if (category.id === 'b-dig') return ['image', 'audio', 'video'].includes(mType) || ['image', 'audio', 'video'].includes(aType);
+    if (category.id === 'b-dat') return mType === 'data';
+    if (category.id === 'b-ttv') return ['transcript', 'scribe'].includes(mType) || 
+                                  ['transcript', 'scribe'].includes(aType) ||
+                                  id.includes('transcript');
+    return false;
+  }).map(v => ({
+    ...v,
+    id: v.assetId || v.id,
+    title: v.title || v.filename || v.label || (v.assetId || v.id),
+    category: v.mediaType || v.type || 'vault-asset',
+    isVaultAsset: true
+  }));
+
+  const allFiltered = [...brainFiltered, ...vaultFiltered];
 
   const uploads = allFiltered.filter(i => i.category !== 'help');
   const internal = allFiltered.filter(i => i.category === 'help');
@@ -409,7 +430,7 @@ const CortexCategoryModal = ({ category, items, isOpen, onClose, onDelete, onUpd
             </div>
             <div className="p-8 space-y-8 overflow-y-auto no-scrollbar max-h-[70vh]">
               {selectedItem.category === 'help' ? (
-                <div className="p-10 rounded-[2.5rem] bg-sky-500/5 border border-sky-500/10 flex flex-col items-center gap-8 text-center">
+                <div className="p-10 rounded-[var(--radius-outer)] bg-sky-500/5 border border-sky-500/10 flex flex-col items-center gap-8 text-center">
                   <div className="p-8 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 shadow-[0_0_50px_rgba(56,189,248,0.1)]">
                     <GraduationCap size={64} />
                   </div>
@@ -695,10 +716,10 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
       const id = (v.assetId || v.id || '').toLowerCase();
 
       if (catId === 'b-doc') return mType === 'document' || aType === 'document';
-      if (catId === 'b-dig') return mType === 'image';
+      if (catId === 'b-dig') return ['image', 'video', 'audio'].includes(mType) || ['image', 'video', 'audio'].includes(aType);
       if (catId === 'b-dat') return mType === 'data';
-      if (catId === 'b-ttv') return ['audio', 'video', 'transcript', 'scribe'].includes(mType) || 
-                                    ['audio', 'video', 'transcript', 'scribe'].includes(aType) ||
+      if (catId === 'b-ttv') return ['transcript', 'scribe'].includes(mType) || 
+                                    ['transcript', 'scribe'].includes(aType) ||
                                     id.includes('transcript');
       return false;
     }).length;
@@ -766,22 +787,6 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
             </button>
           );
         })}
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
-         <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1 opacity-60">Vault Statistics (Studio)</div>
-         <div className="grid grid-cols-2 gap-2">
-            <div className="surface-tertiary p-2 rounded-lg border border-white/5 flex flex-col items-center bg-black/20">
-              <Video size={12} className="text-magenta-400 mb-0.5" />
-              <div className="text-[12px] font-black text-slate-200">{getVaultCount('media')}</div>
-              <div className="text-[6px] font-black uppercase tracking-widest text-slate-600">Media Assets</div>
-            </div>
-            <div className="surface-tertiary p-2 rounded-lg border border-white/5 flex flex-col items-center bg-black/20">
-              <FileText size={12} className="text-sky-400 mb-0.5" />
-              <div className="text-[12px] font-black text-slate-200">{getVaultCount('transcript')}</div>
-              <div className="text-[6px] font-black uppercase tracking-widest text-slate-600">Transcripts</div>
-            </div>
-         </div>
       </div>
 
       <div className="mt-auto pt-3 border-t border-white/5 flex justify-center">
@@ -1147,27 +1152,12 @@ const Cortex = () => {
     </div>
   );
 
-  const cortexWindowStyle = COMMS_WORKSPACE_SCALE < 1
-    ? {
-        transform: `scale(${COMMS_WORKSPACE_SCALE})`,
-        transformOrigin: 'top left',
-        width: `${100 / COMMS_WORKSPACE_SCALE}%`,
-        height: `${100 / COMMS_WORKSPACE_SCALE}%`,
-      }
-    : {
-        width: '100%',
-        height: '100%'
-      };
-
   return (
-    <div className="module-root-standard bg-black overflow-hidden relative p-6">
-      <div 
-        className="flex flex-1 gap-6 w-full h-full relative z-10"
-        style={cortexWindowStyle}
-      >
+    <div className="module-root-standard bg-black overflow-hidden relative p-[8px]">
+      <div className="grid grid-cols-[25%_1fr_25%] gap-[8px] w-full h-full relative z-10">
         {/* Island 1: Hardware & Source Controls */}
         <aside 
-          className={`w-[320px] shrink-0 flex flex-col gap-6 rounded-[2.5rem] border border-slate-800/60 bg-[#0d0d0f] p-6 z-30 h-full shadow-2xl no-scrollbar overflow-y-auto relative`}
+          className="flex flex-col gap-[8px] rounded-[var(--radius-panel)] border border-slate-800/60 bg-[#0d0d0f] p-6 z-30 h-full shadow-2xl no-scrollbar overflow-y-auto relative"
           onClick={() => setInteractionArmed(false)}
         >
           {/* Edge Highlight Effect */}
@@ -1223,7 +1213,7 @@ const Cortex = () => {
         </aside>
 
         {/* Island 2: Neural Canvas */}
-        <main className="flex-1 min-w-0 relative flex flex-col rounded-[2.5rem] border border-slate-800/60 bg-black shadow-2xl overflow-hidden h-full">
+        <main className="flex-1 min-w-0 relative flex flex-col rounded-[var(--radius-panel)] border border-slate-800/60 bg-black shadow-2xl overflow-hidden h-full">
           <BrainGraphPanel 
             profile={profile} 
             sources={sources} 
@@ -1237,7 +1227,7 @@ const Cortex = () => {
 
         {/* Island 3: Synthesis & Insights */}
         <aside 
-          className={`w-[480px] shrink-0 flex flex-col rounded-[2.5rem] border border-slate-800/60 bg-[#0d0d0f] p-6 z-20 h-full shadow-2xl relative`}
+          className="flex flex-col rounded-[var(--radius-panel)] border border-slate-800/60 bg-[#0d0d0f] p-6 z-20 h-full shadow-2xl relative"
           onClick={() => setInteractionArmed(false)}
         >
           {/* Edge Highlight Effect */}
@@ -1390,6 +1380,7 @@ const Cortex = () => {
         <CortexCategoryModal 
           category={selectedCategory} 
           items={savedIntelligence} 
+          vaultItems={vaultItems}
           isOpen={!!selectedCategory} 
           onClose={() => setSelectedCategory(null)}
           onDelete={async (id) => { 

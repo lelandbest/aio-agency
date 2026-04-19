@@ -5,10 +5,13 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+import json
 try:
     from backend.orchestration import match_flow_trigger_event
+    from backend.agent_definitions import get_agent_definition
 except ModuleNotFoundError:
     from orchestration import match_flow_trigger_event
+    from agent_definitions import get_agent_definition
 
 
 logger = logging.getLogger(__name__)
@@ -746,6 +749,60 @@ def _what_is_response(message: str, assembled: dict[str, Any], role: str, contex
     return _operator_status_response(assembled) if role == "operator" else _client_status_response(assembled)
 
 
+def _consult_specialist(
+    agent_name: str,
+    message: str,
+    assembled: dict[str, Any],
+    ai_service: Any,
+    ai_config: dict[str, Any] | None,
+) -> dict[str, Any]:
+    definition = get_agent_definition(agent_name)
+    if not definition:
+        return {"answer": f"I'm sorry, I couldn't find the definition for {agent_name}.", "insights": []}
+    
+    agent_dict = definition.to_dict()
+    personality = agent_dict.get("personality", {})
+    contract = agent_dict.get("response_contract", {})
+    
+    # Charlie -> Alpha -> Specialist
+    # Alpha acts as the orchestration layer (this code).
+    # Specialist answers substantive content directly without narration.
+    system_prompt = (
+        f"{definition.system_prompt}\n\n"
+        f"CONTEXTUAL ROLE: Lead Specialist Consultant.\n"
+        f"TONE: {personality.get('tone')}. STYLE: {personality.get('style')}.\n"
+        f"QUIRK: {personality.get('quirk')}.\n"
+        f"RESPONSE CONTRACT: {contract.get('format')}. VERBOSITY: {contract.get('verbosity')}.\n"
+        f"EXPLANATION POLICY: {contract.get('explanation')}.\n\n"
+        f"Current Workspace Intelligence Snapshot (JSON):\n{json.dumps(assembled, default=str)}\n\n"
+        " AUTHORITATIVE DIRECTIVES:\n"
+        "1. You ARE currently in direct consultation with the operator. Provide the final, substantive answer NOW.\n"
+        "2. DO NOT mention Charles, Alpha, or any routing/handoff process. You are already there.\n"
+        "3. NEVER say 'I'll route this' or 'That is a question for [yourself]'. Just answer the question.\n"
+        "4. Use the provided intelligence (flows, settings, runs) to give high-fidelity analysis.\n"
+        f"5. IDENTITY: You are {definition.label}. If asked who you are, you MUST confirm you are {definition.label}.\n"
+        "6. Speak as the specialist directly."
+    )
+    
+    try:
+        if hasattr(ai_service, "_provider_complete"):
+            res = ai_service._provider_complete(
+                provider_config=ai_config,
+                prompt=message,
+                system_prompt=system_prompt
+            )
+            if res and res.get("suggestion"):
+                return {
+                    "answer": res["suggestion"],
+                    "insights": [f"Specialist engaged: {definition.label}.", f"Specialization: {definition.specialization}."],
+                    "suggestedActions": definition.capabilities[:3]
+                }
+    except Exception as e:
+        logger.error(f"Specialist consultation with {agent_name} failed: {e}")
+        
+    return {"answer": f"The consultation with {definition.label} was interrupted. Please retry in a moment.", "insights": []}
+
+
 def generate_assist_response(
     *,
     message: str,
@@ -754,7 +811,12 @@ def generate_assist_response(
     session: dict[str, Any],
     auth_store: Any,
     provider: Any,
+    ai_service: Any = None,
+    ai_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    target_agent = (context or {}).get("targetAgent")
+    is_collab = (context or {}).get("collab", False)
+    
     assembled, used, intent, domains = build_assist_context(
         message=message,
         context=context,
@@ -764,6 +826,42 @@ def generate_assist_response(
         provider=provider,
     )
     role = str(assembled.get("role") or "operator")
+
+    interaction_mode = (context or {}).get("interactionMode")
+    is_command = intent in {INTENT_WHY, INTENT_STATUS}
+    
+    routing_target = "CHARLIE"
+    
+    # CONTRACT ENFORCEMENT: Explicit State Resolution
+    if interaction_mode == "COMMAND":
+        routing_target = "CHARLIE"
+    elif interaction_mode == "CONSULT" and target_agent:
+        routing_target = target_agent
+    elif target_agent and not is_command:
+        # Fallback for implied CONSULT
+        routing_target = target_agent
+
+    # ── Specialist Consultation Override (CONSULT State) ──────────────────────
+    if interaction_mode == "CONSULT" and routing_target != "CHARLIE":
+        response = _consult_specialist(
+            agent_name=routing_target,
+            message=message,
+            assembled=assembled,
+            ai_service=ai_service,
+            ai_config=ai_config
+        )
+        return {
+            "answer": str(response.get("answer") or "").strip(),
+            "insights": response.get("insights") or [],
+            "suggestedActions": response.get("suggestedActions") or [],
+            "orchestration": {
+                "chain": ["CHARLIE", "ALPHA", routing_target, "ALPHA", "CHARLIE"],
+                "target": routing_target,
+                "mode": "TALK" if not is_collab else "COLLAB",
+                "interactionMode": "CONSULT"
+            }
+        }
+
     restricted_client_topics = role == "client" and any(domain in domains for domain in {"automation", "variables", "settings"})
     if restricted_client_topics and not any(domain in domains for domain in {"calendar", "comms", "status"}):
         response = {
@@ -795,19 +893,35 @@ def generate_assist_response(
     insights = response.get("insights") if isinstance(response.get("insights"), list) else []
     suggested_actions = response.get("suggestedActions") if isinstance(response.get("suggestedActions"), list) else []
 
+    # Phase 5: Signal / Visual Truthfulness (Metadata for SignalPulse)
+    # Charlie -> Alpha -> Specialist -> Alpha -> Charlie -> User
+    chain = ["CHARLIE"]
+    if routing_target != "CHARLIE":
+        chain = ["CHARLIE", "ALPHA", routing_target, "ALPHA", "CHARLIE"]
+        if is_collab:
+            insights.append(f"Verification: Alpha orchestrated Collab with {routing_target} lead.")
+        else:
+            insights.append(f"Verification: Response synthesized via Alpha from {routing_target} analysis.")
+    else:
+        insights.append("Verification: Response provided by Charlie command authority.")
+
     logger.info(
-        "assist query tenant=%s user=%s role=%s intent=%s context=%s query=%r summary=%r",
+        "assist query tenant=%s user=%s role=%s intent=%s target=%s query=%r",
         ((session.get("tenant") or {}).get("id") if isinstance(session.get("tenant"), dict) else None),
         ((session.get("user") or {}).get("id") if isinstance(session.get("user"), dict) else None),
         role,
         intent,
-        ",".join(used),
+        routing_target,
         message[:400],
-        answer[:240],
     )
 
     return {
         "answer": answer,
         "insights": [str(item) for item in insights if str(item or "").strip()],
         "suggestedActions": [str(item) for item in suggested_actions if str(item or "").strip()],
+        "orchestration": {
+            "chain": chain,
+            "target": routing_target,
+            "isCollab": is_collab
+        }
     }

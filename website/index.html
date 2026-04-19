@@ -3,33 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIO CRM — Neural Operations Platform</title>
+    <title>AIO NEXUS — Neural Operations Platform</title>
     <link rel="stylesheet" href="css/theme.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- NEXUS ENTRANCE (SPLASH) -->
+    <div id="nexus-splash" class="splash-screen">
+        <div class="splash-bg">
+            <div class="brain-glow"></div>
+        </div>
+        <div class="splash-glass">
+            <div class="splash-content">
+                <div class="glitch-wrapper">
+                    <h1 class="glitch-text" data-text="AIO NEXUS">AIO NEXUS</h1>
+                </div>
+                <p class="splash-subtext">Neural Operations <span>//</span> Core Active</p>
+                <div class="splash-trigger-wrapper">
+                    <button class="splash-btn" onclick="enterNexus()">
+                        <span class="btn-scan-line"></span>
+                        Enter Nexus
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="splash-noise"></div>
+    </div>
+
     <!-- Navigation -->
     <nav class="nav-main">
         <div class="nav-container">
             <a href="#hero" class="nav-brand">
-                <svg class="nav-logo" viewBox="0 0 40 40" fill="none">
-                    <circle cx="20" cy="20" r="18" stroke="url(#gearGrad)" stroke-width="2"/>
-                    <circle cx="20" cy="20" r="8" fill="url(#gearGrad)"/>
-                    <circle cx="20" cy="8" r="3" fill="#B87333"/>
-                    <circle cx="20" cy="32" r="3" fill="#B87333"/>
-                    <circle cx="8" cy="20" r="3" fill="#B87333"/>
-                    <circle cx="32" cy="20" r="3" fill="#B87333"/>
-                    <defs>
-                        <linearGradient id="gearGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#B87333"/>
-                            <stop offset="50%" stop-color="#D4AF37"/>
-                            <stop offset="100%" stop-color="#B8860B"/>
-                        </linearGradient>
-                    </defs>
-                </svg>
-                <span class="nav-title">AIO<span class="nav-title-accent">CRM</span></span>
+                <img src="images/logo.png" alt="AIO NEXUS" class="nav-logo">
+                <span class="nav-title">AIO<span class="nav-title-accent">NEXUS</span></span>
             </a>
             <div class="nav-links">
                 <a href="#hero" class="nav-link active">Home</a>
@@ -39,7 +47,7 @@
                 <a href="#how-it-works" class="nav-link">How</a>
                 <a href="#pricing" class="nav-link">Pricing</a>
                 <a href="#faq" class="nav-link">FAQ</a>
-                <button class="btn btn-primary nav-signup-btn" onclick="openSignupModal()">Plan Deployment</button>
+                <button class="btn btn-primary nav-signup-btn" onclick="openSignupModal()">Join the Waitlist</button>
             </div>
             <button class="nav-toggle" aria-label="Toggle navigation">
                 <span></span><span></span><span></span>
@@ -55,7 +63,7 @@
                 <h1 class="hero-title">If your CRM needs Humans to run it, It's Broken...</h1>
                 <p class="hero-desc">
                     Orchestrate your entire business with AI-powered automation. 
-                    From signal detection to intelligent reporting, AIO CRM thinks 
+                    From signal detection to intelligent reporting, AIO NEXUS thinks 
                     with you—not for you.
                 </p>
                 <div class="hero-btns">
@@ -218,7 +226,7 @@
             <div class="section-header">
                 <span class="section-tag">See It In Action</span>
                 <h2 class="section-title">Platform Demo</h2>
-                <p class="section-desc">Watch how AIO CRM orchestrates your business operations with AI-powered intelligence.</p>
+                <p class="section-desc">Watch how AIO NEXUS orchestrates your business operations with AI-powered intelligence.</p>
             </div>
             
             <div class="demo-container">
@@ -355,6 +363,7 @@
                     </div>
                 </div>
 
+                <!-- White-Label Ready (Commented Out)
                 <div class="spec-card" id="spec-branding">
                     <div class="spec-card-header">
                         <div class="spec-icon">
@@ -379,6 +388,7 @@
                         </div>
                     </div>
                 </div>
+                -->
 
                 <div class="spec-card" id="spec-ai-providers">
                     <div class="spec-card-header">
@@ -493,7 +503,7 @@
             <div class="section-header">
                 <span class="section-tag">Workflow</span>
                 <h2 class="section-title">How It Works</h2>
-                <p class="section-desc">Three simple steps to AI-powered business orchestration.</p>
+                <p class="section-desc">Three simple steps to AI-powered business orchestration with AIO NEXUS.</p>
             </div>
             
             <div class="how-grid">
@@ -694,7 +704,7 @@
                             <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/>
                         </svg>
                     </div>
-                    <p class="testimonial-text">AIO CRM transformed how I manage client relationships. The Neural Cortex reports give me insights I never had before.</p>
+                    <p class="testimonial-text">AIO NEXUS transformed how I manage client relationships. The Neural Cortex reports give me insights I never had before.</p>
                     <div class="testimonial-author">
                         <div class="testimonial-avatar">MK</div>
                         <div class="testimonial-info">
@@ -745,7 +755,7 @@
             <div class="section-header">
                 <span class="section-tag">Deployment Options</span>
                 <h2 class="section-title">Local-First AI Infrastructure</h2>
-                <p class="section-desc">AIO CRM is deployed—not subscribed to. Choose the system level that matches the operational reality you want to build.</p>
+                <p class="section-desc">AIO NEXUS is deployed—not subscribed to. Choose the system level that matches the operational reality you want to build.</p>
             </div>
 
             <div class="pricing-grid">
@@ -758,14 +768,13 @@
                         <p class="pricing-desc">Deploy your core local-first AI operations stack with CRM, Comms, Signals, and initial model setup.</p>
                     </div>
                     <ul class="pricing-features">
-                        <li><span class="check">✓</span> Local-first AIO CRM deployment</li>
+                        <li><span class="check">✓</span> Local-first AIO NEXUS deployment</li>
                         <li><span class="check">✓</span> Core modules: CRM, Comms, Signals</li>
                         <li><span class="check">✓</span> Initial LLM provider setup (local or API)</li>
                         <li><span class="check">✓</span> Basic automation flows and routing</li>
                         <li><span class="check">✓</span> Starter Cortex reporting</li>
                         <li><span class="check">✓</span> Guardrails + baseline system configuration</li>
                         <li class="dimmed"><span class="x">✗</span> Advanced orchestration design</li>
-                        <li class="dimmed"><span class="x">✗</span> White-label / multi-tenant deployment</li>
                     </ul>
                     <button class="btn btn-secondary pricing-btn" onclick="openSignupModal('foundation')">Book Deployment Call</button>
                 </div>
@@ -789,7 +798,7 @@
                         <li><span class="check">✓</span> Operational dashboard and execution workflows</li>
                         <li><span class="check">✓</span> Guided launch and validation</li>
                     </ul>
-                    <button class="btn btn-primary pricing-btn" onclick="openSignupModal('control')">Discuss Your Build</button>
+                    <button class="btn btn-primary pricing-btn" onclick="openSignupModal('control')">Book Discovery Call</button>
                 </div>
 
                 <div class="pricing-card pricing-card-command">
@@ -802,7 +811,7 @@
                     </div>
                     <ul class="pricing-features">
                         <li><span class="check">✓</span> Everything in Control</li>
-                        <li><span class="check">✓</span> White-label or multi-tenant architecture</li>
+                        <li><span class="check">✓</span> Enterprise / multi-tenant architecture</li>
                         <li><span class="check">✓</span> Advanced orchestration and routing systems</li>
                         <li><span class="check">✓</span> Custom integrations, APIs, and infrastructure design</li>
                         <li><span class="check">✓</span> Dedicated local / hybrid deployment strategy</li>
@@ -810,7 +819,7 @@
                         <li><span class="check">✓</span> Strategic implementation support</li>
                         <li><span class="check">✓</span> Built for ownership—not dependency</li>
                     </ul>
-                    <button class="btn btn-secondary pricing-btn" onclick="openSignupModal('command')">Request Architecture Review</button>
+                    <button class="btn btn-secondary pricing-btn" onclick="openSignupModal('command')">Book Strategy Audit</button>
                 </div>
             </div>
 
@@ -838,7 +847,7 @@
                     </div>
                     <div class="provider-row">
                         <span>Command</span>
-                        <span>Agencies / enterprise / white-label</span>
+                        <span>Agencies / Enterprise Teams</span>
                         <span>Custom infrastructure engagement</span>
                         <span>High-control, high-complexity deployment</span>
                     </div>
@@ -861,13 +870,13 @@
             <div class="section-header">
                 <span class="section-tag">Questions</span>
                 <h2 class="section-title">Frequently Asked</h2>
-                <p class="section-desc">Everything you need to know about AIO CRM.</p>
+                <p class="section-desc">Everything you need to know about AIO NEXUS.</p>
             </div>
             
             <div class="faq-grid">
                 <div class="faq-item">
-                    <h4 class="faq-question">What AI models does AIO CRM support?</h4>
-                    <p class="faq-answer">AIO CRM connects to Ollama (local), OpenAI, Anthropic, OpenRouter, Google AI, and Perplexity. You can use any combination and switch between providers based on your needs.</p>
+                    <h4 class="faq-question">What AI models does AIO NEXUS support?</h4>
+                    <p class="faq-answer">AIO NEXUS connects to Ollama (local), OpenAI, Anthropic, OpenRouter, Google AI, and Perplexity. You can use any combination and switch between providers based on your needs.</p>
                 </div>
                 
                 <div class="faq-item">
@@ -903,7 +912,7 @@
         <div class="container">
             <div class="cta-content">
                 <h2>Ready to Transform Your Operations?</h2>
-                <p>Join operators who demand more from their CRM. AIO CRM adapts to your workflow, not the other way around.</p>
+                <p>Join operators who demand more from their CRM. AIO NEXUS adapts to your workflow, not the other way around.</p>
                 <div class="cta-actions">
                     <a href="#pricing" class="btn btn-primary btn-lg">
                         <span>Book Discovery</span>
@@ -928,20 +937,10 @@
             </button>
             <div class="modal-header">
                 <div class="modal-brand">
-                    <svg class="modal-logo" viewBox="0 0 40 40" fill="none">
-                        <circle cx="20" cy="20" r="18" stroke="url(#modalGearGrad)" stroke-width="2"/>
-                        <circle cx="20" cy="20" r="8" fill="url(#modalGearGrad)"/>
-                        <defs>
-                            <linearGradient id="modalGearGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#B87333"/>
-                                <stop offset="50%" stop-color="#D4AF37"/>
-                                <stop offset="100%" stop-color="#B8860B"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
+                    <img src="images/logo.png" alt="AIO NEXUS" class="modal-logo" style="width: 64px; height: 64px;">
                 </div>
                 <h2>Join the Waitlist</h2>
-                <p>Get early access to AIO CRM. No credit card required.</p>
+                <p>Get early access to AIO NEXUS. No credit card required.</p>
             </div>
             <form class="signup-form" onsubmit="handleSignupSubmit(event)">
                 <div class="form-group">
@@ -957,15 +956,15 @@
                     <input type="text" id="signup-company" name="company" placeholder="Your company name">
                 </div>
                 <div class="form-group">
-                    <label for="signup-plan">Interested Plan</label>
+                    <label for="signup-plan">Deployment Level</label>
                     <select id="signup-plan" name="plan">
-                        <option value="starter">Starter — $49/mo</option>
-                        <option value="professional" selected>Professional — $149/mo</option>
-                        <option value="enterprise">Enterprise — $499/mo</option>
+                        <option value="foundation">Foundation</option>
+                        <option value="control">Control</option>
+                        <option value="command">Command</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary btn-full">
-                    <span>Request Access</span>
+                    <span>Join the Waitlist</span>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </button>
                 <p class="form-note">We'll notify you when your access is ready. Typically within 24-48 hours.</p>
@@ -983,11 +982,8 @@
             <div class="footer-grid">
                 <div class="footer-brand">
                     <a href="#hero" class="footer-logo">
-                        <svg class="footer-logo-icon" viewBox="0 0 40 40" fill="none">
-                            <circle cx="20" cy="20" r="18" stroke="#B87333" stroke-width="2"/>
-                            <circle cx="20" cy="20" r="8" fill="#B87333"/>
-                        </svg>
-                        <span>AIO<span class="footer-logo-accent">CRM</span></span>
+                        <img src="images/logo.png" alt="AIO NEXUS" class="footer-logo-icon">
+                        <span class="footer-logo-text">AIO<span class="footer-logo-accent">NEXUS</span></span>
                     </a>
                     <p class="footer-tagline">Neural Operations Platform</p>
                 </div>
@@ -1013,7 +1009,7 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2026 AIO CRM. All rights reserved.</p>
+                <p>&copy; 2026 AIO NEXUS. All rights reserved.</p>
                 <p class="footer-tech">Built with precision engineering</p>
             </div>
         </div>

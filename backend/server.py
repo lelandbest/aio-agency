@@ -3311,6 +3311,7 @@ async def ai_assist(request: Request, payload: OperatorAssistRequest):
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required.")
     tenant = session.get("tenant") or {}
+    ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
     resolved_context = dict(payload.context or {})
     
     # Inject brain context
@@ -3326,6 +3327,8 @@ async def ai_assist(request: Request, payload: OperatorAssistRequest):
             session=session,
             auth_store=auth_store,
             provider=provider,
+            ai_service=ai_assist_service,
+            ai_config=ai_provider
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -3677,6 +3680,7 @@ async def omega_execute(request: Request, payload: OmegaExecuteRequest):
 @app.post("/api/ai/command")
 async def ai_command(request: Request, payload: AICommandRequest):
     session = require_capability(request, "system.view", "Only workspace members can run AI commands.")
+    token = extract_session_token(request)
     tenant = session.get("tenant") or {}
     user = session.get("user") or {}
     ai_provider = auth_store.get_default_ai_provider_config_for_tenant(tenant.get("id")) if tenant.get("id") else None
@@ -3695,6 +3699,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
         )
         if agent
     ]
+    is_collab = len(collab_agents) > 0
     flow_id = str(payload.flowId or resolved_context.get("flowId") or "").strip() or None
     selected_flow = provider.get_flow(flow_id) if flow_id else None
     if flow_id and not selected_flow:
@@ -3755,9 +3760,9 @@ async def ai_command(request: Request, payload: AICommandRequest):
 
         # ── Step 1: Charlie classifies the input ──────────────────────────────
         # Three classes:
-#   CONVERSATION  — chat / question / comment, no execution needed
-#   MEDIA_TASK    — media creation/render/audio request, Alpha executes via media engine
-#   TASK          — all other structured work, routed through Alpha's specialist chain
+        #   CONVERSATION  — chat / question / comment, no execution needed
+        #   MEDIA_TASK    — media creation/render/audio request, Alpha executes via media engine
+        #   TASK          — all other structured work, routed through Alpha's specialist chain
         classification_prompt = (
             f"User input: \"{command_text}\"\n\n"
             "Classify this input into exactly one of three categories:\n"
@@ -3790,8 +3795,57 @@ async def ai_command(request: Request, payload: AICommandRequest):
         except Exception:
             input_classification = "CONVERSATION"
 
-        # ── Step 2a: Plain conversation — Charlie responds directly ───────────
-        if input_classification != "TASK":
+        # ── Step 2: Explicit Interaction State Resolution (CONTRACT ENFORCEMENT) ────
+        if input_classification in ["TASK", "MEDIA_TASK"]:
+            interaction_mode = "COMMAND"
+        elif requested_agent:
+            interaction_mode = "CONSULT"
+        else:
+            interaction_mode = "CONVO"
+
+        # ── Step 3: Branch by Interaction State ───────────────────────────────────────
+        if interaction_mode != "COMMAND":
+            # State === CONSULT or CONVO routes through unified orchestration bridge.
+            try:
+                assist_resp = generate_assist_response(
+                    message=command_text,
+                    context={
+                        **resolved_context,
+                        "assistMode": "brain",
+                        "targetAgent": requested_agent,
+                        "collab": is_collab,
+                        "interactionMode": interaction_mode
+                    },
+                    token=token,
+                    session=session,
+                    auth_store=auth_store,
+                    provider=provider,
+                    ai_service=ai_assist_service,
+                    ai_config=ai_provider
+                )
+                return {
+                    "status": "success",
+                    "message": assist_resp.get("answer"),
+                    "result": {
+                        "routing": routing,
+                        "run": None,
+                        "runId": None,
+                        "orchestration": assist_resp.get("orchestration")
+                    }
+                }
+            except Exception as e:
+                logger.error("Unified orchestration bridge failed: %s", str(e))
+                if interaction_mode == "CONSULT":
+                    return {
+                        "status": "error",
+                        "message": f"Specialist consultation failed: {str(e)}",
+                        "result": {"routing": routing, "run": None, "runId": None}
+                    }
+                # Fallback to direct Charlie for CONVO
+                pass
+
+        # ── Step 4: Legacy Fallback for unclassified prompts (CONVO only) ────
+        if interaction_mode == "CONVO":
             charlie_sys_prompt += f"\n\nSystem Event Target Context:\n{json.dumps(resolved_context, default=str)}"
             convo_result = ai_service._provider_complete(
                 provider_config=ai_provider,
