@@ -595,7 +595,7 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
         {activeTab === 'files' && (
           <div className="h-full flex flex-col">
             <div 
-              className={`flex-1 border border-white/5 rounded-[var(--radius-outer)] flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group relative overflow-hidden ${APPLIANCE_INNER_SHADOW} ${dragCategory ? 'bg-sky-500/10 border-sky-400/30' : 'bg-[#050505] hover:bg-black/60'}`}
+              className={`flex-1 border-2 border-dashed border-white/10 rounded-[var(--radius-outer)] flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group relative overflow-hidden ${APPLIANCE_INNER_SHADOW} ${dragCategory ? 'bg-sky-500/10 border-sky-400/30' : 'bg-[#050505] hover:bg-black/60'}`}
               onDragOver={handleDragOver}
               onDragLeave={() => setDragCategory(null)}
               onDrop={(e) => { 

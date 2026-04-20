@@ -425,6 +425,13 @@ class AuthStore:
                     createdAt TEXT NOT NULL,
                     updatedAt TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS dismissed_signals (
+                    id TEXT NOT NULL,
+                    tenantId TEXT NOT NULL,
+                    dismissedAt TEXT NOT NULL,
+                    PRIMARY KEY(id, tenantId)
+                );
                 """
             )
             self._ensure_column(conn, "tenants", "settingsJson", "TEXT NOT NULL DEFAULT '{}'")
@@ -2294,6 +2301,23 @@ class AuthStore:
             "can_bootstrap_owner": not has_users,
             "providers": ["local-password", "google-oauth"],
         }
+
+    def dismiss_signal(self, tenant_id: str, signal_id: str) -> None:
+        now = utcnow_iso()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO dismissed_signals (id, tenantId, dismissedAt) VALUES (?, ?, ?)",
+                (signal_id, tenant_id, now),
+            )
+            conn.commit()
+
+    def get_dismissed_signal_ids(self, tenant_id: str) -> set[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id FROM dismissed_signals WHERE tenantId = ?",
+                (tenant_id,),
+            ).fetchall()
+            return {row["id"] for row in rows}
 
     def bootstrap_owner(self, name: str, email: str, password: str, user_agent: str | None = None) -> dict[str, Any]:
         normalized = normalize_email(email)

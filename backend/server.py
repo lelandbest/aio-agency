@@ -10035,19 +10035,14 @@ def _build_system_signals(token: str, session: dict[str, Any]) -> list[dict[str,
     return signals
 
 
-DISMISSED_SIGNALS: set[str] = set()
-
 
 def _dismiss_signal(signal_id: str, tenant_id: str) -> None:
-    DISMISSED_SIGNALS.add(f"{tenant_id}:{signal_id}")
-
-
-def _is_signal_dismissed(signal_id: str, tenant_id: str) -> bool:
-    return f"{tenant_id}:{signal_id}" in DISMISSED_SIGNALS
+    auth_store.dismiss_signal(tenant_id, signal_id)
 
 
 def _build_actionable_signals(token: str, session: dict[str, Any]) -> list[dict[str, Any]]:
     tenant_id = str((session.get("tenant") or {}).get("id") or "").strip()
+    dismissed_ids = auth_store.get_dismissed_signal_ids(tenant_id)
     aggregated = [
         *_build_ai_run_signals(),
         *_build_verification_signals(),
@@ -10056,7 +10051,7 @@ def _build_actionable_signals(token: str, session: dict[str, Any]) -> list[dict[
         *_build_integration_signals(token, tenant_id),
         *_build_system_signals(token, session),
     ]
-    aggregated = [s for s in aggregated if not _is_signal_dismissed(s.get("id", ""), tenant_id)]
+    aggregated = [s for s in aggregated if s.get("id") not in dismissed_ids]
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     aggregated.sort(key=lambda signal: str(signal.get("createdAt") or ""), reverse=True)
     aggregated.sort(key=lambda signal: severity_order.get(str(signal.get("severity") or "low").lower(), 4))

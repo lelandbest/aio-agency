@@ -1539,7 +1539,7 @@ else if (selectedAction === 'transcribeMedia') {
     );
 
     const renderNexusDropZone = () => (
-      <div className="flex h-full flex-col gap-1.5 overflow-hidden">
+      <div className="flex h-full flex-col gap-1.5 overflow-hidden pt-[20px]">
         <div className="flex justify-center gap-1 shrink-0">
           {NEXUS_TABS.map((tab) => (
             <button
