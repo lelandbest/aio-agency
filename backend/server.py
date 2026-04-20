@@ -3168,8 +3168,8 @@ async def export_user_data(request: Request):
 
 
 # Create exports directory
-EXPORTS_DIR = REPO_ROOT / "exports"
-EXPORTS_DIR.mkdir(exist_ok=True)
+EXPORTS_DIR = REPO_ROOT / "runtime" / "exports"
+EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _run_export_task(token: str, export_id: str):
