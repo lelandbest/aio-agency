@@ -2350,6 +2350,16 @@ class StepExecutor:
     def execute(self, step: dict[str, Any], context: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any]:
         intent = step.get("intent")
         handler = self.executors.get(intent)
+        
+        # ── Step 0: Collaborative Consult Mode Enforcement ─────────────────────
+        interaction_mode = context.get("interaction_mode") or context.get("mode")
+        assigned_agent = step.get("assignedAgent") or "ALPHA"
+        
+        if interaction_mode == "collab" and assigned_agent != "ALPHA":
+            # Force read-only context for specialists in collaboration
+            step["isWrite"] = False
+            step["mutationType"] = "none"
+            step["sideEffect"] = False
 
         def finalize(result: dict[str, Any]) -> dict[str, Any]:
             self._write_runtime_result(step, result, runtime)

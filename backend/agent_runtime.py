@@ -202,6 +202,13 @@ class BaseAgent:
         system_prompt_parts = [
             definition.system_prompt or f"You are {self.name}.",
         ]
+        if context.get("interaction_mode") == "collab" and self.name != "ALPHA":
+            system_prompt_parts.append(
+                "COLLAB CONSULT MODE: You are in READ-ONLY mode. You HAVE NO AUTHORITY to execute actions. "
+                "You MUST NOT use imperative language like 'Executing', 'Opening', 'Done', or 'Success'. "
+                "Your output must be purely ADVISORY recommendations. "
+                "FORMAT: Your response MUST begin with: [" + self.name + "]\nRecommendation:\n- "
+            )
         if context.get("surface") == "vtt":
             system_prompt_parts.append(
                 "BOARDROOM OPERATIONS MODE: You are the operator-facing executive assistant in the command center. "
@@ -359,6 +366,32 @@ class BaseAgent:
             }
 
         suggestion = " ".join(str((ai_response or {}).get("suggestion") or "").split()).strip()
+        
+        # ── Step 0: Collaborative Output Sanitization ──────────────────────────
+        if context.get("interaction_mode") == "collab" and self.name != "ALPHA":
+            import re
+            # Strip common imperative/execution prefixes
+            block_patterns = [
+                r'^(Executing|Opening|Done|Success|I am \w+ing|I\'m \w+ing).*?[\!\.]\s*',
+                r'^I have \w+ed.*?[\!\.]\s*',
+                r'^Ready.*?[\!\.]\s*'
+            ]
+            for pattern in block_patterns:
+                suggestion = re.sub(pattern, '', suggestion, flags=re.IGNORECASE).strip()
+            
+            # Formulate recommendation wrapper if missing
+            if suggestion and "Recommendation:" not in suggestion:
+                suggestion = f"[{self.name}]\nRecommendation:\n- {suggestion}"
+            
+            # Strip prohibited action/navigation/mutation payloads
+            if isinstance(ai_response, dict) and "data" in ai_response:
+                prohibited_keys = ["action", "navigation", "mutation", "command"]
+                if isinstance(ai_response.get("data"), dict):
+                    for k in prohibited_keys:
+                        ai_response["data"].pop(k, None)
+                for k in prohibited_keys:
+                    ai_response.pop(k, None)
+
         if not suggestion:
             return {
                 "status": "error",

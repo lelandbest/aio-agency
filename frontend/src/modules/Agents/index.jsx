@@ -1015,10 +1015,10 @@ const AIOAgentsModule = () => {
   const mainAgentId = resolveRuntimeAgentId(activeAgent?.registryKey || selectedAgent || derivedAgentKey);
   const activeAgentDisplayName = resolveAgentName(activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || 'CHARLIE');
   const activeAgentSkillset = resolveAgentSkillset(activeAgent?.registryKey || selectedAgent || derivedAgentKey || 'CHARLIE');
-  const activeBotKey = activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || '';
+  const activeBotKey = selectionMode === 'collab' ? '' : (activeAgent?.registryKey || activeAgent?.name || selectedAgent || derivedAgentKey || '');
   const botEntitySummary = useMemo(
     () => (roleBundle?.entitySummaries || []).find((entity) => entity.entityType === 'bot' && entity.entityId === activeBotKey) || null,
-    [roleBundle, activeBotKey]
+    [roleBundle, activeBotKey, selectionMode]
   );
   const botAssignedRoles = useMemo(
     () => (roleBundle?.roles || []).filter((role) => (botEntitySummary?.roleIds || []).includes(role.id)),
@@ -1069,14 +1069,16 @@ const AIOAgentsModule = () => {
       .filter((key) => key && key !== 'ALPHA' && key !== 'OMEGA');
     return commandPostOrder.length ? commandPostOrder : (SPECIALIST_REGISTRY.ALPHA?.subordinates || []);
   })();
-  const contextAgentName = resolveAgentName(activeRunAgent || selectedAgent || '');
-  const contextAgentId = resolveRuntimeAgentId(activeRunAgent || selectedAgent || '');
-  const commandModeLabel = activeFlowLabel && contextAgentName ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentName ? 'Agent' : 'System';
+  const contextAgentName = selectionMode === 'collab' ? null : resolveAgentName(activeRunAgent || selectedAgent || '');
+  const contextAgentId = selectionMode === 'collab' ? null : resolveRuntimeAgentId(activeRunAgent || selectedAgent || '');
+  const commandModeLabel = selectionMode === 'collab' 
+    ? 'Common Mode' 
+    : (activeFlowLabel && contextAgentName ? 'Agent + Flow' : activeFlowLabel ? 'Flow' : contextAgentName ? 'Agent' : 'System');
   const sessionDirective = hasActiveRun
     ? `RUN ${activeRunStatus}. ${activeRunAgent ? `ACTIVE AGENT ${resolveAgentName(activeRunAgent)}. ` : ''}${activeRunCommand ? `COMMAND: ${activeRunCommand}. ` : ''}${error ? `ERROR: ${error}` : activeRunOutput ? `RESULT: ${activeRunOutput}` : 'AWAITING CANONICAL OUTPUT.'}`
     : selectedFlow
       ? `SYSTEM READY. FLOW ${selectedFlow.name.toUpperCase()} IS BOUND FOR EXECUTION. SUBMIT A COMMAND TO START A CANONICAL RUN.`
-      : selectedAgent
+      : (selectedAgent && selectionMode !== 'collab')
         ? `SYSTEM READY. TARGET ${mainAgentName} IS SELECTED.${collabAgents.length ? ` COLLAB: ${collabAgents.map(k => resolveAgentName(k)).join(', ')}.` : ''} SUBMIT A COMMAND TO START A CANONICAL RUN.`
         : collabAgents.length
           ? `SYSTEM READY. COLLAB GROUP ${collabAgents.map(k => resolveAgentName(k)).join(', ')} IS STAGED. SUBMIT A COMMAND TO START A CANONICAL RUN.`
@@ -2157,7 +2159,7 @@ const AIOAgentsModule = () => {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setSelectionMode('collab')}
+                                  onClick={() => { setSelectionMode('collab'); setSelectedAgent(null); }}
                                   className={`flex-1 rounded-[calc(var(--radius-card)-4px)] px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.18em] transition-colors ${selectionMode === 'collab'
                                     ? 'bg-amber-500/20 text-amber-200'
                                     : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
@@ -2287,7 +2289,7 @@ const AIOAgentsModule = () => {
                         </div>
                       </div>
 
-                      {canManageRoles && activeBotKey ? (
+                      {canManageRoles && activeBotKey && selectionMode !== 'collab' ? (
                         <div className="border border-white/10 bg-black rounded p-4 space-y-3">
                           <div>
                             <div className="text-[8px] font-black uppercase tracking-widest text-white/30">Role Authority</div>

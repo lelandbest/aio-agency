@@ -35,6 +35,10 @@ const COMMS_COLUMN_BG = 'bg-[linear-gradient(180deg,color-mix(in_srgb,var(--colo
 const COMMS_MAIN_BG = 'bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-bg-secondary)_82%,transparent),color-mix(in_srgb,var(--color-bg-primary)_88%,transparent)_38%,color-mix(in_srgb,var(--color-bg-primary)_94%,transparent))]';
 const COMMS_TOOLBAR_PRIMARY = 'rounded-[var(--radius-card)] border border-[var(--color-primary)]/45 bg-[linear-gradient(180deg,rgba(32,71,126,0.28),rgba(12,22,38,0.42))] px-5 text-[var(--color-text-primary)] shadow-island-sm hover:border-[var(--color-primary)]/65 hover:bg-[linear-gradient(180deg,rgba(40,88,154,0.36),rgba(13,24,42,0.48))] transition-all';
 const COMMS_TOOLBAR_GHOST = 'rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 text-[var(--color-text-secondary)] shadow-island-sm hover:border-[var(--color-primary)]/45 hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)] transition-all';
+
+const APPLIANCE_CHASSIS = 'rounded-[var(--radius-panel)] border border-white/5 bg-[#0a0a0c] shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),inset_0_-1px_1px_rgba(0,0,0,0.6),0_12px_32px_rgba(0,0,0,0.6)] relative overflow-hidden';
+const APPLIANCE_CONTROL = 'bg-black/40 border border-white/5 rounded-[var(--radius-card)] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] hover:bg-black/60 transition-all';
+const APPLIANCE_INNER_SHADOW = 'shadow-[inset_0_1px_3px_rgba(0,0,0,0.8),0_1px_1px_rgba(255,255,255,0.02)]';
 import { 
   getBrainOverviewApi, 
   updateBrainProfileApi, 
@@ -165,38 +169,38 @@ const NeuralEngine = ({ activeProviderId, onProviderChange, activeModelId, onMod
   const provider = providers.find(p => p.providerKey === activeProviderId) || { models: [] };
   
   return (
-    <div className={COMMS_SUBPANEL + " p-4 flex flex-col gap-3 relative z-[200] bg-[#0d0d0f]"}>
-      <SubPanelHeader title="Neural Engine" icon={BrainIcon} marginBottom="mb-3" />
-      <div className="space-y-4">
+    <div className={APPLIANCE_CHASSIS + " p-3.5 flex flex-col gap-2 relative z-[200]"}>
+      <SubPanelHeader title="Neural Engine" icon={BrainIcon} marginBottom="mb-2" />
+      <div className="space-y-3">
         <div className="relative">
-          <div className="text-[11px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mb-1.5 ml-1">Provider</div>
+          <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 ml-1">Provider</div>
           <select 
             value={activeProviderId}
             onChange={(e) => onProviderChange(e.target.value)}
-            className="w-full bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] font-black uppercase tracking-widest text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]/40 transition-all cursor-pointer shadow-island-sm appearance-none"
+            className="w-full bg-[#050505] border border-white/5 rounded-[var(--radius-card)] px-4 py-2.5 text-[12px] font-black uppercase tracking-widest text-slate-300 outline-none focus:border-sky-500/30 transition-all cursor-pointer shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)] appearance-none"
           >
             {providers.filter(p => p.apiKeyPresent || p.providerKey === 'ollama' || p.isConnected).map(p => (
-              <option key={p.providerKey} value={p.providerKey} className="bg-[var(--color-bg-secondary)] text-sm italic">{p.label || p.providerKey}</option>
+              <option key={p.providerKey} value={p.providerKey} className="bg-[#050505] text-sm">{p.label || p.providerKey}</option>
             ))}
           </select>
-          <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-4 top-[34px] text-slate-600 pointer-events-none" />
         </div>
         <div className="relative">
-          <div className="text-[11px] font-black text-[var(--color-text-tertiary)] uppercase tracking-widest mb-1.5 ml-1">Model</div>
+          <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 ml-1">Model</div>
           <select 
             value={activeModelId}
             onChange={(e) => onModelChange(e.target.value)}
-            className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-[var(--radius-card)] px-4 py-3 text-[13px] font-black uppercase tracking-widest text-[var(--color-text-primary)] outline-none focus:border-sky-500/40 transition-all cursor-pointer shadow-[var(--shadow-base)] appearance-none"
+            className="w-full bg-[#050505] border border-white/5 rounded-[var(--radius-card)] px-4 py-2.5 text-[12px] font-black uppercase tracking-widest text-slate-300 outline-none focus:border-sky-500/30 transition-all cursor-pointer shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)] appearance-none"
           >
             {provider.models?.length > 0 ? provider.models.map(m => (
-              <option key={m} value={m} className="bg-[var(--color-bg-tertiary)] text-sm italic">{m}</option>
+              <option key={m} value={m} className="bg-[#050505] text-sm">{m}</option>
             )) : provider.model ? (
-              <option key={provider.model} value={provider.model} className="bg-[var(--color-bg-tertiary)] text-sm italic">{provider.model}</option>
+              <option key={provider.model} value={provider.model} className="bg-[#050505] text-sm">{provider.model}</option>
             ) : (
-              <option key="default" value="" className="bg-[var(--color-bg-tertiary)] text-sm italic">Select Provider First</option>
+              <option key="default" value="" className="bg-[#050505] text-sm">Select Provider First</option>
             )}
           </select>
-          <ChevronDown size={16} className="absolute right-4 top-[38px] text-[var(--color-text-tertiary)] pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-4 top-[34px] text-slate-600 pointer-events-none" />
         </div>
       </div>
     </div>
@@ -578,20 +582,20 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
   };
 
   return (
-    <div className={COMMS_SUBPANEL + " flex flex-col h-[380px] overflow-hidden relative z-40 bg-[#0d0d0f]"}>
-      <div className="p-1 border-b border-white/5 bg-black/20 flex gap-1.5 justify-center">
+    <div className={APPLIANCE_CHASSIS + " flex flex-col h-[320px] relative z-40"}>
+      <div className="p-1 border-b border-white/5 bg-black/40 flex gap-1 justify-center shrink-0">
         {['files', 'web', 'mcp'].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`${activeTab === tab ? COMMS_TOOLBAR_PRIMARY : COMMS_TOOLBAR_GHOST} h-9 px-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center whitespace-nowrap min-w-[80px]`}>
-            {tab === 'files' ? 'File Ingest' : tab === 'web' ? 'Web Ingest' : 'MCP Link'}
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`${activeTab === tab ? COMMS_TOOLBAR_PRIMARY : 'text-slate-500 hover:text-slate-300'} h-8 px-3 text-[9px] font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center whitespace-nowrap min-w-[70px]`}>
+            {tab === 'files' ? 'Files' : tab === 'web' ? 'Web' : 'MCP'}
           </button>
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar p-2">
+      <div className="flex-1 overflow-hidden p-2.5">
         {activeTab === 'files' && (
           <div className="h-full flex flex-col">
             <div 
-              className={`flex-1 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-6 transition-all cursor-pointer group relative overflow-hidden ${dragCategory ? 'bg-sky-500/15 border-sky-400 shadow-[0_0_40px_rgba(56,189,248,0.15)]' : 'border-slate-800 bg-black/40 hover:border-sky-500/40 hover:bg-white/[0.02]'}`}
+              className={`flex-1 border border-white/5 rounded-[var(--radius-outer)] flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group relative overflow-hidden ${APPLIANCE_INNER_SHADOW} ${dragCategory ? 'bg-sky-500/10 border-sky-400/30' : 'bg-[#050505] hover:bg-black/60'}`}
               onDragOver={handleDragOver}
               onDragLeave={() => setDragCategory(null)}
               onDrop={(e) => { 
@@ -618,38 +622,38 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
                 }
               }}
             >
-              <div className="flex flex-col items-center gap-6 pointer-events-none z-10">
-                <div className={`p-8 rounded-full bg-slate-900/50 border border-slate-700/50 shadow-2xl transition-all duration-500 ${dragCategory ? 'scale-110 border-sky-400/50' : 'group-hover:scale-105'}`}>
-                  <UploadCloud size={48} className={`transition-all duration-500 ${dragCategory ? 'text-sky-400 animate-bounce' : 'text-slate-600 group-hover:text-sky-400/80'}`} />
+              <div className="flex flex-col items-center gap-3 pointer-events-none z-10">
+                <div className={`p-5 rounded-full bg-slate-900/40 border border-white/5 shadow-2xl transition-all duration-500 ${dragCategory ? 'scale-110 border-sky-400/50' : 'group-hover:scale-105'}`}>
+                  <UploadCloud size={32} className={`transition-all duration-500 ${dragCategory ? 'text-sky-400 animate-bounce' : 'text-slate-600 group-hover:text-sky-400/80'}`} />
                 </div>
-                <div className="text-center space-y-2">
+                <div className="text-center space-y-1">
                   <div className="flex flex-col items-center leading-tight">
-                    <div className="text-[20px] font-black uppercase tracking-[0.5em] text-slate-100/90 selection:bg-sky-500/20 font-ethnocentric">Nexus</div>
-                    <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-400 group-hover:text-slate-300 transition-colors">Drop Zone</div>
+                    <div className="text-[16px] font-black uppercase tracking-[0.4em] text-slate-200/90 font-ethnocentric">Nexus</div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-500 group-hover:text-slate-400 transition-colors">Drop Zone</div>
                   </div>
-                  <div className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] group-hover:text-slate-500 transition-colors">Drop assets or paste JSON/raw data</div>
+                  <div className="text-[8px] font-bold text-slate-700 uppercase tracking-widest group-hover:text-slate-600 transition-colors">Industrial Data Ingest</div>
                 </div>
 
                 {pendingFile && isAVFile(pendingFile) && (
-                  <div className="mt-4 p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="mt-2 p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center gap-2">
                     <input 
                       type="checkbox" 
                       id="transcribe-toggle"
                       checked={requestTranscription}
                       onChange={(e) => setRequestTranscription(e.target.checked)}
-                      className="accent-sky-500 h-4 w-4 bg-slate-900 border-slate-700"
+                      className="accent-sky-500 h-3 w-3 bg-slate-900 border-slate-700"
                     />
-                    <label htmlFor="transcribe-toggle" className="text-[10px] font-black uppercase tracking-widest text-sky-400 cursor-pointer">Transcribe & Store in Unison</label>
+                    <label htmlFor="transcribe-toggle" className="text-[8px] font-black uppercase tracking-widest text-sky-400 cursor-pointer">Transcribe & Store</label>
                   </div>
                 )}
               </div>
 
               {/* Background Glow */}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.03),transparent_70%)] pointer-events-none" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.02),transparent_80%)] pointer-events-none" />
               
               <textarea 
                 placeholder="PROMPT / DATA INPUT"
-                className="absolute inset-0 w-full h-full bg-slate-900/90 border-0 outline-none text-[13px] text-sky-400 p-12 resize-none font-mono no-scrollbar opacity-0 focus:opacity-100 transition-opacity z-20 placeholder:text-slate-700 text-center flex items-center justify-center"
+                className="absolute inset-0 w-full h-full bg-slate-950/90 border-0 outline-none text-[12px] text-sky-400 p-8 resize-none font-mono no-scrollbar opacity-0 focus:opacity-100 transition-opacity z-20 placeholder:text-slate-700 text-center flex items-center justify-center"
                 onChange={(e) => {
                   const file = new File([e.target.value], "pasted-content.txt", {type: "text/plain"});
                   setPendingFile(file);
@@ -666,8 +670,8 @@ const SourceNexus = ({ onIngestFile, onSyncLink, onProbeMcp }) => {
               />
             </div>
             
-            <div className="mt-3 flex justify-center">
-              <div className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-400 uppercase tracking-widest">Extension Aware</div>
+            <div className="mt-2 flex justify-center">
+              <div className="px-2 py-0.5 rounded-full bg-sky-500/5 border border-white/5 text-[8px] font-black text-slate-600 uppercase tracking-widest">Extension Aware</div>
             </div>
           </div>
         )}
@@ -763,8 +767,8 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
   const statusColor = total === 0 ? 'text-slate-600' : total > 50 ? 'text-magenta-500' : 'text-sky-400';
 
   return (
-    <div className={COMMS_SUBPANEL + " p-4 flex-1 flex flex-col min-h-0 relative z-30 overflow-hidden bg-[#0d0d0f]"}>
-      <SubPanelHeader title="VAULT" icon={Lock} marginBottom="mb-3" />
+    <div className={APPLIANCE_CHASSIS + " p-3.5 flex-1 flex flex-col min-h-0 relative z-30"}>
+      <SubPanelHeader title="VAULT" icon={Lock} marginBottom="mb-2.5" />
       
       <div className="grid grid-cols-2 gap-2 flex-none mt-1">
         {CATEGORIES.filter(c => c.id !== 'b-hlp').map(cat => {
@@ -777,20 +781,20 @@ const SavedIntelligence = ({ items, vaultItems = [], onSelectCategory }) => {
               className={`
                 flex flex-col items-center justify-center p-2 rounded-xl border transition-all group
                 ${isGhost 
-                   ? 'bg-slate-900/10 border-slate-800/30 opacity-30 grayscale' 
-                   : 'bg-white/[0.02] border-white/5 hover:border-sky-500/40 hover:bg-sky-500/5 shadow-md'}
+                   ? 'bg-slate-950/20 border-white/5 opacity-20 grayscale shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]' 
+                   : 'bg-black/40 border-white/10 hover:border-sky-500/40 hover:bg-sky-500/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]'}
               `}
             >
-              <cat.icon size={16} className={isGhost ? 'text-slate-500' : 'text-sky-300 group-hover:scale-110 transition-transform'} />
-              <div className="mt-1.5 text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-slate-300 transition-colors">{cat.label}</div>
-              <div className="mt-0.5 text-[11px] font-black text-slate-200">{count}</div>
+              <cat.icon size={14} className={isGhost ? 'text-slate-600' : 'text-sky-400 group-hover:scale-110 transition-transform'} />
+              <div className="mt-1 text-[8px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-400 transition-colors">{cat.label}</div>
+              <div className="mt-0.5 text-[10px] font-black text-slate-300">{count}</div>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-auto pt-3 border-t border-white/5 flex justify-center">
-        <div className={`text-[8px] font-black uppercase tracking-[0.3em] ${statusColor} animate-pulse`}>{status}</div>
+      <div className="mt-auto pt-2.5 border-t border-white/5 flex justify-center">
+        <div className={`text-[8px] font-black uppercase tracking-[0.3em] ${statusColor} opacity-60`}>{status}</div>
       </div>
     </div>
   );
@@ -977,70 +981,71 @@ const AIInsights = ({ onRunReport, activeReportId, output, setOutput, onSave }) 
   };
 
   return (
-    <div className={COMMS_PANEL + " flex-1 flex flex-col h-full overflow-hidden bg-[#0a0a0c]"}>
-      <div className="p-4 border-b border-slate-800/60 bg-black/20">
-        <div className="flex items-center gap-3">
+    <>
+      <div className={APPLIANCE_CHASSIS + " p-3.5 flex flex-col shrink-0"}>
+        <div className="flex items-center gap-3 mb-2.5">
           <Cpu size={16} className="text-sky-400" />
-          <div className="text-[14px] font-black uppercase tracking-[0.4em] text-slate-100 leading-none">AI Insights</div>
+          <div className="text-[12px] font-black uppercase tracking-[0.4em] text-slate-100 leading-none">AI Insights</div>
         </div>
-        <div className="text-[9px] font-black text-sky-500/60 uppercase tracking-[0.3em] mt-2 ml-7">Operational Insights</div>
+        <div className="grid grid-cols-3 gap-2">
+          {INSIGHT_REPORTS.map(report => (
+            <button 
+              key={report.id} 
+              onClick={() => onRunReport(report)} 
+              disabled={activeReportId === report.id} 
+              title={report.description}
+              className={`w-full aspect-square text-center transition-all flex flex-col items-center justify-center p-2 rounded-lg border active:scale-[0.98]
+                ${activeReportId === report.id 
+                  ? 'bg-sky-500/10 border-sky-400 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_0_12px_rgba(56,189,248,0.2)]' 
+                  : 'bg-black/40 border-white/5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.6),0_1px_0_rgba(255,255,255,0.02)] hover:border-white/10 hover:bg-black/60'} 
+                group/card overflow-hidden`}
+            >
+              <div className="text-[9px] font-black uppercase tracking-widest leading-tight text-slate-500 group-hover/card:text-slate-300 transition-colors text-center px-0.5">
+                {report.label}
+              </div>
+              {activeReportId === report.id && <Loader2 size={10} className="text-sky-400 animate-spin mt-1.5" />}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 bg-black/5 flex-none min-h-0 border-b border-slate-800/40">
-          <div className="grid grid-cols-3 gap-3">
-            {INSIGHT_REPORTS.map(report => (
-              <button 
-                key={report.id} 
-                onClick={() => onRunReport(report)} 
-                disabled={activeReportId === report.id} 
-                title={report.description}
-                className={`w-full aspect-square text-center transition-all flex flex-col items-center justify-center p-3 rounded-xl border transition-all active:scale-[0.98]
-                  ${activeReportId === report.id 
-                    ? 'bg-sky-500/20 border-sky-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_0_15px_rgba(56,189,248,0.2)]' 
-                    : 'bg-[#1a1a1e] border-slate-800 border-t-slate-700/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_4px_6px_-1px_rgba(0,0,0,0.5)] hover:border-slate-700 hover:bg-[#1e1e22] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_6px_8px_-1px_rgba(0,0,0,0.6)]'} 
-                  group/card overflow-hidden`}
-              >
-                <div className="text-[10px] font-black uppercase tracking-widest leading-none text-slate-400 group-hover/card:text-sky-400 transition-colors text-center px-1">
-                  {report.label}
-                </div>
-                {activeReportId === report.id && <Loader2 size={12} className="text-sky-400 animate-spin mt-2" />}
-              </button>
-            ))}
-          </div>
+
+      <div className={APPLIANCE_CHASSIS + " p-3.5 flex-1 flex flex-col min-h-0"}>
+        <div className="flex items-center gap-3 mb-2.5">
+          <Activity size={16} className="text-sky-400" />
+          <div className="text-[12px] font-black uppercase tracking-[0.4em] text-slate-100 leading-none">Synthesis Output</div>
         </div>
-        <div className="flex-1 border-t border-slate-800/60 flex flex-col bg-black/20 relative">
+        <div className="flex-1 flex flex-col bg-black/40 border border-white/5 rounded-[var(--radius-card)] shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)] relative overflow-hidden">
           <textarea 
             value={output} 
             onChange={(e) => setOutput(e.target.value)} 
             placeholder="Analysis output appears here..." 
-            className="flex-1 w-full bg-transparent p-6 pb-20 text-[12px] font-medium text-slate-400 outline-none resize-none font-mono no-scrollbar selection:bg-sky-500/20" 
+            className="flex-1 w-full bg-transparent p-4 pb-20 text-[11px] font-medium text-slate-400 outline-none resize-none font-mono no-scrollbar selection:bg-sky-500/20" 
           />
           
-          {/* Bottom Center Controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800 shadow-island z-[100] transition-all">
-            <button onClick={handleCopy} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-[var(--color-primary)] transition-all border border-transparent hover:border-[var(--color-border)]" title="Copy Content"><Code size={18} /></button>
-            <button onClick={handleDownload} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-magenta-400 transition-all border border-transparent hover:border-[var(--color-border)]" title="Download (.txt)"><Save size={18} /></button>
-            <button onClick={() => setOutput('')} className="p-2.5 rounded-[var(--radius-card)] hover:bg-white/5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-all border border-transparent hover:border-[var(--color-border)]" title="Clear Output"><RefreshCcw size={18} /></button>
-            <div className="w-[1px] h-6 bg-slate-800 mx-1" />
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1 rounded-xl bg-[#0a0a0c] border border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_10px_30px_rgba(0,0,0,0.7)] z-[100] transition-all">
+            <button onClick={handleCopy} className="p-2 rounded-lg hover:bg-white/5 text-slate-500 hover:text-sky-400 transition-all border border-transparent hover:border-white/5" title="Copy Content"><Code size={16} /></button>
+            <button onClick={handleDownload} className="p-2 rounded-lg hover:bg-white/5 text-slate-500 hover:text-magenta-400 transition-all border border-transparent hover:border-white/5" title="Download (.txt)"><Save size={16} /></button>
+            <button onClick={() => setOutput('')} className="p-2 rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-all border border-transparent hover:border-white/5" title="Clear Output"><RefreshCcw size={16} /></button>
+            <div className="w-[1px] h-4 bg-white/5 mx-1" />
             <button 
               onClick={onSave} 
               disabled={!output} 
-              className="px-6 h-10 rounded-xl bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-sky-400 transition-all disabled:opacity-30 shadow-[0_0_20px_rgba(56,189,248,0.2)]"
+              className="px-5 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500/20 shadow-island-sm transition-all disabled:opacity-30"
+              style={{ height: '32px' }}
             >
-              Commit Report
+              Commit
             </button>
           </div>
 
-          <div className="px-5 py-3 border-t border-slate-800/40 bg-black/30 flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-slate-600">
+          <div className="px-4 py-2 border-t border-white/5 bg-black/20 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-600">
             <div className="flex items-center gap-4">
-              <span>Chars: {output.length}</span>
-              {activeReportId && <span className="text-sky-500 animate-pulse">Running analysis...</span>}
+              <span>Chars: {output?.length || 0}</span>
+              <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500" /> Cortex Online</span>
             </div>
-            <div className="flex items-center gap-1.5 opacity-60"><div className="h-1 w-1 rounded-full bg-sky-500 animate-pulse" />Cortex Online</div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -1157,11 +1162,9 @@ const Cortex = () => {
       <div className="grid grid-cols-[25%_1fr_25%] gap-[8px] w-full h-full relative z-10">
         {/* Island 1: Hardware & Source Controls */}
         <aside 
-          className="flex flex-col gap-[8px] rounded-[var(--radius-panel)] border border-slate-800/60 bg-[#0d0d0f] p-6 z-30 h-full shadow-2xl no-scrollbar overflow-y-auto relative"
+          className="flex flex-col gap-[8px] z-30 h-full no-scrollbar overflow-y-auto"
           onClick={() => setInteractionArmed(false)}
         >
-          {/* Edge Highlight Effect */}
-          <div className="absolute inset-x-0 top-0 h-px bg-white/5 pointer-events-none" />
           <NeuralEngine 
             activeProviderId={activeProviderId} 
             activeModelId={activeModelId} 
@@ -1227,11 +1230,9 @@ const Cortex = () => {
 
         {/* Island 3: Synthesis & Insights */}
         <aside 
-          className="flex flex-col rounded-[var(--radius-panel)] border border-slate-800/60 bg-[#0d0d0f] p-6 z-20 h-full shadow-2xl relative"
+          className="flex flex-col gap-[8px] z-20 h-full"
           onClick={() => setInteractionArmed(false)}
         >
-          {/* Edge Highlight Effect */}
-          <div className="absolute inset-x-0 top-0 h-px bg-white/5 pointer-events-none" />
           <AIInsights 
             activeReportId={activeReportId} 
             onRunReport={async (r) => { 

@@ -33,7 +33,7 @@ const buildNodeLayout = (profile, sources, items) => {
     const anchorY = sourceAnchor ? sourceAnchor.y : centerY;
     
     const angle = ((index * 137.5) % 360) * (Math.PI / 180);
-    const radius = sourceAnchor ? 10 : 35;
+    const radius = sourceAnchor ? 7 : 28;
     
     return {
       id: item.id,
@@ -177,25 +177,46 @@ export default function BrainGraphPanel({
       
       if (node.id === 'profile') return { ...node, x: baseX, y: baseY };
       
+      // Orbital Rotation for Source-Link Items ONLY
+      if (node.type === 'item' && node.sourceId) {
+        const targetNode = nodesById[node.sourceId];
+        if (targetNode) {
+          const tX = nodePositions[targetNode.id]?.x ?? targetNode.x;
+          const tY = nodePositions[targetNode.id]?.y ?? targetNode.y;
+          
+          const phase = (node.id.charCodeAt(0) || 0) * 0.5 + (node.id.length * 45);
+          const orbitSpeed = 0.4;
+          const angle = (time * orbitSpeed) + phase;
+          const radius = 7;
+          
+          return {
+            ...node,
+            x: tX + Math.cos(angle) * radius,
+            y: tY + Math.sin(angle) * radius,
+          };
+        }
+      }
+
+      // Standard Pulse/Drift for Sources & Direct AIO Items
       const dx = baseX - 50;
       const dy = baseY - 50;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist === 0) return { ...node, x: baseX, y: baseY };
       
-      const pulseAmount = Math.sin(time + dist * 0.1 + (node.id.length * 0.5)) * 1.5;
-      const driftX = Math.sin(time * 0.5 + node.id.length) * 1.2;
-      const driftY = Math.cos(time * 0.4 + node.id.length) * 1.2;
+      const isItem = node.type === 'item';
+      const intensity = isItem ? 0.6 : 1.0;
       
-      const offX = (dx / dist) * pulseAmount + driftX;
-      const offY = (dy / dist) * pulseAmount + driftY;
+      const pulseAmount = Math.sin(time + dist * 0.1 + (node.id.length * 0.5)) * (1.5 * intensity);
+      const driftX = Math.sin(time * 0.5 + node.id.length) * (1.2 * intensity);
+      const driftY = Math.cos(time * 0.4 + node.id.length) * (1.2 * intensity);
       
       return {
         ...node,
-        x: baseX + offX,
-        y: baseY + offY,
+        x: baseX + (dx / dist) * pulseAmount + driftX,
+        y: baseY + (dy / dist) * pulseAmount + driftY,
       };
     });
-  }, [nodePositions, nodes, time]);
+  }, [nodePositions, nodes, time, nodesById]);
 
   const edges = useMemo(() => {
     const nodesMap = Object.fromEntries(positionedNodes.map(n => [n.id, n]));
@@ -216,28 +237,36 @@ export default function BrainGraphPanel({
     };
 
     return [
-      ...sourceNodes.map((node) => {
-        const trimmed = trimEdge(node, profileNode, 5.2);
-        return {
-          id: `s-${node.id}`,
-          from: node,
-          to: trimmed,
-          opacity: 0.5,
-        };
-      }),
-      ...itemNodes.map((node) => {
-        const target = node.sourceId ? nodesMap[node.sourceId] || profileNode : profileNode;
-        const radius = target.id === 'profile' ? 5.2 : (target.type === 'source' ? 2.2 : 1.2);
-        const trimmed = trimEdge(node, target, radius);
-        return {
-          id: `i-${node.id}`,
-          from: node,
-          to: trimmed,
-          opacity: 0.35,
-        };
-      }),
-    ].filter(e => e.from && e.to);
-  }, [positionedNodes]);
+      ...sourceNodes
+        .filter(n => nodeFilter === 'all' || nodeFilter === 'source')
+        .map((node) => {
+          const trimmed = trimEdge(node, profileNode, 5.2);
+          return {
+            id: `s-${node.id}`,
+            from: node,
+            to: trimmed,
+            opacity: 0.5,
+          };
+        }),
+      ...itemNodes
+        .filter(n => nodeFilter === 'all' || nodeFilter === 'item')
+        .map((node) => {
+          const target = node.sourceId ? nodesMap[node.sourceId] || profileNode : profileNode;
+          // Only show edge if target is also visible (or is profile)
+          const isTargetVisible = nodeFilter === 'all' || target.type === 'profile' || target.type === nodeFilter;
+          if (!isTargetVisible) return null;
+          
+          const radius = target.id === 'profile' ? 5.2 : (target.type === 'source' ? 2.2 : 1.2);
+          const trimmed = trimEdge(node, target, radius);
+          return {
+            id: `i-${node.id}`,
+            from: node,
+            to: trimmed,
+            opacity: 0.35,
+          };
+        }),
+    ].filter(e => e && e.from && e.to);
+  }, [positionedNodes, nodeFilter]);
 
   const beginPan = (event) => {
     if (!interactionArmed || contextNodeId) return;
@@ -367,7 +396,7 @@ export default function BrainGraphPanel({
             ))}
           </svg>
 
-          {positionedNodes.filter(n => nodeFilter === 'all' || n.type === nodeFilter).map(node => (
+          {positionedNodes.filter(n => nodeFilter === 'all' || n.type === nodeFilter || n.type === 'profile').map(node => (
             <div
               key={node.id}
               data-graph-node
@@ -379,10 +408,10 @@ export default function BrainGraphPanel({
               <div 
                   className={`
                     border rounded-full transition-all 
-                    ${toneClassByType[node.type]} 
-                    ${nodeSizeClass[node.size]} 
+                    ${node.label === 'Core positioning' ? toneClassByType.item : toneClassByType[node.type]} 
+                    ${node.label === 'Core positioning' ? nodeSizeClass.xs : nodeSizeClass[node.size]} 
                     ${node.type === 'profile' ? 'brain-pulse-fluctuate !border-transparent' : 'neural-node-active'}
-                    ${node.type === 'source' ? 'neural-glow-aio' : ''}
+                    ${(node.type === 'source' && node.label !== 'Core positioning') ? 'neural-glow-aio' : ''}
                     ${node.type === 'profile' ? 'bg-transparent' : ''}
                     ${selectedNodeId === node.id ? 'scale-150 !border-sky-400 ring-4 ring-sky-400/20' : 'hover:scale-125'}
                     flex items-center justify-center relative
