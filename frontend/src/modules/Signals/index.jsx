@@ -430,7 +430,7 @@ function HealthDetailDrawer({
   );
 }
 
-function SignalRow({ signal, onAction, busyActionType }) {
+function SignalRow({ signal, onAction, busyActionType, isSelected }) {
   const tone = severityClasses(signal.severity);
   const Icon = severityIcon(signal.severity);
   const contextSummary = summarizeContext(signal);
@@ -438,7 +438,10 @@ function SignalRow({ signal, onAction, busyActionType }) {
   const isBusy = busyActionType && busyActionType === (primaryAction?.actionType || 'dismiss');
 
   return (
-    <div className={`flex items-center gap-3 px-3 py-2 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors`}>
+    <div 
+      onClick={() => onAction({ actionType: 'view_detail' }, signal)}
+      className={`flex items-center gap-3 px-3 py-2 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors cursor-pointer ${isSelected ? 'bg-cyan-500/10' : ''}`}
+    >
       <div className={`shrink-0 w-1.5 h-8 rounded-full ${
         signal.severity === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 
         signal.severity === 'high' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.2)]' : 
@@ -460,7 +463,7 @@ function SignalRow({ signal, onAction, busyActionType }) {
       <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
         {primaryAction && (
           <button
-            onClick={() => onAction(primaryAction, signal)}
+            onClick={(e) => { e.stopPropagation(); onAction(primaryAction, signal); }}
             disabled={Boolean(busyActionType)}
             className={`px-2 py-1 rounded border text-[9px] font-bold uppercase tracking-wider transition-all shadow-sm ${tone.button}`}
           >
@@ -468,13 +471,13 @@ function SignalRow({ signal, onAction, busyActionType }) {
           </button>
         )}
         <button
-          onClick={() => onAction({ actionType: 'open_comms' }, signal)}
+          onClick={(e) => { e.stopPropagation(); onAction({ actionType: 'open_comms' }, signal); }}
           className="px-2 py-1 rounded border border-slate-700/50 bg-slate-800/50 text-[9px] font-bold uppercase tracking-wider text-slate-300 hover:bg-slate-700"
         >
           Open
         </button>
         <button
-          onClick={() => onAction({ actionType: 'dismiss' }, signal)}
+          onClick={(e) => { e.stopPropagation(); onAction({ actionType: 'dismiss' }, signal); }}
           disabled={Boolean(busyActionType)}
           className="px-2 py-1 rounded border border-red-500/20 bg-red-500/5 text-[9px] font-bold uppercase tracking-wider text-red-300 hover:bg-red-500/20"
         >
@@ -553,7 +556,10 @@ export default function SignalsModule() {
         if (isRefresh) setRefreshing(true);
         const nextSignals = await getSignalsApi();
         if (cancelled) return;
-        setSignals(Array.isArray(nextSignals) ? nextSignals : []);
+        const dismissed = readDismissedSignals();
+        const activeSignals = (Array.isArray(nextSignals) ? nextSignals : [])
+          .filter(s => !dismissed.some(d => d.id === s.id));
+        setSignals(activeSignals);
       } catch (error) {
         if (cancelled) return;
         showNotice({
@@ -656,7 +662,10 @@ export default function SignalsModule() {
     if (isRefresh) setRefreshing(true);
     try {
       const nextSignals = await getSignalsApi();
-      setSignals(Array.isArray(nextSignals) ? nextSignals : []);
+      const dismissed = readDismissedSignals();
+      const activeSignals = (Array.isArray(nextSignals) ? nextSignals : [])
+        .filter(s => !dismissed.some(d => d.id === s.id));
+      setSignals(activeSignals);
     } catch (error) {
       showNotice({
         type: 'error',
@@ -933,6 +942,7 @@ export default function SignalsModule() {
                               signal={sig} 
                               onAction={handleAction} 
                               busyActionType={busySignalId === sig.id ? busyActionType : ''}
+                              isSelected={selectedSignalId === sig.id}
                             />
                           ))}
                         </div>
@@ -950,9 +960,15 @@ export default function SignalsModule() {
               </div>
             </div>
 
-            {/* RIGHT RAIL: HEALTH MONITOR */}
-            <div className="rounded-lg border border-emerald-500/30 overflow-y-auto px-2 py-1 h-full">
-              <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400/50 mb-2">Health Monitor</div>
+            {/* RIGHT RAIL: INSPECTOR & HEALTH */}
+            <div className="flex flex-col gap-3 h-full overflow-hidden">
+              <div className="rounded-lg border border-cyan-500/30 bg-black/10 p-2 shrink-0">
+                <div className="text-[9px] font-bold uppercase tracking-[0.24em] text-cyan-400/50 mb-2">Signal Inspector</div>
+                <DetailInspector signal={signals.find(s => s.id === selectedSignalId)} />
+              </div>
+
+              <div className="rounded-lg border border-emerald-500/30 overflow-y-auto px-2 py-1 flex-1 no-scrollbar">
+                <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400/50 mb-2">Health Monitor</div>
               
               <div className="px-3 py-2">
                 <div className="flex items-center justify-between">
@@ -1106,9 +1122,10 @@ export default function SignalsModule() {
 
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {showArchived && hasArchivedSignals ? (
+      {showArchived && hasArchivedSignals ? (
           <div className="fixed bottom-[88px] right-6 z-[9999] w-[320px] rounded-lg border border-rose-500/30 bg-slate-950/96 p-3 shadow-2xl backdrop-blur">
             <div className="mb-2 flex items-center gap-2">
               <Trash2 size={16} className="text-rose-300" />

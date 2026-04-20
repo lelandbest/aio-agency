@@ -96,14 +96,17 @@ New folder/
 .cache/
 
 # Mobile development
-android-sdk/ -e 
+android-sdk/
+
 # Environment files
 *.env
 *.env.*
 backend/data/*.db
 backend/*.db
--e 
-nul
+**/nul
+
+# Website Archive
+website/Old Sites/
 
 # logs
 *.log
