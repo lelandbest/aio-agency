@@ -421,7 +421,7 @@ const CortexCategoryModal = ({ category, items, vaultItems = [], isOpen, onClose
       </div>
 
       {selectedItem && (
-        <div className="overlay-scrim fixed inset-0 z-[6000] flex items-center justify-center p-12" onClick={() => setSelectedItem(null)}>
+        <div className="overlay-scrim fixed inset-0 z-[100000] flex items-center justify-center p-12" onClick={() => setSelectedItem(null)}>
           <div className={COMMS_PANEL + " w-full max-w-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300"} onClick={e => e.stopPropagation()}>
             <div className="p-8 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-primary)]/35">
               <div>
