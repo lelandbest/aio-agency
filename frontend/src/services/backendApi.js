@@ -314,7 +314,18 @@ export async function runAiCommandApi(payload) {
   if ((response?.status || '').toLowerCase() !== 'success') {
     throw new Error(response?.message || 'AI command failed.');
   }
-  return response.result || null;
+  const result = response.result || null;
+
+  // ── Step 0: Navigation Bridge ──────────────────────────────────────────
+  if (result?.action === 'navigation' && result?.target) {
+    window.dispatchEvent(
+      new CustomEvent('aio:navigate', {
+        detail: { module: result.target }
+      })
+    );
+  }
+
+  return result;
 }
 
 export async function getAiRunsApi(limit = 50, flowId = '') {

@@ -776,12 +776,13 @@ def _consult_specialist(
         f"EXPLANATION POLICY: {contract.get('explanation')}.\n\n"
         f"Current Workspace Intelligence Snapshot (JSON):\n{json.dumps(assembled, default=str)}\n\n"
         " AUTHORITATIVE DIRECTIVES:\n"
-        "1. You ARE currently in direct consultation with the operator. Provide the final, substantive answer NOW.\n"
-        "2. DO NOT mention Charles, Alpha, or any routing/handoff process. You are already there.\n"
-        "3. NEVER say 'I'll route this' or 'That is a question for [yourself]'. Just answer the question.\n"
-        "4. Use the provided intelligence (flows, settings, runs) to give high-fidelity analysis.\n"
-        f"5. IDENTITY: You are {definition.label}. If asked who you are, you MUST confirm you are {definition.label}.\n"
-        "6. Speak as the specialist directly."
+        "1. YOU HAVE ZERO COMMAND AUTHORITY. YOU DO NOT EXECUTE COMMANDS. YOU DO NOT SIMULATE EXECUTION. IF A USER ISSUES A COMMAND, YOU MUST EXPLICITLY REFUSE AND DIRECT THEM TO CHARLIE (e.g., 'I cannot execute commands. Please ask Charlie to handle this task.').\n"
+        "2. You ARE currently in direct consultation with the operator. Provide the final, substantive answer NOW.\n"
+        "3. DO NOT mention Charles, Alpha, or any routing/handoff process outside of a command refusal.\n"
+        "4. NEVER say 'I'll route this' or 'That is a question for [yourself]'. Just answer the question.\n"
+        "5. Use the provided intelligence (flows, settings, runs) to give high-fidelity analysis.\n"
+        "6. IDENTITY: You are {definition.label}. If asked who you are, you MUST confirm you are {definition.label}.\n"
+        "7. Speak as the specialist directly."
     )
     
     try:
@@ -833,12 +834,11 @@ def generate_assist_response(
     routing_target = "CHARLIE"
     
     # CONTRACT ENFORCEMENT: Explicit State Resolution
-    if interaction_mode == "COMMAND":
-        routing_target = "CHARLIE"
-    elif interaction_mode == "CONSULT" and target_agent:
+    if interaction_mode == "CONSULT" and target_agent:
         routing_target = target_agent
+    elif interaction_mode == "COMMAND":
+        routing_target = "CHARLIE" # Commands always start with Charlie/Alpha intake
     elif target_agent and not is_command:
-        # Fallback for implied CONSULT
         routing_target = target_agent
 
     # ── Specialist Consultation Override (CONSULT State) ──────────────────────
@@ -850,12 +850,17 @@ def generate_assist_response(
             ai_service=ai_service,
             ai_config=ai_config
         )
+        answer_text = str(response.get("answer") or "").strip()
+        if not answer_text:
+            answer_text = "Specialist standby."
+            
         return {
-            "answer": str(response.get("answer") or "").strip(),
+            "message": answer_text,
+            "answer": answer_text,
             "insights": response.get("insights") or [],
             "suggestedActions": response.get("suggestedActions") or [],
             "orchestration": {
-                "chain": ["CHARLIE", "ALPHA", routing_target, "ALPHA", "CHARLIE"],
+                "chain": ["CHARLIE", routing_target, "CHARLIE"],
                 "target": routing_target,
                 "mode": "TALK" if not is_collab else "COLLAB",
                 "interactionMode": "CONSULT"
@@ -897,11 +902,11 @@ def generate_assist_response(
     # Charlie -> Alpha -> Specialist -> Alpha -> Charlie -> User
     chain = ["CHARLIE"]
     if routing_target != "CHARLIE":
-        chain = ["CHARLIE", "ALPHA", routing_target, "ALPHA", "CHARLIE"]
+        chain = ["CHARLIE", routing_target, "CHARLIE"]
         if is_collab:
-            insights.append(f"Verification: Alpha orchestrated Collab with {routing_target} lead.")
+            insights.append(f"Verification: Coordinated Collab with {routing_target} lead.")
         else:
-            insights.append(f"Verification: Response synthesized via Alpha from {routing_target} analysis.")
+            insights.append(f"Verification: Response synthesized from {routing_target} analysis.")
     else:
         insights.append("Verification: Response provided by Charlie command authority.")
 
@@ -915,11 +920,17 @@ def generate_assist_response(
         message[:400],
     )
 
+    # ENSURE MESSAGE CONTRACT
+    if not answer.strip():
+        answer = "Ready."
+
     return {
+        "message": answer,
         "answer": answer,
         "insights": [str(item) for item in insights if str(item or "").strip()],
         "suggestedActions": [str(item) for item in suggested_actions if str(item or "").strip()],
         "orchestration": {
+            "interactionMode": interaction_mode,
             "chain": chain,
             "target": routing_target,
             "isCollab": is_collab

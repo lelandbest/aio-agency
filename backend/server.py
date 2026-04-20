@@ -3688,6 +3688,49 @@ async def ai_command(request: Request, payload: AICommandRequest):
     command_text = (payload.command or "").strip()
     if not command_text:
         raise HTTPException(status_code=400, detail="Command is required.")
+
+    # ── Step 0: Shell Navigation Authority Intercept ──────────────────────────
+    nav_cmd = command_text.lower()
+    if nav_cmd.startswith(("open ", "go ")):
+        target = nav_cmd.split(" ", 1)[1].strip()
+        nav_map = {
+            "cortex": "aio-brain",
+            "signals": "signals",
+            "agents": "aio-agents",
+            "forge": "forge",
+            "calendar": "calendar",
+            "comms": "comms",
+            "crm": "crm",
+            "design": "design",
+            "flows": "flows",
+            "forms": "forms",
+            "orders": "orders",
+            "pipelines": "pipelines",
+            "pipeline": "pipelines",
+            "sms voip": "sms_voip",
+            "studio": "media",
+            "media": "media",
+            "systems": "integrations",
+            "integrations": "integrations",
+            "settings": "settings",
+            "help": "aio-help"
+        }
+        if target in nav_map:
+            module_id = nav_map[target]
+            display_name = target.replace("sms voip", "SMS & VoIP").title()
+            return {
+                "status": "success",
+                "message": f"Opening {display_name}.",
+                "result": {
+                    "status": "completed",
+                    "action": "navigation",
+                    "target": module_id,
+                    "module": module_id,
+                    "intent": "navigation",
+                    "message": f"Opening {display_name}."
+                }
+            }
+
     module = str(resolved_context.get("module") or "agents")
     surface = str(resolved_context.get("surface") or "command")
     requested_agent = normalize_agent_key(payload.agent or resolved_context.get("requested_agent"))
@@ -3705,20 +3748,20 @@ async def ai_command(request: Request, payload: AICommandRequest):
     if flow_id and not selected_flow:
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "runId": None},
             "message": f"Flow '{flow_id}' is not available in the current workspace.",
+            "result": {},
         }
     if requested_agent == "OMEGA":
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "runId": None},
             "message": "OMEGA cannot be executed through the natural-language agent shell.",
+            "result": {},
         }
     if resolved_context.get("requested_agent") and not requested_agent:
         return {
             "status": "error",
-            "result": {"routing": None, "run": None, "runId": None},
             "message": f"Unknown agent '{resolved_context.get('requested_agent')}'.",
+            "result": {},
         }
     booking_command_steps = create_booking_execution_plan(command_text, resolved_context)
     booking_command_mode = any(
@@ -3781,13 +3824,13 @@ async def ai_command(request: Request, payload: AICommandRequest):
             "Return only valid JSON with key 'classification' set to "
             "'MEDIA_TASK', 'TASK', or 'CONVERSATION'. No explanation. No markdown."
         )
-        classification_result = ai_service._provider_complete(
-            provider_config=ai_provider,
-            prompt=classification_prompt,
-            system_prompt=classification_system,
-        )
-        classification_raw = (classification_result or {}).get("suggestion", "")
         try:
+            classification_result = ai_service._provider_complete(
+                provider_config=ai_provider,
+                prompt=classification_prompt,
+                system_prompt=classification_system,
+            )
+            classification_raw = (classification_result or {}).get("suggestion", "")
             import re as _re
             _json_match = _re.search(r'\{[^}]+\}', classification_raw)
             classification_json = json.loads(_json_match.group()) if _json_match else {}
@@ -3802,10 +3845,9 @@ async def ai_command(request: Request, payload: AICommandRequest):
             interaction_mode = "CONSULT"
         else:
             interaction_mode = "CONVO"
-
+        
         # ── Step 3: Branch by Interaction State ───────────────────────────────────────
-        if interaction_mode != "COMMAND":
-            # State === CONSULT or CONVO routes through unified orchestration bridge.
+        if interaction_mode == "CONSULT":
             try:
                 assist_resp = generate_assist_response(
                     message=command_text,
@@ -3823,24 +3865,57 @@ async def ai_command(request: Request, payload: AICommandRequest):
                     ai_service=ai_assist_service,
                     ai_config=ai_provider
                 )
+                message = assist_resp.get("answer") or assist_resp.get("message") or "..."
                 return {
                     "status": "success",
-                    "message": assist_resp.get("answer"),
+                    **assist_resp,
+                    "message": message,
                     "result": {
+                        "message": message,
                         "routing": routing,
-                        "run": None,
-                        "runId": None,
                         "orchestration": assist_resp.get("orchestration")
                     }
                 }
             except Exception as e:
-                logger.error("Unified orchestration bridge failed: %s", str(e))
-                if interaction_mode == "CONSULT":
-                    return {
-                        "status": "error",
-                        "message": f"Specialist consultation failed: {str(e)}",
-                        "result": {"routing": routing, "run": None, "runId": None}
+                logger.error("Specialist consultation bridge failed: %s", str(e))
+                return {
+                    "status": "error",
+                    "message": f"Specialist consultation failed: {str(e)}",
+                    "result": {"routing": routing}
+                }
+
+        if interaction_mode == "CONVO":
+            # CONVO routes through unified orchestration bridge with fallback.
+            try:
+                assist_resp = generate_assist_response(
+                    message=command_text,
+                    context={
+                        **resolved_context,
+                        "assistMode": "brain",
+                        "targetAgent": requested_agent,
+                        "collab": is_collab,
+                        "interactionMode": interaction_mode
+                    },
+                    token=token,
+                    session=session,
+                    auth_store=auth_store,
+                    provider=provider,
+                    ai_service=ai_assist_service,
+                    ai_config=ai_provider
+                )
+                message = assist_resp.get("answer") or assist_resp.get("message") or "Ready."
+                return {
+                    "status": "success",
+                    **assist_resp,
+                    "message": message,
+                    "result": {
+                        "message": message,
+                        "routing": routing,
+                        "orchestration": assist_resp.get("orchestration")
                     }
+                }
+            except Exception as e:
+                logger.error("CONVO orchestration bridge failed: %s", str(e))
                 # Fallback to direct Charlie for CONVO
                 pass
 
@@ -3852,14 +3927,15 @@ async def ai_command(request: Request, payload: AICommandRequest):
                 prompt=command_text,
                 system_prompt=charlie_sys_prompt,
             )
-            raw_reply = (convo_result or {}).get("suggestion") or "I'm here. What do you need?"
+            raw_reply = str((convo_result or {}).get("suggestion") or "").strip() or "Ready."
             reply_text = strip_markdown(raw_reply)
             return {
                 "status": "success",
+                "message": reply_text,
                 "result": {
+                    "message": reply_text,
                     "mode": "immediate",
                     "intent": "conversation",
-                    "message": reply_text,
                     "response": {"answer": reply_text, "insights": [], "suggestedActions": []},
                 }
             }
@@ -4131,11 +4207,11 @@ async def ai_command(request: Request, payload: AICommandRequest):
             # ── Charlie review wrap (media) ───────────────────────────────────
             media_review_prompt = (
                 f"The user asked: \"{command_text}\"\n\n"
-                "ALPHA executed the following media assembly:\n\n"
+                "The following media assembly was completed:\n\n"
                 f"{qc_summary}\n\n"
-                "Present this result to the user. Lead with what Alpha prepared. "
+                "Present this result to the user. "
                 "Do NOT say 'I generated' or 'I created' or 'I rendered'. "
-                "Use phrasing like 'Alpha assembled', 'the media package is ready', 'the render job has been submitted'. "
+                "Use phrasing like 'The media package is ready', 'The render job has been submitted'. "
                 + ("Mention that some components encountered issues and offer to retry or simplify if there were errors. " if media_errors and not media_assets_built else "")
                 + ("Ask whether this matches what they requested. " if media_assets_built else "Ask if they'd like to revise the request or try again. ")
                 + "Be concise. One paragraph maximum."
@@ -4221,7 +4297,7 @@ async def ai_command(request: Request, payload: AICommandRequest):
 
             review_prompt = (
                 f"The user asked: \"{command_text}\"\n\n"
-                f"ALPHA routed this to {delegated_agent}, who produced the following output:\n\n"
+                f"I've coordinated with {delegated_agent}, who produced the following output:\n\n"
                 f"{specialist_output}\n\n"
                 "Present this output to the user cleanly and concisely. "
                 "Then ask one short confirmation question: does this match what they requested? "
@@ -4352,8 +4428,8 @@ async def ai_command(request: Request, payload: AICommandRequest):
         logger.exception("ExecutionEngine command run failed")
         return {
             "status": "error",
-            "result": {"routing": routing, "run": None, "runId": None},
             "message": str(error),
+            "result": {"routing": routing},
         }
 
     engine_steps = engine_result.get("steps") or []

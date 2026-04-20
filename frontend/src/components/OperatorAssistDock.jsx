@@ -39,6 +39,23 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
   const [error, setError] = useState('');
   const [entries, setEntries] = useState([]);
   const textareaRef = useRef(null);
+  const scrollRef = useRef(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const nearBottom = (scrollHeight - scrollTop - clientHeight) < 80;
+    setIsNearBottom(nearBottom);
+  };
+
+  useEffect(() => {
+    if (!scrollRef.current || !isNearBottom) return;
+    scrollRef.current.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [entries, isNearBottom]);
 
   useEffect(() => {
     if (open) {
@@ -63,6 +80,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
     if (selectedAgent && selectedAgent !== lastAgentRef.current) {
       const systemMessageId = `system-entry-${Date.now()}`;
       setEntries((prev) => [
+        ...prev,
         {
           id: systemMessageId,
           type: 'system',
@@ -73,8 +91,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
             suggestedActions: []
           },
           pending: false
-        },
-        ...prev
+        }
       ]);
     }
     lastAgentRef.current = selectedAgent;
@@ -99,13 +116,13 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
     setLoading(true);
     setPrompt('');
     setEntries((prev) => [
+      ...prev,
       {
         id: pendingId,
         prompt: message,
         response: null,
         pending: true,
-      },
-      ...prev,
+      }
     ]);
 
     try {
@@ -194,7 +211,11 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
             </button>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div 
+            className="flex-1 overflow-y-auto px-5 py-4"
+            ref={scrollRef}
+            onScroll={handleScroll}
+          >
             {emptyState ? (
               <div className="space-y-5">
                 <div className={`${SURFACE_CARD_CLASS} p-4`}>
@@ -247,7 +268,7 @@ const OperatorAssistDock = ({ activeModule, activeModuleLabel }) => {
                       <>
                         <div className="mt-4 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">Answer</div>
                         <div className="mt-2 text-sm leading-6 text-[var(--color-text-primary)]">
-                          {entry.response?.answer || "I don't have enough data to confirm that."}
+                          {entry.response?.message || entry.response?.answer || "I don't have enough data to confirm that."}
                         </div>
 
                         {Array.isArray(entry.response?.insights) && entry.response.insights.length > 0 ? (

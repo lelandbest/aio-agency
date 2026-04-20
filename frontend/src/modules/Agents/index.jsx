@@ -510,6 +510,14 @@ const AIOAgentsModule = () => {
   const [pollingRunId, setPollingRunId] = useState(null);
   const runPollIntervalRef = useRef(null);
   const chatFeedRef = useRef(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
+  const handleScroll = useCallback(() => {
+    if (!chatFeedRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatFeedRef.current;
+    const nearBottom = (scrollHeight - scrollTop - clientHeight) < 80;
+    setIsNearBottom(nearBottom);
+  }, []);
 
   const stopRunPolling = useCallback(() => {
     if (runPollIntervalRef.current) {
@@ -621,12 +629,12 @@ const AIOAgentsModule = () => {
   }, []);
 
   useEffect(() => {
-    if (!chatFeedRef.current) return;
+    if (!chatFeedRef.current || !isNearBottom) return;
     chatFeedRef.current.scrollTo({
       top: chatFeedRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [messages, activeRun]);
+  }, [messages, activeRun, isNearBottom]);
 
   useEffect(() => {
     try {
