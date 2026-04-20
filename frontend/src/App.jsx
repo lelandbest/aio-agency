@@ -714,15 +714,20 @@ const App = () => {
     );
   }
 
-  // Placeholder component for modules not yet extracted
-  const PlaceholderModule = ({ name }) => (
-    <div className="h-full bg-[var(--color-bg-tertiary)] rounded-xl border border-[var(--color-border)] flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-16 h-16 bg-[var(--color-bg-secondary)] rounded-full flex items-center justify-center mx-auto mb-4 border border-[var(--color-border)]">
-          <Bot size={32} className="text-[var(--color-text-secondary)]" />
+  const UnknownModule = ({ moduleId }) => (
+    <div className="h-full bg-[var(--color-bg-tertiary)] rounded-xl border border-red-500/30 flex items-center justify-center">
+      <div className="text-center max-w-md px-4">
+        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30">
+          <Lucide.AlertTriangle size={32} className="text-red-400" />
         </div>
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-2">{name} Module</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Coming soon...</p>
+        <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-2">Unknown Module</h2>
+        <p className="text-sm text-[var(--color-text-secondary)] mb-4">Module "{moduleId}" not found</p>
+        <button
+          onClick={() => setActiveModule('aio-brain')}
+          className="text-sm text-cyan-400 hover:text-cyan-300 underline"
+        >
+          Return to Cortex
+        </button>
       </div>
     </div>
   );
@@ -813,7 +818,7 @@ const App = () => {
       case 'comms':
         return <CommsModule initialChannel="all" initialThreadId={commsThreadId} onNavigate={setActiveModule} clientMode={clientMode} />;
       case 'marketplace':
-        return <PlaceholderModule name="Marketplace" />;
+        return <UnknownModule moduleId="marketplace" />;
       case 'sms_voip':
         return (
           <SmsVoipModule
@@ -834,7 +839,7 @@ const App = () => {
       case 'forge':
         return <ForgeModule />;
       default:
-        return <PlaceholderModule name="Module" />;
+        return <UnknownModule moduleId={effectiveActiveModule} />;
     }
   };
 
