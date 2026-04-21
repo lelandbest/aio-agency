@@ -61,6 +61,7 @@ import FrameNode from './components/nodes/FrameNode';
 import NoteNode from './components/nodes/NoteNode';
 
 import { createNode } from './data/nodeLibrary';
+import { templates } from './data/templates';
 import flowRepository from './utils/flowRepository';
 import flowDraftRepository from './utils/flowDraftRepository';
 import { buildFlowSpec, validateFlowSpec } from './utils/flowSpec';
@@ -390,7 +391,28 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
   // Config UI state
-  const [selectedNode, setSelectedNode] = useState(null);
+  const unghostedNodes = nodes.filter(n => !n?.data?.isGhost);
+  const selectedNodes = unghostedNodes.filter(n => n.selected);
+  const selectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null;
+
+  const setSelectedNode = useCallback((updater) => {
+    setNodes(nds => {
+      if (updater === null) {
+        return nds.map(n => n.selected ? { ...n, selected: false } : n);
+      }
+      
+      const sNode = nds.find(n => n.selected);
+      if (typeof updater === 'function') {
+        if (!sNode) return nds;
+        const nextNode = updater(sNode);
+        return nds.map(n => n.id === nextNode.id ? nextNode : n);
+      } else {
+        return nds.map(n => ({ ...n, selected: n.id === updater.id }));
+      }
+    });
+    setIsDirty(true);
+  }, [setNodes]);
+
   const [showNodeConfig, setShowNodeConfig] = useState(false);
   const [showNodeModal, setShowNodeModal] = useState(false);
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
@@ -758,7 +780,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   const createGhostStarterNode = () => ({
     id: 'ghost-starter',
     type: 'trigger',
-    position: { x: 132, y: 360 },
+    position: { x: 240, y: 220 },
     data: {
       label: 'Add your first ...',
       description: '',
@@ -786,16 +808,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }, [reactFlowInstance]);
 
   // Initialize flow on mount - run ONLY once per flowId
-  const flowInitializedRef = useRef({});
-  
   useEffect(() => {
-    // Reset initialization state when flowId changes
-    if (flowId && flowInitializedRef.current[flowId]) {
-      return; // Already initialized this flowId
-    }
-    if (flowId) {
-      flowInitializedRef.current[flowId] = true;
-    }
+    let active = true;
     
     const initFlow = async () => {
       try {
@@ -817,12 +831,20 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           onFlowContextChange?.({ flowId: flowData.id, action: null, intent: null });
         }
 
+        // Debug: Log loaded flow structure for validation debugging
+        console.log('[FlowBuilder] Loaded flow:', { 
+          id: flowData?.id, 
+          name: flowData?.name, 
+          nodeCount: flowData?.nodes?.length || 0, 
+          edgeCount: flowData?.edges?.length || 0,
+          sourceTemplateId: flowData?.metadata?.sourceTemplateId 
+        });
+
         // 0. Dynamic Flow Generation (Alpha Orchestration Layer)
         if (action === 'create_dynamic_flow' && intent) {
           const alphaPlan = orchestrateFlowIntent(intent);
           if (alphaPlan.approved) {
             console.log('[FlowBuilder] Alpha Approved Intent:', alphaPlan.normalizedIntent);
-            // This will internally call flowDraftRepository.saveDraft + setActiveDraft
             await generateFlowFromIntent(alphaPlan);
           } else {
             console.warn('[FlowBuilder] Alpha Rejected Intent:', alphaPlan.reason);
@@ -830,34 +852,84 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
           }
         }
 
-        // 1. Initial Load Ingress (Saved)
+        // New Flow Template Detection: If new flow and context suggests Media Pipeline, apply podcast-pipeline template
+        let sourceDataNodes = flowData?.nodes || [];
+        let sourceDataEdges = flowData?.edges || [];
+        let forceTemplateApplied = false;
+
+        const isNewBlankFlow = !flowId && sourceDataNodes.length === 0;
+        const isMediaIntent = intent === 'podcast-pipeline' || action === 'create_media_pipeline';
+        
+        if (isNewBlankFlow && isMediaIntent) {
+          const template = templates.find(t => t.id === 'podcast-pipeline');
+          if (template) {
+            const ingested = ingestBuilderFlowSource(template, { source: 'template' });
+            sourceDataNodes = ingested.nodes;
+            sourceDataEdges = ingested.edges;
+            forceTemplateApplied = true;
+            console.log('[FlowBuilder] Detected Media Pipeline intent, auto-applying podcast-pipeline template.');
+          }
+        }
+
+        // 1. Initial Load Ingress (Saved/Template)
         const initialResult = ingestBuilderFlowSource({
-          nodes: flowData?.steps || [],
-          edges: flowData?.connections || [],
-          source: 'saved'
+          nodes: sourceDataNodes,
+          edges: sourceDataEdges,
+          source: forceTemplateApplied ? 'template' : 'saved'
         });
+
+        if (!active) return;
 
         if (initialResult.validation.blockers.length === 0) {
           if (initialResult.nodes.length > 0) {
-            setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
+            // Restore correct placement: Skip auto-layout for designated Media Pipeline templates to maintain horizontal structure
+            // Also detect by: template ID, flow name
+            const isMediaPipeline = forceTemplateApplied || 
+                                   flowData?.metadata?.sourceTemplateId === 'podcast-pipeline' || 
+                                   flowData?.name === 'Media Pipeline';
+            
+            if (isMediaPipeline) {
+              setNodes(initialResult.nodes);
+            } else {
+              setNodes(layoutNodesLeftToRight(initialResult.nodes, initialResult.edges));
+            }
             setEdges(normalizeEdges(initialResult.edges));
-          } else {
+          } else if (!flowId) {
             setNodes([createGhostStarterNode()]);
+            setEdges([]);
+          } else {
+            setNodes([]);
             setEdges([]);
           }
         } else {
-          console.error('Initial load blocked by validation:', initialResult.validation.blockers);
+          // Validation blocked - log blockers for debugging, but still try to show nodes if they exist
+          console.warn('Flow validation blockers:', initialResult.validation.blockers);
+          if (initialResult.nodes.length > 0) {
+            // Even with validation blockers, attempt to show the nodes for debugging
+            setNodes(initialResult.nodes);
+            setEdges(normalizeEdges(initialResult.edges));
+          } else if (!flowId) {
+            setNodes([createGhostStarterNode()]);
+            setEdges([]);
+          } else {
+            setNodes([]);
+            setEdges([]);
+          }
         }
-        setIsDirty(false);
+        // Log warnings for visibility
+        if (initialResult.validation.warnings.length > 0) {
+          console.warn('Flow validation warnings:', initialResult.validation.warnings);
+        }
+        setIsDirty(forceTemplateApplied);
       } catch (error) {
         console.error('Failed to initialize flow:', error);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     initFlow();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { active = false; };
   }, [flowId]); // ONLY flowId - no other dependencies to prevent refetch loop
 
   // Handle edge connection
@@ -929,22 +1001,46 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   }, [reactFlowInstance, nodes, edges, setNodes, isSystemManaged, mutateBuilderFlowGraph]);
 
 
-  const handleDeleteSelectedNode = useCallback(() => {
-    if (!selectedNode || selectedNode?.data?.isGhost) return;
-    const nodeId = selectedNode.id;
+  const handleDeleteSelectedNodes = useCallback((explicitNodeIds = null) => {
+    let idsToDelete = [];
+    if (Array.isArray(explicitNodeIds) && explicitNodeIds.length > 0) {
+      idsToDelete = explicitNodeIds;
+    } else if (typeof explicitNodeIds === 'string') {
+      idsToDelete = [explicitNodeIds];
+    } else {
+      idsToDelete = selectedNodes.map(n => n.id);
+    }
 
-    // Rule: Use mutateFlowGraph for internal deletions (Prevents orphans)
-    const result = mutateBuilderFlowGraph(nodes, edges, {
-      type: 'DELETE_NODE',
-      payload: { nodeId }
-    }, isSystemManaged);
+    if (idsToDelete.length === 0) return;
 
-    if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-    setNodes(result.nodes);
-    setEdges(normalizeEdges(result.edges));
-    setSelectedNode(null);
-    setIsDirty(true);
-  }, [selectedNode, nodes, edges, setNodes, setEdges, isSystemManaged, mutateBuilderFlowGraph]);
+    let nextNodes = nodes;
+    let nextEdges = edges;
+    let modified = false;
+
+    for (const targetId of idsToDelete) {
+      const targetNode = nextNodes.find(n => n.id === targetId);
+      if (!targetNode || targetNode?.data?.isGhost) continue;
+
+      const result = mutateBuilderFlowGraph(nextNodes, nextEdges, {
+        type: 'DELETE_NODE',
+        payload: { nodeId: targetId }
+      }, isSystemManaged);
+
+      if (!result?.__blocked) {
+        nextNodes = result.nodes;
+        nextEdges = result.edges;
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      setNodes(nextNodes);
+      setEdges(normalizeEdges(nextEdges));
+      setIsDirty(true);
+    } else {
+      console.warn('This flow is system-managed and cannot be modified.');
+    }
+  }, [selectedNodes, nodes, edges, setNodes, setEdges, isSystemManaged, mutateBuilderFlowGraph]);
 
   // Handle drag over canvas
   const onDragOver = useCallback((event) => {
@@ -1002,13 +1098,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
       setLeftPanelTab('nodes');
       return;
     }
-    setSelectedNode(node);
-    // Panel should ONLY open on dbl clk now
+    // Selection is natively handled by React Flow
   }, []);
 
   const onNodeDragStart = useCallback((event, node) => {
-    setSelectedNode(node);
-    // Panel should ONLY open on dbl clk now
+    // Selection is natively handled by React Flow
   }, []);
 
   const onNodeDoubleClick = useCallback((event, node) => {
@@ -1042,7 +1136,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
   );
 
   const onPaneClick = useCallback(() => {
-    setSelectedNode(null);
+    // Deselection natively handled by ReactFlow
     setRightPanelOpen(false);
   }, []);
 
@@ -1203,7 +1297,19 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     if (!flow) return null;
 
     const { sanitizedNodes, sanitizedEdges } = getSanitizedGraph();
-    const spec = buildFlowSpec({ flow, nodes: sanitizedNodes, edges: sanitizedEdges });
+    
+    // Strip transient UI/runtime fields to prevent Data-shape drift
+    const cleanedNodes = sanitizedNodes.map(node => {
+      const { selected, dragging, positionAbsolute, width, height, resizing, measured, style, className, sourcePosition, targetPosition, ...cleanNode } = node;
+      return cleanNode;
+    });
+    
+    const cleanedEdges = sanitizedEdges.map(edge => {
+      const { selected, animated, style, className, ...cleanEdge } = edge;
+      return cleanEdge;
+    });
+
+    const spec = buildFlowSpec({ flow, nodes: cleanedNodes, edges: cleanedEdges });
     const result = validateBuilderSpec(spec);
     setValidationResult(result);
 
@@ -1211,7 +1317,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const resolvedName = String(flow.name || 'Untitled Flow').trim() || 'Untitled Flow';
     const nextMetadata = {
       ...(flow.metadata || {}),
-      nodeCount: sanitizedNodes.length,
+      nodeCount: cleanedNodes.filter(n => n.type !== 'note' && n.type !== 'frame').length,
     };
 
     // Extract associated form IDs for persistence
@@ -1249,8 +1355,8 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
         ...flow,
         ...(asNew ? { id: undefined, createdAt: now, status: 'Draft' } : {}),
         name: asNew ? `${resolvedName} Copy` : resolvedName,
-        nodes: sanitizedNodes,
-        edges: sanitizedEdges,
+        nodes: cleanedNodes,
+        edges: cleanedEdges,
         spec,
         updatedAt: now,
         lastEditedBy: 'Current User',
@@ -1285,8 +1391,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
     const hasRealNodes = nodes.some(n => !n.data?.isGhost);
     
     if (!hasGhost && !hasRealNodes) {
-      // Empty graph - insert ghost starter
-      setNodes([createGhostStarterNode()]);
+      if (!flow.id) {
+        // Empty graph - insert ghost starter
+        setNodes([createGhostStarterNode()]);
+      }
       return;
     }
     
@@ -2094,6 +2202,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             onMoveEnd={(evt, viewport) => { viewportRef.current = viewport; }}
             onEdgeContextMenu={onEdgeContextMenu}
             nodeTypes={nodeTypes}
+            deleteKeyCode={['Backspace', 'Delete']}
+            onNodesDelete={(deletedNodes) => {
+              handleDeleteSelectedNodes(deletedNodes.map(n => n.id));
+            }}
             fitView={!nodes.some(n => n.data?.isGhost)}
             connectionRadius={40}
             proOptions={{ hideAttribution: true }}
@@ -2311,7 +2423,11 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             onClick={() => {
               const result = mutateBuilderFlowGraph(nodes, edges, { type: 'ALIGN_NODES' });
               if (result.validation.blockers.length === 0) {
-                setNodes(layoutNodesLeftToRight(result.nodes, result.edges));
+                const laidNodes = layoutNodesLeftToRight(result.nodes, result.edges);
+                setNodes(laidNodes);
+                setEdges(normalizeEdges(result.edges));
+                // Center the view on aligned nodes
+                reactFlowInstance?.fitView({ padding: 0.2, duration: 300 });
               }
             }}
             className="btn-secondary h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight whitespace-nowrap"
@@ -2331,10 +2447,10 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
 
           <button
             type="button"
-            onClick={handleDeleteSelectedNode}
+            onClick={() => handleDeleteSelectedNodes()}
             className="h-8 px-3 rounded-[var(--radius-card)] text-[10px] font-bold uppercase tracking-tight bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 transition-all flex items-center justify-center shadow-sm"
           >
-            Delete node
+            Delete {selectedNodes.length > 1 ? `nodes (${selectedNodes.length})` : 'node'}
           </button>
         </div>
 
@@ -3665,17 +3781,7 @@ const FlowBuilder = ({ flowId = null, action = null, intent = null, onFlowContex
             </div>
             <button
               onClick={() => {
-                const node = nodeMenu.node;
-                // Rule: Use mutateFlowGraph for internal delete
-                const result = mutateBuilderFlowGraph(nodes, edges, {
-                  type: 'DELETE_NODE',
-                  payload: { nodeId: node.id }
-                }, isSystemManaged);
-                if (result?.__blocked) { console.warn('This flow is system-managed and cannot be modified.'); return; }
-                if (result.validation.blockers.length === 0) {
-                  setNodes(result.nodes);
-                  setEdges(normalizeEdges(result.edges));
-                }
+                handleDeleteSelectedNodes([nodeMenu.node.id]);
                 setNodeMenu(null);
               }}
               className="px-3 py-2 rounded hover:bg-[var(--color-hover)] text-[var(--color-text-primary)] w-full text-left"

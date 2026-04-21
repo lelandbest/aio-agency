@@ -11,7 +11,7 @@ export const createInitialFlow = () => {
       {
         id: 'trigger-1',
         type: 'trigger',
-        position: { x: 250, y: 50 },
+        position: { x: 240, y: 220 },
         data: {
           label: 'Manual Trigger',
           description: 'Start flow manually',

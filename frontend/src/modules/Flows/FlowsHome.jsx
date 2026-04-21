@@ -414,7 +414,9 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
       width: '100px',
       render: (flow) => (
         <span className="text-sm text-[var(--color-text-secondary)]">
-          {flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0}
+          {Array.isArray(flow?.nodes) 
+              ? flow.nodes.filter(n => !n?.data?.isGhost && n?.type !== 'note' && n?.type !== 'frame').length 
+              : (flow?.metadata?.nodeCount || 0)}
         </span>
       ),
     },
@@ -613,7 +615,7 @@ const FlowsHome = ({ onCreateFlow, onOpenFlow, onCreateFromTemplate, onSelectFlo
                   <div className="min-w-0">
                     <div className="truncate font-medium">{flow.name || 'Untitled Flow'}</div>
                     <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
-                      {(flow?.metadata?.nodeCount ?? flow?.nodes?.length ?? 0)} nodes | {flow.status || 'Draft'}
+                      {Array.isArray(flow?.nodes) ? flow.nodes.filter(n => !n?.data?.isGhost && n?.type !== 'note' && n?.type !== 'frame').length : (flow?.metadata?.nodeCount || 0)} nodes | {flow.status || 'Draft'}
                     </div>
                   </div>
                 </button>
